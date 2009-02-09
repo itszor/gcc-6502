@@ -1,0 +1,2 @@
+/* A 24-bit pointer mode.  */
+PARTIAL_INT_MODE (SI);

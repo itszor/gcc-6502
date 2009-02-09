@@ -265,6 +265,9 @@ tm_p_file=
 cpu_type=`echo ${target} | sed 's/-.*$//'`
 cpu_is_64bit=
 case ${target} in
+65816-*-*)
+	cpu_type=65816
+	;;
 m32c*-*-*)
         cpu_type=m32c
 	tmake_file=m32c/t-m32c
@@ -622,6 +625,8 @@ case ${target} in
 	if test -f $srcdir/config/${cpu_type}/t-$rest
 	then tmake_file=${cpu_type}/t-$rest
 	fi
+	;;
+65816-*-*)
 	;;
 alpha*-*-unicosmk*)
 	use_collect2=yes
