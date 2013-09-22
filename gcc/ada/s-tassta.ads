@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -37,14 +35,14 @@
 
 --  Note: Only the compiler is allowed to use this interface, by generating
 --  direct calls to it, via Rtsfind.
+
 --  Any changes to this interface may require corresponding compiler changes
 --  in exp_ch9.adb and possibly exp_ch7.adb
 
 with System.Task_Info;
---  used for Task_Info_Type
-
 with System.Parameters;
---  used for Size_Type
+
+with Ada.Real_Time;
 
 package System.Tasking.Stages is
    pragma Elaborate_Body;
@@ -83,10 +81,10 @@ package System.Tasking.Stages is
    --         _init.discr := discr;
    --         _init._task_id := null;
    --         create_task (unspecified_priority, tZ,
-   --           unspecified_task_info, 0, _master,
-   --           task_procedure_access!(tB'address),
-   --           _init'address, tE'unchecked_access, _chain, _task_id, _init.
-   --           _task_id);
+   --           unspecified_task_info, unspecified_cpu,
+   --           ada__real_time__time_span_zero, 0, _master,
+   --           task_procedure_access!(tB'address), _init'address,
+   --           tE'unchecked_access, _chain, _task_id, _init._task_id);
    --         return;
    --      end tVIP;
    --   ]
@@ -169,31 +167,42 @@ package System.Tasking.Stages is
    --  now in order to wake up the activator (the environment task).
 
    procedure Create_Task
-     (Priority      : Integer;
-      Size          : System.Parameters.Size_Type;
-      Task_Info     : System.Task_Info.Task_Info_Type;
-      Num_Entries   : Task_Entry_Index;
-      Master        : Master_Level;
-      State         : Task_Procedure_Access;
-      Discriminants : System.Address;
-      Elaborated    : Access_Boolean;
-      Chain         : in out Activation_Chain;
-      Task_Image    : String;
-      Created_Task  : out Task_Id);
+     (Priority          : Integer;
+      Size              : System.Parameters.Size_Type;
+      Task_Info         : System.Task_Info.Task_Info_Type;
+      CPU               : Integer;
+      Relative_Deadline : Ada.Real_Time.Time_Span;
+      Domain            : Dispatching_Domain_Access;
+      Num_Entries       : Task_Entry_Index;
+      Master            : Master_Level;
+      State             : Task_Procedure_Access;
+      Discriminants     : System.Address;
+      Elaborated        : Access_Boolean;
+      Chain             : in out Activation_Chain;
+      Task_Image        : String;
+      Created_Task      : out Task_Id);
    --  Compiler interface only. Do not call from within the RTS.
    --  This must be called to create a new task.
    --
-   --  Priority is the task's priority (assumed to be in the
-   --   System.Any_Priority'Range)
+   --  Priority is the task's priority (assumed to be in range of type
+   --   System.Any_Priority)
    --  Size is the stack size of the task to create
    --  Task_Info is the task info associated with the created task, or
    --   Unspecified_Task_Info if none.
+   --  CPU is the task affinity. Passed as an Integer because the undefined
+   --   value is not in the range of CPU_Range. Static range checks are
+   --   performed when analyzing the pragma, and dynamic ones are performed
+   --   before setting the affinity at run time.
+   --  Relative_Deadline is the relative deadline associated with the created
+   --   task by means of a pragma Relative_Deadline, or 0.0 if none.
+   --  Domain is the dispatching domain associated with the created task by
+   --   means of a Dispatching_Domain pragma or aspect, or null if none.
    --  State is the compiler generated task's procedure body
    --  Discriminants is a pointer to a limited record whose discriminants
    --   are those of the task to create. This parameter should be passed as
    --   the single argument to State.
    --  Elaborated is a pointer to a Boolean that must be set to true on exit
-   --   if the task could be sucessfully elaborated.
+   --   if the task could be successfully elaborated.
    --  Chain is a linked list of task that needs to be created. On exit,
    --   Created_Task.Activation_Link will be Chain.T_ID, and Chain.T_ID
    --   will be Created_Task (e.g the created task will be linked at the front

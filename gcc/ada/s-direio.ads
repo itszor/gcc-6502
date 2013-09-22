@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -111,7 +109,6 @@ package System.Direct_IO is
       Size : Interfaces.C_Streams.size_t);
 
    procedure Reset (File : in out File_Type; Mode : FCB.File_Mode);
-
    procedure Reset (File : in out File_Type);
 
    procedure Set_Index (File : File_Type; To : Positive_Count);
@@ -124,5 +121,22 @@ package System.Direct_IO is
       Size   : Interfaces.C_Streams.size_t;
       Zeroes : System.Storage_Elements.Storage_Array);
    --  Note: Zeroes is the buffer of zeroes used to fill out partial records
+
+   --  The following procedures have a File_Type formal of mode IN OUT because
+   --  they may close the original file. The Close operation may raise an
+   --  exception, but in that case we want any assignment to the formal to
+   --  be effective anyway, so it must be passed by reference (or the caller
+   --  will be left with a dangling pointer).
+
+   pragma Export_Procedure
+     (Internal        => Reset,
+      External        => "",
+      Parameter_Types => (File_Type),
+      Mechanism       => Reference);
+   pragma Export_Procedure
+     (Internal        => Reset,
+      External        => "",
+      Parameter_Types => (File_Type, FCB.File_Mode),
+      Mechanism       => (File => Reference));
 
 end System.Direct_IO;

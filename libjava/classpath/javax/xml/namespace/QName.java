@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package javax.xml.namespace;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.Serializable;
 
@@ -126,26 +128,29 @@ public class QName implements Serializable
   {
     if (qName == null)
       {
-	StringBuffer buf = new StringBuffer();
-	if (namespaceURI.length() > 0)
-	  {
-	    buf.append('{');
-	    buf.append(namespaceURI);
-	    buf.append('}');
-	  }
-	if (prefix.length() > 0)
-	  {
-	    buf.append(prefix);
-	    buf.append(':');
-	  }
-	buf.append(localPart);
-	qName = buf.toString();
+        CPStringBuilder buf = new CPStringBuilder();
+        if (namespaceURI.length() > 0)
+          {
+            buf.append('{');
+            buf.append(namespaceURI);
+            buf.append('}');
+          }
+        if (prefix.length() > 0)
+          {
+            buf.append(prefix);
+            buf.append(':');
+          }
+        buf.append(localPart);
+        qName = buf.toString();
       }
     return qName;
   }
 
   public static QName valueOf(String qNameAsString)
   {
+    if (qNameAsString == null)
+      throw new IllegalArgumentException("qNameAsString can't be null");
+
     String namespaceUri = "", prefix = null;
     int start = qNameAsString.indexOf('{');
     int end = qNameAsString.indexOf('}');
@@ -164,5 +169,5 @@ public class QName implements Serializable
       }
     return new QName(namespaceUri, qNameAsString, prefix);
   }
-  
+
 }

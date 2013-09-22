@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2007, Free Software Foundation, Inc.              --
+--          Copyright (C) 2007-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -90,27 +88,27 @@ package System.Random_Numbers is
    --  in Reset).  In general, there is little point in providing more than
    --  a certain number of values (currently 624).
 
-   procedure Reset (Gen : out Generator);
+   procedure Reset (Gen : Generator);
    --  Re-initialize the state of Gen from the time of day
 
-   procedure Reset (Gen : out Generator; Initiator : Initialization_Vector);
-   procedure Reset (Gen : out Generator; Initiator : Interfaces.Integer_32);
-   procedure Reset (Gen : out Generator; Initiator : Interfaces.Unsigned_32);
-   procedure Reset (Gen : out Generator; Initiator : Integer);
+   procedure Reset (Gen : Generator; Initiator : Initialization_Vector);
+   procedure Reset (Gen : Generator; Initiator : Interfaces.Integer_32);
+   procedure Reset (Gen : Generator; Initiator : Interfaces.Unsigned_32);
+   procedure Reset (Gen : Generator; Initiator : Integer);
    --  Re-initialize Gen based on the Initiator in various ways. Identical
    --  values of Initiator cause identical sequences of values.
 
-   procedure Reset (Gen : out Generator; From_State : Generator);
+   procedure Reset (Gen : Generator; From_State : Generator);
    --  Causes the state of Gen to be identical to that of From_State; Gen
    --  and From_State will produce identical sequences of values subsequently.
 
-   procedure Reset (Gen : out Generator; From_State : State);
+   procedure Reset (Gen : Generator; From_State : State);
    procedure Save  (Gen : Generator; To_State : out State);
    --  The sequence
    --     Save (Gen2, S); Reset (Gen1, S)
    --  has the same effect as Reset (Gen2, Gen1).
 
-   procedure Reset (Gen : out Generator; From_Image : String);
+   procedure Reset (Gen : Generator; From_Image : String);
    function Image (Gen : Generator) return String;
    --  The call
    --     Reset (Gen2, Image (Gen1))
@@ -137,12 +135,19 @@ private
    subtype State_Val is Interfaces.Unsigned_32;
    type State is array (0 .. N - 1) of State_Val;
 
+   type Writable_Access (Self : access Generator) is limited null record;
+   --  Auxiliary type to make Generator a self-referential type
+
    type Generator is limited record
+      Writable  : Writable_Access (Generator'Access);
+      --  This self reference allows functions to modify Generator arguments
+
       S : State := (others => 0);
       --  The shift register, a circular buffer
 
       I : Integer := N;
-      --  Current starting position in shift register S
+      --  Current starting position in shift register S (N means uninitialized)
+      --  We should avoid using the identifier I here ???
    end record;
 
 end System.Random_Numbers;

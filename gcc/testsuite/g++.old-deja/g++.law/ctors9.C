@@ -20,8 +20,8 @@ Foo::Foo(int aa)
 { }
 
 
-struct var_Foo: public Foo
-{ // { dg-error "" }  base.*// ERROR -  in class.*
+struct var_Foo: public Foo // { dg-message "note" }  base.*// ERROR -  in class.*
+{
   var_Foo* operator-> () {return this;}
 };
 
@@ -32,7 +32,8 @@ int blort(Foo& f)
 
 int main()
 {
-  var_Foo b(2);// { dg-error "" } 
+  var_Foo b(2);// { dg-error "match" } 
+  // { dg-message "candidate" "candidate note" { target *-*-* } 35 }
   b->a = 0;
   int x = blort(b);
   return x;

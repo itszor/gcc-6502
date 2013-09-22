@@ -1,4 +1,4 @@
-/* DoubleViewBufferImpl.java -- 
+/* DoubleViewBufferImpl.java --
    Copyright (C) 2003, 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -41,33 +41,31 @@ package java.nio;
 final class DoubleViewBufferImpl extends DoubleBuffer
 {
   /** Position in bb (i.e. a byte offset) where this buffer starts. */
-  private int offset;
-  private ByteBuffer bb;
-  private boolean readOnly;
-  private ByteOrder endian;
-  
+  private final int offset;
+  private final ByteBuffer bb;
+  private final boolean readOnly;
+  private final ByteOrder endian;
+
   DoubleViewBufferImpl (ByteBuffer bb, int capacity)
   {
-    super (capacity, capacity, 0, -1);
+    super (capacity, capacity, 0, -1, bb.isDirect() ?
+           VMDirectByteBuffer.adjustAddress(bb.address, bb.position()) : null, null, 0);
     this.bb = bb;
     this.offset = bb.position();
     this.readOnly = bb.isReadOnly();
     this.endian = bb.order();
-    if (bb.isDirect())
-      this.address = VMDirectByteBuffer.adjustAddress(bb.address, offset);
   }
-  
+
   public DoubleViewBufferImpl (ByteBuffer bb, int offset, int capacity,
                                int limit, int position, int mark,
                                boolean readOnly, ByteOrder endian)
   {
-    super (capacity, limit, position, mark);
+    super (capacity, limit, position, mark, bb.isDirect() ?
+           VMDirectByteBuffer.adjustAddress(bb.address, bb.position()) : null, null, 0);
     this.bb = bb;
     this.offset = offset;
     this.readOnly = readOnly;
     this.endian = endian;
-    if (bb.isDirect())
-      this.address = VMDirectByteBuffer.adjustAddress(bb.address, offset);
   }
 
   /**
@@ -104,7 +102,7 @@ final class DoubleViewBufferImpl extends DoubleBuffer
     position(p + 1);
     return this;
   }
-  
+
   public DoubleBuffer put (int index, double value)
   {
     ByteBufferHelper.putDouble(bb, (index << 3) + offset, value, endian);
@@ -116,25 +114,25 @@ final class DoubleViewBufferImpl extends DoubleBuffer
     if (position () > 0)
       {
         int count = limit () - position ();
-	bb.shiftDown(offset, offset + 8 * position(), 8 * count);
+        bb.shiftDown(offset, offset + 8 * position(), 8 * count);
         position (count);
         limit (capacity ());
       }
     else
       {
-	position(limit());
-	limit(capacity());
+        position(limit());
+        limit(capacity());
       }
     return this;
   }
-  
+
   public DoubleBuffer slice ()
   {
     return new DoubleViewBufferImpl (bb, (position () << 3) + offset,
-				     remaining(), remaining(), 0, -1,
+                                     remaining(), remaining(), 0, -1,
                                      readOnly, endian);
   }
-  
+
   DoubleBuffer duplicate (boolean readOnly)
   {
     int pos = position();
@@ -144,7 +142,7 @@ final class DoubleViewBufferImpl extends DoubleBuffer
     return new DoubleViewBufferImpl (bb, offset, capacity(), limit(),
                                      pos, mark, readOnly, endian);
   }
-  
+
   public DoubleBuffer duplicate ()
   {
     return duplicate(readOnly);
@@ -159,12 +157,12 @@ final class DoubleViewBufferImpl extends DoubleBuffer
   {
     return readOnly;
   }
-  
+
   public boolean isDirect ()
   {
     return bb.isDirect ();
   }
-  
+
   public ByteOrder order ()
   {
     return endian;

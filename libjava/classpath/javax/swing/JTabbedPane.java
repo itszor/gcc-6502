@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package javax.swing;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Point;
@@ -62,7 +64,7 @@ import javax.swing.plaf.UIResource;
  * This is a container for components where only one component is displayed at
  * a given time and the displayed component can be switched by clicking on
  * tabs.
- * 
+ *
  * <p>
  * Tabs can be oriented in several ways. They can be above, below, left and
  * right of the component. Tabs can either wrap around (by creating multiple
@@ -183,7 +185,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     /**
      * Returns the number of selected child components of the
      * <code>JTabbedPane</code>. The reference implementation appears
-     * to return <code>1</code> always and we do the same. 
+     * to return <code>1</code> always and we do the same.
      *
      * @return <code>1</code>
      */
@@ -193,7 +195,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     }
 
     /**
-     * Returns the selected tab, or <code>null</code> if there is no 
+     * Returns the selected tab, or <code>null</code> if there is no
      * selection.
      *
      * @param i  the selection index (ignored here).
@@ -237,7 +239,7 @@ public class JTabbedPane extends JComponent implements Serializable,
      * tabbed pane, since one tab must always be selected.
      *
      * @param i  the item index.
-     * 
+     *
      * @see #addAccessibleSelection(int)
      */
     public void removeAccessibleSelection(int i)
@@ -248,7 +250,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     /**
      * Does nothing - it makes no sense to clear the selection for
      * a tabbed pane, since one tab must always be selected.
-     * 
+     *
      * @see #addAccessibleSelection(int)
      */
     public void clearAccessibleSelection()
@@ -259,7 +261,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     /**
      * Does nothing - it makes no sense to select all for a tabbed
      * pane, since only one tab can be selected at a time.
-     * 
+     *
      * @see #addAccessibleSelection(int)
      */
     public void selectAllAccessibleSelection()
@@ -462,7 +464,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     {
       title = text;
       if (title != null && title.length() <= underlinedChar)
-	setDisplayedMnemonicIndex(title.length() - 1);
+        setDisplayedMnemonicIndex(title.length() - 1);
     }
 
     /**
@@ -493,7 +495,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     public Icon getDisabledIcon()
     {
       if (disabledIcon == null && icon instanceof ImageIcon)
-	setDisabledIcon(icon);
+        setDisabledIcon(icon);
       return disabledIcon;
     }
 
@@ -558,7 +560,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     {
       mnemonicKey = aChar;
       if (title != null)
-	setDisplayedMnemonicIndex(title.indexOf(mnemonicKey));
+        setDisplayedMnemonicIndex(title.indexOf(mnemonicKey));
     }
 
     /**
@@ -583,10 +585,10 @@ public class JTabbedPane extends JComponent implements Serializable,
       throws IllegalArgumentException
     {
       if (index < -1 || title != null && index >= title.length())
-	throw new IllegalArgumentException();
+        throw new IllegalArgumentException();
 
       if (title == null || mnemonicKey == 0 || (index > -1 && title.charAt(index) != mnemonicKey))
-	index = -1;
+        index = -1;
 
       underlinedChar = index;
     }
@@ -603,7 +605,7 @@ public class JTabbedPane extends JComponent implements Serializable,
 
     /**
      * Returns the accessible name for this tab.
-     * 
+     *
      * @return The accessible name.
      */
     public String getAccessibleName()
@@ -613,7 +615,7 @@ public class JTabbedPane extends JComponent implements Serializable,
       else
         return title;
     }
-    
+
     /**
      * Returns the accessible role of this tab, which is always
      * {@link AccessibleRole#PAGE_TAB}.
@@ -632,7 +634,7 @@ public class JTabbedPane extends JComponent implements Serializable,
      */
     public AccessibleStateSet getAccessibleStateSet()
     {
-      AccessibleContext parentCtx = JTabbedPane.this.getAccessibleContext(); 
+      AccessibleContext parentCtx = JTabbedPane.this.getAccessibleContext();
       AccessibleStateSet state = parentCtx.getAccessibleStateSet();
       state.add(AccessibleState.SELECTABLE);
       if (component == getSelectedComponent())
@@ -759,7 +761,7 @@ public class JTabbedPane extends JComponent implements Serializable,
       throw new IllegalArgumentException("tabLayoutPolicy is not valid.");
     this.tabPlacement = tabPlacement;
     layoutPolicy = tabLayoutPolicy;
-    
+
     setModel(new DefaultSingleSelectionModel());
 
     updateUI();
@@ -845,8 +847,8 @@ public class JTabbedPane extends JComponent implements Serializable,
       changeEvent = new ChangeEvent(this);
     for (int i = changeListeners.length - 2; i >= 0; i -= 2)
       {
-	if (changeListeners[i] == ChangeListener.class)
-	  ((ChangeListener) changeListeners[i + 1]).stateChanged(changeEvent);
+        if (changeListeners[i] == ChangeListener.class)
+          ((ChangeListener) changeListeners[i + 1]).stateChanged(changeEvent);
       }
   }
 
@@ -879,11 +881,11 @@ public class JTabbedPane extends JComponent implements Serializable,
   {
     if (m != model)
       {
-	SingleSelectionModel oldModel = this.model;
+        SingleSelectionModel oldModel = this.model;
         if (oldModel != null && changeListener != null)
           oldModel.removeChangeListener(changeListener);
 
-	model = m;
+        model = m;
 
         if (model != null)
           {
@@ -891,7 +893,7 @@ public class JTabbedPane extends JComponent implements Serializable,
               changeListener = createChangeListener();
             model.addChangeListener(changeListener);
           }
-	firePropertyChange("model", oldModel, this.model);
+        firePropertyChange("model", oldModel, this.model);
       }
   }
 
@@ -920,9 +922,9 @@ public class JTabbedPane extends JComponent implements Serializable,
       throw new IllegalArgumentException("tabPlacement is not valid.");
     if (tabPlacement != this.tabPlacement)
       {
-	int oldPlacement = this.tabPlacement;
-	this.tabPlacement = tabPlacement;
-	firePropertyChange("tabPlacement", oldPlacement, this.tabPlacement);
+        int oldPlacement = this.tabPlacement;
+        this.tabPlacement = tabPlacement;
+        firePropertyChange("tabPlacement", oldPlacement, this.tabPlacement);
       }
   }
 
@@ -951,9 +953,9 @@ public class JTabbedPane extends JComponent implements Serializable,
       throw new IllegalArgumentException("tabLayoutPolicy is not valid.");
     if (tabLayoutPolicy != layoutPolicy)
       {
-	int oldPolicy = layoutPolicy;
-	layoutPolicy = tabLayoutPolicy;
-	firePropertyChange("tabLayoutPolicy", oldPolicy, layoutPolicy);
+        int oldPolicy = layoutPolicy;
+        layoutPolicy = tabLayoutPolicy;
+        firePropertyChange("tabLayoutPolicy", oldPolicy, layoutPolicy);
       }
   }
 
@@ -996,7 +998,7 @@ public class JTabbedPane extends JComponent implements Serializable,
       {
         // Hiding and showing the involved components
         // is done by the JTabbedPane's UI.
-	model.setSelectedIndex(index);
+        model.setSelectedIndex(index);
       }
   }
 
@@ -1049,8 +1051,8 @@ public class JTabbedPane extends JComponent implements Serializable,
     // so we don't trigger a repaint.
     if (component != null)
       {
-	component.hide();
-	super.add(component);
+        component.hide();
+        super.add(component);
       }
 
     if (getSelectedIndex() == -1)
@@ -1115,7 +1117,7 @@ public class JTabbedPane extends JComponent implements Serializable,
       super.add(component);
     else
       insertTab(component.getName(), null, component, null, tabs.size());
-    
+
     return component;
   }
 
@@ -1189,18 +1191,18 @@ public class JTabbedPane extends JComponent implements Serializable,
       super.add(component);
     else
       {
-	if (constraints instanceof String)
-	  insertTab((String) constraints, null, component, null, index);
-	else
-	  insertTab(component.getName(),
-	            (constraints instanceof Icon) ? (Icon) constraints : null,
-	            component, null, index);
+        if (constraints instanceof String)
+          insertTab((String) constraints, null, component, null, index);
+        else
+          insertTab(component.getName(),
+                    (constraints instanceof Icon) ? (Icon) constraints : null,
+                    component, null, index);
       }
   }
 
   /**
-   * Removes the tab at index. After the component associated with 
-   * index is removed, its visibility is reset to true to ensure it 
+   * Removes the tab at index. After the component associated with
+   * index is removed, its visibility is reset to true to ensure it
    * will be visible if added to other containers.
    *
    * @param index The index of the tab to remove.
@@ -1259,7 +1261,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     // Since components implementing UIResource
     // are not added as regular tabs by the add()
     // methods we have to take special care when
-    // removing these object. Especially 
+    // removing these object. Especially
     // Container.remove(Component) cannot be used
     // because it will call JTabbedPane.remove(int)
     // later which is overridden and can only
@@ -1268,7 +1270,7 @@ public class JTabbedPane extends JComponent implements Serializable,
     // situation that someone called insertTab()
     // with a component that implements UIResource.
     int index = indexOfComponent(component);
-    
+
     // If the component is not a tab component
     // find out its Container-given index
     // and call that class' implementation
@@ -1601,11 +1603,11 @@ public class JTabbedPane extends JComponent implements Serializable,
     int index = -1;
     for (int i = 0; i < tabs.size(); i++)
       {
-	if (((Page) tabs.elementAt(i)).getTitle().equals(title))
-	  {
-	    index = i;
-	    break;
-	  }
+        if (((Page) tabs.elementAt(i)).getTitle().equals(title))
+          {
+            index = i;
+            break;
+          }
       }
     return index;
   }
@@ -1622,11 +1624,11 @@ public class JTabbedPane extends JComponent implements Serializable,
     int index = -1;
     for (int i = 0; i < tabs.size(); i++)
       {
-	if (((Page) tabs.elementAt(i)).getIcon() == icon)
-	  {
-	    index = i;
-	    break;
-	  }
+        if (((Page) tabs.elementAt(i)).getIcon() == icon)
+          {
+            index = i;
+            break;
+          }
       }
     return index;
   }
@@ -1643,11 +1645,11 @@ public class JTabbedPane extends JComponent implements Serializable,
     int index = -1;
     for (int i = 0; i < tabs.size(); i++)
       {
-	if (((Page) tabs.elementAt(i)).getComponent() == component)
-	  {
-	    index = i;
-	    break;
-	  }
+        if (((Page) tabs.elementAt(i)).getComponent() == component)
+          {
+            index = i;
+            break;
+          }
       }
     return index;
   }
@@ -1682,17 +1684,17 @@ public class JTabbedPane extends JComponent implements Serializable,
   }
 
   /**
-   * Returns a string describing the attributes for the 
-   * <code>JTabbedPane</code> component, for use in debugging.  The return 
-   * value is guaranteed to be non-<code>null</code>, but the format of the 
+   * Returns a string describing the attributes for the
+   * <code>JTabbedPane</code> component, for use in debugging.  The return
+   * value is guaranteed to be non-<code>null</code>, but the format of the
    * string may vary between implementations.
    *
-   * @return A string describing the attributes of the 
+   * @return A string describing the attributes of the
    *     <code>JTabbedPane</code>.
    */
   protected String paramString()
   {
-    StringBuffer sb = new StringBuffer(super.paramString());
+    CPStringBuilder sb = new CPStringBuilder(super.paramString());
     sb.append(",tabPlacement=");
     if (tabPlacement == TOP)
       sb.append("TOP");
@@ -1709,7 +1711,7 @@ public class JTabbedPane extends JComponent implements Serializable,
    * Returns the object that provides accessibility features for this
    * <code>JTabbedPane</code> component.
    *
-   * @return The accessible context (an instance of 
+   * @return The accessible context (an instance of
    *         {@link AccessibleJTabbedPane}).
    */
   public AccessibleContext getAccessibleContext()

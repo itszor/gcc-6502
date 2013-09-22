@@ -1,32 +1,27 @@
 /* Decimal number arithmetic module header for the decNumber C Library.
-   Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by IBM Corporation.  Author Mike Cowlishaw.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
-   Software Foundation; either version 2, or (at your option) any later
+   Software Foundation; either version 3, or (at your option) any later
    version.
-
-   In addition to the permissions in the GNU General Public License,
-   the Free Software Foundation gives you unlimited permission to link
-   the compiled version of this file into combinations with other
-   programs, and to distribute those combinations without any
-   restriction coming from the use of this file.  (The General Public
-   License restrictions do apply in other respects; for example, they
-   cover modification of the file, and distribution when not linked
-   into a combine executable.)
 
    GCC is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or
    FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
    for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 /* ------------------------------------------------------------------ */
 /* Decimal Number arithmetic module header			      */
@@ -46,7 +41,7 @@
   #define DECNEG    0x80      /* Sign; 1=negative, 0=positive or zero */
   #define DECINF    0x40      /* 1=Infinity			      */
   #define DECNAN    0x20      /* 1=NaN				      */
-  #define DECSNAN   0x10      /* 1=sNaN				      */
+  #define DECSNAN   0x10      /* 1=sNaN 			      */
   /* The remaining bits are reserved; they must be 0		      */
   #define DECSPECIAL (DECINF|DECNAN|DECSNAN) /* any special value     */
 
@@ -113,6 +108,10 @@
 
   #include "decNumberSymbols.h"
 
+  #ifdef __cplusplus
+  extern "C" {
+  #endif
+
   /* Conversions						      */
   decNumber * decNumberFromInt32(decNumber *, int32_t);
   decNumber * decNumberFromUInt32(decNumber *, uint32_t);
@@ -124,7 +123,7 @@
   uint8_t   * decNumberGetBCD(const decNumber *, uint8_t *);
   decNumber * decNumberSetBCD(decNumber *, const uint8_t *, uint32_t);
 
-  /* Operators and elementary functions				      */
+  /* Operators and elementary functions 			      */
   decNumber * decNumberAbs(decNumber *, const decNumber *, decContext *);
   decNumber * decNumberAdd(decNumber *, const decNumber *, const decNumber *, decContext *);
   decNumber * decNumberAnd(decNumber *, const decNumber *, const decNumber *, decContext *);
@@ -185,7 +184,7 @@
 
   /* Macros for testing decNumber *dn				      */
   #define decNumberIsCanonical(dn) (1)	/* All decNumbers are saintly */
-  #define decNumberIsFinite(dn)	   (((dn)->bits&DECSPECIAL)==0)
+  #define decNumberIsFinite(dn)    (((dn)->bits&DECSPECIAL)==0)
   #define decNumberIsInfinite(dn)  (((dn)->bits&DECINF)!=0)
   #define decNumberIsNaN(dn)	   (((dn)->bits&(DECNAN|DECSNAN))!=0)
   #define decNumberIsNegative(dn)  (((dn)->bits&DECNEG)!=0)
@@ -196,5 +195,9 @@
 				    && (dn)->digits==1 \
 				    && (((dn)->bits&DECSPECIAL)==0))
   #define decNumberRadix(dn)	   (10)
+
+  #ifdef __cplusplus
+  }
+  #endif
 
 #endif

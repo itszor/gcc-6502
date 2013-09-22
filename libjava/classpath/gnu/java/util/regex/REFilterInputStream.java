@@ -51,14 +51,15 @@ import java.io.InputStream;
  *             class instead.
  */
 
-public class REFilterInputStream extends FilterInputStream {
+public class REFilterInputStream extends FilterInputStream
+{
 
-    private RE expr;
-    private String replace;
-    private String buffer;
-    private int bufpos;
-    private int offset;
-    private CharIndexedInputStream stream;
+  private RE expr;
+  private String replace;
+  private String buffer;
+  private int bufpos;
+  private int offset;
+  private CharIndexedInputStream stream;
 
   /**
    * Creates an REFilterInputStream.  When reading from this stream,
@@ -69,11 +70,12 @@ public class REFilterInputStream extends FilterInputStream {
    *
    * @param stream The InputStream to be filtered.
    * @param expr The regular expression to search for.
-   * @param replace The text pattern to replace matches with.  
+   * @param replace The text pattern to replace matches with.
    */
-  public REFilterInputStream(InputStream stream, RE expr, String replace) {
-    super(stream);
-    this.stream = new CharIndexedInputStream(stream,0);
+  public REFilterInputStream (InputStream stream, RE expr, String replace)
+  {
+    super (stream);
+    this.stream = new CharIndexedInputStream (stream, 0);
     this.expr = expr;
     this.replace = replace;
   }
@@ -82,59 +84,70 @@ public class REFilterInputStream extends FilterInputStream {
    * Reads the next byte from the stream per the general contract of
    * InputStream.read().  Returns -1 on error or end of stream.
    */
-  public int read() {
+  public int read ()
+  {
     // If we have buffered replace data, use it.
-    if ((buffer != null) && (bufpos < buffer.length())) {
-      return (int) buffer.charAt(bufpos++);
-    }
+    if ((buffer != null) && (bufpos < buffer.length ()))
+      {
+        return (int) buffer.charAt (bufpos++);
+      }
 
     // check if input is at a valid position
-    if (!stream.isValid()) return -1;
+    if (!stream.isValid ())
+      return -1;
 
-    REMatch mymatch = new REMatch(expr.getNumSubs(),offset,0);
-    if (expr.match(stream, mymatch)) {
-      mymatch.end[0] = mymatch.index;
-      mymatch.finish(stream);
-      stream.move(mymatch.toString().length());
-      offset += mymatch.toString().length();
-      buffer = mymatch.substituteInto(replace);
-      bufpos = 1;
+    REMatch mymatch = new REMatch (expr.getNumSubs (), offset, 0);
+    if (expr.match (stream, mymatch))
+      {
+        mymatch.end[0] = mymatch.index;
+        mymatch.finish (stream);
+        stream.move (mymatch.toString ().length ());
+        offset += mymatch.toString ().length ();
+        buffer = mymatch.substituteInto (replace);
+        bufpos = 1;
 
-      // This is prone to infinite loops if replace string turns out empty.
-      if (buffer.length() > 0) {
-	  return buffer.charAt(0);
+        // This is prone to infinite loops if replace string turns out empty.
+        if (buffer.length () > 0)
+          {
+            return buffer.charAt (0);
+          }
       }
-    }
-    char ch = stream.charAt(0);
-    if (ch == CharIndexed.OUT_OF_BOUNDS) return -1;
-    stream.move(1);
+    char ch = stream.charAt (0);
+    if (ch == CharIndexed.OUT_OF_BOUNDS)
+      return -1;
+    stream.move (1);
     offset++;
     return ch;
   }
 
-  /** 
+  /**
    * Returns false.  REFilterInputStream does not support mark() and
-   * reset() methods. 
+   * reset() methods.
    */
-  public boolean markSupported() {
+  public boolean markSupported ()
+  {
     return false;
   }
 
   /** Reads from the stream into the provided array. */
-  public int read(byte[] b, int off, int len) {
+  public int read (byte[]b, int off, int len)
+  {
     int i;
     int ok = 0;
-    while (len-- > 0) {
-      i = read();
-      if (i == -1) return (ok == 0) ? -1 : ok;
-      b[off++] = (byte) i;
-      ok++;
-    }
+    while (len-- > 0)
+      {
+        i = read ();
+        if (i == -1)
+          return (ok == 0) ? -1 : ok;
+        b[off++] = (byte) i;
+        ok++;
+      }
     return ok;
   }
 
   /** Reads from the stream into the provided array. */
-  public int read(byte[] b) {
-    return read(b,0,b.length);
+  public int read (byte[]b)
+  {
+    return read (b, 0, b.length);
   }
 }

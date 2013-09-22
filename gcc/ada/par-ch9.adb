@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,8 +43,8 @@ package body Ch9 is
    function P_Protected_Definition                 return Node_Id;
    function P_Protected_Operation_Declaration_Opt  return Node_Id;
    function P_Protected_Operation_Items            return List_Id;
-   function P_Task_Definition                      return Node_Id;
    function P_Task_Items                           return List_Id;
+   function P_Task_Definition return Node_Id;
 
    -----------------------------
    -- 9.1  Task (also 10.1.3) --
@@ -52,10 +52,12 @@ package body Ch9 is
 
    --  TASK_TYPE_DECLARATION ::=
    --    task type DEFINING_IDENTIFIER [KNOWN_DISCRIMINANT_PART]
+   --      [ASPECT_SPECIFICATIONS]
    --      [is [new INTERFACE_LIST with] TASK_DEFINITION];
 
    --  SINGLE_TASK_DECLARATION ::=
    --    task DEFINING_IDENTIFIER
+   --      [ASPECT_SPECIFICATIONS]
    --      [is [new INTERFACE_LIST with] TASK_DEFINITION];
 
    --  TASK_BODY ::=
@@ -143,22 +145,32 @@ package body Ch9 is
             end if;
          end if;
 
+         --  Scan aspect specifications, don't eat the semicolon, since it
+         --  might not be there if we have an IS.
+
+         P_Aspect_Specifications (Task_Node, Semicolon => False);
+
          --  Parse optional task definition. Note that P_Task_Definition scans
-         --  out the semicolon as well as the task definition itself.
+         --  out the semicolon and possible aspect specifications as well as
+         --  the task definition itself.
 
          if Token = Tok_Semicolon then
 
-            --  A little check, if the next token after semicolon is
-            --  Entry, then surely the semicolon should really be IS
+            --  A little check, if the next token after semicolon is Entry,
+            --  then surely the semicolon should really be IS
 
             Scan; -- past semicolon
 
             if Token = Tok_Entry then
-               Error_Msg_SP (""";"" should be IS");
+               Error_Msg_SP -- CODEFIX
+                 ("|"";"" should be IS");
                Set_Task_Definition (Task_Node, P_Task_Definition);
             else
                Pop_Scope_Stack; -- Remove unused entry
             end if;
+
+         --  Here we have a task definition
+
          else
             TF_Is; -- must have IS if no semicolon
 
@@ -167,7 +179,7 @@ package body Ch9 is
             if Token = Tok_New then
                Scan; --  past NEW
 
-               if Ada_Version < Ada_05 then
+               if Ada_Version < Ada_2005 then
                   Error_Msg_SP ("task interface is an Ada 2005 extension");
                   Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
                end if;
@@ -181,13 +193,14 @@ package body Ch9 is
                end loop;
 
                if Token /= Tok_With then
-                  Error_Msg_SC ("WITH expected");
+                  Error_Msg_SC -- CODEFIX
+                    ("WITH expected");
                end if;
 
                Scan; -- past WITH
 
                if Token = Tok_Private then
-                  Error_Msg_SP
+                  Error_Msg_SP -- CODEFIX
                     ("PRIVATE not allowed in task type declaration");
                end if;
             end if;
@@ -345,10 +358,12 @@ package body Ch9 is
 
    --  PROTECTED_TYPE_DECLARATION ::=
    --    protected type DEFINING_IDENTIFIER [KNOWN_DISCRIMINANT_PART]
-   --      is [new INTERFACE_LIST with] PROTECTED_DEFINITION;
+   --      [ASPECT_SPECIFICATIONS]
+   --    is [new INTERFACE_LIST with] PROTECTED_DEFINITION;
 
    --  SINGLE_PROTECTED_DECLARATION ::=
    --    protected DEFINING_IDENTIFIER
+   --      [ASPECT_SPECIFICATIONS]
    --    is [new INTERFACE_LIST with] PROTECTED_DEFINITION;
 
    --  PROTECTED_BODY ::=
@@ -371,6 +386,7 @@ package body Ch9 is
       Name_Node      : Node_Id;
       Protected_Node : Node_Id;
       Protected_Sloc : Source_Ptr;
+      Scan_State     : Saved_Scan_State;
 
    begin
       Push_Scope_Stack;
@@ -439,6 +455,39 @@ package body Ch9 is
             Scope.Table (Scope.Last).Labl := Name_Node;
          end if;
 
+         P_Aspect_Specifications (Protected_Node, Semicolon => False);
+
+         --  Check for semicolon not followed by IS, this is something like
+
+         --    protected type r;
+
+         --  where we want
+
+         --    protected type r IS END;
+
+         if Token = Tok_Semicolon then
+            Save_Scan_State (Scan_State); -- at semicolon
+            Scan; -- past semicolon
+
+            if Token /= Tok_Is then
+               Restore_Scan_State (Scan_State);
+               Error_Msg_SC -- CODEFIX
+                 ("missing IS");
+               Set_Protected_Definition (Protected_Node,
+                 Make_Protected_Definition (Token_Ptr,
+                   Visible_Declarations => Empty_List,
+                   End_Label           => Empty));
+
+               SIS_Entry_Active := False;
+               End_Statements
+                 (Protected_Definition (Protected_Node), Protected_Node);
+               return Protected_Node;
+            end if;
+
+            Error_Msg_SP -- CODEFIX
+              ("|extra ""("" ignored");
+         end if;
+
          T_Is;
 
          --  Ada 2005 (AI-345)
@@ -446,8 +495,8 @@ package body Ch9 is
          if Token = Tok_New then
             Scan; --  past NEW
 
-            if Ada_Version < Ada_05 then
-               Error_Msg_SP ("task interface is an Ada 2005 extension");
+            if Ada_Version < Ada_2005 then
+               Error_Msg_SP ("protected interface is an Ada 2005 extension");
                Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
             end if;
 
@@ -462,15 +511,11 @@ package body Ch9 is
             end loop;
 
             if Token /= Tok_With then
-               Error_Msg_SC ("WITH expected");
+               Error_Msg_SC -- CODEFIX
+                 ("WITH expected");
             end if;
 
             Scan; -- past WITH
-
-            if Token = Tok_Private then
-               Error_Msg_SP
-                 ("PRIVATE not allowed in protected type declaration");
-            end if;
          end if;
 
          Set_Protected_Definition (Protected_Node, P_Protected_Definition);
@@ -531,8 +576,8 @@ package body Ch9 is
          Append (Item_Node, Visible_Declarations (Def_Node));
       end loop;
 
-      --  Deal with PRIVATE part (including graceful handling
-      --  of multiple PRIVATE parts).
+      --  Deal with PRIVATE part (including graceful handling of multiple
+      --  PRIVATE parts).
 
       Private_Loop : while Token = Tok_Private loop
          if No (Private_Declarations (Def_Node)) then
@@ -600,7 +645,8 @@ package body Ch9 is
                Scan;  -- past OVERRIDING
                Not_Overriding := True;
             else
-               Error_Msg_SC ("OVERRIDING expected!");
+               Error_Msg_SC -- CODEFIX
+                 ("OVERRIDING expected!");
             end if;
 
          else
@@ -608,8 +654,8 @@ package body Ch9 is
             Is_Overriding := True;
          end if;
 
-         if (Is_Overriding or else Not_Overriding) then
-            if Ada_Version < Ada_05 then
+         if Is_Overriding or else Not_Overriding then
+            if Ada_Version < Ada_2005 then
                Error_Msg_SP ("overriding indicator is an Ada 2005 extension");
                Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
 
@@ -620,13 +666,14 @@ package body Ch9 is
                Set_Must_Not_Override (Decl, Not_Overriding);
 
             elsif Token = Tok_Function or else Token = Tok_Procedure then
-               Decl := P_Subprogram (Pf_Decl);
+               Decl := P_Subprogram (Pf_Decl_Pexp);
 
                Set_Must_Override     (Specification (Decl), Is_Overriding);
                Set_Must_Not_Override (Specification (Decl), Not_Overriding);
 
             else
-               Error_Msg_SC ("ENTRY, FUNCTION or PROCEDURE expected!");
+               Error_Msg_SC -- CODEFIX
+                 ("ENTRY, FUNCTION or PROCEDURE expected!");
             end if;
          end if;
 
@@ -650,7 +697,7 @@ package body Ch9 is
             return P_Entry_Declaration;
 
          elsif Token = Tok_Function or else Token = Tok_Procedure then
-            return P_Subprogram (Pf_Decl);
+            return P_Subprogram (Pf_Decl_Pexp);
 
          elsif Token = Tok_Identifier then
             L := New_List;
@@ -711,11 +758,18 @@ package body Ch9 is
          if Token = Tok_Entry or else Bad_Spelling_Of (Tok_Entry) then
             Append (P_Entry_Body, Item_List);
 
+         --  If the operation starts with procedure, function, or an overriding
+         --  indicator ("overriding" or "not overriding"), parse a subprogram.
+
          elsif Token = Tok_Function or else Bad_Spelling_Of (Tok_Function)
                  or else
                Token = Tok_Procedure or else Bad_Spelling_Of (Tok_Procedure)
+                 or else
+               Token = Tok_Overriding or else Bad_Spelling_Of (Tok_Overriding)
+                 or else
+               Token = Tok_Not or else Bad_Spelling_Of (Tok_Not)
          then
-            Append (P_Subprogram (Pf_Decl_Pbod), Item_List);
+            Append (P_Subprogram (Pf_Decl_Pbod_Pexp), Item_List);
 
          elsif Token = Tok_Pragma or else Bad_Spelling_Of (Tok_Pragma) then
             P_Pragmas_Opt (Item_List);
@@ -725,8 +779,7 @@ package body Ch9 is
             Scan; -- past PRIVATE
 
          elsif Token = Tok_Identifier then
-            Error_Msg_SC
-              ("all components must be declared in spec!");
+            Error_Msg_SC ("all components must be declared in spec!");
             Resync_Past_Semicolon;
 
          elsif Token in Token_Class_Declk then
@@ -749,6 +802,7 @@ package body Ch9 is
    --    [OVERRIDING_INDICATOR]
    --    entry DEFINING_IDENTIFIER [(DISCRETE_SUBTYPE_DEFINITION)]
    --      PARAMETER_PROFILE;
+   --        [ASPECT_SPECIFICATIONS];
 
    --  The caller has checked that the initial token is ENTRY, NOT or
    --  OVERRIDING.
@@ -776,7 +830,8 @@ package body Ch9 is
             Scan;  -- part OVERRIDING
             Not_Overriding := True;
          else
-            Error_Msg_SC ("OVERRIDING expected!");
+            Error_Msg_SC -- CODEFIX
+              ("OVERRIDING expected!");
          end if;
 
       elsif Token = Tok_Overriding then
@@ -784,13 +839,14 @@ package body Ch9 is
          Is_Overriding := True;
       end if;
 
-      if (Is_Overriding or else Not_Overriding) then
-         if Ada_Version < Ada_05 then
+      if Is_Overriding or else Not_Overriding then
+         if Ada_Version < Ada_2005 then
             Error_Msg_SP ("overriding indicator is an Ada 2005 extension");
             Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
 
          elsif Token /= Tok_Entry then
-            Error_Msg_SC ("ENTRY expected!");
+            Error_Msg_SC -- CODEFIX
+              ("ENTRY expected!");
          end if;
       end if;
 
@@ -817,7 +873,8 @@ package body Ch9 is
                Restore_Scan_State (Scan_State); -- to Id
                Set_Parameter_Specifications (Decl_Node, P_Formal_Part);
 
-            --  Else if Id wi no comma or colon, must be discrete subtype defn
+            --  Else if Id without comma or colon, must be discrete subtype
+            --  defn
 
             else
                Restore_Scan_State (Scan_State); -- to Id
@@ -859,7 +916,7 @@ package body Ch9 is
          Discard_Junk_Node (P_Expression_No_Right_Paren);
       end if;
 
-      TF_Semicolon;
+      P_Aspect_Specifications (Decl_Node);
       return Decl_Node;
 
    exception
@@ -1006,6 +1063,7 @@ package body Ch9 is
       Scope.Table (Scope.Last).Ecol := Start_Column;
       Scope.Table (Scope.Last).Lreq := False;
       Scope.Table (Scope.Last).Etyp := E_Name;
+      Scope.Table (Scope.Last).Sloc := Token_Ptr;
 
       Name_Node := P_Defining_Identifier;
       Set_Defining_Identifier (Entry_Node, Name_Node);
@@ -1081,7 +1139,8 @@ package body Ch9 is
          Bnode := P_Expression_No_Right_Paren;
 
          if Token = Tok_Colon_Equal then
-            Error_Msg_SC (""":="" should be ""=""");
+            Error_Msg_SC -- CODEFIX
+              ("|"":="" should be ""=""");
             Scan;
             Bnode := P_Expression_No_Right_Paren;
          end if;
@@ -1328,7 +1387,7 @@ package body Ch9 is
             Ecall_Node := P_Name;
 
             --  ??  The following two clauses exactly parallel code in ch5
-            --      and should be commoned sometime
+            --      and should be combined sometime
 
             if Nkind (Ecall_Node) = N_Indexed_Component then
                declare
@@ -1447,7 +1506,7 @@ package body Ch9 is
 
          End_Statements;
 
-      --  Here we have a selective accept or an an asynchronous select (first
+      --  Here we have a selective accept or an asynchronous select (first
       --  token after SELECT is other than a designator token).
 
       else
@@ -1638,7 +1697,7 @@ package body Ch9 is
 
       --  Note: the reason that we accept THEN ABORT as a terminator for
       --  the sequence of statements is for error recovery which allows
-      --  for misuse of an accept statement as a triggering statememt.
+      --  for misuse of an accept statement as a triggering statement.
 
       Set_Statements
         (Accept_Alt_Node, P_Sequence_Of_Statements (SS_Eltm_Ortm_Tatm));
@@ -1666,7 +1725,7 @@ package body Ch9 is
 
       --  Note: the reason that we accept THEN ABORT as a terminator for
       --  the sequence of statements is for error recovery which allows
-      --  for misuse of an accept statement as a triggering statememt.
+      --  for misuse of an accept statement as a triggering statement.
 
       Set_Statements
         (Delay_Alt_Node, P_Sequence_Of_Statements (SS_Eltm_Ortm_Tatm));

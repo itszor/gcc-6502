@@ -1,5 +1,5 @@
 /* CSPRNG.java -- continuously-seeded pseudo-random number generator.
-   Copyright (C) 2004, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2006, 2010  Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -87,7 +87,9 @@ import java.util.logging.Logger;
 public class CSPRNG
     extends BasePRNG
 {
-  private static final Logger log = Logger.getLogger(CSPRNG.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                         Logger.getLogger(CSPRNG.class.getName()) : null;
+
   /**
    * Property name for the list of files to read for random values. The mapped
    * value is a list with the following values:
@@ -99,7 +101,7 @@ public class CSPRNG
    * <li>An {@link Integer}, indicating the number of bytes to read.</li>
    * <li>A {@link String}, indicating the path to the file.</li>
    * </ol>
-   * 
+   *
    * @see gnu.java.security.util.SimpleList
    */
   public static final String FILE_SOURCES = "gnu.crypto.prng.pool.files";
@@ -268,16 +270,16 @@ public class CSPRNG
    * An example of valid properties would be:
    * <pre>
    *  gnu.crypto.csprng.blocking=true
-   * 
+   *
    *  gnu.crypto.csprng.file.1=75.0;0;256;/dev/random
    *  gnu.crypto.csprng.file.2=10.0;0;100;/home/user/file
-   * 
+   *
    *  gnu.crypto.csprng.url.1=5.0;0;256;http://www.random.org/cgi-bin/randbyte?nbytes=256
    *  gnu.crypto.csprng.url.2=0;256;256;http://slashdot.org/
-   * 
+   *
    *  gnu.crypto.csprng.program.1=0.5;0;10;last -n 50
    *  gnu.crypto.csprng.program.2=0.5;0;10;tcpdump -c 5
-   * 
+   *
    *  gnu.crypto.csprng.other.1=foo.bar.MyEntropySource
    *  gnu.crypto.csprng.other.2=com.company.OtherEntropySource
    * </pre>
@@ -325,20 +327,24 @@ public class CSPRNG
     attrib.put(PROGRAM_SOURCES, l);
     l = new LinkedList();
     for (int i = 0; (s = getProperty(OTHER + i)) != null; i++)
-      try
-        {
-          Class c = Class.forName(s.trim());
-          l.add(c.newInstance());
-        }
-      catch (ClassNotFoundException cnfe)
-        {
-        }
-      catch (InstantiationException ie)
-        {
-        }
-      catch (IllegalAccessException iae)
-        {
-        }
+      {
+        try
+          {
+            l.add((EntropySource)Class.forName(s.trim()).newInstance());
+          }
+        catch (ClassNotFoundException cnfe)
+          {
+            // ignore
+          }
+        catch (InstantiationException ie)
+          {
+            // ignore
+          }
+        catch (IllegalAccessException iae)
+          {
+            // ignore
+          }
+      }
     attrib.put(OTHER_SOURCES, l);
     instance.init(attrib);
     return instance;
@@ -592,7 +598,7 @@ public class CSPRNG
    * Add an array of bytes into the randomness pool. Note that this method will
    * <i>not</i> increment the pool's quality counter (this can only be done via
    * a source provided to the setup method).
-   * 
+   *
    * @param buf The byte array.
    * @param off The offset from whence to start reading bytes.
    * @param len The number of bytes to add.
@@ -624,7 +630,7 @@ public class CSPRNG
    * Add a single random byte to the randomness pool. Note that this method will
    * <i>not</i> increment the pool's quality counter (this can only be done via
    * a source provided to the setup method).
-   * 
+   *
    * @param b The byte to add.
    */
   public synchronized void addRandomByte(byte b)

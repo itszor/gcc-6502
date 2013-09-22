@@ -1,13 +1,11 @@
-// Locale support -*- C++ -*-
+// <locale> Forward declarations -*- C++ -*-
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file localefwd.h
+/** @file bits/localefwd.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{locale}
  */
 
 //
@@ -48,7 +41,15 @@
 #include <iosfwd>            // For ostreambuf_iterator, istreambuf_iterator
 #include <cctype>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  /** 
+   *  @defgroup locales Locales
+   *
+   *  Classes and functions for internationalization and localization.
+   */
 
   // 22.1.1 Locale
   class locale;
@@ -137,12 +138,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     class codecvt_byname;
 
   // 22.2.2 and 22.2.3 numeric
-_GLIBCXX_BEGIN_LDBL_NAMESPACE
+_GLIBCXX_BEGIN_NAMESPACE_LDBL
   template<typename _CharT, typename _InIter = istreambuf_iterator<_CharT> >
     class num_get;
   template<typename _CharT, typename _OutIter = ostreambuf_iterator<_CharT> >
     class num_put;
-_GLIBCXX_END_LDBL_NAMESPACE
+_GLIBCXX_END_NAMESPACE_LDBL
   template<typename _CharT> class numpunct;
   template<typename _CharT> class numpunct_byname;
 
@@ -165,12 +166,12 @@ _GLIBCXX_END_LDBL_NAMESPACE
 
   // 22.2.6 money
   class money_base;
-_GLIBCXX_BEGIN_LDBL_NAMESPACE
+_GLIBCXX_BEGIN_NAMESPACE_LDBL
   template<typename _CharT, typename _InIter =  istreambuf_iterator<_CharT> >
     class money_get;
   template<typename _CharT, typename _OutIter = ostreambuf_iterator<_CharT> >
     class money_put;
-_GLIBCXX_END_LDBL_NAMESPACE
+_GLIBCXX_END_NAMESPACE_LDBL
   template<typename _CharT, bool _Intl = false>
     class moneypunct;
   template<typename _CharT, bool _Intl = false>
@@ -183,6 +184,7 @@ _GLIBCXX_END_LDBL_NAMESPACE
   template<typename _CharT>
     class messages_byname;
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif

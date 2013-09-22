@@ -38,9 +38,6 @@ exception statement from your version.  */
 
 package gnu.javax.net.ssl.provider;
 
-import gnu.classpath.debug.Component;
-import gnu.classpath.debug.SystemLogger;
-
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -64,7 +61,7 @@ public final class EncryptedPreMasterSecret extends ExchangeKeys implements Buil
     version.getClass();
     this.version = version;
   }
-  
+
   public EncryptedPreMasterSecret(byte[] encryptedSecret, ProtocolVersion version)
   {
     this(ByteBuffer.allocate(version == ProtocolVersion.SSL_3
@@ -75,7 +72,7 @@ public final class EncryptedPreMasterSecret extends ExchangeKeys implements Buil
       b.putShort((short) encryptedSecret.length);
     b.put(encryptedSecret);
   }
-  
+
   public ByteBuffer buffer()
   {
     return (ByteBuffer) buffer.duplicate().rewind();

@@ -1,11 +1,11 @@
 // -*- C++ -*- Exception handling routines for throwing.
-// Copyright (C) 2001, 2003 Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // GCC is distributed in the hope that it will be useful,
@@ -13,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 #include <bits/c++config.h>
 #include "unwind-cxx.h"
@@ -36,43 +31,56 @@ using namespace __cxxabiv1;
 static void
 __gxx_exception_cleanup (_Unwind_Reason_Code code, _Unwind_Exception *exc)
 {
-  __cxa_exception *header = __get_exception_header_from_ue (exc);
+  // This cleanup is set only for primaries.
+  __cxa_refcounted_exception *header
+    = __get_refcounted_exception_header_from_ue (exc);
 
-  // If we haven't been caught by a foreign handler, then this is
-  // some sort of unwind error.  In that case just die immediately.
+  // We only want to be called through _Unwind_DeleteException.
   // _Unwind_DeleteException in the HP-UX IA64 libunwind library
-  //  returns _URC_NO_REASON and not _URC_FOREIGN_EXCEPTION_CAUGHT
+  // returns _URC_NO_REASON and not _URC_FOREIGN_EXCEPTION_CAUGHT
   // like the GCC _Unwind_DeleteException function does.
   if (code != _URC_FOREIGN_EXCEPTION_CAUGHT && code != _URC_NO_REASON)
-    __terminate (header->terminateHandler);
+    __terminate (header->exc.terminateHandler);
 
-  if (header->exceptionDestructor)
-    header->exceptionDestructor (header + 1);
+#if ATOMIC_INT_LOCK_FREE > 1
+  if (__atomic_sub_fetch (&header->referenceCount, 1, __ATOMIC_ACQ_REL) == 0)
+    {
+#endif
+      if (header->exc.exceptionDestructor)
+	header->exc.exceptionDestructor (header + 1);
 
-  __cxa_free_exception (header + 1);
+      __cxa_free_exception (header + 1);
+#if ATOMIC_INT_LOCK_FREE > 1
+    }
+#endif
 }
 
 
 extern "C" void
-__cxxabiv1::__cxa_throw (void *obj, std::type_info *tinfo, 
-			 void (*dest) (void *))
+__cxxabiv1::__cxa_throw (void *obj, std::type_info *tinfo,
+			 void (_GLIBCXX_CDTOR_CALLABI *dest) (void *))
 {
-  __cxa_exception *header = __get_exception_header_from_obj (obj);
-  header->exceptionType = tinfo;
-  header->exceptionDestructor = dest;
-  header->unexpectedHandler = __unexpected_handler;
-  header->terminateHandler = __terminate_handler;
-  __GXX_INIT_EXCEPTION_CLASS(header->unwindHeader.exception_class);
-  header->unwindHeader.exception_cleanup = __gxx_exception_cleanup;
+  PROBE2 (throw, obj, tinfo);
+
+  // Definitely a primary.
+  __cxa_refcounted_exception *header
+    = __get_refcounted_exception_header_from_obj (obj);
+  header->referenceCount = 1;
+  header->exc.exceptionType = tinfo;
+  header->exc.exceptionDestructor = dest;
+  header->exc.unexpectedHandler = __unexpected_handler;
+  header->exc.terminateHandler = __terminate_handler;
+  __GXX_INIT_PRIMARY_EXCEPTION_CLASS(header->exc.unwindHeader.exception_class);
+  header->exc.unwindHeader.exception_cleanup = __gxx_exception_cleanup;
 
 #ifdef _GLIBCXX_SJLJ_EXCEPTIONS
-  _Unwind_SjLj_RaiseException (&header->unwindHeader);
+  _Unwind_SjLj_RaiseException (&header->exc.unwindHeader);
 #else
-  _Unwind_RaiseException (&header->unwindHeader);
+  _Unwind_RaiseException (&header->exc.unwindHeader);
 #endif
 
   // Some sort of unwinding error.  Note that terminate is a handler.
-  __cxa_begin_catch (&header->unwindHeader);
+  __cxa_begin_catch (&header->exc.unwindHeader);
   std::terminate ();
 }
 
@@ -91,7 +99,12 @@ __cxxabiv1::__cxa_rethrow ()
       if (!__is_gxx_exception_class(header->unwindHeader.exception_class))
 	globals->caughtExceptions = 0;
       else
-	header->handlerCount = -header->handlerCount;
+	{
+	  header->handlerCount = -header->handlerCount;
+	  // Only notify probe for C++ exceptions.
+	  PROBE2 (rethrow, __get_object_from_ambiguous_exception(header),
+		  header->exceptionType);
+	}
 
 #ifdef _GLIBCXX_SJLJ_EXCEPTIONS
       _Unwind_SjLj_Resume_or_Rethrow (&header->unwindHeader);

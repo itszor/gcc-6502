@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -39,6 +39,8 @@ exception statement from your version. */
 package gnu.java.net.protocol.http;
 
 import gnu.classpath.SystemProperties;
+
+import gnu.java.lang.CPStringBuilder;
 import gnu.java.net.EmptyX509TrustManager;
 
 import java.io.BufferedInputStream;
@@ -199,7 +201,7 @@ public class HTTPConnection
     this(hostname, secure ? HTTPS_PORT : HTTP_PORT, secure,
          connectionTimeout, timeout);
   }
-  
+
   /**
    * Creates a new HTTP connection on the specified port.
    * @param hostname the name of the host to connect to
@@ -220,7 +222,7 @@ public class HTTPConnection
   {
     this(hostname, port, secure, 0, 0);
   }
-  
+
   /**
    * Creates a new HTTP or HTTPS connection on the specified port.
    * @param hostname the name of the host to connect to
@@ -237,7 +239,7 @@ public class HTTPConnection
   {
     if (connectionTimeout < 0 || timeout < 0)
       throw new IllegalArgumentException();
-    
+
     this.hostname = hostname;
     this.port = port;
     this.secure = secure;
@@ -475,8 +477,8 @@ public class HTTPConnection
      */
     synchronized HTTPConnection get(String host,
                                     int port,
-                                    boolean secure, 
-				    int connectionTimeout, int timeout)
+                                    boolean secure,
+                                    int connectionTimeout, int timeout)
     {
       String ttl =
         SystemProperties.getProperty("classpath.net.http.keepAliveTTL");
@@ -508,7 +510,7 @@ public class HTTPConnection
           }
 
       HTTPConnection c = null;
-      
+
       ListIterator it = connectionPool.listIterator(0);
       while (it.hasNext())
         {
@@ -582,7 +584,7 @@ public class HTTPConnection
         }
     }
   }
-  
+
   /**
    * The number of times this HTTPConnection has be used via keep-alive.
    */
@@ -616,7 +618,7 @@ public class HTTPConnection
       {
         useCount++;
         pool.put(this);
-        
+
       }
     else
       {
@@ -668,7 +670,7 @@ public class HTTPConnection
         Cookie[] cookies = cookieManager.getCookies(hostname, secure, path);
         if (cookies != null && cookies.length > 0)
           {
-            StringBuilder buf = new StringBuilder();
+            CPStringBuilder buf = new CPStringBuilder();
             buf.append("$Version=1");
             for (int i = 0; i < cookies.length; i++)
               {
@@ -827,7 +829,7 @@ public class HTTPConnection
    */
   protected String getURI()
   {
-    StringBuilder buf = new StringBuilder();
+    CPStringBuilder buf = new CPStringBuilder();
     buf.append(secure ? "https://" : "http://");
     buf.append(hostname);
     if (secure)
@@ -876,7 +878,7 @@ public class HTTPConnection
   }
 
   // -- Events --
-  
+
   void addHandshakeCompletedListener(HandshakeCompletedListener l)
   {
     synchronized (handshakeCompletedListeners)
@@ -893,4 +895,3 @@ public class HTTPConnection
   }
 
 }
-

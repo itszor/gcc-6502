@@ -7,25 +7,23 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2012, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,13 +33,15 @@
 --  This is a GNU/Linux (GNU/LinuxThreads) version of this package
 
 --  This package encapsulates all direct interfaces to OS services
---  that are needed by children of System.
+--  that are needed by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Preelaborate. This package is designed to be a bottom-level (leaf) package.
 
-with Interfaces.C;
 with Ada.Unchecked_Conversion;
+with Interfaces.C;
+with System.Linux;
+with System.OS_Constants;
 
 package System.OS_Interface is
    pragma Preelaborate;
@@ -66,12 +66,12 @@ package System.OS_Interface is
    function errno return int;
    pragma Import (C, errno, "__get_errno");
 
-   EAGAIN    : constant := 11;
-   EINTR     : constant := 4;
-   EINVAL    : constant := 22;
-   ENOMEM    : constant := 12;
-   EPERM     : constant := 1;
-   ETIMEDOUT : constant := 110;
+   EAGAIN    : constant := System.Linux.EAGAIN;
+   EINTR     : constant := System.Linux.EINTR;
+   EINVAL    : constant := System.Linux.EINVAL;
+   ENOMEM    : constant := System.Linux.ENOMEM;
+   EPERM     : constant := System.Linux.EPERM;
+   ETIMEDOUT : constant := System.Linux.ETIMEDOUT;
 
    -------------
    -- Signals --
@@ -81,52 +81,52 @@ package System.OS_Interface is
    type Signal is new int range 0 .. Max_Interrupt;
    for Signal'Size use int'Size;
 
-   SIGHUP     : constant := 1; --  hangup
-   SIGINT     : constant := 2; --  interrupt (rubout)
-   SIGQUIT    : constant := 3; --  quit (ASCD FS)
-   SIGILL     : constant := 4; --  illegal instruction (not reset)
-   SIGTRAP    : constant := 5; --  trace trap (not reset)
-   SIGIOT     : constant := 6; --  IOT instruction
-   SIGABRT    : constant := 6; --  used by abort, replace SIGIOT in the  future
-   SIGFPE     : constant := 8; --  floating point exception
-   SIGKILL    : constant := 9; --  kill (cannot be caught or ignored)
-   SIGBUS     : constant := 7; --  bus error
-   SIGSEGV    : constant := 11; --  segmentation violation
-   SIGPIPE    : constant := 13; --  write on a pipe with no one to read it
-   SIGALRM    : constant := 14; --  alarm clock
-   SIGTERM    : constant := 15; --  software termination signal from kill
-   SIGUSR1    : constant := 10; --  user defined signal 1
-   SIGUSR2    : constant := 12; --  user defined signal 2
-   SIGCLD     : constant := 17; --  alias for SIGCHLD
-   SIGCHLD    : constant := 17; --  child status change
-   SIGPWR     : constant := 30; --  power-fail restart
-   SIGWINCH   : constant := 28; --  window size change
-   SIGURG     : constant := 23; --  urgent condition on IO channel
-   SIGPOLL    : constant := 29; --  pollable event occurred
-   SIGIO      : constant := 29; --  I/O now possible (4.2 BSD)
-   SIGLOST    : constant := 29; --  File lock lost
-   SIGSTOP    : constant := 19; --  stop (cannot be caught or ignored)
-   SIGTSTP    : constant := 20; --  user stop requested from tty
-   SIGCONT    : constant := 18; --  stopped process has been continued
-   SIGTTIN    : constant := 21; --  background tty read attempted
-   SIGTTOU    : constant := 22; --  background tty write attempted
-   SIGVTALRM  : constant := 26; --  virtual timer expired
-   SIGPROF    : constant := 27; --  profiling timer expired
-   SIGXCPU    : constant := 24; --  CPU time limit exceeded
-   SIGXFSZ    : constant := 25; --  filesize limit exceeded
-   SIGUNUSED  : constant := 31; --  unused signal (GNU/Linux)
-   SIGSTKFLT  : constant := 16; --  coprocessor stack fault (Linux)
-   SIGLTHRRES : constant := 32; --  GNU/LinuxThreads restart signal
-   SIGLTHRCAN : constant := 33; --  GNU/LinuxThreads cancel signal
-   SIGLTHRDBG : constant := 34; --  GNU/LinuxThreads debugger signal
+   SIGHUP     : constant := System.Linux.SIGHUP;
+   SIGINT     : constant := System.Linux.SIGINT;
+   SIGQUIT    : constant := System.Linux.SIGQUIT;
+   SIGILL     : constant := System.Linux.SIGILL;
+   SIGTRAP    : constant := System.Linux.SIGTRAP;
+   SIGIOT     : constant := System.Linux.SIGIOT;
+   SIGABRT    : constant := System.Linux.SIGABRT;
+   SIGFPE     : constant := System.Linux.SIGFPE;
+   SIGKILL    : constant := System.Linux.SIGKILL;
+   SIGBUS     : constant := System.Linux.SIGBUS;
+   SIGSEGV    : constant := System.Linux.SIGSEGV;
+   SIGPIPE    : constant := System.Linux.SIGPIPE;
+   SIGALRM    : constant := System.Linux.SIGALRM;
+   SIGTERM    : constant := System.Linux.SIGTERM;
+   SIGUSR1    : constant := System.Linux.SIGUSR1;
+   SIGUSR2    : constant := System.Linux.SIGUSR2;
+   SIGCLD     : constant := System.Linux.SIGCLD;
+   SIGCHLD    : constant := System.Linux.SIGCHLD;
+   SIGPWR     : constant := System.Linux.SIGPWR;
+   SIGWINCH   : constant := System.Linux.SIGWINCH;
+   SIGURG     : constant := System.Linux.SIGURG;
+   SIGPOLL    : constant := System.Linux.SIGPOLL;
+   SIGIO      : constant := System.Linux.SIGIO;
+   SIGLOST    : constant := System.Linux.SIGLOST;
+   SIGSTOP    : constant := System.Linux.SIGSTOP;
+   SIGTSTP    : constant := System.Linux.SIGTSTP;
+   SIGCONT    : constant := System.Linux.SIGCONT;
+   SIGTTIN    : constant := System.Linux.SIGTTIN;
+   SIGTTOU    : constant := System.Linux.SIGTTOU;
+   SIGVTALRM  : constant := System.Linux.SIGVTALRM;
+   SIGPROF    : constant := System.Linux.SIGPROF;
+   SIGXCPU    : constant := System.Linux.SIGXCPU;
+   SIGXFSZ    : constant := System.Linux.SIGXFSZ;
+   SIGUNUSED  : constant := System.Linux.SIGUNUSED;
+   SIGSTKFLT  : constant := System.Linux.SIGSTKFLT;
+   SIGLTHRRES : constant := System.Linux.SIGLTHRRES;
+   SIGLTHRCAN : constant := System.Linux.SIGLTHRCAN;
+   SIGLTHRDBG : constant := System.Linux.SIGLTHRDBG;
 
    SIGADAABORT : constant := SIGABRT;
-   --  Change this if you want to use another signal for task abort.
-   --  SIGTERM might be a good one.
+   --  Change this to use another signal for task abort. SIGTERM might be a
+   --  good one.
 
    type Signal_Set is array (Natural range <>) of Signal;
 
-   Unmasked    : constant Signal_Set := (
+   Unmasked : constant Signal_Set := (
       SIGTRAP,
       --  To enable debugging on multithreaded applications, mark SIGTRAP to
       --  be kept unmasked.
@@ -134,24 +134,22 @@ package System.OS_Interface is
       SIGBUS,
 
       SIGTTIN, SIGTTOU, SIGTSTP,
-      --  Keep these three signals unmasked so that background processes
-      --  and IO behaves as normal "C" applications
+      --  Keep these three signals unmasked so that background processes and IO
+      --  behaves as normal "C" applications
 
       SIGPROF,
       --  To avoid confusing the profiler
 
       SIGKILL, SIGSTOP,
-      --  These two signals actually cannot be masked;
-      --  POSIX simply won't allow it.
+      --  These two signals actually can't be masked (POSIX won't allow it)
 
       SIGLTHRRES, SIGLTHRCAN, SIGLTHRDBG);
-      --  These three signals are used by GNU/LinuxThreads starting from
-      --  glibc 2.1 (future 2.2).
+      --  These three signals are used by GNU/LinuxThreads starting from glibc
+      --  2.1 (future 2.2).
 
-   Reserved    : constant Signal_Set :=
-   --  I am not sure why the following two signals are reserved.
-   --  I guess they are not supported by this version of GNU/Linux.
-     (SIGVTALRM, SIGUNUSED);
+   Reserved : constant Signal_Set := (SIGVTALRM, SIGUNUSED);
+   --  Not clear why these two signals are reserved. Perhaps they are not
+   --  supported by this version of GNU/Linux ???
 
    type sigset_t is private;
 
@@ -180,12 +178,13 @@ package System.OS_Interface is
    pragma Convention (C, siginfo_t);
 
    type struct_sigaction is record
-      sa_handler   : System.Address;
-      sa_mask      : sigset_t;
-      sa_flags     : unsigned_long;
-      sa_restorer  : System.Address;
+      sa_handler  : System.Address;
+      sa_mask     : sigset_t;
+      sa_flags    : Interfaces.C.unsigned_long;
+      sa_restorer : System.Address;
    end record;
    pragma Convention (C, struct_sigaction);
+
    type struct_sigaction_ptr is access all struct_sigaction;
 
    type Machine_State is record
@@ -198,7 +197,8 @@ package System.OS_Interface is
    end record;
    type Machine_State_Ptr is access all Machine_State;
 
-   SA_SIGINFO  : constant := 16#04#;
+   SA_SIGINFO : constant := System.Linux.SA_SIGINFO;
+   SA_ONSTACK : constant := System.Linux.SA_ONSTACK;
 
    SIG_BLOCK   : constant := 0;
    SIG_UNBLOCK : constant := 1;
@@ -224,19 +224,6 @@ package System.OS_Interface is
 
    function To_Timespec (D : Duration) return timespec;
    pragma Inline (To_Timespec);
-
-   type struct_timeval is private;
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
-
-   function gettimeofday
-     (tv : access struct_timeval;
-      tz : System.Address := System.Null_Address) return int;
-   pragma Import (C, gettimeofday, "gettimeofday");
 
    function sysconf (name : int) return long;
    pragma Import (C, sysconf);
@@ -268,6 +255,13 @@ package System.OS_Interface is
    function getpid return pid_t;
    pragma Import (C, getpid, "getpid");
 
+   PR_SET_NAME : constant := 15;
+
+   function prctl
+     (option                 : int;
+      arg2, arg3, arg4, arg5 : unsigned_long := 0) return int;
+   pragma Import (C, prctl);
+
    -------------
    -- Threads --
    -------------
@@ -280,23 +274,44 @@ package System.OS_Interface is
      Ada.Unchecked_Conversion (System.Address, Thread_Body);
 
    type pthread_t is new unsigned_long;
-   subtype Thread_Id        is pthread_t;
+   subtype Thread_Id is pthread_t;
 
-   function To_pthread_t is new Ada.Unchecked_Conversion
-     (unsigned_long, pthread_t);
+   function To_pthread_t is
+     new Ada.Unchecked_Conversion (unsigned_long, pthread_t);
 
-   type pthread_mutex_t     is limited private;
-   type pthread_cond_t      is limited private;
-   type pthread_attr_t      is limited private;
-   type pthread_mutexattr_t is limited private;
-   type pthread_condattr_t  is limited private;
-   type pthread_key_t       is private;
+   type pthread_mutex_t      is limited private;
+   type pthread_rwlock_t     is limited private;
+   type pthread_cond_t       is limited private;
+   type pthread_attr_t       is limited private;
+   type pthread_mutexattr_t  is limited private;
+   type pthread_rwlockattr_t is limited private;
+   type pthread_condattr_t   is limited private;
+   type pthread_key_t        is private;
 
    PTHREAD_CREATE_DETACHED : constant := 1;
 
    -----------
    -- Stack --
    -----------
+
+   type stack_t is record
+      ss_sp    : System.Address;
+      ss_flags : int;
+      ss_size  : size_t;
+   end record;
+   pragma Convention (C, stack_t);
+
+   function sigaltstack
+     (ss  : not null access stack_t;
+      oss : access stack_t) return int;
+   pragma Import (C, sigaltstack, "sigaltstack");
+
+   Alternate_Stack : aliased System.Address;
+   pragma Import (C, Alternate_Stack, "__gnat_alternate_stack");
+   --  The alternate signal stack for stack overflows
+
+   Alternate_Stack_Size : constant := 16 * 1024;
+   --  This must be in keeping with init.c:__gnat_alternate_stack
 
    function Get_Stack_Base (thread : pthread_t) return Address;
    pragma Inline (Get_Stack_Base);
@@ -351,6 +366,42 @@ package System.OS_Interface is
 
    function pthread_mutex_unlock (mutex : access pthread_mutex_t) return int;
    pragma Import (C, pthread_mutex_unlock, "pthread_mutex_unlock");
+
+   function pthread_rwlockattr_init
+     (attr : access pthread_rwlockattr_t) return int;
+   pragma Import (C, pthread_rwlockattr_init, "pthread_rwlockattr_init");
+
+   function pthread_rwlockattr_destroy
+     (attr : access pthread_rwlockattr_t) return int;
+   pragma Import (C, pthread_rwlockattr_destroy, "pthread_rwlockattr_destroy");
+
+   PTHREAD_RWLOCK_PREFER_READER_NP              : constant := 0;
+   PTHREAD_RWLOCK_PREFER_WRITER_NP              : constant := 1;
+   PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP : constant := 2;
+
+   function pthread_rwlockattr_setkind_np
+     (attr : access pthread_rwlockattr_t;
+      pref : int) return int;
+   pragma Import
+     (C, pthread_rwlockattr_setkind_np, "pthread_rwlockattr_setkind_np");
+
+   function pthread_rwlock_init
+     (mutex : access pthread_rwlock_t;
+      attr  : access pthread_rwlockattr_t) return int;
+   pragma Import (C, pthread_rwlock_init, "pthread_rwlock_init");
+
+   function pthread_rwlock_destroy
+     (mutex : access pthread_rwlock_t) return int;
+   pragma Import (C, pthread_rwlock_destroy, "pthread_rwlock_destroy");
+
+   function pthread_rwlock_rdlock (mutex : access pthread_rwlock_t) return int;
+   pragma Import (C, pthread_rwlock_rdlock, "pthread_rwlock_rdlock");
+
+   function pthread_rwlock_wrlock (mutex : access pthread_rwlock_t) return int;
+   pragma Import (C, pthread_rwlock_wrlock, "pthread_rwlock_wrlock");
+
+   function pthread_rwlock_unlock (mutex : access pthread_rwlock_t) return int;
+   pragma Import (C, pthread_rwlock_unlock, "pthread_rwlock_unlock");
 
    function pthread_condattr_init
      (attr : access pthread_condattr_t) return int;
@@ -442,6 +493,9 @@ package System.OS_Interface is
    function pthread_self return pthread_t;
    pragma Import (C, pthread_self, "pthread_self");
 
+   function lwp_self return System.Address;
+   pragma Import (C, lwp_self, "__gnat_lwp_self");
+
    --------------------------
    -- POSIX.1c  Section 17 --
    --------------------------
@@ -463,6 +517,10 @@ package System.OS_Interface is
    pragma Import (C, pthread_key_create, "pthread_key_create");
 
    CPU_SETSIZE : constant := 1_024;
+   --  Size of the cpu_set_t mask on most linux systems (SUSE 11 uses 4_096).
+   --  This is kept for backward compatibility (System.Task_Info uses it), but
+   --  the run-time library does no longer rely on static masks, using
+   --  dynamically allocated masks instead.
 
    type bit_field is array (1 .. CPU_SETSIZE) of Boolean;
    for bit_field'Size use CPU_SETSIZE;
@@ -474,17 +532,67 @@ package System.OS_Interface is
    end record;
    pragma Convention (C, cpu_set_t);
 
+   type cpu_set_t_ptr is access all cpu_set_t;
+   --  In the run-time library we use this pointer because the size of type
+   --  cpu_set_t varies depending on the glibc version. Hence, objects of type
+   --  cpu_set_t are allocated dynamically using the number of processors
+   --  available in the target machine (value obtained at execution time).
+
+   function CPU_ALLOC (count : size_t) return cpu_set_t_ptr;
+   pragma Import (C, CPU_ALLOC, "__gnat_cpu_alloc");
+   --  Wrapper around the CPU_ALLOC C macro
+
+   function CPU_ALLOC_SIZE (count : size_t) return size_t;
+   pragma Import (C, CPU_ALLOC_SIZE, "__gnat_cpu_alloc_size");
+   --  Wrapper around the CPU_ALLOC_SIZE C macro
+
+   procedure CPU_FREE (cpuset : cpu_set_t_ptr);
+   pragma Import (C, CPU_FREE, "__gnat_cpu_free");
+   --  Wrapper around the CPU_FREE C macro
+
+   procedure CPU_ZERO (count : size_t; cpuset : cpu_set_t_ptr);
+   pragma Import (C, CPU_ZERO, "__gnat_cpu_zero");
+   --  Wrapper around the CPU_ZERO_S C macro
+
+   procedure CPU_SET (cpu : int; count : size_t; cpuset : cpu_set_t_ptr);
+   pragma Import (C, CPU_SET, "__gnat_cpu_set");
+   --  Wrapper around the CPU_SET_S C macro
+
    function pthread_setaffinity_np
      (thread     : pthread_t;
       cpusetsize : size_t;
-      cpuset     : access cpu_set_t) return int;
-   pragma Import (C, pthread_setaffinity_np, "__gnat_pthread_setaffinity_np");
+      cpuset     : cpu_set_t_ptr) return int;
+   pragma Import (C, pthread_setaffinity_np, "pthread_setaffinity_np");
+   pragma Weak_External (pthread_setaffinity_np);
+   --  Use a weak symbol because this function may be available or not,
+   --  depending on the version of the system.
+
+   function pthread_attr_setaffinity_np
+     (attr       : access pthread_attr_t;
+      cpusetsize : size_t;
+      cpuset     : cpu_set_t_ptr) return int;
+   pragma Import (C, pthread_attr_setaffinity_np,
+                    "pthread_attr_setaffinity_np");
+   pragma Weak_External (pthread_attr_setaffinity_np);
+   --  Use a weak symbol because this function may be available or not,
+   --  depending on the version of the system.
 
 private
 
-   type sigset_t is array (0 .. 127) of unsigned_char;
+   type sigset_t is
+     array (0 .. OS_Constants.SIZEOF_sigset - 1) of unsigned_char;
    pragma Convention (C, sigset_t);
-   for sigset_t'Alignment use unsigned_long'Alignment;
+   for sigset_t'Alignment use Interfaces.C.unsigned_long'Alignment;
+
+   pragma Warnings (Off);
+   for struct_sigaction use record
+      sa_handler at Linux.sa_handler_pos range 0 .. Standard'Address_Size - 1;
+      sa_mask    at Linux.sa_mask_pos    range 0 .. 1023;
+      sa_flags   at Linux.sa_flags_pos   range 0 .. Standard'Address_Size - 1;
+   end record;
+   --  We intentionally leave sa_restorer unspecified and let the compiler
+   --  append it after the last field, so disable corresponding warning.
+   pragma Warnings (On);
 
    type pid_t is new int;
 
@@ -496,52 +604,52 @@ private
    end record;
    pragma Convention (C, timespec);
 
-   type struct_timeval is record
-      tv_sec  : time_t;
-      tv_usec : time_t;
-   end record;
-   pragma Convention (C, struct_timeval);
+   type unsigned_long_long_t is mod 2 ** 64;
+   --  Local type only used to get the alignment of this type below
+
+   subtype char_array is Interfaces.C.char_array;
 
    type pthread_attr_t is record
-      detachstate   : int;
-      schedpolicy   : int;
-      schedparam    : struct_sched_param;
-      inheritsched  : int;
-      scope         : int;
-      guardsize     : size_t;
-      stackaddr_set : int;
-      stackaddr     : System.Address;
-      stacksize     : size_t;
+      Data : char_array (1 .. OS_Constants.PTHREAD_ATTR_SIZE);
    end record;
    pragma Convention (C, pthread_attr_t);
+   for pthread_attr_t'Alignment use Interfaces.C.unsigned_long'Alignment;
 
    type pthread_condattr_t is record
-      dummy : int;
+      Data : char_array (1 .. OS_Constants.PTHREAD_CONDATTR_SIZE);
    end record;
    pragma Convention (C, pthread_condattr_t);
+   for pthread_condattr_t'Alignment use Interfaces.C.int'Alignment;
 
    type pthread_mutexattr_t is record
-      mutexkind : int;
-   end record;
+      Data : char_array (1 .. OS_Constants.PTHREAD_MUTEXATTR_SIZE);
+   end  record;
    pragma Convention (C, pthread_mutexattr_t);
-
-   type struct_pthread_fast_lock is record
-      status   : long;
-      spinlock : int;
-   end record;
-   pragma Convention (C, struct_pthread_fast_lock);
+   for pthread_mutexattr_t'Alignment use Interfaces.C.int'Alignment;
 
    type pthread_mutex_t is record
-      m_reserved : int;
-      m_count    : int;
-      m_owner    : System.Address;
-      m_kind     : int;
-      m_lock     : struct_pthread_fast_lock;
+      Data : char_array (1 .. OS_Constants.PTHREAD_MUTEX_SIZE);
    end record;
    pragma Convention (C, pthread_mutex_t);
+   for pthread_mutex_t'Alignment use Interfaces.C.unsigned_long'Alignment;
 
-   type pthread_cond_t is array (0 .. 47) of unsigned_char;
+   type pthread_rwlockattr_t is record
+      Data : char_array (1 .. OS_Constants.PTHREAD_RWLOCKATTR_SIZE);
+   end record;
+   pragma Convention (C, pthread_rwlockattr_t);
+   for pthread_rwlockattr_t'Alignment use Interfaces.C.unsigned_long'Alignment;
+
+   type pthread_rwlock_t is record
+      Data : char_array (1 .. OS_Constants.PTHREAD_RWLOCK_SIZE);
+   end record;
+   pragma Convention (C, pthread_rwlock_t);
+   for pthread_rwlock_t'Alignment use Interfaces.C.unsigned_long'Alignment;
+
+   type pthread_cond_t is record
+      Data : char_array (1 .. OS_Constants.PTHREAD_COND_SIZE);
+   end record;
    pragma Convention (C, pthread_cond_t);
+   for pthread_cond_t'Alignment use unsigned_long_long_t'Alignment;
 
    type pthread_key_t is new unsigned;
 

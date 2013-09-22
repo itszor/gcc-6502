@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,6 +31,6 @@ package Live is
 
    procedure Collect_Garbage_Entities;
    --  Eliminate unreachable entities using a mark-and-sweep from
-   --  the set of root entities, ie. those having Is_Public set.
+   --  the set of root entities, i.e. those having Is_Public set.
 
 end Live;

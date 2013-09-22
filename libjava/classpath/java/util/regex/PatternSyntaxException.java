@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package java.util.regex;
 
+import gnu.java.lang.CPStringBuilder;
+
 /**
  * Indicates illegal pattern for regular expression.
  * Includes state to inspect the pattern and what and where the expression
@@ -56,7 +58,7 @@ public class PatternSyntaxException extends IllegalArgumentException
    * The original pattern that contained the syntax error.
    */
   private final String pattern;
-  
+
   /**
    * Index of the first character in the String that was probably invalid,
    * or -1 when unknown.
@@ -72,8 +74,8 @@ public class PatternSyntaxException extends IllegalArgumentException
    *        probably invalid, or -1 when unknown.
    */
   public PatternSyntaxException(String description,
-		                String pattern,
-				int index)
+                                String pattern,
+                                int index)
   {
     super(description);
     this.desc = description;
@@ -115,17 +117,17 @@ public class PatternSyntaxException extends IllegalArgumentException
   public String getMessage()
   {
     String lineSep = System.getProperty("line.separator");
-    StringBuffer sb = new StringBuffer(desc);
+    CPStringBuilder sb = new CPStringBuilder(desc);
     sb.append(lineSep);
     sb.append('\t');
     sb.append(pattern);
     if (index != -1)
       {
-	sb.append(lineSep);
-	sb.append('\t');
-	for (int i=0; i<index; i++)
-	  sb.append(' ');
-	sb.append('^');
+        sb.append(lineSep);
+        sb.append('\t');
+        for (int i=0; i<index; i++)
+          sb.append(' ');
+        sb.append('^');
       }
     return sb.toString();
   }

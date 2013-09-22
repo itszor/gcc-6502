@@ -1,5 +1,5 @@
 /* Track.java -- A track of MIDI events
-   Copyright (C) 2005 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -42,9 +42,9 @@ import java.util.HashSet;
 import java.util.Vector;
 
 /**
- * A Track contains a list of timecoded MIDI events for processing 
+ * A Track contains a list of timecoded MIDI events for processing
  * by a Sequencer.
- * 
+ *
  * @author Anthony Green (green@redhat.com)
  * @since 1.3
  *
@@ -52,12 +52,12 @@ import java.util.Vector;
 public class Track
 {
   /**
-   * The list of MidiEvents for this track. 
+   * The list of MidiEvents for this track.
    */
-  Vector events = new Vector();
-  
+  Vector<MidiEvent> events = new Vector<MidiEvent>();
+
   // A HashSet to speed processing
-  private HashSet eventSet = new HashSet();
+  private HashSet<MidiEvent> eventSet = new HashSet<MidiEvent>();
 
   // This is only instantiable within this package.
   Track()
@@ -68,7 +68,7 @@ public class Track
    * Add a new event to this track.  Specific events may only be added once.
    * The event will be inserted into the appropriate spot in the event list
    * based on its timecode.
-   * 
+   *
    * @param event the event to add
    * @return true if the event was added, false otherwise
    */
@@ -78,21 +78,21 @@ public class Track
     {
       if (eventSet.contains(event))
         return false;
-    
+
       eventSet.add(event);
 
       long targetTick = event.getTick();
       int i = events.size() - 1;
-      while (i >= 0 && (((MidiEvent)events.get(i)).getTick() > targetTick))
+      while (i >= 0 && (events.get(i).getTick() > targetTick))
         i--;
       events.add(i+1, event);
       return true;
     }
   }
-    
+
   /**
    * Remove an event from this track.
-   * 
+   *
    * @param event the event to remove
    * @return true if the event was removed, false otherwise
    */
@@ -102,21 +102,21 @@ public class Track
     {
       if (! eventSet.remove(event))
         return false;
-          
+
       int i = events.indexOf(event);
       if (i >= 0)
         {
           events.remove(i);
           return true;
         }
-         
+
       throw new InternalError("event in set but not list");
     }
   }
-  
+
   /**
    * Get an event idetified by its order index
-   * 
+   *
    * @param index the location of the event to get
    * @return the event at index
    * @throws ArrayIndexOutOfBoundsException if index is out of bounds
@@ -127,20 +127,20 @@ public class Track
     {
       try
       {
-        return (MidiEvent) events.get(index);
+        return events.get(index);
       }
       catch (IndexOutOfBoundsException e)
       {
-        throw (ArrayIndexOutOfBoundsException) 
+        throw (ArrayIndexOutOfBoundsException)
           new ArrayIndexOutOfBoundsException().initCause(e);
       }
     }
   }
-  
-  
+
+
   /**
    * Get the number events in this track.
-   * 
+   *
    * @return the number of events in this track
    */
   public int size()
@@ -150,7 +150,7 @@ public class Track
 
   /**
    * Get the length of the track in MIDI ticks.
-   * 
+   *
    * @return the length of the track in MIDI ticks
    */
   public long ticks()
@@ -158,8 +158,7 @@ public class Track
     synchronized (events)
     {
       int size = events.size();
-      return ((MidiEvent) events.get(size - 1)).getTick();
+      return events.get(size - 1).getTick();
     }
   }
  }
-

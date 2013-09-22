@@ -1,4 +1,4 @@
-# Copyright (C) 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -121,15 +121,18 @@ if [info exists ALT_CXX_UNDER_TEST] then {
 }
 
 set tstobjdir "$tmpdir/g++.dg-struct-layout-1"
-set generator "$tmpdir/g++.dg-struct-layout-1_generate"
+set generator "$tmpdir/g++.dg-struct-layout-1_generate.exe"
 
 set generator_src "$srcdir/$subdir/struct-layout-1_generate.c"
 set generator_src "$generator_src $srcdir/$subdir/../../gcc.dg/compat/generate-random.c"
 set generator_src "$generator_src $srcdir/$subdir/../../gcc.dg/compat/generate-random_r.c"
 set generator_cmd "-o $generator $generator_src"
 
-set status [remote_exec host "$HOSTCC $HOSTCFLAGS $generator_cmd"]
+# Temporarily switch to the environment of the host compiler.
+restore_ld_library_path_env_vars
+set status [remote_exec build "$HOSTCC $HOSTCFLAGS $generator_cmd"]
 set status [lindex $status 0]
+set_ld_library_path_env_vars
 if { $status == 0 } then {
     file delete -force $tstobjdir
     file mkdir $tstobjdir

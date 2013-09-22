@@ -1,31 +1,26 @@
-/* Copyright (C) 2002, 2003, 2005, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with libgfortran; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 
@@ -60,6 +55,19 @@ variable;
 
 static void init_unformatted (variable *);
 
+
+#ifdef FALLBACK_SECURE_GETENV
+char *
+secure_getenv (const char *name)
+{
+  if ((getuid () == geteuid ()) && (getgid () == getegid ()))
+    return getenv (name);
+  else
+    return NULL;
+}
+#endif
+
+
 /* print_spaces()-- Print a particular number of spaces.  */
 
 static void
@@ -76,7 +84,7 @@ print_spaces (int n)
 
   buffer[i] = '\0';
 
-  st_printf (buffer);
+  estr_write (buffer);
 }
 
 
@@ -266,7 +274,10 @@ show_string (variable * v)
   if (p == NULL)
     p = "";
 
-  st_printf ("%s  \"%s\"\n", var_source (v), p);
+  estr_write (var_source (v));
+  estr_write ("  \"");
+  estr_write (p);
+  estr_write ("\"\n");
 }
 
 
@@ -286,13 +297,8 @@ static variable variable_table[] = {
    "Unit number that will be preconnected to standard error\n"
    "(No preconnection if negative)", 0},
 
-  {"GFORTRAN_USE_STDERR", 1, &options.use_stderr, init_boolean,
-   show_boolean,
-   "Sends library output to standard error instead of standard output.", 0},
-
-  {"GFORTRAN_TMPDIR", 0, NULL, init_string, show_string,
-   "Directory for scratch files.  Overrides the TMP environment variable\n"
-   "If TMP is not set " DEFAULT_TEMPDIR " is used.", 0},
+  {"TMPDIR", 0, NULL, init_string, show_string,
+   "Directory for scratch files.", 0},
 
   {"GFORTRAN_UNBUFFERED_ALL", 0, &options.all_unbuffered, init_boolean,
    show_boolean,
@@ -324,11 +330,6 @@ static variable variable_table[] = {
   {"GFORTRAN_CONVERT_UNIT", 0, 0, init_unformatted, show_string,
    "Set format for unformatted files", 0},
 
-  /* Behaviour when encoutering a runtime error.  */
-  {"GFORTRAN_ERROR_DUMPCORE", -1, &options.dump_core,
-    init_boolean, show_boolean,
-    "Dump a core file (if possible) on runtime error", -1},
-
   {"GFORTRAN_ERROR_BACKTRACE", -1, &options.backtrace,
     init_boolean, show_boolean,
     "Print out a backtrace (if possible) on runtime error", -1},
@@ -357,32 +358,33 @@ show_variables (void)
   int n;
 
   /* TODO: print version number.  */
-  st_printf ("GNU Fortran 95 runtime library version "
+  estr_write ("GNU Fortran runtime library version "
 	     "UNKNOWN" "\n\n");
 
-  st_printf ("Environment variables:\n");
-  st_printf ("----------------------\n");
+  estr_write ("Environment variables:\n");
+  estr_write ("----------------------\n");
 
   for (v = variable_table; v->name; v++)
     {
-      n = st_printf ("%s", v->name);
+      n = estr_write (v->name);
       print_spaces (25 - n);
 
       if (v->show == show_integer)
-	st_printf ("Integer ");
+	estr_write ("Integer ");
       else if (v->show == show_boolean)
-	st_printf ("Boolean ");
+	estr_write ("Boolean ");
       else
-	st_printf ("String  ");
+	estr_write ("String  ");
 
       v->show (v);
-      st_printf ("%s\n\n", v->desc);
+      estr_write (v->desc);
+      estr_write ("\n\n");
     }
 
   /* System error codes */
 
-  st_printf ("\nRuntime error codes:");
-  st_printf ("\n--------------------\n");
+  estr_write ("\nRuntime error codes:");
+  estr_write ("\n--------------------\n");
 
   for (n = LIBERROR_FIRST + 1; n < LIBERROR_LAST; n++)
     if (n < 0 || n > 9)
@@ -390,12 +392,10 @@ show_variables (void)
     else
       st_printf (" %d  %s\n", n, translate_error (n));
 
-  st_printf ("\nCommand line arguments:\n");
-  st_printf ("  --help               Print this list\n");
+  estr_write ("\nCommand line arguments:\n");
+  estr_write ("  --help               Print this list\n");
 
-  /* st_printf("  --resume <dropfile>  Resume program execution from dropfile\n"); */
-
-  sys_exit (0);
+  exit (0);
 }
 
 /* This is the handling of the GFORTRAN_CONVERT_UNITS environment variable.
@@ -458,21 +458,35 @@ search_unit (int unit, int *ip)
 {
   int low, high, mid;
 
-  low = -1;
-  high = n_elist;
-  while (high - low > 1)
+  if (n_elist == 0)
+    {
+      *ip = 0;
+      return 0;
+    }
+
+  low = 0;
+  high = n_elist - 1;
+
+  do 
     {
       mid = (low + high) / 2;
-      if (unit <= elist[mid].unit)
-	high = mid;
+      if (unit == elist[mid].unit)
+	{
+	  *ip = mid;
+	  return 1;
+	}
+      else if (unit > elist[mid].unit)
+	low = mid + 1;
       else
-	low = mid;
-    }
-  *ip = high;
-  if (elist[high].unit == unit)
-    return 1;
+	high = mid - 1;
+    } while (low <= high);
+
+  if (unit > elist[mid].unit)
+    *ip = mid + 1;
   else
-    return 0;
+    *ip = mid;
+
+  return 0;
 }
 
 /* This matches a keyword.  If it is found, return the token supplied,
@@ -587,13 +601,13 @@ mark_single (int unit)
     }
   if (search_unit (unit, &i))
     {
-      elist[unit].conv = endian;
+      elist[i].conv = endian;
     }
   else
     {
-      for (j=n_elist; j>=i; j--)
+      for (j=n_elist-1; j>=i; j--)
 	elist[j+1] = elist[j];
-    
+
       n_elist += 1;
       elist[i].unit = unit;
       elist[i].conv = endian;
@@ -819,7 +833,7 @@ void init_unformatted (variable * v)
     }
   else
     {
-      elist = get_mem (unit_count * sizeof (exception_t));
+      elist = xmalloc (unit_count * sizeof (exception_t));
       do_count = 0;
       p = val;
       do_parse ();

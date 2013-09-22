@@ -1,4 +1,4 @@
-/* NameFunction.java -- 
+/* NameFunction.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -67,9 +67,9 @@ final class NameFunction
 
   final Expr arg;
 
-  NameFunction(List args)
+  NameFunction(List<Expr> args)
   {
-    this(args.size() > 0 ? (Expr) args.get(0) : null);
+    this(args.size() > 0 ? args.get(0) : null);
   }
 
   NameFunction(Expr arg)
@@ -77,27 +77,33 @@ final class NameFunction
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
-    Object val = (arg == null) ? Collections.singleton(context) :
-        arg.evaluate(context, pos, len);
-    return _name(context, (Collection) val);
+    /* Suppression is safe, as we know context produces Collection<Node> */
+    @SuppressWarnings("unchecked")
+    Collection<Node> val = (arg == null) ? Collections.singleton(context) :
+      (Collection<Node>) arg.evaluate(context, pos, len);
+    return _name(context, val);
   }
 
+  @Override
   public Expr clone(Object context)
   {
     return new NameFunction((arg == null) ? null :
                             arg.clone(context));
   }
 
+  @Override
   public boolean references(QName var)
   {
     return (arg == null) ? false : arg.references(var);
   }
-  
+
+  @Override
   public String toString()
   {
     return (arg == null) ? "name()" : "name(" + arg + ")";
   }
-  
+
 }

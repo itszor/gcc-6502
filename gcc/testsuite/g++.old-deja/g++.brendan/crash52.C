@@ -5,9 +5,9 @@
 
 class A {
 public:
-  friend A f(A &a);// { dg-error "" }  ambiguates.*
+  friend A f(A &a);// { dg-error "ambiguates" }
 };
 
-A &f(A &a) {// { dg-error "" }  new decl.*
+A &f(A &a) {// { dg-error "new decl" }
   std::cout << "Blah\n";
-}
+} // { dg-warning "no return statement" }

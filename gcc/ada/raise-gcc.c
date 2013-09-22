@@ -6,24 +6,23 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *             Copyright (C) 1992-2007, Free Software Foundation, Inc.      *
+ *             Copyright (C) 1992-2013, Free Software Foundation, Inc.      *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -33,60 +32,43 @@
 /* Code related to the integration of the GCC mechanism for exception
    handling.  */
 
-#ifdef IN_RTS
-#include "tconfig.h"
-/* In the top-of-tree GCC, tconfig does not include tm.h, but in GCC 3.2
-   it does.  To avoid branching raise.c just for that purpose, we kludge by
-   looking for a symbol always defined by tm.h and if it's not defined,
-   we include it.  */
-#ifndef FIRST_PSEUDO_REGISTER
-#include "coretypes.h"
-#include "tm.h"
+#ifndef IN_RTS
+#error "RTS unit only"
 #endif
+
+#include "tconfig.h"
 #include "tsystem.h"
-#include <sys/stat.h>
+
 #include <stdarg.h>
 typedef char bool;
 # define true 1
 # define false 0
-#else
-#include "config.h"
-#include "system.h"
+
+#include "raise.h"
+
+#ifdef __APPLE__
+/* On MacOS X, versions older than 10.5 don't export _Unwind_GetIPInfo.  */
+#undef HAVE_GETIPINFO
+#if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1050
+#define HAVE_GETIPINFO 1
+#endif
 #endif
 
-#include "adaint.h"
-#include "raise.h"
+#if defined (__hpux__) && defined (USE_LIBUNWIND_EXCEPTIONS)
+/* HP-UX B.11.31 ia64 libunwind doesn't have _Unwind_GetIPInfo. */
+#undef HAVE_GETIPINFO
+#define _UA_END_OF_STACK 0
+#endif
 
 /* The names of a couple of "standard" routines for unwinding/propagation
    actually vary depending on the underlying GCC scheme for exception handling
    (SJLJ or DWARF). We need a consistently named interface to import from
-   a-except, so wrappers are defined here.
-
-   Besides, even though the compiler is never setup to use the GCC propagation
-   circuitry, it still relies on exceptions internally and part of the sources
-   to handle to exceptions are shared with the run-time library.  We need
-   dummy definitions for the wrappers to satisfy the linker in this case.
-
-   The types to be used by those wrappers in the run-time library are target
-   types exported by unwind.h.  We used to piggyback on them for the compiler
-   stubs, but there is no guarantee that unwind.h is always in sight so we
-   define our own set below.  These are dummy types as the wrappers are never
-   called in the compiler case.  */
-
-#ifdef IN_RTS
+   a-except, so wrappers are defined here.  */
 
 #include "unwind.h"
 
 typedef struct _Unwind_Context _Unwind_Context;
 typedef struct _Unwind_Exception _Unwind_Exception;
-
-#else
-
-typedef void _Unwind_Context;
-typedef void _Unwind_Exception;
-typedef int  _Unwind_Reason_Code;
-
-#endif
 
 _Unwind_Reason_Code
 __gnat_Unwind_RaiseException (_Unwind_Exception *);
@@ -94,17 +76,22 @@ __gnat_Unwind_RaiseException (_Unwind_Exception *);
 _Unwind_Reason_Code
 __gnat_Unwind_ForcedUnwind (_Unwind_Exception *, void *, void *);
 
+extern struct Exception_Occurrence *__gnat_setup_current_excep
+ (_Unwind_Exception *);
+extern void __gnat_unhandled_except_handler (_Unwind_Exception *);
 
-#ifdef IN_RTS   /* For eh personality routine */
-
-#include "dwarf2.h"
-#include "unwind-dw2-fde.h"
 #include "unwind-pe.h"
 
+/* The known and handled exception classes.  */
+
+#define CXX_EXCEPTION_CLASS 0x474e5543432b2b00ULL
+#define GNAT_EXCEPTION_CLASS 0x474e552d41646100ULL
 
 /* --------------------------------------------------------------
    -- The DB stuff below is there for debugging purposes only. --
    -------------------------------------------------------------- */
+
+#ifndef inhibit_libc
 
 #define DB_PHASES     0x1
 #define DB_CSITE      0x2
@@ -118,10 +105,10 @@ __gnat_Unwind_ForcedUnwind (_Unwind_Exception *, void *, void *);
 typedef struct
 {
   _Unwind_Action phase;
-  char * description;
+  const char * description;
 } phase_descriptor;
 
-static phase_descriptor phase_descriptors[]
+static const phase_descriptor phase_descriptors[]
   = {{ _UA_SEARCH_PHASE,  "SEARCH_PHASE" },
      { _UA_CLEANUP_PHASE, "CLEANUP_PHASE" },
      { _UA_HANDLER_FRAME, "HANDLER_FRAME" },
@@ -160,31 +147,19 @@ db_indent (int requests)
   static int current_indentation_level = 0;
 
   if (requests & DB_INDENT_RESET)
-    {
-      current_indentation_level = 0;
-    }
+    current_indentation_level = 0;
 
   if (requests & DB_INDENT_INCREASE)
-    {
-      current_indentation_level ++;
-    }
+    current_indentation_level ++;
 
   if (requests & DB_INDENT_DECREASE)
-    {
-      current_indentation_level --;
-    }
+    current_indentation_level --;
 
   if (requests & DB_INDENT_NEWLINE)
-    {
-      fprintf (stderr, "\n");
-    }
+    fprintf (stderr, "\n");
 
   if (requests & DB_INDENT_OUTPUT)
-    {
-      fprintf (stderr, "%*s",
-	       current_indentation_level * DB_INDENT_UNIT, " ");
-    }
-
+    fprintf (stderr, "%*s", current_indentation_level * DB_INDENT_UNIT, " ");
 }
 
 static void ATTRIBUTE_PRINTF_2
@@ -205,7 +180,7 @@ db (int db_code, char * msg_format, ...)
 static void
 db_phases (int phases)
 {
-  phase_descriptor *a = phase_descriptors;
+  const phase_descriptor *a = phase_descriptors;
 
   if (! (db_accepted_codes() & DB_PHASES))
     return;
@@ -218,7 +193,11 @@ db_phases (int phases)
 
   db (DB_PHASES, " :\n");
 }
-
+#else /* !inhibit_libc */
+#define db_phases(X)
+#define db_indent(X)
+#define db(X, ...)
+#endif /* !inhibit_libc */
 
 /* ---------------------------------------------------------------
    --  Now come a set of useful structures and helper routines. --
@@ -231,6 +210,10 @@ db_phases (int phases)
    =======================================
    * Tables for the dwarf zero cost case *
    =======================================
+
+   They are fully documented in:
+     http://sourcery.mentor.com/public/cxx-abi/exceptions.pdf
+   Here is a shorter presentation, with some specific comments for Ada.
 
    call_site []
    -------------------------------------------------------------------
@@ -260,7 +243,8 @@ db_phases (int phases)
 
    This table contains lists (called action chains) of possible actions
    associated with call-site entries described in the call-site [] table.
-   There is at most one action list per call-site entry.
+   There is at most one action list per call-site entry.  It is SLEB128
+   encoded.
 
    A null action-filter indicates a cleanup.
 
@@ -268,28 +252,37 @@ db_phases (int phases)
    (see below), from which information may be retrieved to check if it
    matches the exception being propagated.
 
-   action-filter > 0  means there is a regular handler to be run,
+   * action-filter > 0:
+   means there is a regular handler to be run The value is also passed
+   to the landing pad to dispatch the exception.
 
-   action-filter < 0  means there is a some "exception_specification"
-                      data to retrieve, which is only relevant for C++
-		      and should never show up for Ada.
+   * action-filter < 0:
+   means there is a some "exception_specification" data to retrieve,
+   which is only relevant for C++ and should never show up for Ada.
+   (Exception specification specifies which exceptions can be thrown
+   by a function. Such filter is emitted around the body of C++
+   functions defined like:
+     void foo ([...])  throw (A, B) { [...] }
+   These can be viewed as negativ filter: the landing pad is branched
+   to for exceptions that doesn't match the filter and usually aborts
+   the program).
 
-   next-action indexes the next entry in the list. 0 indicates there is
-   no other entry.
+   * next-action
+   points to the next entry in the list using a relative byte offset. 0
+   indicates there is no other entry.
 
    ttypes []
    ---------------
    * ttype-value *
    ---------------
 
-   A null value indicates a catch-all handler in C++, and an "others"
-   handler in Ada.
+   This table is an array of addresses.
+
+   A null value indicates a catch-all handler.  (Not used by Ada)
 
    Non null values are used to match the exception being propagated:
    In C++ this is a pointer to some rtti data, while in Ada this is an
-   exception id.
-
-   The special id value 1 indicates an "all_others" handler.
+   exception id (with a fake id for others).
 
    For C++, this table is actually also used to store "exception
    specification" data. The differentiation between the two kinds
@@ -335,9 +328,9 @@ db_phases (int phases)
 		 +=====================+     |  the actual base.
 		 |     ttype-value     |     |
     +============+=====================+     |
-    |            |  0 => "others"      |     |
-    |    ...     |  1 => "all others"  | <---+
-    |            |  X => exception id  |
+    |            |        ...          |     |
+    |    ...     |     exception id    | <---+
+    |            |        ...          |
     |  handlers	 +---------------------+
     |            |        ...          |
     |    ...     |        ...          |
@@ -362,7 +355,7 @@ db_phases (int phases)
    context stack and not the actual call chain.
 
    The ACTION and TTYPES tables remain unchanged, which allows to search them
-   during the propagation phase to determine wether or not the propagated
+   during the propagation phase to determine whether or not the propagated
    exception is handled somewhere. When it is, we only "jump" up once directly
    to the context where the handler will be found. Besides, this allows "break
    exception unhandled" to work also
@@ -400,7 +393,7 @@ db_phases (int phases)
    ===================================
 
    The major point of this unit is to provide an exception propagation
-   personality routine for Ada. This is __gnat_eh_personality.
+   personality routine for Ada. This is __gnat_personality_v0.
 
    It is provided with a pointer to the propagated exception, an unwind
    context describing a location the propagation is going through, and a
@@ -433,11 +426,11 @@ db_phases (int phases)
      |
      |   (Ada frame)
      |
-     +--> __gnat_eh_personality (context, exception)
+     +--> __gnat_personality_v0 (context, exception)
 	   |
-	   +--> get_region_descriptor_for (context)
+	   +--> get_region_description_for (context)
 	   |
-	   +--> get_action_descriptor_for (context, exception, region)
+	   +--> get_action_description_for (ip, exception, region)
 	   |       |
 	   |       +--> get_call_site_action_for (context, region)
 	   |            (one version for each underlying scheme)
@@ -471,6 +464,9 @@ extern const int __gnat_others_value;
 extern const int __gnat_all_others_value;
 #define GNAT_ALL_OTHERS  ((_Unwind_Ptr) &__gnat_all_others_value)
 
+extern const int __gnat_unhandled_others_value;
+#define GNAT_UNHANDLED_OTHERS  ((_Unwind_Ptr) &__gnat_unhandled_others_value)
+
 /* Describe the useful region data associated with an unwind context.  */
 
 typedef struct
@@ -499,28 +495,50 @@ typedef struct
 
 } region_descriptor;
 
-static void
-db_region_for (region_descriptor *region, _Unwind_Context *uw_context)
-{
-  _Unwind_Ptr ip = _Unwind_GetIP (uw_context) - 1;
+/* Extract and adjust the IP (instruction pointer) from an exception
+   context.  */
 
+static _Unwind_Ptr
+get_ip_from_context (_Unwind_Context *uw_context)
+{
+  int ip_before_insn = 0;
+#ifdef HAVE_GETIPINFO
+  _Unwind_Ptr ip = _Unwind_GetIPInfo (uw_context, &ip_before_insn);
+#else
+  _Unwind_Ptr ip = _Unwind_GetIP (uw_context);
+#endif
+  /* Subtract 1 if necessary because GetIPInfo yields a call return address
+     in this case, while we are interested in information for the call point.
+     This does not always yield the exact call instruction address but always
+     brings the IP back within the corresponding region.  */
+  if (!ip_before_insn)
+    ip--;
+
+  return ip;
+}
+
+static void
+db_region_for (region_descriptor *region, _Unwind_Ptr ip)
+{
+#ifndef inhibit_libc
   if (! (db_accepted_codes () & DB_REGIONS))
     return;
 
-  db (DB_REGIONS, "For ip @ 0x%08x => ", ip);
+  db (DB_REGIONS, "For ip @ %p => ", (void *)ip);
 
   if (region->lsda)
-    db (DB_REGIONS, "lsda @ 0x%x", region->lsda);
+    db (DB_REGIONS, "lsda @ %p", (void *)region->lsda);
   else
     db (DB_REGIONS, "no lsda");
 
   db (DB_REGIONS, "\n");
+#endif
 }
 
 /* Retrieve the ttype entry associated with FILTER in the REGION's
    ttype table.  */
 
-static const _Unwind_Ptr
+static _Unwind_Ptr
 get_ttype_entry_for (region_descriptor *region, long filter)
 {
   _Unwind_Ptr ttype_entry;
@@ -554,7 +572,7 @@ get_region_description_for (_Unwind_Context *uw_context,
     return;
 
   /* Parse the lsda and fill the region descriptor.  */
-  p = (char *)region->lsda;
+  p = (const unsigned char *)region->lsda;
 
   region->base = _Unwind_GetRegionStart (uw_context);
 
@@ -591,7 +609,7 @@ get_region_description_for (_Unwind_Context *uw_context,
 /* Describe an action to be taken when propagating an exception up to
    some context.  */
 
-typedef enum
+enum action_kind
 {
   /* Found some call site base data, but need to analyze further
      before being able to decide.  */
@@ -604,16 +622,20 @@ typedef enum
   cleanup,
 
   /* There is a handler for the exception in this context.  */
-  handler
-} action_kind;
+  handler,
+
+  /* There is a handler for the exception, but it is only for catching
+     unhandled exceptions.  */
+  unhandler
+};
 
 /* filter value for cleanup actions.  */
-const int cleanup_filter = 0;
+static const int cleanup_filter = 0;
 
 typedef struct
 {
   /* The kind of action to be taken.  */
-  action_kind kind;
+  enum action_kind kind;
 
   /* A pointer to the action record entry.  */
   const unsigned char *table_entry;
@@ -625,22 +647,20 @@ typedef struct
   /* If we have a handler matching our exception, these are the filter to
      trigger it and the corresponding id.  */
   _Unwind_Sword ttype_filter;
-  _Unwind_Ptr   ttype_entry;
 
 } action_descriptor;
 
 static void
-db_action_for (action_descriptor *action, _Unwind_Context *uw_context)
+db_action_for (action_descriptor *action, _Unwind_Ptr ip)
 {
-  _Unwind_Ptr ip = _Unwind_GetIP (uw_context) - 1;
-
-  db (DB_ACTIONS, "For ip @ 0x%08x => ", ip);
+#ifndef inhibit_libc
+  db (DB_ACTIONS, "For ip @ %p => ", (void *)ip);
 
   switch (action->kind)
      {
      case unknown:
-       db (DB_ACTIONS, "lpad @ 0x%x, record @ 0x%x\n",
-	   action->landing_pad, action->table_entry);
+       db (DB_ACTIONS, "lpad @ %p, record @ %p\n",
+	   (void *) action->landing_pad, action->table_entry);
        break;
 
      case nothing:
@@ -652,77 +672,67 @@ db_action_for (action_descriptor *action, _Unwind_Context *uw_context)
        break;
 
      case handler:
-       db (DB_ACTIONS, "Handler, filter = %d\n", action->ttype_filter);
+       db (DB_ACTIONS, "Handler, filter = %d\n", (int) action->ttype_filter);
        break;
 
      default:
        db (DB_ACTIONS, "Err? Unexpected action kind !\n");
        break;
     }
-
-  return;
+#endif
 }
 
-
 /* Search the call_site_table of REGION for an entry appropriate for the
-   UW_CONTEXT's ip. If one is found, store the associated landing_pad and
-   action_table entry, and set the ACTION kind to unknown for further
-   analysis. Otherwise, set the ACTION kind to nothing.
+   UW_CONTEXT's IP.  If one is found, store the associated landing_pad
+   and action_table entry, and set the ACTION kind to unknown for further
+   analysis.  Otherwise, set the ACTION kind to nothing.
 
    There are two variants of this routine, depending on the underlying
-   mechanism (dwarf/sjlj), which account for differences in the tables
-   organization.
-*/
+   mechanism (DWARF/SJLJ), which account for differences in the tables.  */
 
 #ifdef __USING_SJLJ_EXCEPTIONS__
 
 #define __builtin_eh_return_data_regno(x) x
 
 static void
-get_call_site_action_for (_Unwind_Context *uw_context,
+get_call_site_action_for (_Unwind_Ptr call_site,
                           region_descriptor *region,
                           action_descriptor *action)
 {
-  _Unwind_Ptr call_site
-    = _Unwind_GetIP (uw_context) - 1;
-  /* Subtract 1 because GetIP returns the actual call_site value + 1.  */
-
   /* call_site is a direct index into the call-site table, with two special
-     values : -1 for no-action and 0 for "terminate". The latter should never
-     show up for Ada. To test for the former, beware that _Unwind_Ptr might be
-     unsigned.  */
+     values : -1 for no-action and 0 for "terminate".  The latter should never
+     show up for Ada.  To test for the former, beware that _Unwind_Ptr might
+     be unsigned.  */
 
   if ((int)call_site < 0)
     {
       action->kind = nothing;
-      return;
     }
   else if (call_site == 0)
     {
       db (DB_ERR, "========> Err, null call_site for Ada/sjlj\n");
       action->kind = nothing;
-      return;
     }
   else
     {
       _uleb128_t cs_lp, cs_action;
+      const unsigned char *p;
 
       /* Let the caller know there may be an action to take, but let it
 	 determine the kind.  */
       action->kind = unknown;
 
       /* We have a direct index into the call-site table, but this table is
-	 made of leb128 values, the encoding length of which is variable. We
+	 made of leb128 values, the encoding length of which is variable.  We
 	 can't merely compute an offset from the index, then, but have to read
 	 all the entries before the one of interest.  */
-
-      const unsigned char * p = region->call_site_table;
-
-      do {
-	p = read_uleb128 (p, &cs_lp);
-	p = read_uleb128 (p, &cs_action);
-      } while (--call_site);
-
+      p = region->call_site_table;
+      do
+	{
+	  p = read_uleb128 (p, &cs_lp);
+	  p = read_uleb128 (p, &cs_action);
+	}
+      while (--call_site);
 
       action->landing_pad = cs_lp + 1;
 
@@ -730,34 +740,19 @@ get_call_site_action_for (_Unwind_Context *uw_context,
 	action->table_entry = region->action_table + cs_action - 1;
       else
 	action->table_entry = 0;
-
-      return;
     }
 }
 
-#else
-/* ! __USING_SJLJ_EXCEPTIONS__ */
+#else /* !__USING_SJLJ_EXCEPTIONS__  */
 
 static void
-get_call_site_action_for (_Unwind_Context *uw_context,
+get_call_site_action_for (_Unwind_Ptr ip,
                           region_descriptor *region,
                           action_descriptor *action)
 {
-  _Unwind_Ptr ip
-    = _Unwind_GetIP (uw_context) - 1;
-  /* Subtract 1 because GetIP yields a call return address while we are
-     interested in information for the call point. This does not always yield
-     the exact call instruction address but always brings the ip back within
-     the corresponding region.
+  const unsigned char *p = region->call_site_table;
 
-     ??? When unwinding up from a signal handler triggered by a trap on some
-     instruction, we usually have the faulting instruction address here and
-     subtracting 1 might get us into the wrong region.  */
-
-  const unsigned char * p
-    = region->call_site_table;
-
-  /* Unless we are able to determine otherwise ... */
+  /* Unless we are able to determine otherwise...  */
   action->kind = nothing;
 
   db (DB_CSITE, "\n");
@@ -774,11 +769,11 @@ get_call_site_action_for (_Unwind_Context *uw_context,
       p = read_uleb128 (p, &cs_action);
 
       db (DB_CSITE,
-	  "c_site @ 0x%08x (+0x%03x), len = %3d, lpad @ 0x%08x (+0x%03x)\n",
-	  region->base+cs_start, cs_start, cs_len,
-	  region->lp_base+cs_lp, cs_lp);
+	  "c_site @ %p (+%p), len = %p, lpad @ %p (+%p)\n",
+	  (void *)region->base + cs_start, (void *)cs_start, (void *)cs_len,
+	  (void *)region->lp_base + cs_lp, (void *)cs_lp);
 
-      /* The table is sorted, so if we've passed the ip, stop.  */
+      /* The table is sorted, so if we've passed the IP, stop.  */
       if (ip < region->base + cs_start)
  	break;
 
@@ -807,11 +802,11 @@ get_call_site_action_for (_Unwind_Context *uw_context,
   db (DB_CSITE, "---\n");
 }
 
-#endif
+#endif /* __USING_SJLJ_EXCEPTIONS__  */
 
 /* With CHOICE an exception choice representing an "exception - when"
    argument, and PROPAGATED_EXCEPTION a pointer to the currently propagated
-   occurrence, return true iif the latter matches the former, that is, if
+   occurrence, return true if the latter matches the former, that is, if
    PROPAGATED_EXCEPTION is caught by the handling code controlled by CHOICE.
    This takes care of the special Non_Ada_Error case on VMS.  */
 
@@ -819,7 +814,6 @@ get_call_site_action_for (_Unwind_Context *uw_context,
 #define Language_For          __gnat_language_for
 #define Import_Code_For       __gnat_import_code_for
 #define EID_For               __gnat_eid_for
-#define Adjust_N_Cleanups_For __gnat_adjust_n_cleanups_for
 
 extern bool Is_Handled_By_Others (_Unwind_Ptr eid);
 extern char Language_For (_Unwind_Ptr eid);
@@ -827,61 +821,79 @@ extern char Language_For (_Unwind_Ptr eid);
 extern Exception_Code Import_Code_For (_Unwind_Ptr eid);
 
 extern Exception_Id EID_For (_GNAT_Exception * e);
-extern void Adjust_N_Cleanups_For (_GNAT_Exception * e, int n);
 
-static int
+static enum action_kind
 is_handled_by (_Unwind_Ptr choice, _GNAT_Exception * propagated_exception)
 {
-  /* Pointer to the GNAT exception data corresponding to the propagated
-     occurrence.  */
-  _Unwind_Ptr E = (_Unwind_Ptr) EID_For (propagated_exception);
+  if (choice == GNAT_ALL_OTHERS)
+    return handler;
 
-  /* Base matching rules: An exception data (id) matches itself, "when
-     all_others" matches anything and "when others" matches anything unless
-     explicitly stated otherwise in the propagated occurrence.  */
+  if (propagated_exception->common.exception_class == GNAT_EXCEPTION_CLASS)
+    {
+      /* Pointer to the GNAT exception data corresponding to the propagated
+         occurrence.  */
+      _Unwind_Ptr E = (_Unwind_Ptr) EID_For (propagated_exception);
 
-  bool is_handled =
-    choice == E
-    || choice == GNAT_ALL_OTHERS
-    || (choice == GNAT_OTHERS && Is_Handled_By_Others (E));
+      if (choice == GNAT_UNHANDLED_OTHERS)
+	return unhandler;
 
-  /* In addition, on OpenVMS, Non_Ada_Error matches VMS exceptions, and we
-     may have different exception data pointers that should match for the
-     same condition code, if both an export and an import have been
-     registered.  The import code for both the choice and the propagated
-     occurrence are expected to have been masked off regarding severity
-     bits already (at registration time for the former and from within the
-     low level exception vector for the latter).  */
+      E = (_Unwind_Ptr) EID_For (propagated_exception);
+
+      /* Base matching rules: An exception data (id) matches itself, "when
+         all_others" matches anything and "when others" matches anything
+         unless explicitly stated otherwise in the propagated occurrence.  */
+      if (choice == E || (choice == GNAT_OTHERS && Is_Handled_By_Others (E)))
+	return handler;
+
+      /* In addition, on OpenVMS, Non_Ada_Error matches VMS exceptions, and we
+         may have different exception data pointers that should match for the
+         same condition code, if both an export and an import have been
+         registered.  The import code for both the choice and the propagated
+         occurrence are expected to have been masked off regarding severity
+         bits already (at registration time for the former and from within the
+         low level exception vector for the latter).  */
 #ifdef VMS
-  #define Non_Ada_Error system__aux_dec__non_ada_error
-  extern struct Exception_Data Non_Ada_Error;
+#     define Non_Ada_Error system__aux_dec__non_ada_error
+      extern struct Exception_Data Non_Ada_Error;
 
-  is_handled |=
-    (Language_For (E) == 'V'
-     && choice != GNAT_OTHERS && choice != GNAT_ALL_OTHERS
-     && ((Language_For (choice) == 'V' && Import_Code_For (choice) != 0
-	  && Import_Code_For (choice) == Import_Code_For (E))
-	 || choice == (_Unwind_Ptr)&Non_Ada_Error));
+      if ((Language_For (E) == 'V'
+	   && choice != GNAT_OTHERS
+	   && ((Language_For (choice) == 'V'
+		&& Import_Code_For (choice) != 0
+		&& Import_Code_For (choice) == Import_Code_For (E))
+	       || choice == (_Unwind_Ptr)&Non_Ada_Error)))
+	return handler;
 #endif
+    }
+  else
+    {
+#     define Foreign_Exception system__exceptions__foreign_exception
+      extern struct Exception_Data Foreign_Exception;
 
-  return is_handled;
+      if (choice == GNAT_ALL_OTHERS
+	  || choice == GNAT_OTHERS
+	  || choice == (_Unwind_Ptr) &Foreign_Exception)
+	return handler;
+    }
+  return nothing;
 }
 
 /* Fill out the ACTION to be taken from propagating UW_EXCEPTION up to
    UW_CONTEXT in REGION.  */
 
 static void
-get_action_description_for (_Unwind_Context *uw_context,
+get_action_description_for (_Unwind_Ptr ip,
                             _Unwind_Exception *uw_exception,
+                            _Unwind_Action uw_phase,
                             region_descriptor *region,
                             action_descriptor *action)
 {
-  _GNAT_Exception * gnat_exception = (_GNAT_Exception *) uw_exception;
+  _GNAT_Exception *gnat_exception = (_GNAT_Exception *) uw_exception;
 
   /* Search the call site table first, which may get us a landing pad as well
      as the head of an action record list.  */
-  get_call_site_action_for (uw_context, region, action);
-  db_action_for (action, uw_context);
+  get_call_site_action_for (ip, region, action);
+  db_action_for (action, ip);
 
   /* If there is not even a call_site entry, we are done.  */
   if (action->kind == nothing)
@@ -937,17 +949,24 @@ get_action_description_for (_Unwind_Context *uw_context,
 	  /* Positive filters are for regular handlers.  */
 	  else if (ar_filter > 0)
 	    {
-	      /* See if the filter we have is for an exception which matches
-		 the one we are propagating.  */
-	      _Unwind_Ptr choice = get_ttype_entry_for (region, ar_filter);
+              /* Do not catch an exception if the _UA_FORCE_UNWIND flag is
+                 passed (to follow the ABI).  */
+              if (!(uw_phase & _UA_FORCE_UNWIND))
+                {
+		  enum action_kind act;
 
-	      if (is_handled_by (choice, gnat_exception))
-		{
-		  action->kind = handler;
-		  action->ttype_filter = ar_filter;
-		  action->ttype_entry = choice;
-		  return;
-		}
+                  /* See if the filter we have is for an exception which
+                     matches the one we are propagating.  */
+                  _Unwind_Ptr choice = get_ttype_entry_for (region, ar_filter);
+
+		  act = is_handled_by (choice, gnat_exception);
+                  if (act != nothing)
+                    {
+		      action->kind = act;
+                      action->ttype_filter = ar_filter;
+                      return;
+                    }
+                }
 	    }
 
 	  /* Negative filter values are for C++ exception specifications.
@@ -973,11 +992,6 @@ setup_to_install (_Unwind_Context *uw_context,
                   _Unwind_Ptr uw_landing_pad,
                   int uw_filter)
 {
-#ifndef EH_RETURN_DATA_REGNO
-  /* We should not be called if the appropriate underlying support is not
-     there.  */
-  abort ();
-#else
   /* 1/ exception object pointer, which might be provided back to
      _Unwind_Resume (and thus to this personality routine) if we are jumping
      to a cleanup.  */
@@ -992,22 +1006,23 @@ setup_to_install (_Unwind_Context *uw_context,
   /* Setup the address we should jump at to reach the code where there is the
      "something" we found.  */
   _Unwind_SetIP (uw_context, uw_landing_pad);
-#endif
 }
 
 /* The following is defined from a-except.adb. Its purpose is to enable
    automatic backtraces upon exception raise, as provided through the
    GNAT.Traceback facilities.  */
-extern void __gnat_notify_handled_exception (void);
-extern void __gnat_notify_unhandled_exception (void);
+extern void __gnat_notify_handled_exception (struct Exception_Occurrence *);
+extern void __gnat_notify_unhandled_exception (struct Exception_Occurrence *);
 
 /* Below is the eh personality routine per se. We currently assume that only
    GNU-Ada exceptions are met.  */
 
 #ifdef __USING_SJLJ_EXCEPTIONS__
-#define PERSONALITY_FUNCTION    __gnat_eh_personality_sj
+#define PERSONALITY_FUNCTION    __gnat_personality_sj0
+#elif defined (__SEH__)
+#define PERSONALITY_FUNCTION    __gnat_personality_imp
 #else
-#define PERSONALITY_FUNCTION    __gnat_eh_personality
+#define PERSONALITY_FUNCTION    __gnat_personality_v0
 #endif
 
 /* Major tweak for ia64-vms : the CHF propagation phase calls this personality
@@ -1041,10 +1056,19 @@ typedef int version_arg_t;
 typedef _Unwind_Action phases_arg_t;
 #endif
 
+#if defined (__SEH__) && !defined (__USING_SJLJ_EXCEPTIONS__)
+static
+#endif
+_Unwind_Reason_Code
+PERSONALITY_FUNCTION (version_arg_t, phases_arg_t,
+                      _Unwind_Exception_Class, _Unwind_Exception *,
+                      _Unwind_Context *);
+
 _Unwind_Reason_Code
 PERSONALITY_FUNCTION (version_arg_t version_arg,
                       phases_arg_t phases_arg,
-                      _Unwind_Exception_Class uw_exception_class,
+                      _Unwind_Exception_Class uw_exception_class
+		         ATTRIBUTE_UNUSED,
                       _Unwind_Exception *uw_exception,
                       _Unwind_Context *uw_context)
 {
@@ -1053,17 +1077,15 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
      Condition Handling Facility.  */
   int uw_version = (int) version_arg;
   _Unwind_Action uw_phases = (_Unwind_Action) phases_arg;
-
-  _GNAT_Exception * gnat_exception = (_GNAT_Exception *) uw_exception;
-
   region_descriptor region;
   action_descriptor action;
+  _Unwind_Ptr ip;
 
   /* Check that we're called from the ABI context we expect, with a major
      possible variation on VMS for IA64.  */
   if (uw_version != 1)
     {
-      #if defined (VMS) && defined (__IA64)
+#if defined (VMS) && defined (__IA64)
 
       /* Assume we're called with sigargs/mechargs arguments if really
 	 unexpected bits are set in our first two formals.  Redirect to the
@@ -1077,7 +1099,7 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
       if ((unsigned int)uw_version & version_unexpected_bits_mask
 	  && (unsigned int)uw_phases & phases_unexpected_bits_mask)
 	return __gnat_handle_vms_condition (version_arg, phases_arg);
-      #endif
+#endif
 
       return _URC_FATAL_PHASE1_ERROR;
     }
@@ -1090,7 +1112,8 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
      will tell us if there is some lsda, call_site, action and/or ttype data
      for the associated ip.  */
   get_region_description_for (uw_context, &region);
-  db_region_for (&region, uw_context);
+  ip = get_ip_from_context (uw_context);
+  db_region_for (&region, ip);
 
   /* No LSDA => no handlers or cleanups => we shall unwind further up.  */
   if (! region.lsda)
@@ -1098,8 +1121,8 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
 
   /* Search the call-site and action-record tables for the action associated
      with this IP.  */
-  get_action_description_for (uw_context, uw_exception, &region, &action);
-  db_action_for (&action, uw_context);
+  get_action_description_for (ip, uw_exception, uw_phases, &region, &action);
+  db_action_for (&action, ip);
 
   /* Whatever the phase, if there is nothing relevant in this frame,
      unwinding should just go on.  */
@@ -1114,14 +1137,20 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
     {
       if (action.kind == cleanup)
 	{
-	  Adjust_N_Cleanups_For (gnat_exception, 1);
 	  return _URC_CONTINUE_UNWIND;
 	}
       else
 	{
+	  struct Exception_Occurrence *excep;
+
 	  /* Trigger the appropriate notification routines before the second
-	     phase starts, which ensures the stack is still intact. */
-	  __gnat_notify_handled_exception ();
+	     phase starts, which ensures the stack is still intact.
+             First, setup the Ada occurrence.  */
+          excep = __gnat_setup_current_excep (uw_exception);
+	  if (action.kind == unhandler)
+	    __gnat_notify_unhandled_exception (excep);
+	  else
+	    __gnat_notify_handled_exception (excep);
 
 	  return _URC_HANDLER_FOUND;
 	}
@@ -1132,83 +1161,250 @@ PERSONALITY_FUNCTION (version_arg_t version_arg,
      occurrence (we are in a FORCED_UNWIND phase in this case). Install the
      context to get there.  */
 
-  /* If we are going to install a cleanup context, decrement the cleanup
-     count.  This is required in a FORCED_UNWINDing phase (for an unhandled
-     exception), as this is used from the forced unwinding handler in
-     Ada.Exceptions.Exception_Propagation to decide wether unwinding should
-     proceed further or Unhandled_Exception_Terminate should be called.  */
-  if (action.kind == cleanup)
-    Adjust_N_Cleanups_For (gnat_exception, -1);
-
   setup_to_install
     (uw_context, uw_exception, action.landing_pad, action.ttype_filter);
+
+  /* Write current exception, so that it can be retrieved from Ada.  */
+  __gnat_setup_current_excep (uw_exception);
 
   return _URC_INSTALL_CONTEXT;
 }
 
+/* Callback routine called by Unwind_ForcedUnwind to execute all the cleanup
+   before exiting the task.  */
+
+_Unwind_Reason_Code
+__gnat_cleanupunwind_handler (int version ATTRIBUTE_UNUSED,
+			      _Unwind_Action phases,
+			      _Unwind_Exception_Class eclass ATTRIBUTE_UNUSED,
+			      struct _Unwind_Exception *exception,
+			      struct _Unwind_Context *context ATTRIBUTE_UNUSED,
+			      void *arg ATTRIBUTE_UNUSED)
+{
+  /* Terminate when the end of the stack is reached.  */
+  if ((phases & _UA_END_OF_STACK) != 0
+#if defined (__ia64__) && defined (__hpux__) && defined (USE_LIBUNWIND_EXCEPTIONS)
+      /* Strictely follow the ia64 ABI: when end of stack is reached,
+	 the callback will be called with a NULL stack pointer.
+	 No need for that when using libgcc unwinder.  */
+      || _Unwind_GetGR (context, 12) == 0
+#endif
+      )
+    __gnat_unhandled_except_handler (exception);
+
+  /* We know there is at least one cleanup further up. Return so that it
+     is searched and entered, after which Unwind_Resume will be called
+     and this hook will gain control again.  */
+  return _URC_NO_REASON;
+}
+
 /* Define the consistently named wrappers imported by Propagate_Exception.  */
 
+_Unwind_Reason_Code
+__gnat_Unwind_RaiseException (_Unwind_Exception *e)
+{
 #ifdef __USING_SJLJ_EXCEPTIONS__
-
-#undef _Unwind_RaiseException
-
-_Unwind_Reason_Code
-__gnat_Unwind_RaiseException (_Unwind_Exception *e)
-{
   return _Unwind_SjLj_RaiseException (e);
-}
-
-
-#undef _Unwind_ForcedUnwind
-
-_Unwind_Reason_Code
-__gnat_Unwind_ForcedUnwind (_Unwind_Exception *e,
-                            void * handler,
-                            void * argument)
-{
-  return _Unwind_SjLj_ForcedUnwind (e, handler, argument);
-}
-
-
-#else /* __USING_SJLJ_EXCEPTIONS__ */
-
-_Unwind_Reason_Code
-__gnat_Unwind_RaiseException (_Unwind_Exception *e)
-{
-  return _Unwind_RaiseException (e);
-}
-
-_Unwind_Reason_Code
-__gnat_Unwind_ForcedUnwind (_Unwind_Exception *e,
-                            void * handler,
-                            void * argument)
-{
-  return _Unwind_ForcedUnwind (e, handler, argument);
-}
-
-#endif /* __USING_SJLJ_EXCEPTIONS__ */
-
 #else
-/* ! IN_RTS  */
-
-/* Define the corresponding stubs for the compiler.  */
-
-/* We don't want fancy_abort here.  */
-#undef abort
-
-_Unwind_Reason_Code
-__gnat_Unwind_RaiseException (_Unwind_Exception *e ATTRIBUTE_UNUSED)
-{
-  abort ();
+  return _Unwind_RaiseException (e);
+#endif
 }
 
-
 _Unwind_Reason_Code
-__gnat_Unwind_ForcedUnwind (_Unwind_Exception *e ATTRIBUTE_UNUSED,
-                            void * handler ATTRIBUTE_UNUSED,
-                            void * argument ATTRIBUTE_UNUSED)
+__gnat_Unwind_ForcedUnwind (_Unwind_Exception *e,
+			    void *handler,
+			    void *argument)
 {
-  abort ();
+#ifdef __USING_SJLJ_EXCEPTIONS__
+  return _Unwind_SjLj_ForcedUnwind (e, handler, argument);
+#else
+  return _Unwind_ForcedUnwind (e, handler, argument);
+#endif
 }
 
-#endif /* IN_RTS */
+#if defined (__SEH__) && !defined (__USING_SJLJ_EXCEPTIONS__)
+
+#define STATUS_USER_DEFINED		(1U << 29)
+
+/* From unwind-seh.c.  */
+#define GCC_MAGIC			(('G' << 16) | ('C' << 8) | 'C')
+#define GCC_EXCEPTION(TYPE)		\
+       (STATUS_USER_DEFINED | ((TYPE) << 24) | GCC_MAGIC)
+#define STATUS_GCC_THROW		GCC_EXCEPTION (0)
+
+EXCEPTION_DISPOSITION __gnat_SEH_error_handler
+ (struct _EXCEPTION_RECORD*, void*, struct _CONTEXT*, void*);
+
+struct Exception_Data *
+__gnat_map_SEH (EXCEPTION_RECORD* ExceptionRecord, const char **msg);
+
+struct _Unwind_Exception *
+__gnat_create_machine_occurrence_from_signal_handler (Exception_Id,
+						      const char *);
+
+/* Unwind opcodes.  */
+#define UWOP_PUSH_NONVOL 0
+#define UWOP_ALLOC_LARGE 1
+#define UWOP_ALLOC_SMALL 2
+#define UWOP_SET_FPREG	 3
+#define UWOP_SAVE_NONVOL 4
+#define UWOP_SAVE_NONVOL_FAR 5
+#define UWOP_SAVE_XMM128 8
+#define UWOP_SAVE_XMM128_FAR 9
+#define UWOP_PUSH_MACHFRAME 10
+
+/* Modify the IP value saved in the machine frame.  This is really a kludge,
+   that will be removed if we could propagate the Windows exception (and not
+   the GCC one).
+   What is very wrong is that the Windows unwinder will try to decode the
+   instruction at IP, which isn't valid anymore after the adjust.  */
+
+static void
+__gnat_adjust_context (unsigned char *unw, ULONG64 rsp)
+{
+  unsigned int len;
+
+  /* Version = 1, no flags, no prolog.  */
+  if (unw[0] != 1 || unw[1] != 0)
+    return;
+  len = unw[2];
+  /* No frame pointer.  */
+  if (unw[3] != 0)
+    return;
+  unw += 4;
+  while (len > 0)
+    {
+      /* Offset in prolog = 0.  */
+      if (unw[0] != 0)
+	return;
+      switch (unw[1] & 0xf)
+	{
+	case UWOP_ALLOC_LARGE:
+	  /* Expect < 512KB.  */
+	  if ((unw[1] & 0xf0) != 0)
+	    return;
+	  rsp += *(unsigned short *)(unw + 2) * 8;
+	  len--;
+	  unw += 2;
+	  break;
+	case UWOP_SAVE_NONVOL:
+	case UWOP_SAVE_XMM128:
+	  len--;
+	  unw += 2;
+	  break;
+	case UWOP_PUSH_MACHFRAME:
+	  {
+	    ULONG64 *rip;
+	    rip = (ULONG64 *)rsp;
+	    if ((unw[1] & 0xf0) == 0x10)
+	      rip++;
+	    /* Adjust rip.  */
+	    (*rip)++;
+	  }
+	  return;
+	default:
+	  /* Unexpected.  */
+	  return;
+	}
+      unw += 2;
+      len--;
+    }
+}
+
+EXCEPTION_DISPOSITION
+__gnat_personality_seh0 (PEXCEPTION_RECORD ms_exc, void *this_frame,
+			 PCONTEXT ms_orig_context,
+			 PDISPATCHER_CONTEXT ms_disp)
+{
+  /* Possibly transform run-time errors into Ada exceptions.  As a small
+     optimization, we call __gnat_SEH_error_handler only on non-user
+     exceptions.  */
+  if (!(ms_exc->ExceptionCode & STATUS_USER_DEFINED))
+    {
+      struct Exception_Data *exception;
+      const char *msg;
+      ULONG64 excpip = (ULONG64) ms_exc->ExceptionAddress;
+
+      if (excpip != 0
+	  && excpip >= (ms_disp->ImageBase
+			+ ms_disp->FunctionEntry->BeginAddress)
+	  && excpip < (ms_disp->ImageBase
+		       + ms_disp->FunctionEntry->EndAddress))
+	{
+	  /* This is a fault in this function.  We need to adjust the return
+	     address before raising the GCC exception.  */
+	  CONTEXT context;
+	  PRUNTIME_FUNCTION mf_func = NULL;
+	  ULONG64 mf_imagebase;
+	  ULONG64 mf_rsp = 0;
+
+	  /* Get the context.  */
+	  RtlCaptureContext (&context);
+
+	  while (1)
+	    {
+	      PRUNTIME_FUNCTION RuntimeFunction;
+	      ULONG64 ImageBase;
+	      VOID *HandlerData;
+	      ULONG64 EstablisherFrame;
+
+	      /* Get function metadata.  */
+	      RuntimeFunction = RtlLookupFunctionEntry
+		(context.Rip, &ImageBase, ms_disp->HistoryTable);
+	      if (RuntimeFunction == ms_disp->FunctionEntry)
+		break;
+	      mf_func = RuntimeFunction;
+	      mf_imagebase = ImageBase;
+	      mf_rsp = context.Rsp;
+
+	      if (!RuntimeFunction)
+		{
+		  /* In case of failure, assume this is a leaf function.  */
+		  context.Rip = *(ULONG64 *) context.Rsp;
+		  context.Rsp += 8;
+		}
+	      else
+		{
+		  /* Unwind.  */
+		  RtlVirtualUnwind (0, ImageBase, context.Rip, RuntimeFunction,
+				    &context, &HandlerData, &EstablisherFrame,
+				    NULL);
+		}
+
+	      /* 0 means bottom of the stack.  */
+	      if (context.Rip == 0)
+		{
+		  mf_func = NULL;
+		  break;
+		}
+	    }
+	  if (mf_func != NULL)
+	    __gnat_adjust_context
+	      ((unsigned char *)(mf_imagebase + mf_func->UnwindData), mf_rsp);
+	}
+
+      exception = __gnat_map_SEH (ms_exc, &msg);
+      if (exception != NULL)
+	{
+	  struct _Unwind_Exception *exc;
+
+	  /* Directly convert the system exception to a GCC one.
+	     This is really breaking the API, but is necessary for stack size
+	     reasons: the normal way is to call Raise_From_Signal_Handler,
+	     which build the exception and calls _Unwind_RaiseException, which
+	     unwinds the stack and will call this personality routine. But
+	     the Windows unwinder needs about 2KB of stack.  */
+	  exc = __gnat_create_machine_occurrence_from_signal_handler
+	    (exception, msg);
+	  memset (exc->private_, 0, sizeof (exc->private_));
+	  ms_exc->ExceptionCode = STATUS_GCC_THROW;
+	  ms_exc->NumberParameters = 1;
+	  ms_exc->ExceptionInformation[0] = (ULONG_PTR)exc;
+	}
+
+    }
+
+  return _GCC_specific_handler (ms_exc, this_frame, ms_orig_context,
+				ms_disp, __gnat_personality_imp);
+}
+#endif /* SEH */

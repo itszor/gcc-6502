@@ -1,4 +1,4 @@
-#   Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,8 +37,8 @@ if ![info exists DEFAULT_CHARSETCFLAGS] then {
 dg-init
 
 # Main loop.
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,cc,S} ]] \
-        "" $DEFAULT_CHARSETCFLAGS
+g++-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,cc,S} ]] \
+        $DEFAULT_CHARSETCFLAGS
 
 # All done.
 dg-finish

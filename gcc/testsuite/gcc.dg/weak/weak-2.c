@@ -1,6 +1,7 @@
 /* { dg-do compile } */
 /* { dg-require-weak "" } */
 /* { dg-options "-fno-common" } */
+/* { dg-skip-if "" { x86_64-*-mingw* } { "*" } { "" } } */
 
 /* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?ffoo1a" } } */
 /* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?ffoo1b" } } */
@@ -24,7 +25,7 @@ void * foo1b (void)
   return (void *)ffoo1b;
 }
 
-extern void * ffoo1c (void);  /* { dg-warning "applying #pragma weak" "applying #pragma weak" } */
+extern void * ffoo1c (void);
 void * foo1c (void)
 {
   return (void *)ffoo1c;

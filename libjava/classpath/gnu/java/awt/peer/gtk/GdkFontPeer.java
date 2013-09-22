@@ -38,11 +38,14 @@ exception statement from your version. */
 
 package gnu.java.awt.peer.gtk;
 
+import gnu.classpath.Configuration;
 import gnu.classpath.Pointer;
 
 import gnu.java.awt.ClasspathToolkit;
 import gnu.java.awt.peer.ClasspathFontPeer;
 import gnu.java.awt.font.opentype.NameDecoder;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -75,7 +78,7 @@ public class GdkFontPeer extends ClasspathFontPeer
   {
 
     public GdkFontMetrics (Font font)
-    {    
+    {
       super(initFont(font));
     }
 
@@ -164,9 +167,12 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   GdkFontMetrics metrics;
 
-  static 
+  static
   {
-    System.loadLibrary("gtkpeer");
+    if (true) // GCJ LOCAL
+      {
+        System.loadLibrary("gtkpeer");
+      }
 
     initStaticState ();
 
@@ -198,7 +204,7 @@ public class GdkFontPeer extends ClasspathFontPeer
     dispose ();
   }
 
-  /* 
+  /*
    * Helpers for the 3-way overloading that this class seems to suffer
    * from. Remove them if you feel like they're a performance bottleneck,
    * for the time being I prefer my code not be written and debugged in
@@ -207,17 +213,17 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   private String buildString(CharacterIterator iter)
   {
-    StringBuffer sb = new StringBuffer();
-    for(char c = iter.first(); c != CharacterIterator.DONE; c = iter.next()) 
+    CPStringBuilder sb = new CPStringBuilder();
+    for(char c = iter.first(); c != CharacterIterator.DONE; c = iter.next())
       sb.append(c);
     return sb.toString();
   }
 
   private String buildString(CharacterIterator iter, int begin, int limit)
   {
-    StringBuffer sb = new StringBuffer();
+    CPStringBuilder sb = new CPStringBuilder();
     int i = 0;
-    for(char c = iter.first(); c != CharacterIterator.DONE; c = iter.next(), i++) 
+    for(char c = iter.first(); c != CharacterIterator.DONE; c = iter.next(), i++)
       {
         if (begin <= i)
           sb.append(c);
@@ -226,7 +232,7 @@ public class GdkFontPeer extends ClasspathFontPeer
       }
     return sb.toString();
   }
-  
+
   private String buildString(char[] chars, int begin, int limit)
   {
     return new String(chars, begin, limit - begin);
@@ -241,8 +247,8 @@ public class GdkFontPeer extends ClasspathFontPeer
   }
 
   public GdkFontPeer (String name, int style, int size)
-  {  
-    super(name, style, size);    
+  {
+    super(name, style, size);
     initState ();
     setFont (this.familyName, this.style, (int)this.size);
     metricsCache = new HashMap<Integer,GlyphMetrics>();
@@ -293,14 +299,14 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   /**
    * Unneeded, but implemented anyway.
-   */  
+   */
   public String getSubFamilyName(Font font, Locale locale)
   {
     String name;
-    
+
     if (locale == null)
       locale = Locale.getDefault();
-    
+
     name = getName(NameDecoder.NAME_SUBFAMILY, locale);
     if (name == null)
       {
@@ -316,20 +322,20 @@ public class GdkFontPeer extends ClasspathFontPeer
    * Returns the bytes belonging to a TrueType/OpenType table,
    * Parameters n,a,m,e identify the 4-byte ASCII tag of the table.
    *
-   * Returns null if the font is not TT, the table is nonexistant, 
+   * Returns null if the font is not TT, the table is nonexistant,
    * or if some other unexpected error occured.
    *
    */
   private native byte[] getTrueTypeTable(byte n, byte a, byte m, byte e);
 
   /**
-   * Returns the PostScript name of the font, defaults to the familyName if 
+   * Returns the PostScript name of the font, defaults to the familyName if
    * a PS name could not be retrieved.
    */
   public String getPostScriptName(Font font)
   {
-    String name = getName(NameDecoder.NAME_POSTSCRIPT, 
-			  /* any language */ null);
+    String name = getName(NameDecoder.NAME_POSTSCRIPT,
+                          /* any language */ null);
     if( name == null )
       return this.familyName;
 
@@ -350,7 +356,7 @@ public class GdkFontPeer extends ClasspathFontPeer
   {
     if (nameTable == null)
       {
-        byte[] data = getTrueTypeTable((byte)'n', (byte) 'a', 
+        byte[] data = getTrueTypeTable((byte)'n', (byte) 'a',
                                        (byte) 'm', (byte) 'e');
         if( data == null )
           return null;
@@ -372,16 +378,16 @@ public class GdkFontPeer extends ClasspathFontPeer
     // FIXME: inquire with pango
     return -1;
   }
-  
-  public GlyphVector createGlyphVector (Font font, 
-                                        FontRenderContext ctx, 
+
+  public GlyphVector createGlyphVector (Font font,
+                                        FontRenderContext ctx,
                                         CharacterIterator i)
   {
     return new FreetypeGlyphVector(font, buildString (i), ctx);
   }
 
-  public GlyphVector createGlyphVector (Font font, 
-                                        FontRenderContext ctx, 
+  public GlyphVector createGlyphVector (Font font,
+                                        FontRenderContext ctx,
                                         int[] glyphCodes)
   {
     return new FreetypeGlyphVector(font, glyphCodes, ctx);
@@ -405,32 +411,32 @@ public class GdkFontPeer extends ClasspathFontPeer
     {
       return ascent;
     }
-  
+
     public int getBaselineIndex()
-    {      
+    {
       // FIXME
       return Font.ROMAN_BASELINE;
     }
-    
+
     public float[] getBaselineOffsets()
     {
       return new float[3];
     }
-    
+
     public float getDescent()
     {
       return descent;
     }
-    
+
     public float getHeight()
     {
       return height;
     }
-    
+
     public float getLeading()
     {
       return height - (ascent + descent);
-    }    
+    }
 
     public int getNumChars()
     {
@@ -441,13 +447,13 @@ public class GdkFontPeer extends ClasspathFontPeer
     {
       // FreeType doesn't seem to provide a value here.
       return ascent / 2;
-    }    
+    }
 
     public float getStrikethroughThickness()
     {
       // FreeType doesn't seem to provide a value here.
       return 1.f;
-    }  
+    }
 
     public float getUnderlineOffset()
     {
@@ -461,7 +467,7 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   }
 
-  public LineMetrics getLineMetrics (Font font, CharacterIterator ci, 
+  public LineMetrics getLineMetrics (Font font, CharacterIterator ci,
                                      int begin, int limit, FontRenderContext rc)
   {
     return new GdkFontLineMetrics (this, limit - begin);
@@ -484,12 +490,12 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   public int getNumGlyphs (Font font)
   {
-    byte[] data = getTrueTypeTable((byte)'m', (byte) 'a', 
-				   (byte)'x', (byte) 'p');
+    byte[] data = getTrueTypeTable((byte)'m', (byte) 'a',
+                                   (byte)'x', (byte) 'p');
     if( data == null )
       return -1;
 
-    ByteBuffer buf = ByteBuffer.wrap( data );       
+    ByteBuffer buf = ByteBuffer.wrap( data );
     return buf.getShort(4);
   }
 
@@ -498,15 +504,15 @@ public class GdkFontPeer extends ClasspathFontPeer
     return true;
   }
 
-  public GlyphVector layoutGlyphVector (Font font, FontRenderContext frc, 
-                                        char[] chars, int start, int limit, 
+  public GlyphVector layoutGlyphVector (Font font, FontRenderContext frc,
+                                        char[] chars, int start, int limit,
                                         int flags)
   {
     return new FreetypeGlyphVector(font, chars, start, limit - start,
                                    frc, flags);
   }
 
-  public LineMetrics getLineMetrics (Font font, String str, 
+  public LineMetrics getLineMetrics (Font font, String str,
                                      FontRenderContext frc)
   {
     return new GdkFontLineMetrics (this, str.length ());
@@ -530,7 +536,7 @@ public class GdkFontPeer extends ClasspathFontPeer
 
   /**
    * Put a GlyphMetrics object in the cache.
-   */ 
+   */
   void putGlyphMetrics( int glyphCode, GlyphMetrics metrics )
   {
     metricsCache.put( new Integer( glyphCode ), metrics );

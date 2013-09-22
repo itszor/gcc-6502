@@ -6,26 +6,29 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---             Copyright (C) 1998 Free Software Foundation, Inc.            --
+--          Copyright (C) 1998-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- Public License  distributed with GNAT; see file COPYING3.  If not, go to --
+-- http://www.gnu.org/licenses for a complete copy of the license.          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  Program to check consistency of einfo.ads and einfo.adb. Checks that
---  field name usage is consistent, including comments mentioning fields.
+--  Check consistency of einfo.ads and einfo.adb. Checks that field name usage
+--  is consistent, including comments mentioning fields.
+
+--  Note that this is used both as a standalone program, and as a procedure
+--  called by XEinfo. This raises an unhandled exception if it finds any
+--  errors; we don't attempt any sophisticated error recovery.
 
 with Ada.Strings.Unbounded;         use Ada.Strings.Unbounded;
 with Ada.Strings.Unbounded.Text_IO; use Ada.Strings.Unbounded.Text_IO;
@@ -44,7 +47,7 @@ procedure CEinfo is
    Lineno : Natural := 0;
 
    Err : exception;
-   --  Raised on fatal error
+   --  Raised on error
 
    Fieldnm    : VString;
    Accessfunc : VString;
@@ -53,25 +56,27 @@ procedure CEinfo is
    Fields : GNAT.Spitbol.Table_VString.Table (500);
    --  Maps field names to underlying field access name
 
-   UC : Pattern := Any ("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+   UC : constant Pattern := Any ("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
-   Fnam : Pattern := (UC & Break (' ')) * Fieldnm;
+   Fnam : constant Pattern := (UC & Break (' ')) * Fieldnm;
 
-   Field_Def : Pattern := "--    " & Fnam & " (" & Break (')') * Accessfunc;
+   Field_Def : constant Pattern :=
+     "--    " & Fnam & " (" & Break (')') * Accessfunc;
 
-   Field_Ref : Pattern := "   --    " & Fnam & Break ('(') & Len (1) &
-                            Break (')') * Accessfunc;
+   Field_Ref : constant Pattern :=
+     "   --    " & Fnam & Break ('(') & Len (1) &
+     Break (')') * Accessfunc;
 
-   Field_Com : Pattern := "   --    " & Fnam & Span (' ') &
-                            (Break (' ') or Rest) * Accessfunc;
+   Field_Com : constant Pattern := "   --    " & Fnam & Span (' ') &
+                                     (Break (' ') or Rest) * Accessfunc;
 
-   Func_Hedr : Pattern := "   function " & Fnam;
+   Func_Hedr : constant Pattern := "   function " & Fnam;
 
-   Func_Retn : Pattern := "      return " & Break (' ') * Accessfunc;
+   Func_Retn : constant Pattern := "      return " & Break (' ') * Accessfunc;
 
-   Proc_Hedr : Pattern := "   procedure " & Fnam;
+   Proc_Hedr : constant Pattern := "   procedure " & Fnam;
 
-   Proc_Setf : Pattern := "      Set_" & Break (' ') * Accessfunc;
+   Proc_Setf : constant Pattern := "      Set_" & Break (' ') * Accessfunc;
 
    procedure Next_Line;
    --  Read next line trimmed from Infil into Line and bump Lineno
@@ -128,6 +133,8 @@ begin
                Put_Line
                  ("*** unknown field name " & Fieldnm & " at line " & Lineno);
             end if;
+
+            raise Err;
          end if;
       end if;
    end loop;
@@ -155,6 +162,8 @@ begin
             Put_Line
               ("*** unknown field name " & Fieldnm & " at line " & Lineno);
          end if;
+
+         raise Err;
       end if;
    end loop;
 
@@ -174,6 +183,7 @@ begin
          Put_Line ("*** incorrect field at line " & Lineno);
          Put_Line ("      found field " & Accessfunc);
          Put_Line ("      expecting field " & Get (Fields, Fieldnm));
+         raise Err;
       end if;
    end loop;
 
@@ -198,8 +208,11 @@ begin
          Put_Line ("*** incorrect field at line " & Lineno);
          Put_Line ("      found field " & Accessfunc);
          Put_Line ("      expecting field " & Get (Fields, Fieldnm));
+         raise Err;
       end if;
    end loop;
+
+   Close (Infil);
 
    Put_Line ("All tests completed successfully, no errors detected");
 

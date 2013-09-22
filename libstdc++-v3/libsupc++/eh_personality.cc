@@ -1,11 +1,11 @@
 // -*- C++ -*- The GNU C++ exception personality routine.
-// Copyright (C) 2001, 2002, 2003, 2006, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // GCC is distributed in the hope that it will be useful,
@@ -13,31 +13,23 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 #include <bits/c++config.h>
 #include <cstdlib>
-#include <exception_defines.h>
+#include <bits/exception_defines.h>
 #include <cxxabi.h>
 #include "unwind-cxx.h"
 
-using namespace __cxxabiv1;
 
-#ifdef __ARM_EABI_UNWINDER__
-#define NO_SIZE_OF_ENCODED_VALUE
-#endif
+using namespace __cxxabiv1;
 
 #include "unwind-pe.h"
 
@@ -73,6 +65,11 @@ parse_lsda_header (_Unwind_Context *context, const unsigned char *p,
   info->ttype_encoding = *p++;
   if (info->ttype_encoding != DW_EH_PE_omit)
     {
+#if _GLIBCXX_OVERRIDE_TTYPE_ENCODING
+      /* Older ARM EABI toolchains set this value incorrectly, so use a
+	 hardcoded OS-specific format.  */
+      info->ttype_encoding = _GLIBCXX_OVERRIDE_TTYPE_ENCODING;
+#endif
       p = read_uleb128 (p, &tmp);
       info->TType = p + tmp;
     }
@@ -88,20 +85,21 @@ parse_lsda_header (_Unwind_Context *context, const unsigned char *p,
   return p;
 }
 
-#ifdef __ARM_EABI_UNWINDER__
-
 // Return an element from a type table.
 
-static const std::type_info*
-get_ttype_entry(lsda_header_info* info, _uleb128_t i)
+static const std::type_info *
+get_ttype_entry (lsda_header_info *info, _uleb128_t i)
 {
   _Unwind_Ptr ptr;
 
-  ptr = (_Unwind_Ptr) (info->TType - (i * 4));
-  ptr = _Unwind_decode_target2(ptr);
-  
+  i *= size_of_encoded_value (info->ttype_encoding);
+  read_encoded_value_with_base (info->ttype_encoding, info->ttype_base,
+				info->TType - i, &ptr);
+
   return reinterpret_cast<const std::type_info *>(ptr);
 }
+
+#ifdef __ARM_EABI_UNWINDER__
 
 // The ABI provides a routine for matching exception object types.
 typedef _Unwind_Control_Block _throw_typet;
@@ -130,7 +128,7 @@ check_exception_spec(lsda_header_info* info, _throw_typet* throw_type,
       if (tmp == 0)
         return false;
 
-      tmp = _Unwind_decode_target2((_Unwind_Word) e);
+      tmp = _Unwind_decode_typeinfo_ptr(info->ttype_base, (_Unwind_Word) e);
 
       // Match a ttype entry.
       catch_type = reinterpret_cast<const std::type_info*>(tmp);
@@ -160,7 +158,7 @@ save_caught_exception(struct _Unwind_Exception* ue_header,
 		      const unsigned char* action_record
 			__attribute__((__unused__)))
 {
-    ue_header->barrier_cache.sp = _Unwind_GetGR(context, 13);
+    ue_header->barrier_cache.sp = _Unwind_GetGR(context, UNWIND_STACK_REG);
     ue_header->barrier_cache.bitpattern[0] = (_uw) thrown_ptr;
     ue_header->barrier_cache.bitpattern[1]
       = (_uw) handler_switch_value;
@@ -207,20 +205,6 @@ empty_exception_spec (lsda_header_info *info, _Unwind_Sword filter_value)
 #else
 typedef const std::type_info _throw_typet;
 
-
-// Return an element from a type table.
-
-static const std::type_info *
-get_ttype_entry (lsda_header_info *info, _uleb128_t i)
-{
-  _Unwind_Ptr ptr;
-
-  i *= size_of_encoded_value (info->ttype_encoding);
-  read_encoded_value_with_base (info->ttype_encoding, info->ttype_base,
-				info->TType - i, &ptr);
-
-  return reinterpret_cast<const std::type_info *>(ptr);
-}
 
 // Given the thrown type THROW_TYPE, pointer to a variable containing a
 // pointer to the exception object THROWN_PTR_P and a type CATCH_TYPE to
@@ -346,11 +330,18 @@ namespace __cxxabiv1
 #ifdef _GLIBCXX_SJLJ_EXCEPTIONS
 #define PERSONALITY_FUNCTION	__gxx_personality_sj0
 #define __builtin_eh_return_data_regno(x) x
+#elif defined(__SEH__) && !defined (_GLIBCXX_SJLJ_EXCEPTIONS)
+#define PERSONALITY_FUNCTION	__gxx_personality_imp
 #else
 #define PERSONALITY_FUNCTION	__gxx_personality_v0
 #endif
 
-extern "C" _Unwind_Reason_Code
+#if defined (__SEH__) && !defined (_GLIBCXX_SJLJ_EXCEPTIONS)
+static
+#else
+extern "C"
+#endif
+_Unwind_Reason_Code
 #ifdef __ARM_EABI_UNWINDER__
 PERSONALITY_FUNCTION (_Unwind_State state,
 		      struct _Unwind_Exception* ue_header,
@@ -377,7 +368,7 @@ PERSONALITY_FUNCTION (int version,
   const unsigned char *p;
   _Unwind_Ptr landing_pad, ip;
   int handler_switch_value;
-  void* thrown_ptr = ue_header + 1;
+  void* thrown_ptr = 0;
   bool foreign_exception;
   int ip_before_insn = 0;
 
@@ -393,7 +384,8 @@ PERSONALITY_FUNCTION (int version,
     case _US_UNWIND_FRAME_STARTING:
       actions = _UA_CLEANUP_PHASE;
       if (!(state & _US_FORCE_UNWIND)
-	  && ue_header->barrier_cache.sp == _Unwind_GetGR(context, 13))
+	  && ue_header->barrier_cache.sp == _Unwind_GetGR(context,
+							  UNWIND_STACK_REG))
 	actions |= _UA_HANDLER_FRAME;
       break;
 
@@ -413,10 +405,10 @@ PERSONALITY_FUNCTION (int version,
 
   // The dwarf unwinder assumes the context structure holds things like the
   // function and LSDA pointers.  The ARM implementation caches these in
-  // the exception header (UCB).  To avoid rewriting everything we make the
-  // virtual IP register point at the UCB.
+  // the exception header (UCB).  To avoid rewriting everything we make a
+  // virtual scratch register point at the UCB.
   ip = (_Unwind_Ptr) ue_header;
-  _Unwind_SetGR(context, 12, ip);
+  _Unwind_SetGR(context, UNWIND_POINTER_REG, ip);
 #else
   __cxa_exception* xh = __get_exception_header_from_ue(ue_header);
 
@@ -543,26 +535,35 @@ PERSONALITY_FUNCTION (int version,
       bool saw_handler = false;
 
 #ifdef __ARM_EABI_UNWINDER__
+      // ??? How does this work - more importantly, how does it interact with
+      // dependent exceptions?
       throw_type = ue_header;
-      if ((actions & _UA_FORCE_UNWIND)
-	  || foreign_exception)
-	thrown_ptr = 0;
+      if (actions & _UA_FORCE_UNWIND)
+	{
+	  __GXX_INIT_FORCED_UNWIND_CLASS(ue_header->exception_class);
+	}
+      else if (!foreign_exception)
+	thrown_ptr = __get_object_from_ue (ue_header);
 #else
+#ifdef __GXX_RTTI
       // During forced unwinding, match a magic exception type.
       if (actions & _UA_FORCE_UNWIND)
 	{
 	  throw_type = &typeid(abi::__forced_unwind);
-	  thrown_ptr = 0;
 	}
       // With a foreign exception class, there's no exception type.
       // ??? What to do about GNU Java and GNU Ada exceptions?
       else if (foreign_exception)
 	{
 	  throw_type = &typeid(abi::__foreign_exception);
-	  thrown_ptr = 0;
 	}
       else
-	throw_type = xh->exceptionType;
+#endif
+        {
+          thrown_ptr = __get_object_from_ue (ue_header);
+          throw_type = __get_exception_header_from_obj
+            (thrown_ptr)->exceptionType;
+        }
 #endif
 
       while (1)
@@ -657,9 +658,9 @@ PERSONALITY_FUNCTION (int version,
 	std::terminate ();
       else if (handler_switch_value < 0)
 	{
-	  try 
+	  __try 
 	    { std::unexpected (); } 
-	  catch(...) 
+	  __catch(...) 
 	    { std::terminate (); }
 	}
     }
@@ -673,6 +674,8 @@ PERSONALITY_FUNCTION (int version,
       if (handler_switch_value < 0)
 	{
 	  parse_lsda_header (context, language_specific_data, &info);
+	  info.ttype_base = base_of_encoded_value (info.ttype_encoding,
+						   context);
 
 #ifdef __ARM_EABI_UNWINDER__
 	  const _Unwind_Word* e;
@@ -686,8 +689,8 @@ PERSONALITY_FUNCTION (int version,
 
 	  // Count.
 	  ue_header->barrier_cache.bitpattern[1] = n;
-	  // Base (obsolete)
-	  ue_header->barrier_cache.bitpattern[2] = 0;
+	  // Base
+	  ue_header->barrier_cache.bitpattern[2] = info.ttype_base;
 	  // Stride.
 	  ue_header->barrier_cache.bitpattern[3] = 4;
 	  // List head.
@@ -746,28 +749,29 @@ __cxa_call_unexpected (void *exc_obj_in)
   xh_terminate_handler = xh->terminateHandler;
   info.ttype_base = (_Unwind_Ptr) xh->catchTemp;
 
-  try 
+  __try 
     { __unexpected (xh->unexpectedHandler); } 
-  catch(...) 
+  __catch(...) 
     {
       // Get the exception thrown from unexpected.
 
       __cxa_eh_globals *globals = __cxa_get_globals_fast ();
       __cxa_exception *new_xh = globals->caughtExceptions;
-      void *new_ptr = new_xh + 1;
+      void *new_ptr = __get_object_from_ambiguous_exception (new_xh);
 
       // We don't quite have enough stuff cached; re-parse the LSDA.
       parse_lsda_header (0, xh_lsda, &info);
 
       // If this new exception meets the exception spec, allow it.
-      if (check_exception_spec (&info, new_xh->exceptionType,
+      if (check_exception_spec (&info, __get_exception_header_from_obj
+                                  (new_ptr)->exceptionType,
 				new_ptr, xh_switch_value))
-	__throw_exception_again;
+	{ __throw_exception_again; }
 
       // If the exception spec allows std::bad_exception, throw that.
       // We don't have a thrown object to compare against, but since
       // bad_exception doesn't have virtual bases, that's OK; just pass 0.
-#ifdef __EXCEPTIONS  
+#if defined(__EXCEPTIONS) && defined(__GXX_RTTI)
       const std::type_info &bad_exc = typeid (std::bad_exception);
       if (check_exception_spec (&info, &bad_exc, 0, xh_switch_value))
 	throw std::bad_exception();
@@ -778,5 +782,16 @@ __cxa_call_unexpected (void *exc_obj_in)
     }
 }
 #endif
+
+#if defined (__SEH__) && !defined (_GLIBCXX_SJLJ_EXCEPTIONS)
+extern "C"
+EXCEPTION_DISPOSITION
+__gxx_personality_seh0 (PEXCEPTION_RECORD ms_exc, void *this_frame,
+			PCONTEXT ms_orig_context, PDISPATCHER_CONTEXT ms_disp)
+{
+  return _GCC_specific_handler (ms_exc, this_frame, ms_orig_context,
+				ms_disp, __gxx_personality_imp);
+}
+#endif /* SEH */
 
 } // namespace __cxxabiv1

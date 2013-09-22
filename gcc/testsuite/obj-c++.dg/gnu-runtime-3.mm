@@ -2,12 +2,12 @@
    the system runtime used).  */
 /* Author: Ziemowit Laski <zlaski@apple.com>  */
 /* { dg-do run } */
-/* { dg-options "-fgnu-runtime" } */
+/* { dg-skip-if "" { *-*-* } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdlib.h>
 
-@interface FooBar: Object
+@interface FooBar: TestsuiteObject
 - (void)boo;
 @end
 

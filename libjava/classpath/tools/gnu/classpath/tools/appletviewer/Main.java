@@ -55,13 +55,12 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ResourceBundle;
 
 
 class Main
 {
   private static HashMap classLoaderCache = new HashMap();
-  
+
   private static ClassLoader getClassLoader(URL codebase, ArrayList archives)
   {
     // Should load class loader each time. It is possible that there
@@ -71,7 +70,7 @@ class Main
 
     return loader;
   }
-  
+
   private static String code = null;
   private static String codebase = null;
   private static String archive = null;
@@ -255,13 +254,13 @@ class Main
     if (pluginMode)
       {
         // Plugin will warn user about missing security manager.
-	InputStream in;
-	OutputStream out;
+        InputStream in;
+        OutputStream out;
 
         in = new FileInputStream(pipeInName);
         out = new FileOutputStream(pipeOutName);
 
-	PluginAppletViewer.start(in, out);
+        PluginAppletViewer.start(in, out);
       }
     else
       {

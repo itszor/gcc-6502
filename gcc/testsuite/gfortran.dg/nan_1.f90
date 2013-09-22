@@ -2,7 +2,8 @@
 ! as arguments
 !
 ! { dg-do run }
-! { dg-options "-pedantic-errors -mieee" { target sh*-*-* } } 
+! { dg-add-options ieee }
+! { dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 !
 module aux2
   interface isnan
@@ -121,5 +122,3 @@ program test
   if (isinf(max(-large, -inf, nan))) call abort
 
 end program test
-
-! { dg-final { cleanup-modules "aux2" } }

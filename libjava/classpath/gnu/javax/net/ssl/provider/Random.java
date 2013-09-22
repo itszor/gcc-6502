@@ -38,10 +38,6 @@ exception statement from your version.  */
 
 package gnu.javax.net.ssl.provider;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -87,7 +83,7 @@ public class Random implements Builder, Constructed
   {
     return RANDOM_LENGTH + 4;
   }
-  
+
   public ByteBuffer buffer()
   {
     return ((ByteBuffer) buffer.duplicate().position(0).limit(length())).slice();

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -50,14 +48,13 @@ with System.Task_Primitives;
 with System.Task_Primitives.Operations;
 with System.Task_Primitives.Operations.DEC;
 
---  with Ada.Finalization;
---  removed, because of problem with controlled attribute ???
-
+with Ada.Finalization;
 with Ada.Task_Attributes;
 
 with Ada.Exceptions; use Ada.Exceptions;
 
 with Ada.Unchecked_Conversion;
+with Ada.Unchecked_Deallocation;
 
 package body System.AST_Handling is
 
@@ -135,9 +132,6 @@ package body System.AST_Handling is
 
    type Descriptor_Type is new SSE.Storage_Array (1 .. 48);
    for  Descriptor_Type'Alignment use Standard'Maximum_Alignment;
-   pragma Warnings (Off, Descriptor_Type);
-   --  Suppress harmless warnings about alignment.
-   --  Should explain why this warning is harmless ???
 
    type Descriptor_Ref is access all Descriptor_Type;
 
@@ -149,7 +143,7 @@ package body System.AST_Handling is
 
    --  Note: When we say it works fine, there is one delicate point, which
    --  is that the code for the AST procedure itself requires the original
-   --  descriptor address.  We handle this by saving the orignal descriptor
+   --  descriptor address.  We handle this by saving the original descriptor
    --  address in this structure and restoring in Process_AST.
 
    type AST_Handler_Data is record
@@ -195,14 +189,21 @@ package body System.AST_Handling is
    type AST_Handler_Vector is array (Natural range <>) of AST_Handler_Data;
    type AST_Handler_Vector_Ref is access all AST_Handler_Vector;
 
---  type AST_Vector_Ptr is new Ada.Finalization.Controlled with record
---  removed due to problem with controlled attribute, consequence is that
---  we have a memory leak if a task that has AST attribute entries is
---  terminated. ???
-
-   type AST_Vector_Ptr is record
+   type AST_Vector_Ptr is new Ada.Finalization.Controlled with record
       Vector : AST_Handler_Vector_Ref;
    end record;
+
+   procedure Finalize (Obj : in out AST_Vector_Ptr);
+   --  Override Finalize so that the AST Vector gets freed.
+
+   procedure Finalize (Obj : in out AST_Vector_Ptr) is
+      procedure Free is new
+       Ada.Unchecked_Deallocation (AST_Handler_Vector, AST_Handler_Vector_Ref);
+   begin
+      if Obj.Vector /= null then
+         Free (Obj.Vector);
+      end if;
+   end Finalize;
 
    AST_Vector_Init : AST_Vector_Ptr;
    --  Initial value, treated as constant, Vector will be null
@@ -237,7 +238,7 @@ package body System.AST_Handling is
    --  number of AST instances that can be stored in the buffer. Since
    --  these entries are immediately serviced by the high priority server
    --  task that does the actual entry queuing, it is very unusual to have
-   --  any significant number of entries simulaneously queued.
+   --  any significant number of entries simultaneously queued.
 
    AST_Service_Queue : array (AST_Service_Queue_Index) of AST_Instance;
    pragma Volatile_Components (AST_Service_Queue);
@@ -461,11 +462,17 @@ package body System.AST_Handling is
       Process_AST_Ptr : constant AST_Handler := Process_AST'Access;
       --  Reference to standard procedure descriptor for Process_AST
 
+      pragma Warnings (Off, "*alignment*");
+      --  Suppress harmless warnings about alignment.
+      --  Should explain why this warning is harmless ???
+
       function To_Descriptor_Ref is new Ada.Unchecked_Conversion
         (AST_Handler, Descriptor_Ref);
 
       Original_Descriptor_Ref : constant Descriptor_Ref :=
                                   To_Descriptor_Ref (Process_AST_Ptr);
+
+      pragma Warnings (On, "*alignment*");
 
    begin
       if ATID.Is_Terminated (Taskid) then
@@ -545,16 +552,16 @@ package body System.AST_Handling is
       --  from which we can obtain the task and entry number information.
 
       function To_Address is new Ada.Unchecked_Conversion
-        (ST.Task_Id, System.Address);
+        (ST.Task_Id, System.Task_Primitives.Task_Address);
 
    begin
       System.Machine_Code.Asm
-        (Template => "addl $27,0,%0",
+        (Template => "addq $27,0,%0",
          Outputs  => AST_Handler_Data_Ref'Asm_Output ("=r", Handler_Data_Ptr),
          Volatile => True);
 
       System.Machine_Code.Asm
-        (Template => "ldl $27,%0",
+        (Template => "ldq $27,%0",
          Inputs  => Descriptor_Ref'Asm_Input
            ("m", Handler_Data_Ptr.Original_Descriptor_Ref),
          Volatile => True);

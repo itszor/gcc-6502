@@ -7,6 +7,7 @@ c=0
 
 for k in $possible_kinds; do
   echo "  real (kind=$k) :: x" > tmp$$.f90
+  echo "  x = 1.0_$k" >> tmp$$.f90
   echo "  end" >> tmp$$.f90
   if $compile -S tmp$$.f90 > /dev/null 2>&1; then
     kinds="$kinds $k"
@@ -21,7 +22,7 @@ echo "  type (real_info), parameter :: real_infos(c) = (/ &"
 i=0
 for k in $kinds; do
   # echo -n is not portable
-  str="    real_info ($k, precision(0.0_$k), range(0.0_$k))"
+  str="    real_info ($k, precision(0.0_$k), range(0.0_$k), radix(0.0_$k))"
   i=`expr $i + 1`
   if [ $i -lt $c ]; then
     echo "$str, &"

@@ -1,11 +1,11 @@
 // 2004-25-10  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004 Free Software Foundation, Inc.
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,11 +14,16 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 21.3.5 string modifiers
+
+// { dg-options "-DITERATIONS=14" { target simulator } }
+
+#ifndef ITERATIONS
+#define ITERATIONS 18
+#endif
 
 #include <string>
 #include <testsuite_hooks.h>
@@ -38,7 +43,7 @@ test03()
     {
       wstring one(source);
       wstring two(source);
-      for (unsigned j = 0; j < 18; ++j)
+      for (unsigned j = 0; j < ITERATIONS; ++j)
 	{
 	  VERIFY( one == two );
 	  one.append(one);

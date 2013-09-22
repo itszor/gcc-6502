@@ -1,6 +1,6 @@
 /* Implementation header for mudflap runtime library.
    Mudflap: narrow-pointer bounds-checking by tree rewriting.
-   Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Frank Ch. Eigler <fche@redhat.com>
    and Graydon Hoare <graydon@redhat.com>
 
@@ -8,27 +8,22 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #ifndef __MF_IMPL_H
 #define __MF_IMPL_H
@@ -51,7 +46,7 @@ typedef __mf_uintptr_t uintptr_t;
 
 /* Private definitions related to mf-runtime.h  */
 
-#define __MF_TYPE_MAX_CEM  __MF_TYPE_STACK  /* largest type# for the cemetary */
+#define __MF_TYPE_MAX_CEM  __MF_TYPE_STACK  /* largest type# for the cemetery */
 #define __MF_TYPE_MAX __MF_TYPE_GUESS
 
 
@@ -217,6 +212,9 @@ extern struct __mf_dynamic_entry __mf_dynamic[];
 enum __mf_dynamic_index
 {
   dyn_calloc, dyn_free, dyn_malloc, dyn_mmap,
+#ifdef HAVE_MMAP64
+  dyn_mmap64,
+#endif
   dyn_munmap, dyn_realloc,
   dyn_INITRESOLVE,  /* Marker for last init-time resolution. */
 #ifdef LIBMUDFLAPTH
@@ -244,7 +242,7 @@ extern pthread_mutex_t __mf_biglock;
 #define UNLOCKTH() do {} while (0)
 #endif
 
-#if defined(LIBMUDFLAPTH) && !defined(HAVE_TLS)
+#if defined(LIBMUDFLAPTH) && (!defined(HAVE_TLS) || defined(USE_EMUTLS))
 extern enum __mf_state_enum __mf_get_state (void);
 extern void __mf_set_state (enum __mf_state_enum);
 #else

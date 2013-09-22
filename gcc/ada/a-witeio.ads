@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,21 +14,19 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -44,6 +42,9 @@
 
 with Ada.IO_Exceptions;
 with Ada.Streams;
+
+with Interfaces.C_Streams;
+
 with System;
 with System.File_Control_Block;
 with System.WCh_Con;
@@ -63,9 +64,8 @@ package Ada.Wide_Text_IO is
       Append_File => 3); -- System.File_IO.File_Mode'Pos (Append_File)
 
    type Count is range 0 .. Natural'Last;
-   --  The value of Count'Last must be large enough so that the assumption
-   --  enough so that the assumption that the Line, Column and Page
-   --  counts can never exceed this value is a valid assumption.
+   --  The value of Count'Last must be large enough so that the assumption that
+   --  the Line, Column and Page counts can never exceed this value is valid.
 
    subtype Positive_Count is Count range 1 .. Count'Last;
 
@@ -73,9 +73,9 @@ package Ada.Wide_Text_IO is
    --  Line and page length
 
    subtype Field is Integer range 0 .. 255;
-   --  Note: if for any reason, there is a need to increase this value,
-   --  then it will be necessary to change the corresponding value in
-   --  System.Img_Real in file s-imgrea.adb.
+   --  Note: if for any reason, there is a need to increase this value, then it
+   --  will be necessary to change the corresponding value in System.Img_Real
+   --  in file s-imgrea.adb.
 
    subtype Number_Base is Integer range 2 .. 16;
 
@@ -138,7 +138,7 @@ package Ada.Wide_Text_IO is
    -- Buffer control --
    --------------------
 
-   --  Note: The paramter file is in out in the RM, but as pointed out
+   --  Note: The parameter file is in out in the RM, but as pointed out
    --  in <<95-5166.a Tucker Taft 95-6-23>> this is clearly an oversight.
 
    procedure Flush (File : File_Type);
@@ -301,6 +301,32 @@ package Ada.Wide_Text_IO is
    Layout_Error : exception renames IO_Exceptions.Layout_Error;
 
 private
+
+   --  The following procedures have a File_Type formal of mode IN OUT because
+   --  they may close the original file. The Close operation may raise an
+   --  exception, but in that case we want any assignment to the formal to
+   --  be effective anyway, so it must be passed by reference (or the caller
+   --  will be left with a dangling pointer).
+
+   pragma Export_Procedure
+     (Internal  => Close,
+      External  => "",
+      Mechanism => Reference);
+   pragma Export_Procedure
+     (Internal  => Delete,
+      External  => "",
+      Mechanism => Reference);
+   pragma Export_Procedure
+     (Internal        => Reset,
+      External        => "",
+      Parameter_Types => (File_Type),
+      Mechanism       => Reference);
+   pragma Export_Procedure
+     (Internal        => Reset,
+      External        => "",
+      Parameter_Types => (File_Type, File_Mode),
+      Mechanism       => (File => Reference));
+
    package WCh_Con renames System.WCh_Con;
 
    -----------------------------------
@@ -319,7 +345,7 @@ private
    --  omitted on output unless an explicit New_Page call is made before
    --  closing the file. No page mark is added when a file is appended to,
    --  so, in accordance with the permission in (RM A.10.2(4)), there may
-   --  or may not be a page mark separating preexising text in the file
+   --  or may not be a page mark separating preexisting text in the file
    --  from the new text to be written.
 
    --  A file mark is marked by the physical end of file. In DOS translation
@@ -350,8 +376,14 @@ private
       Line_Length : Count := 0;
       Page_Length : Count := 0;
 
+      Self : aliased File_Type;
+      --  Set to point to the containing Text_AFCB block. This is used to
+      --  implement the Current_{Error,Input,Output} functions which return
+      --  a File_Access, the file access value returned is a pointer to
+      --  the Self field of the corresponding file.
+
       Before_LM : Boolean := False;
-      --  This flag is used to deal with the anomolies introduced by the
+      --  This flag is used to deal with the anomalies introduced by the
       --  peculiar definition of End_Of_File and End_Of_Page in Ada. These
       --  functions require looking ahead more than one character. Since
       --  there is no convenient way of backing up more than one character,
@@ -411,9 +443,6 @@ private
    -- The Standard Files --
    ------------------------
 
-   Null_Str : aliased constant String := "";
-   --  Used as name and form of standard files
-
    Standard_Err_AFCB : aliased Wide_Text_AFCB;
    Standard_In_AFCB  : aliased Wide_Text_AFCB;
    Standard_Out_AFCB : aliased Wide_Text_AFCB;
@@ -428,26 +457,24 @@ private
    Current_Err  : aliased File_Type := Standard_Err;
    --  Current files
 
+   procedure Initialize_Standard_Files;
+   --  Initializes the file control blocks for the standard files. Called from
+   --  the elaboration routine for this package, and from Reset_Standard_Files
+   --  in package Ada.Wide_Text_IO.Reset_Standard_Files.
+
    -----------------------
    -- Local Subprograms --
    -----------------------
 
    --  These subprograms are in the private part of the spec so that they can
-   --  be shared by the routines in the body of Ada.Text_IO.Wide_Text_IO.
+   --  be shared by the children of Ada.Wide_Text_IO.
 
-   --  Note: we use Integer in these declarations instead of the more accurate
-   --  Interfaces.C_Streams.int, because we do not want to drag in the spec of
-   --  this interfaces package with the spec of Ada.Text_IO, and we know that
-   --  in fact these types are identical
+   function Getc (File : File_Type) return Interfaces.C_Streams.int;
+   --  Gets next character from file, which has already been checked for being
+   --  in read status, and returns the character read if no error occurs. The
+   --  result is EOF if the end of file was read.
 
-   function Getc (File : File_Type) return Integer;
-   --  Gets next character from file, which has already been checked for
-   --  being in read status, and returns the character read if no error
-   --  occurs. The result is EOF if the end of file was read.
-
-   procedure Get_Character
-     (File : File_Type;
-      Item : out Character);
+   procedure Get_Character (File : File_Type; Item : out Character);
    --  This is essentially a copy of the normal Get routine from Text_IO. It
    --  obtains a single character from the input file File, and places it in
    --  Item. This character may be the leading character of a Wide_Character
@@ -461,25 +488,8 @@ private
    --  read and is passed in C. The wide character value is returned as the
    --  result, and the file pointer is bumped past the character.
 
-   function Nextc (File : File_Type) return Integer;
-   --  Returns next character from file without skipping past it (i.e. it
-   --  is a combination of Getc followed by an Ungetc).
-
-   procedure Putc (ch : Integer; File : File_Type);
-   --  Outputs the given character to the file, which has already been
-   --  checked for being in output status. Device_Error is raised if the
-   --  character cannot be written.
-
-   procedure Terminate_Line (File : File_Type);
-   --  If the file is in Write_File or Append_File mode, and the current
-   --  line is not terminated, then a line terminator is written using
-   --  New_Line. Note that there is no Terminate_Page routine, because
-   --  the page mark at the end of the file is implied if necessary.
-
-   procedure Ungetc (ch : Integer; File : File_Type);
-   --  Pushes back character into stream, using ungetc. The caller has
-   --  checked that the file is in read status. Device_Error is raised
-   --  if the character cannot be pushed back. An attempt to push back
-   --  and end of file character (EOF) is ignored.
+   function Nextc (File : File_Type) return Interfaces.C_Streams.int;
+   --  Returns next character from file without skipping past it (i.e. it is a
+   --  combination of Getc followed by an Ungetc).
 
 end Ada.Wide_Text_IO;

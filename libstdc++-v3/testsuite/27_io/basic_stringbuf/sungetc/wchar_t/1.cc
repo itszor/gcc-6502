@@ -1,12 +1,11 @@
 // 981208 bkoz test functionality of basic_stringbuf for char_type == wchar_t
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 #include <sstream>
 #include <testsuite_hooks.h>
@@ -34,7 +32,6 @@ void test04()
 {
   bool test __attribute__((unused)) = true;
   std::wstring 		str_tmp;
-  std::streamsize 		strmsz_1, strmsz_2;
   typedef std::wstringbuf::int_type int_type;
   typedef std::wstringbuf::traits_type traits_type;
 
@@ -45,47 +42,47 @@ void test04()
 
   // PUT
   strb_03.str(str_01); //reset
-  std::wstring::size_type sz1 = strb_03.str().length();
-  std::wstring::size_type sz2 = strb_03.str().length();
+  strb_03.str().length();
+  strb_03.str().length();
   
   // streamsize sputn(const char_typs* s, streamsize n)
   // write up to n chars to out_cur from s, returning number assigned
   // NB *sputn will happily put '\0' into your stream if you give it a chance*
   str_tmp = strb_03.str();
-  sz1 = str_tmp.length();
-  strmsz_1 = strb_03.sputn(L"racadabras", 10);//"abracadabras or what?"
-  sz2 = strb_03.str().length();
-  strmsz_2 = strb_03.sputn(L", i wanna reach out and", 10);
-  sz2 = strb_03.str().length();
+  str_tmp.length();
+  strb_03.sputn(L"racadabras", 10);//"abracadabras or what?"
+  strb_03.str().length();
+  strb_03.sputn(L", i wanna reach out and", 10);
+  strb_03.str().length();
   str_tmp = strb_02.str();
-  strmsz_1 = strb_02.sputn(L"racadabra", 10);
+  strb_02.sputn(L"racadabra", 10);
 
   // PUTBACK
 
   // int_type sputbackc(char_type c)
   // if in_cur not avail || ! traits::eq(c, gptr() [-1]), return pbfail
   // otherwise decrements in_cur and returns *gptr()
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   str_tmp = strb_01.str();
   c1 = strb_01.sgetc(); //"mykonos. . . 'o'r what?"
   c2 = strb_01.sputbackc('z');//"mykonos. . .zor what?"
   c3 = strb_01.sgetc();
   //test for _in_cur == _in_beg
   strb_01.str(str_tmp);
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   c1 = strb_01.sgetc(); //"'m'ykonos. . . or what?"
   c2 = strb_01.sputbackc(L'z');//"mykonos. . . or what?"
   c3 = strb_01.sgetc();
   // test for replacing char with identical one
   strb_01.str(str_01); //reset
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   strb_01.sbumpc();
   strb_01.sbumpc();
   c1 = strb_01.sgetc(); //"my'k'onos. . . or what?"
   c2 = strb_01.sputbackc(L'y');//"mykonos. . . or what?"
   c3 = strb_01.sgetc();
   //test for ios_base::out
-  strmsz_2 = strb_03.in_avail();
+  strb_03.in_avail();
   c4 = strb_03.sputbackc(L'x');
 
   // int_type sungetc()
@@ -93,7 +90,7 @@ void test04()
   // return to_int_type(*gptr())
   for (int i = 0; i<12; ++i)
     strb_01.sbumpc();
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   str_tmp = strb_01.str();
   c1 = strb_01.sgetc(); //"mykonos. . . 'o'r what?"
   c2 = strb_01.sungetc();//"mykonos. . . or what?"
@@ -106,7 +103,7 @@ void test04()
   VERIFY( str_01.size() == strb_01.str().size() );
   //test for _in_cur == _in_beg
   strb_01.str(str_tmp);
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   c1 = strb_01.sgetc(); //"'m'ykonos. . . or what?"
   c2 = strb_01.sungetc();//"mykonos. . . or what?"
   c3 = strb_01.sgetc();
@@ -118,7 +115,7 @@ void test04()
   VERIFY( str_01.size() == strb_01.str().size() );
   // test for replacing char with identical one
   strb_01.str(str_01); //reset
-  strmsz_1 = strb_01.in_avail();
+  strb_01.in_avail();
   strb_01.sbumpc();
   strb_01.sbumpc();
   c1 = strb_01.sgetc(); //"my'k'onos. . . or what?"
@@ -130,7 +127,7 @@ void test04()
   VERIFY( strb_01.str() == str_01 );
   VERIFY( str_01.size() == strb_01.str().size() );
   //test for ios_base::out
-  strmsz_2 = strb_03.in_avail();
+  strb_03.in_avail();
   c4 = strb_03.sungetc();
   VERIFY( c4 == traits_type::eof() );
 }

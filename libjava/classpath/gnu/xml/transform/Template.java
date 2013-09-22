@@ -1,4 +1,4 @@
-/* Template.java -- 
+/* Template.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.PrintStream;
 import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerException;
@@ -68,7 +70,7 @@ class Template
   final QName mode;
   final boolean isAnyNode; // is the match simply "node()"?
 
-  Template(Stylesheet stylesheet, 
+  Template(Stylesheet stylesheet,
            QName name, Pattern match, TemplateNode node,
            int precedence, String priorityAttr, QName mode)
   {
@@ -78,7 +80,7 @@ class Template
     this.node = node;
     this.precedence = precedence;
     this.mode = mode;
-    
+
     double p = DEFAULT_PRIORITY;
     boolean a = false;
     if (priorityAttr != null)
@@ -124,8 +126,8 @@ class Template
     this.priority = p;
     this.isAnyNode = a;
   }
-  
-  private Template(Stylesheet stylesheet, 
+
+  private Template(Stylesheet stylesheet,
            QName name, Pattern match, TemplateNode node,
            int precedence, double priority, QName mode, boolean isAnyNode)
   {
@@ -153,7 +155,7 @@ class Template
                         mode,
                         isAnyNode);
   }
-  
+
   public int compareTo(Object other)
   {
     if (other instanceof Template)
@@ -226,7 +228,7 @@ class Template
 
   public String toString()
   {
-    StringBuffer buf = new StringBuffer(getClass().getName());
+    CPStringBuilder buf = new CPStringBuilder(getClass().getName());
     buf.append('[');
     if (name != null)
       {
@@ -243,9 +245,11 @@ class Template
         buf.append(",mode=");
         buf.append(mode);
       }
+    buf.append(",node=");
+    buf.append(node);
     buf.append(']');
     return buf.toString();
-    
+
     //return (name != null) ? name.toString() : match.toString();
   }
 

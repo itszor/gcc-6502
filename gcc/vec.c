@@ -1,6 +1,7 @@
 /* Vector API for GNU compiler.
-   Copyright (C) 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by Nathan Sidwell <nathan@codesourcery.com>
+   Re-implemented in C++ by Diego Novillo <dnovillo@google.com>
 
 This file is part of GCC.
 
@@ -27,42 +28,172 @@ along with GCC; see the file COPYING3.  If not see
 #endif
 
 #include "system.h"
+#include "coretypes.h"
 #include "ggc.h"
 #include "vec.h"
-#include "coretypes.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
+#include "hashtab.h"
 
-struct vec_prefix 
+/* vNULL is an empty type with a template cast operation that returns
+   a zero-initialized vec<T, A, L> instance.  Use this when you want
+   to assign nil values to new vec instances or pass a nil vector as
+   a function call argument.
+
+   We use this technique because vec<T, A, L> must be PODs (they are
+   stored in unions and passed in vararg functions), this means that
+   they cannot have ctors/dtors.  */
+vnull vNULL;
+
+
+/* Store information about each particular vector.  */
+struct vec_descriptor
 {
-  unsigned num;
-  unsigned alloc;
-  void *vec[1];
+  const char *function;
+  const char *file;
+  int line;
+  size_t allocated;
+  size_t times;
+  size_t peak;
 };
 
-/* Calculate the new ALLOC value, making sure that RESERVE slots are
-   free.  If EXACT grow exactly, otherwise grow exponentially.  */
 
-static inline unsigned
-calculate_allocation (const struct vec_prefix *pfx, int reserve, bool exact)
+/* Hashtable mapping vec addresses to descriptors.  */
+static htab_t vec_desc_hash;
+
+/* Hashtable helpers.  */
+static hashval_t
+hash_descriptor (const void *p)
+{
+  const struct vec_descriptor *const d =
+    (const struct vec_descriptor *) p;
+  return htab_hash_pointer (d->file) + d->line;
+}
+static int
+eq_descriptor (const void *p1, const void *p2)
+{
+  const struct vec_descriptor *const d = (const struct vec_descriptor *) p1;
+  const struct vec_descriptor *const l = (const struct vec_descriptor *) p2;
+  return d->file == l->file && d->function == l->function && d->line == l->line;
+}
+
+/* Hashtable converting address of allocated field to loc descriptor.  */
+static htab_t ptr_hash;
+struct ptr_hash_entry
+{
+  void *ptr;
+  struct vec_descriptor *loc;
+  size_t allocated;
+};
+
+/* Hash table helpers functions.  */
+static hashval_t
+hash_ptr (const void *p)
+{
+  const struct ptr_hash_entry *const d = (const struct ptr_hash_entry *) p;
+
+  return htab_hash_pointer (d->ptr);
+}
+
+static int
+eq_ptr (const void *p1, const void *p2)
+{
+  const struct ptr_hash_entry *const p = (const struct ptr_hash_entry *) p1;
+
+  return (p->ptr == p2);
+}
+
+/* Return descriptor for given call site, create new one if needed.  */
+static struct vec_descriptor *
+vec_descriptor (const char *name, int line, const char *function)
+{
+  struct vec_descriptor loc;
+  struct vec_descriptor **slot;
+
+  loc.file = name;
+  loc.line = line;
+  loc.function = function;
+  if (!vec_desc_hash)
+    vec_desc_hash = htab_create (10, hash_descriptor, eq_descriptor, NULL);
+
+  slot = (struct vec_descriptor **) htab_find_slot (vec_desc_hash, &loc,
+						    INSERT);
+  if (*slot)
+    return *slot;
+  *slot = XCNEW (struct vec_descriptor);
+  (*slot)->file = name;
+  (*slot)->line = line;
+  (*slot)->function = function;
+  (*slot)->allocated = 0;
+  (*slot)->peak = 0;
+  return *slot;
+}
+
+/* Account the overhead.  */
+
+void
+vec_prefix::register_overhead (size_t size, const char *name, int line,
+			       const char *function)
+{
+  struct vec_descriptor *loc = vec_descriptor (name, line, function);
+  struct ptr_hash_entry *p = XNEW (struct ptr_hash_entry);
+  PTR *slot;
+
+  p->ptr = this;
+  p->loc = loc;
+  p->allocated = size;
+  if (!ptr_hash)
+    ptr_hash = htab_create (10, hash_ptr, eq_ptr, NULL);
+  slot = htab_find_slot_with_hash (ptr_hash, this, htab_hash_pointer (this),
+				   INSERT);
+  gcc_assert (!*slot);
+  *slot = p;
+
+  loc->allocated += size;
+  if (loc->peak < loc->allocated)
+    loc->peak += loc->allocated;
+  loc->times++;
+}
+
+
+/* Notice that the memory allocated for the vector has been freed.  */
+
+void
+vec_prefix::release_overhead (void)
+{
+  PTR *slot = htab_find_slot_with_hash (ptr_hash, this,
+					htab_hash_pointer (this),
+					NO_INSERT);
+  struct ptr_hash_entry *p = (struct ptr_hash_entry *) *slot;
+  p->loc->allocated -= p->allocated;
+  htab_clear_slot (ptr_hash, slot);
+  ::free (p);
+}
+
+
+/* Calculate the number of slots to reserve a vector, making sure that
+   RESERVE slots are free.  If EXACT grow exactly, otherwise grow
+   exponentially.  PFX is the control data for the vector.  */
+
+unsigned
+vec_prefix::calculate_allocation (vec_prefix *pfx, unsigned reserve,
+				  bool exact)
 {
   unsigned alloc = 0;
   unsigned num = 0;
 
-  gcc_assert (reserve >= 0);
-
   if (pfx)
     {
-      alloc = pfx->alloc;
-      num = pfx->num;
+      alloc = pfx->alloc_;
+      num = pfx->num_;
     }
   else if (!reserve)
-    /* If there's no prefix, and we've not requested anything, then we
+    /* If there's no vector, and we've not requested anything, then we
        will create a NULL vector.  */
     return 0;
-  
+
   /* We must have run out of room.  */
-  gcc_assert (alloc - num < (unsigned) reserve);
-  
+  gcc_assert (alloc - num < reserve);
+
   if (exact)
     /* Exact size.  */
     alloc = num + reserve;
@@ -77,7 +208,7 @@ calculate_allocation (const struct vec_prefix *pfx, int reserve, bool exact)
       else
 	/* Grow slower when large.  */
 	alloc = (alloc * 3 / 2);
-      
+
       /* If this is still too small, set it to the right size. */
       if (alloc < num + reserve)
 	alloc = num + reserve;
@@ -85,152 +216,127 @@ calculate_allocation (const struct vec_prefix *pfx, int reserve, bool exact)
   return alloc;
 }
 
-/* Ensure there are at least RESERVE free slots in VEC.  If EXACT grow
-   exactly, else grow exponentially.  As a special case, if VEC is
-   NULL and RESERVE is 0, no vector will be created.  The vector's
-   trailing array is at VEC_OFFSET offset and consists of ELT_SIZE
-   sized elements.  */
 
-static void *
-vec_gc_o_reserve_1 (void *vec, int reserve, size_t vec_offset, size_t elt_size,
-		    bool exact MEM_STAT_DECL)
-{
-  struct vec_prefix *pfx = vec;
-  unsigned alloc = alloc = calculate_allocation (pfx, reserve, exact);
-  
-  if (!alloc)
-    return NULL;
-  
-  vec = ggc_realloc_stat (vec, vec_offset + alloc * elt_size PASS_MEM_STAT);
-  ((struct vec_prefix *)vec)->alloc = alloc;
-  if (!pfx)
-    ((struct vec_prefix *)vec)->num = 0;
-  
-  return vec;
-}
+/* Stack vectors are a little different.  VEC_alloc turns into a call
+   to vec<T, A>::stack_reserve and passes in space allocated via a
+   call to alloca.  We record that pointer so that we know that we
+   shouldn't free it.  If the vector is resized, we resize it on the
+   heap.  We record the pointers in a vector and search it in LIFO
+   order--i.e., we look for the newest stack vectors first.  We don't
+   expect too many stack vectors at any one level, and searching from
+   the end should normally be efficient even if they are used in a
+   recursive function.  */
 
-/* Ensure there are at least RESERVE free slots in VEC, growing
-   exponentially.  If RESERVE < 0 grow exactly, else grow
-   exponentially.  As a special case, if VEC is NULL, and RESERVE is
-   0, no vector will be created. */
+static vec<void *> stack_vecs;
 
-void *
-vec_gc_p_reserve (void *vec, int reserve MEM_STAT_DECL)
-{
-  return vec_gc_o_reserve_1 (vec, reserve,
-			     offsetof (struct vec_prefix, vec),
-			     sizeof (void *), false
-			     PASS_MEM_STAT);
-}
-
-/* Ensure there are at least RESERVE free slots in VEC, growing
-   exactly.  If RESERVE < 0 grow exactly, else grow exponentially.  As
-   a special case, if VEC is NULL, and RESERVE is 0, no vector will be
-   created. */
-
-void *
-vec_gc_p_reserve_exact (void *vec, int reserve MEM_STAT_DECL)
-{
-  return vec_gc_o_reserve_1 (vec, reserve,
-			     offsetof (struct vec_prefix, vec),
-			     sizeof (void *), true
-			     PASS_MEM_STAT);
-}
-
-/* As for vec_gc_p_reserve, but for object vectors.  The vector's
-   trailing array is at VEC_OFFSET offset and consists of ELT_SIZE
-   sized elements.  */
-
-void *
-vec_gc_o_reserve (void *vec, int reserve, size_t vec_offset, size_t elt_size
-		  MEM_STAT_DECL)
-{
-  return vec_gc_o_reserve_1 (vec, reserve, vec_offset, elt_size, false
-			     PASS_MEM_STAT);
-}
-
-/* As for vec_gc_p_reserve_exact, but for object vectors.  The
-   vector's trailing array is at VEC_OFFSET offset and consists of
-   ELT_SIZE sized elements.  */
-
-void *
-vec_gc_o_reserve_exact (void *vec, int reserve, size_t vec_offset,
-			size_t elt_size MEM_STAT_DECL)
-{
-  return vec_gc_o_reserve_1 (vec, reserve, vec_offset, elt_size, true
-			     PASS_MEM_STAT);
-}
-
-/* As for vec_gc_o_reserve_1, but for heap allocated vectors.  */
-
-static void *
-vec_heap_o_reserve_1 (void *vec, int reserve, size_t vec_offset,
-		      size_t elt_size, bool exact MEM_STAT_DECL)
-{
-  struct vec_prefix *pfx = vec;
-  unsigned alloc = calculate_allocation (pfx, reserve, exact);
-
-  if (!alloc)
-    return NULL;
-  
-  vec = xrealloc (vec, vec_offset + alloc * elt_size);
-  ((struct vec_prefix *)vec)->alloc = alloc;
-  if (!pfx)
-    ((struct vec_prefix *)vec)->num = 0;
-  
-  return vec;
-}
-
-/* As for vec_gc_p_reserve, but for heap allocated vectors.  */
-
-void *
-vec_heap_p_reserve (void *vec, int reserve MEM_STAT_DECL)
-{
-  return vec_heap_o_reserve_1 (vec, reserve,
-			       offsetof (struct vec_prefix, vec),
-			       sizeof (void *), false
-			       PASS_MEM_STAT);
-}
-
-/* As for vec_gc_p_reserve_exact, but for heap allocated vectors.  */
-
-void *
-vec_heap_p_reserve_exact (void *vec, int reserve MEM_STAT_DECL)
-{
-  return vec_heap_o_reserve_1 (vec, reserve,
-			       offsetof (struct vec_prefix, vec),
-			       sizeof (void *), true
-			       PASS_MEM_STAT);
-}
-
-/* As for vec_gc_o_reserve, but for heap allocated vectors.  */
-
-void *
-vec_heap_o_reserve (void *vec, int reserve, size_t vec_offset, size_t elt_size
-		    MEM_STAT_DECL)
-{
-  return vec_heap_o_reserve_1 (vec, reserve, vec_offset, elt_size, false
-			       PASS_MEM_STAT);
-}
-
-/* As for vec_gc_o_reserve_exact, but for heap allocated vectors.  */
-
-void *
-vec_heap_o_reserve_exact (void *vec, int reserve, size_t vec_offset,
-			  size_t elt_size MEM_STAT_DECL)
-{
-  return vec_heap_o_reserve_1 (vec, reserve, vec_offset, elt_size, true
-			       PASS_MEM_STAT);
-}
-
-#if ENABLE_CHECKING
-/* Issue a vector domain error, and then fall over.  */
+/* Add a stack vector to STACK_VECS.  */
 
 void
-vec_assert_fail (const char *op, const char *struct_name,
-		 const char *file, unsigned int line, const char *function)
+register_stack_vec (void *vec)
 {
-  internal_error ("vector %s %s domain error, in %s at %s:%u",
-		  struct_name, op, function, trim_filename (file), line);
+  stack_vecs.safe_push (vec);
 }
-#endif
+
+
+/* If VEC is registered in STACK_VECS, return its index.
+   Otherwise, return -1.  */
+
+int
+stack_vec_register_index (void *vec)
+{
+  for (unsigned ix = stack_vecs.length (); ix > 0; --ix)
+    if (stack_vecs[ix - 1] == vec)
+      return static_cast<int> (ix - 1);
+  return -1;
+}
+
+
+/* Remove vector at slot IX from the list of registered stack vectors.  */
+
+void
+unregister_stack_vec (unsigned ix)
+{
+  stack_vecs.unordered_remove (ix);
+}
+
+
+/* Helper for qsort; sort descriptors by amount of memory consumed.  */
+
+static int
+cmp_statistic (const void *loc1, const void *loc2)
+{
+  const struct vec_descriptor *const l1 =
+    *(const struct vec_descriptor *const *) loc1;
+  const struct vec_descriptor *const l2 =
+    *(const struct vec_descriptor *const *) loc2;
+  long diff;
+  diff = l1->allocated - l2->allocated;
+  if (!diff)
+    diff = l1->peak - l2->peak;
+  if (!diff)
+    diff = l1->times - l2->times;
+  return diff > 0 ? 1 : diff < 0 ? -1 : 0;
+}
+
+
+/* Collect array of the descriptors from hashtable.  */
+
+static struct vec_descriptor **loc_array;
+static int
+add_statistics (void **slot, void *b)
+{
+  int *n = (int *)b;
+  loc_array[*n] = (struct vec_descriptor *) *slot;
+  (*n)++;
+  return 1;
+}
+
+/* Dump per-site memory statistics.  */
+
+void
+dump_vec_loc_statistics (void)
+{
+  int nentries = 0;
+  char s[4096];
+  size_t allocated = 0;
+  size_t times = 0;
+  int i;
+
+  if (! GATHER_STATISTICS)
+    return;
+
+  loc_array = XCNEWVEC (struct vec_descriptor *, vec_desc_hash->n_elements);
+  fprintf (stderr, "Heap vectors:\n");
+  fprintf (stderr, "\n%-48s %10s       %10s       %10s\n",
+	   "source location", "Leak", "Peak", "Times");
+  fprintf (stderr, "-------------------------------------------------------\n");
+  htab_traverse (vec_desc_hash, add_statistics, &nentries);
+  qsort (loc_array, nentries, sizeof (*loc_array), cmp_statistic);
+  for (i = 0; i < nentries; i++)
+    {
+      struct vec_descriptor *d = loc_array[i];
+      allocated += d->allocated;
+      times += d->times;
+    }
+  for (i = 0; i < nentries; i++)
+    {
+      struct vec_descriptor *d = loc_array[i];
+      const char *s1 = d->file;
+      const char *s2;
+      while ((s2 = strstr (s1, "gcc/")))
+	s1 = s2 + 4;
+      sprintf (s, "%s:%i (%s)", s1, d->line, d->function);
+      s[48] = 0;
+      fprintf (stderr, "%-48s %10li:%4.1f%% %10li      %10li:%4.1f%% \n", s,
+	       (long)d->allocated,
+	       (d->allocated) * 100.0 / allocated,
+	       (long)d->peak,
+	       (long)d->times,
+	       (d->times) * 100.0 / times);
+    }
+  fprintf (stderr, "%-48s %10ld                        %10ld\n",
+	   "Total", (long)allocated, (long)times);
+  fprintf (stderr, "\n%-48s %10s       %10s       %10s\n",
+	   "source location", "Leak", "Peak", "Times");
+  fprintf (stderr, "-------------------------------------------------------\n");
+}

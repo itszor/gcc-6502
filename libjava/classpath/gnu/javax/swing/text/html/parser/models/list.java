@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.javax.swing.text.html.parser.models;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 
 /**
@@ -154,7 +156,7 @@ public class list
         matched = false;
         x = tokens [ i ];
 
-        nodescan: 
+        nodescan:
         for (int j = 0; j < nodes.length; j++)
           {
             if (!nodes [ j ].isClosed())
@@ -202,7 +204,7 @@ public class list
   public boolean performMatch(Object token)
   {
     boolean ok = false;
-    Matching: 
+    Matching:
     for (int i = 0; i < nodes.length; i++)
       {
         ok = nodes [ i ].performMatch(token);
@@ -246,7 +248,7 @@ public class list
     boolean m;
     boolean matched = false;
 
-    nodescan: 
+    nodescan:
     for (int j = 0; j < nodes.length; j++)
       {
         if (!nodes [ j ].isClosed())
@@ -296,7 +298,7 @@ public class list
    */
   public String toString()
   {
-    StringBuffer b = new StringBuffer();
+    CPStringBuilder b = new CPStringBuilder();
     b.append(" ( ");
     for (int i = 0; i < nodes.length; i++)
       {

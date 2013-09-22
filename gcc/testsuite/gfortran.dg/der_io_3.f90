@@ -1,3 +1,6 @@
+! { dg-do compile }
+! { dg-options "-std=legacy" }
+!
 ! PR23843
 ! Make sure derived type I/O with PRIVATE components works where it's allowed
 module m1
@@ -38,5 +41,3 @@ end module m2
 use m2
 call test
 end
-
-! { dg-final { cleanup-modules "m1 m2" } }

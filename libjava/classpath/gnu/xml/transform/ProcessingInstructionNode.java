@@ -1,4 +1,4 @@
-/* ProcessingInstructionNode.java -- 
+/* ProcessingInstructionNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerException;
@@ -102,15 +104,15 @@ final class ProcessingInstructionNode
                  context, pos, len,
                  parent, nextSibling);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("processing-instruction");
+    CPStringBuilder buf = new CPStringBuilder("processing-instruction");
     buf.append('[');
     buf.append("name=");
     buf.append(name);
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

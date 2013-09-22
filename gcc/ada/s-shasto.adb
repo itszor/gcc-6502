@@ -6,34 +6,32 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1998-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Exceptions;
 with Ada.IO_Exceptions;
 with Ada.Streams;
+with Ada.Streams.Stream_IO;
 
 with System.Global_Locks;
 with System.Soft_Links;
@@ -55,6 +53,8 @@ package body System.Shared_Storage is
    package FCB renames System.File_Control_Block;
 
    package SFI renames System.File_IO;
+
+   package SIO renames Ada.Streams.Stream_IO;
 
    type String_Access is access String;
    procedure Free is new Ada.Unchecked_Deallocation
@@ -88,8 +88,8 @@ package body System.Shared_Storage is
       Item   : AS.Stream_Element_Array);
 
    subtype Hash_Header is Natural range 0 .. 30;
-   --  Number of hash headers, related (for efficiency purposes only)
-   --  to the maximum number of lock files..
+   --  Number of hash headers, related (for efficiency purposes only) to the
+   --  maximum number of lock files.
 
    type Shared_Var_File_Entry;
    type Shared_Var_File_Entry_Ptr is access Shared_Var_File_Entry;
@@ -168,6 +168,26 @@ package body System.Shared_Storage is
    --  the file is currently open. If so, then a pointer to the already
    --  created entry is returned, after first moving it to the head of
    --  the LRU chain. If not, then null is returned.
+
+   function Shared_Var_ROpen (Var : String) return SIO.Stream_Access;
+   --  As described above, this routine returns null if the
+   --  corresponding shared storage does not exist, and otherwise, if
+   --  the storage does exist, a Stream_Access value that references
+   --  the shared storage, ready to read the current value.
+
+   function Shared_Var_WOpen (Var : String) return SIO.Stream_Access;
+   --  As described above, this routine returns a Stream_Access value
+   --  that references the shared storage, ready to write the new
+   --  value. The storage is created by this call if it does not
+   --  already exist.
+
+   procedure Shared_Var_Close (Var : SIO.Stream_Access);
+   --  This routine signals the end of a read/assign operation. It can
+   --  be useful to embrace a read/write operation between a call to
+   --  open and a call to close which protect the whole operation.
+   --  Otherwise, two simultaneous operations can result in the
+   --  raising of exception Data_Error by setting the access mode of
+   --  the variable in an incorrect mode.
 
    ---------------
    -- Enter_SFE --
@@ -365,6 +385,43 @@ package body System.Shared_Storage is
    end Shared_Var_Lock;
 
    ----------------------
+   -- Shared_Var_Procs --
+   ----------------------
+
+   package body Shared_Var_Procs is
+
+      use type SIO.Stream_Access;
+
+      ----------
+      -- Read --
+      ----------
+
+      procedure Read is
+         S : SIO.Stream_Access := null;
+      begin
+         S := Shared_Var_ROpen (Full_Name);
+         if S /= null then
+            Typ'Read (S, V);
+            Shared_Var_Close (S);
+         end if;
+      end Read;
+
+      ------------
+      -- Write --
+      ------------
+
+      procedure Write is
+         S : SIO.Stream_Access := null;
+      begin
+         S := Shared_Var_WOpen (Full_Name);
+         Typ'Write (S, V);
+         Shared_Var_Close (S);
+         return;
+      end Write;
+
+   end Shared_Var_Procs;
+
+   ----------------------
    -- Shared_Var_ROpen --
    ----------------------
 
@@ -483,10 +540,8 @@ package body System.Shared_Storage is
                   --  Error if we cannot create the file
 
                   when others =>
-                     Ada.Exceptions.Raise_Exception
-                       (Program_Error'Identity,
-                        "Cannot create shared variable file for """ &
-                        S & '"'); -- "
+                     raise Program_Error with
+                        "Cannot create shared variable file for """ & S & '"';
                end;
          end;
 

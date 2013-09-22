@@ -1,4 +1,4 @@
-/* { dg-require-effective-target vect_int } */
+/* { dg-require-effective-target vect_float } */
 
 #include <stdarg.h>
 #include <signal.h>
@@ -7,10 +7,10 @@
 #define N 64
 #define MAX 42
 
-float A[N] __attribute__ ((__aligned__(16)));
-float B[N] __attribute__ ((__aligned__(16)));
-float C[N] __attribute__ ((__aligned__(16)));
-float D[N] __attribute__ ((__aligned__(16)));
+float A[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+float B[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+float C[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+float D[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 extern void abort(void); 
 
 __attribute__ ((noinline))
@@ -20,10 +20,10 @@ int main1 ()
 
   int i, j;
 
-  for (i = 0; i < 8; i++)
+  for (i = 0; i < N; i++)
     {
       s = 0;
-      for (j=0; j<8; j+=4)
+      for (j = 0; j < N; j += 4)
 	s += C[j];
       A[i] = s;
     }
@@ -49,10 +49,10 @@ int main ()
   main1();
 
   /* check results:  */
-  for (i = 0; i < 8; i++)
+  for (i = 0; i < N; i++)
     {
       s = 0;
-      for (j=0; j<8; j+=4)
+      for (j = 0; j < N; j += 4)
         s += C[j];
       if (A[i] != s)
         abort ();

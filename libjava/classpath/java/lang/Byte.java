@@ -88,6 +88,11 @@ public final class Byte extends Number implements Comparable<Byte>
   // This caches Byte values, and is used by boxing conversions via
   // valueOf().  We're required to cache all possible values here.
   private static Byte[] byteCache = new Byte[MAX_VALUE - MIN_VALUE + 1];
+  static
+  {
+    for (int i=MIN_VALUE; i <= MAX_VALUE; i++)
+      byteCache[i - MIN_VALUE] = new Byte((byte) i);
+  }
 
 
   /**
@@ -185,7 +190,7 @@ public final class Byte extends Number implements Comparable<Byte>
    */
   public static Byte valueOf(String s, int radix)
   {
-    return new Byte(parseByte(s, radix));
+    return valueOf(parseByte(s, radix));
   }
 
   /**
@@ -201,7 +206,7 @@ public final class Byte extends Number implements Comparable<Byte>
    */
   public static Byte valueOf(String s)
   {
-    return new Byte(parseByte(s, 10));
+    return valueOf(parseByte(s, 10));
   }
 
   /**
@@ -214,12 +219,7 @@ public final class Byte extends Number implements Comparable<Byte>
    */
   public static Byte valueOf(byte val)
   {
-    synchronized (byteCache)
-      {
-	if (byteCache[val - MIN_VALUE] == null)
-	  byteCache[val - MIN_VALUE] = new Byte(val);
-	return byteCache[val - MIN_VALUE];
-      }
+    return byteCache[val - MIN_VALUE];
   }
 
   /**
@@ -258,7 +258,7 @@ public final class Byte extends Number implements Comparable<Byte>
     int i = Integer.parseInt(s, 10, true);
     if ((byte) i != i)
       throw new NumberFormatException();
-    return new Byte((byte) i);
+    return valueOf((byte) i);
   }
 
   /**
@@ -368,6 +368,23 @@ public final class Byte extends Number implements Comparable<Byte>
   public int compareTo(Byte b)
   {
     return value - b.value;
+  }
+
+  /**
+   * Compares two unboxed byte values.
+   * The result is positive if the first is greater, negative if the second
+   * is greater, and 0 if the two are equal.
+   *
+   * @param x First value to compare.
+   * @param y Second value to compare.
+   *
+   * @return positive int if the first value is greater, negative if the second
+   * is greater, and 0 if the two are equal.
+   * @since 1.7
+   */
+  public static int compare(byte x, byte y)
+  {
+    return Byte.valueOf(x).compareTo(Byte.valueOf(y));
   }
 
 }

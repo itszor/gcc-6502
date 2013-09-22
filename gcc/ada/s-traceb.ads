@@ -6,39 +6,34 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package provides a method for generating a traceback of the
---  current execution location. The traceback shows the locations of
---  calls in the call chain, up to either the top or a designated
---  number of levels.
+--  This package provides a method for generating a traceback of the current
+--  execution location. The traceback shows the locations of calls in the call
+--  chain, up to either the top or a designated number of levels.
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 pragma Polling (Off);
 --  We must turn polling off for this unit, because otherwise we get
@@ -63,12 +58,11 @@ package System.Traceback is
    --    Traceback is the address of an array of addresses where the
    --    result will be stored.
    --
-   --    Max_Len is the length of the Traceback array. If the call chain
-   --    is longer than this, then additional entries are discarded, and
-   --    the traceback is missing some of the highest level entries.
+   --    Max_Len is the length of the Traceback array. If the call chain is
+   --    longer than this, then additional entries are discarded, and the
+   --    traceback is missing some of the highest level entries.
    --
-   --    Len is the returned actual number of addresses stored
-   --    in the Traceback array.
+   --    Len is the returned number of addresses stored in the Traceback array
    --
    --    Exclude_Min/Exclude_Max, if non null, provide a range of addresses
    --    to ignore from the computation of the traceback.
@@ -79,9 +73,9 @@ package System.Traceback is
    --    this procedure, 2 means 1 + exclude the frame for this procedure's
    --    caller, ...
    --
-   --  On return, the Traceback array is filled in, and Len indicates
-   --  the number of stored entries. The first entry is the most recent
-   --  call, and the last entry is the highest level call.
+   --  On return, the Traceback array is filled in, and Len indicates the
+   --  number of stored entries. The first entry is the most recent call,
+   --  and the last entry is the highest level call.
 
    function C_Call_Chain
      (Traceback : System.Address;

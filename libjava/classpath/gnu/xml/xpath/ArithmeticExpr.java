@@ -1,4 +1,4 @@
-/* ArithmeticExpr.java -- 
+/* ArithmeticExpr.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.xpath;
 
+import gnu.java.lang.CPStringBuilder;
+
 import javax.xml.namespace.QName;
 import org.w3c.dom.Node;
 
@@ -70,8 +72,8 @@ final class ArithmeticExpr
       case MULTIPLY:
       case DIVIDE:
       case MODULO:
-				this.op = op;
-				break;
+                                this.op = op;
+                                break;
       default:
         throw new IllegalArgumentException();
       }
@@ -139,7 +141,7 @@ final class ArithmeticExpr
 
   public String toString()
   {
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     buf.append(lhs);
     buf.append(' ');
     switch (op)
@@ -164,5 +166,5 @@ final class ArithmeticExpr
     buf.append(rhs);
     return buf.toString();
   }
-  
+
 }

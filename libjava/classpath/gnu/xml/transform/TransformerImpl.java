@@ -1,4 +1,4 @@
-/* TransformerImpl.java -- 
+/* TransformerImpl.java --
    Copyright (C) 2004,2005,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
@@ -229,9 +231,9 @@ class TransformerImpl
     String publicId = outputProperties.getProperty(OutputKeys.DOCTYPE_PUBLIC);
     String systemId = outputProperties.getProperty(OutputKeys.DOCTYPE_SYSTEM);
     String version = outputProperties.getProperty(OutputKeys.VERSION);
-    boolean omitXmlDeclaration = 
+    boolean omitXmlDeclaration =
       "yes".equals(outputProperties.getProperty(OutputKeys.OMIT_XML_DECLARATION));
-    boolean standalone = 
+    boolean standalone =
       "yes".equals(outputProperties.getProperty(OutputKeys.STANDALONE));
     String mediaType = outputProperties.getProperty(OutputKeys.MEDIA_TYPE);
     String cdataSectionElements =
@@ -722,7 +724,7 @@ class TransformerImpl
               }
             else
               {
-                StringBuffer buf = new StringBuffer();
+                CPStringBuilder buf = new CPStringBuilder();
                 buf.append('\n');
                 for (int i = 0; i < offset + 1; i++)
                   buf.append(INDENT_WHITESPACE);
@@ -733,7 +735,7 @@ class TransformerImpl
                     node.insertBefore(doc.createTextNode(ws), ctx);
                     reindent(doc, ctx, offset + 1);
                   }
-                buf = new StringBuffer();
+                buf = new CPStringBuilder();
                 buf.append('\n');
                 for (int i = 0; i < offset; i++)
                   buf.append(INDENT_WHITESPACE);

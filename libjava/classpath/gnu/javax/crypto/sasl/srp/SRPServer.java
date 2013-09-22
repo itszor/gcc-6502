@@ -1,5 +1,5 @@
-/* SRPServer.java -- 
-   Copyright (C) 2003, 2006 Free Software Foundation, Inc.
+/* SRPServer.java --
+   Copyright (C) 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -37,6 +37,8 @@ exception statement from your version.  */
 
 
 package gnu.javax.crypto.sasl.srp;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Configuration;
 import gnu.java.security.Registry;
@@ -77,7 +79,8 @@ public class SRPServer
     extends ServerMechanism
     implements SaslServer
 {
-  private static final Logger log = Logger.getLogger(SRPServer.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(SRPServer.class.getName()) : null;
   private String U = null; // client's username
   private BigInteger N, g, A, B;
   private byte[] s; // salt
@@ -612,7 +615,7 @@ public class SRPServer
     s = (String) properties.get(SRPRegistry.SRP_REPLAY_DETECTION);
     final boolean replayDetection = (s == null ? SRPRegistry.DEFAULT_REPLAY_DETECTION
                                                : Boolean.valueOf(s).booleanValue());
-    final StringBuffer sb = new StringBuffer();
+    final CPStringBuilder sb = new CPStringBuilder();
     sb.append(SRPRegistry.OPTION_SRP_DIGEST).append("=")
       .append(srp.getAlgorithm()).append(",");
 

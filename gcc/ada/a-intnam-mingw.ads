@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1997-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -37,30 +35,33 @@
 --  by the local system.
 
 with System.OS_Interface;
---  used for names of interrupts
 
 package Ada.Interrupts.Names is
+
+   --  All identifiers in this unit are implementation defined
+
+   pragma Implementation_Defined;
 
    --  Beware that the mapping of names to signals may be many-to-one. There
    --  may be aliases. Also, for all signal names that are not supported on the
    --  current system the value of the corresponding constant will be zero.
 
-   SIGINT : constant Interrupt_ID :=
-     System.OS_Interface.SIGINT;      --  interrupt (rubout)
+   SIGINT  : constant Interrupt_ID :=  -- interrupt (rubout)
+               System.OS_Interface.SIGINT;
 
-   SIGILL : constant Interrupt_ID :=
-     System.OS_Interface.SIGILL;      --  illegal instruction (not reset)
+   SIGILL  : constant Interrupt_ID :=  -- illegal instruction (not reset)
+               System.OS_Interface.SIGILL;
 
-   SIGABRT : constant Interrupt_ID := --  used by abort,
-     System.OS_Interface.SIGABRT;     --  replace SIGIOT in the  future
+   SIGABRT : constant Interrupt_ID :=  -- used by abort (use SIGIOT in future)
+               System.OS_Interface.SIGABRT;
 
-   SIGFPE : constant Interrupt_ID :=
-     System.OS_Interface.SIGFPE;      --  floating point exception
+   SIGFPE  : constant Interrupt_ID :=  -- floating point exception
+               System.OS_Interface.SIGFPE;
 
-   SIGSEGV : constant Interrupt_ID :=
-     System.OS_Interface.SIGSEGV;     --  segmentation violation
+   SIGSEGV : constant Interrupt_ID :=  -- segmentation violation
+               System.OS_Interface.SIGSEGV;
 
-   SIGTERM : constant Interrupt_ID :=
-     System.OS_Interface.SIGTERM;     --  software termination signal from kill
+   SIGTERM : constant Interrupt_ID :=  -- software termination signal from kill
+               System.OS_Interface.SIGTERM;
 
 end Ada.Interrupts.Names;

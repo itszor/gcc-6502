@@ -1,8 +1,7 @@
 /* Scan linker error messages for missing template instantiations and provide
    them.
 
-   Copyright (C) 1995, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
    Contributed by Jason Merrill (jason@cygnus.com).
 
 This file is part of GCC.
@@ -30,6 +29,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "hashtab.h"
 #include "demangle.h"
 #include "collect2.h"
+#include "filenames.h"
+#include "diagnostic-core.h"
+#include "vec.h"
+
+/* TARGET_64BIT may be defined to use driver specific functionality. */
+#undef TARGET_64BIT
+#define TARGET_64BIT TARGET_64BIT_DEFAULT
 
 #define MAX_ITERATIONS 17
 
@@ -38,7 +44,7 @@ extern int prepends_underscore;
 
 static int tlink_verbose;
 
-static char initial_cwd[MAXPATHLEN + 1];
+static char *initial_cwd;
 
 /* Hash table boilerplate for working with htab_t.  We have hash tables
    for symbol names, file names, and demangled symbols.  */
@@ -61,10 +67,12 @@ typedef struct file_hash_entry
   int tweaking;
 } file;
 
+typedef const char *str;
+
 typedef struct demangled_hash_entry
 {
   const char *key;
-  const char *mangled;
+  vec<str> mangled;
 } demangled;
 
 /* Hash and comparison functions for these hash tables.  */
@@ -127,7 +135,7 @@ symbol_hash_lookup (const char *string, int create)
       *e = v = XCNEW (struct symbol_hash_entry);
       v->key = xstrdup (string);
     }
-  return *e;
+  return (struct symbol_hash_entry *) *e;
 }
 
 static htab_t file_table;
@@ -147,7 +155,7 @@ file_hash_lookup (const char *string)
       *e = v = XCNEW (struct file_hash_entry);
       v->key = xstrdup (string);
     }
-  return *e;
+  return (struct file_hash_entry *) *e;
 }
 
 static htab_t demangled_table;
@@ -169,7 +177,7 @@ demangled_hash_lookup (const char *string, int create)
       *e = v = XCNEW (struct demangled_hash_entry);
       v->key = xstrdup (string);
     }
-  return *e;
+  return (struct demangled_hash_entry *) *e;
 }
 
 /* Stack code.  */
@@ -193,8 +201,8 @@ struct file_stack_entry *file_stack;
 static void
 symbol_push (symbol *p)
 {
-  struct symbol_stack_entry *ep = obstack_alloc
-    (&symbol_stack_obstack, sizeof (struct symbol_stack_entry));
+  struct symbol_stack_entry *ep
+    = XOBNEW (&symbol_stack_obstack, struct symbol_stack_entry);
   ep->value = p;
   ep->next = symbol_stack;
   symbol_stack = ep;
@@ -221,8 +229,7 @@ file_push (file *p)
   if (p->tweaking)
     return;
 
-  ep = obstack_alloc
-    (&file_stack_obstack, sizeof (struct file_stack_entry));
+  ep = XOBNEW (&file_stack_obstack, struct file_stack_entry);
   ep->value = p;
   ep->next = file_stack;
   file_stack = ep;
@@ -274,7 +281,7 @@ tlink_init (void)
 	tlink_verbose = 3;
     }
 
-  getcwd (initial_cwd, sizeof (initial_cwd));
+  initial_cwd = getpwd ();
 }
 
 static int
@@ -283,22 +290,21 @@ tlink_execute (const char *prog, char **argv, const char *outname,
 {
   struct pex_obj *pex;
 
-  pex = collect_execute (prog, argv, outname, errname);
+  pex = collect_execute (prog, argv, outname, errname, PEX_LAST | PEX_SEARCH);
   return collect_wait (prog, pex);
 }
 
 static char *
 frob_extension (const char *s, const char *ext)
 {
-  const char *p = strrchr (s, '/');
-  if (! p)
-    p = s;
-  p = strrchr (p, '.');
+  const char *p;
+
+  p = strrchr (lbasename (s), '.');
   if (! p)
     p = s + strlen (s);
 
   obstack_grow (&temporary_obstack, s, p - s);
-  return obstack_copy0 (&temporary_obstack, ext, strlen (ext));
+  return (char *) obstack_copy0 (&temporary_obstack, ext, strlen (ext));
 }
 
 static char *
@@ -431,9 +437,15 @@ maybe_tweak (char *line, file *f)
       sym->tweaked = 1;
 
       if (line[0] == 'O')
-	line[0] = 'C';
+	{
+	  line[0] = 'C';
+	  sym->chosen = 1;
+	}
       else
-	line[0] = 'O';
+	{
+	  line[0] = 'O';
+	  sym->chosen = 0;
+	}
     }
 }
 
@@ -474,9 +486,9 @@ recompile_files (void)
 	 the new file name already exists.  Therefore, we explicitly
 	 remove the old file first.  */
       if (remove (f->key) == -1)
-	fatal_perror ("removing .rpo file");
+	fatal_error ("removing .rpo file: %m");
       if (rename (outname, f->key) == -1)
-	fatal_perror ("renaming .rpo file");
+	fatal_error ("renaming .rpo file: %m");
 
       if (!f->args)
 	{
@@ -594,8 +606,32 @@ demangle_new_symbols (void)
 	continue;
 
       dem = demangled_hash_lookup (p, true);
-      dem->mangled = sym->key;
+      dem->mangled.safe_push (sym->key);
     }
+}
+
+/* We want to tweak symbol SYM.  Return true if all is well, false on
+   error.  */
+
+static bool
+start_tweaking (symbol *sym)
+{
+  if (sym && sym->tweaked)
+    {
+      error ("'%s' was assigned to '%s', but was not defined "
+	     "during recompilation, or vice versa",
+	     sym->key, sym->file->key);
+      return 0;
+    }
+  if (sym && !sym->tweaking)
+    {
+      if (tlink_verbose >= 2)
+	fprintf (stderr, _("collect: tweaking %s in %s\n"),
+		 sym->key, sym->file->key);
+      sym->tweaking = 1;
+      file_push (sym->file);
+    }
+  return true;
 }
 
 /* Step through the output of the linker, in the file named FNAME, and
@@ -612,8 +648,11 @@ scan_linker_output (const char *fname)
     {
       char *p = line, *q;
       symbol *sym;
+      demangled *dem = 0;
       int end;
       int ok = 0;
+      unsigned ix;
+      str s;
 
       /* On darwin9, we might have to skip " in " lines as well.  */
       if (skip_next_in_line
@@ -658,7 +697,6 @@ scan_linker_output (const char *fname)
 	/* Try a mangled name in quotes.  */
 	{
 	  char *oldq = q + 1;
-	  demangled *dem = 0;
 	  q = 0;
 
 	  /* On darwin9, we look for "foo" referenced from:\n\(.* in .*\n\)*  */
@@ -683,6 +721,9 @@ scan_linker_output (const char *fname)
 	  /* Then try "double quotes".  */
 	  else if (p = strchr (oldq, '"'), p)
 	    p++, q = strchr (p, '"');
+	  /* Then try 'single quotes'.  */
+	  else if (p = strchr (oldq, '\''), p)
+	    p++, q = strchr (p, '\'');
 	  else {
 	    /* Then try entire line.  */
 	    q = strchr (oldq, 0);
@@ -711,9 +752,7 @@ scan_linker_output (const char *fname)
 	    {
 	      *q = 0;
 	      dem = demangled_hash_lookup (p, false);
-	      if (dem)
-		sym = symbol_hash_lookup (dem->mangled, false);
-	      else
+	      if (!dem)
 		{
 		  if (!strncmp (p, USER_LABEL_PREFIX,
 				strlen (USER_LABEL_PREFIX)))
@@ -723,24 +762,43 @@ scan_linker_output (const char *fname)
 	    }
 	}
 
-      if (sym && sym->tweaked)
+      if (dem)
 	{
-	  error ("'%s' was assigned to '%s', but was not defined "
-		 "during recompilation, or vice versa", 
-		 sym->key, sym->file->key);
+	  /* We found a demangled name.  If this is the name of a
+	     constructor or destructor, there can be several mangled names
+	     that match it, so choose or unchoose all of them.  If some are
+	     chosen and some not, leave the later ones that don't match
+	     alone for now; either this will cause the link to suceed, or
+	     on the next attempt we will switch all of them the other way
+	     and that will cause it to succeed.  */
+	  int chosen = 0;
+	  int len = dem->mangled.length ();
+	  ok = true;
+	  FOR_EACH_VEC_ELT (dem->mangled, ix, s)
+	    {
+	      sym = symbol_hash_lookup (s, false);
+	      if (ix == 0)
+		chosen = sym->chosen;
+	      else if (sym->chosen != chosen)
+		/* Mismatch.  */
+		continue;
+	      /* Avoid an error about re-tweaking when we guess wrong in
+		 the case of mismatch.  */
+	      if (len > 1)
+		sym->tweaked = false;
+	      ok = start_tweaking (sym);
+	    }
+	}
+      else
+	ok = start_tweaking (sym);
+
+      obstack_free (&temporary_obstack, temporary_firstobj);
+
+      if (!ok)
+	{
 	  fclose (stream);
 	  return 0;
 	}
-      if (sym && !sym->tweaking)
-	{
-	  if (tlink_verbose >= 2)
-	    fprintf (stderr, _("collect: tweaking %s in %s\n"),
-		     sym->key, sym->file->key);
-	  sym->tweaking = 1;
-	  file_push (sym->file);
-	}
-
-      obstack_free (&temporary_obstack, temporary_firstobj);
     }
 
   fclose (stream);
@@ -774,8 +832,8 @@ do_tlink (char **ld_argv, char **object_lst ATTRIBUTE_UNUSED)
 	  {
 	    if (tlink_verbose >= 3)
 	      {
-		dump_file (ldout, stdout);
-		dump_file (lderrout, stderr);
+		dump_ld_file (ldout, stdout);
+		dump_ld_file (lderrout, stderr);
 	      }
 	    demangle_new_symbols ();
 	    if (! scan_linker_output (ldout)
@@ -789,13 +847,19 @@ do_tlink (char **ld_argv, char **object_lst ATTRIBUTE_UNUSED)
 	  }
     }
 
-  dump_file (ldout, stdout);
+  dump_ld_file (ldout, stdout);
   unlink (ldout);
-  dump_file (lderrout, stderr);
+  dump_ld_file (lderrout, stderr);
   unlink (lderrout);
   if (exit)
     {
       error ("ld returned %d exit status", exit);
       collect_exit (exit);
+    }
+  else
+    {
+      /* We have just successfully produced an output file, so assume that we
+	 may unlink it if need be for now on.  */ 
+      may_unlink_output_file = true;
     }
 }

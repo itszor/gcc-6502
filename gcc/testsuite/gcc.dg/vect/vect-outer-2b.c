@@ -3,7 +3,7 @@
 #include "tree-vect.h"
 
 #define N 40
-float image[2*N][N][N] __attribute__ ((__aligned__(16)));
+float image[2*N][N][N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 
 __attribute__ ((noinline)) void
 foo (){
@@ -37,5 +37,6 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "strided access in outer loop." 1 "vect" } } */
+/* { dg-final { scan-tree-dump-times "grouped access in outer loop" 1 "vect" { target { ! vect_multiple_sizes } } } } */
+/* { dg-final { scan-tree-dump-times "grouped access in outer loop" 2 "vect" { target vect_multiple_sizes } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

@@ -1,9 +1,9 @@
 // PR c++/26690
 // { dg-do compile }
 
-struct A
-{					// { dg-error "A::A\\(const A&\\)" }
-  A (int);				// { dg-error "candidates" }
+struct A			// { dg-message "A::A|candidate expects" }
+{
+  A (int);				// { dg-message "note" }
 };
 
 void
@@ -11,5 +11,6 @@ foo ()
 {
   A a(0);
 #pragma omp parallel private (a)	// { dg-error "no matching function" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 13 }
   ;
 }

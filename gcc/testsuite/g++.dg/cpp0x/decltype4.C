@@ -1,4 +1,4 @@
-// { dg-do "compile" }
+// { dg-do compile }
 // { dg-options "-std=gnu++0x" }
 
 template<typename T, typename U> 
@@ -62,6 +62,7 @@ void wibble() {
 }
 
 struct B {
+  B () : bit(), cbit() {} 
   int bit : 2;
   const int cbit : 3;
 

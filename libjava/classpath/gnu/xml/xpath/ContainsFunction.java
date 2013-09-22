@@ -1,4 +1,4 @@
-/* ContainsFunction.java -- 
+/* ContainsFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -54,9 +54,9 @@ final class ContainsFunction
   final Expr arg1;
   final Expr arg2;
 
-  ContainsFunction(List args)
+  ContainsFunction(List<Expr> args)
   {
-    this((Expr) args.get(0), (Expr) args.get(1));
+    this(args.get(0), args.get(1));
   }
 
   ContainsFunction(Expr arg1, Expr arg2)
@@ -65,6 +65,7 @@ final class ContainsFunction
     this.arg2 = arg2;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val1 = arg1.evaluate(context, pos, len);
@@ -88,5 +89,5 @@ final class ContainsFunction
   {
     return "contains(" + arg1 + "," + arg2 + ")";
   }
-  
+
 }

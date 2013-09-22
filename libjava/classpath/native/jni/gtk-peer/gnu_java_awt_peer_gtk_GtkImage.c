@@ -37,8 +37,6 @@ exception statement from your version. */
 
 #include "jcl.h"
 #include "gtkpeer.h"
-#include <cairo-xlib.h>
-#include <gdk/gdkx.h>
 
 #include "gnu_java_awt_peer_gtk_GtkImage.h"
 
@@ -315,7 +313,7 @@ Java_gnu_java_awt_peer_gtk_GtkImage_initFromBuffer(JNIEnv *env, jobject obj,
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GtkImage_freePixbuf(JNIEnv *env, jobject obj)
 {
-  gdk_pixbuf_unref (cp_gtk_image_get_pixbuf (env, obj));
+  g_object_unref (cp_gtk_image_get_pixbuf (env, obj));
 }
 
 /**

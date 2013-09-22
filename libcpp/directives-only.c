@@ -1,11 +1,10 @@
 /* CPP Library - directive only preprocessing for distributed compilation.
-   Copyright (C) 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
    Contributed by Ollie Wild <aaw@google.com>.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
+Free Software Foundation; either version 3, or (at your option) any
 later version.
 
 This program is distributed in the hope that it will be useful,
@@ -14,8 +13,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
+along with this program; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 #include "system.h"
@@ -42,7 +41,8 @@ _cpp_preprocess_dir_only (cpp_reader *pfile,
   const unsigned char *cur, *base, *next_line, *rlimit;
   cppchar_t c, last_c;
   unsigned flags;
-  int lines, col;
+  linenum_type lines;
+  int col;
   source_location loc;
 
  restart:
@@ -141,7 +141,7 @@ _cpp_preprocess_dir_only (cpp_reader *pfile,
 	    flags |= DO_LINE_COMMENT;
 	  else if (!(flags & DO_SPECIAL))
 	    /* Mark the position for possible error reporting. */
-	    LINEMAP_POSITION_FOR_COLUMN (loc, pfile->line_table, col);
+	    loc = linemap_position_for_column (pfile->line_table, col);
 
 	  break;
 

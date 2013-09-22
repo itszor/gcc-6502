@@ -1,5 +1,5 @@
 /* Definitions for computing resource usage of specific insns.
-   Copyright (C) 1999, 2003, 2004, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
 struct resources
 {
   char memory;		/* Insn sets or needs a memory location.  */
-  char unch_memory;	/* Insn sets of needs a "unchanging" MEM.  */
+  char unch_memory;	/* Insn sets or needs an "unchanging" MEM.  */
   char volatil;		/* Insn sets or needs a volatile memory loc.  */
   char cc;		/* Insn sets or needs the condition codes.  */
   HARD_REG_SET regs;	/* Which registers are set or needed.  */
@@ -48,10 +48,10 @@ enum mark_resource_type
 extern void mark_target_live_regs (rtx, rtx, struct resources *);
 extern void mark_set_resources (rtx, struct resources *, int,
 				enum mark_resource_type);
-extern void mark_referenced_resources (rtx, struct resources *, int);
+extern void mark_referenced_resources (rtx, struct resources *, bool);
 extern void clear_hashed_info_for_insn (rtx);
 extern void incr_ticks_for_insn (rtx);
-extern void mark_end_of_function_resources (rtx, int);
+extern void mark_end_of_function_resources (rtx, bool);
 extern void init_resource_info (rtx);
 extern void free_resource_info (void);
 

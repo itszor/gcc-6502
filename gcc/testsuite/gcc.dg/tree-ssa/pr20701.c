@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-vrp2 -fno-early-inlining" } */
+/* { dg-options "-O2 -fdump-tree-vrp1 -fno-early-inlining" } */
 
 typedef struct {
   int code;
@@ -35,5 +35,7 @@ can_combine_p (rtx insn, rtx elt)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "Folding predicate.*to 0" 1 "vrp2" } } */
-/* { dg-final { cleanup-tree-dump "vrp2" } } */
+/* Target with fno-delete-null-pointer-checks should not fold checks */
+/* { dg-final { scan-tree-dump-times "Folding predicate.*to 0" 1 "vrp1" { target { ! keeps_null_pointer_checks } } } } */
+/* { dg-final { scan-tree-dump-times "Folding predicate.*to 0" 0 "vrp1" { target {   keeps_null_pointer_checks } } } } */
+/* { dg-final { cleanup-tree-dump "vrp1" } } */

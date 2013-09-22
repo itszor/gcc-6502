@@ -1,4 +1,4 @@
-# Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2005-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,17 +37,22 @@ if { ![check_effective_target_dfprt] } {
 }
 verbose "dfp.exp: dg-do-what-default is ${dg-do-what-default}" 2
 
-# If a testcase doesn't have special options, use these.
 global DEFAULT_CFLAGS
-if ![info exists DEFAULT_CFLAGS] then {
-    set DEFAULT_CFLAGS " -ansi -pedantic-errors"
+if [info exists DEFAULT_CFLAGS] then {
+  set save_default_cflags $DEFAULT_CFLAGS
 }
+
+# If a testcase doesn't have special options, use these.
+set DEFAULT_CFLAGS "-std=gnu99"
 
 # Initialize `dg'.
 dg-init
 
-# Main loop.
+# Main loop; run the C-only tests.
 dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.\[cS\]]] \
+        "" $DEFAULT_CFLAGS
+# Run the tests that are shared with C++ testing.
+dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/dfp/*c]] \
         "" $DEFAULT_CFLAGS
 
 # All done.
@@ -55,3 +60,6 @@ dg-finish
 
 set dg-do-what-default ${save-dg-do-what-default}
 verbose "dfp.exp: dg-do-what-default is ${dg-do-what-default}" 2
+if [info exists save_default_cflags] {
+  set DEFAULT_CFLAGS $save_default_cflags
+}

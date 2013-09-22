@@ -1,4 +1,4 @@
-# Copyright (c) 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2002-2013 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,6 +40,16 @@ proc check_effective_target_yes { args } {
 
 proc check_effective_target_no { args } {
     return 0
+}
+
+proc check_effective_target_def_nocache { } {
+    return [check_no_compiler_messages_nocache def_nocache object {
+	#ifdef DEFINED
+	int dummy;
+	#else
+	#error DEFINED is not defined
+	#endif
+    } [current_compiler_flags]]
 }
 
 global dg-do-what-default

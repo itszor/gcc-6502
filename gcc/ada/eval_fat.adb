@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,8 +26,6 @@
 with Einfo;    use Einfo;
 with Errout;   use Errout;
 with Sem_Util; use Sem_Util;
-with Ttypef;   use Ttypef;
-with Targparm; use Targparm;
 
 package body Eval_Fat is
 
@@ -43,7 +41,7 @@ package body Eval_Fat is
    type Radix_Power_Table is array (Int range 1 .. 4) of Int;
 
    Radix_Powers : constant Radix_Power_Table :=
-                    (Radix ** 1, Radix ** 2, Radix ** 3, Radix ** 4);
+     (Radix ** 1, Radix ** 2, Radix ** 3, Radix ** 4);
 
    -----------------------
    -- Local Subprograms --
@@ -58,22 +56,6 @@ package body Eval_Fat is
    --  Decomposes a non-zero floating-point number into fraction and exponent
    --  parts. The fraction is in the interval 1.0 / Radix .. T'Pred (1.0) and
    --  uses Rbase = Radix. The result is rounded to a nearest machine number.
-
-   procedure Decompose_Int
-     (RT       : R;
-      X        : T;
-      Fraction : out UI;
-      Exponent : out UI;
-      Mode     : Rounding_Mode);
-   --  This is similar to Decompose, except that the Fraction value returned
-   --  is an integer representing the value Fraction * Scale, where Scale is
-   --  the value (Radix ** Machine_Mantissa (RT)). The value is obtained by
-   --  using biased rounding (halfway cases round away from zero), round to
-   --  even, a floor operation or a ceiling operation depending on the setting
-   --  of Mode (see corresponding descriptions in Urealp).
-
-   function Machine_Emin (RT : R) return Int;
-   --  Return value of the Machine_Emin attribute
 
    --------------
    -- Adjacent --
@@ -155,7 +137,7 @@ package body Eval_Fat is
 
       Fraction := UR_From_Components
        (Num      => Int_F,
-        Den      => UI_From_Int (Machine_Mantissa (RT)),
+        Den      => Machine_Mantissa_Value (RT),
         Rbase    => Radix,
         Negative => False);
 
@@ -192,7 +174,7 @@ package body Eval_Fat is
       --  True iff Fraction is even
 
       Most_Significant_Digit : constant UI :=
-                                 Radix ** (Machine_Mantissa (RT) - 1);
+        Radix ** (Machine_Mantissa_Value (RT) - 1);
 
       Uintp_Mark : Uintp.Save_Mark;
       --  The code is divided into blocks that systematically release
@@ -375,9 +357,14 @@ package body Eval_Fat is
          case Mode is
             when Round_Even =>
 
-               --  This rounding mode should not be used for static
-               --  expressions, but only for compile-time evaluation of
-               --  non-static expressions.
+               --  This rounding mode corresponds to the unbiased rounding
+               --  method that is used at run time. When the real value is
+               --  exactly between two machine numbers, choose the machine
+               --  number with its least significant bit equal to zero.
+
+               --  The recommendation advice in RM 4.9(38) is that static
+               --  expressions are rounded to machine numbers in the same
+               --  way as the target machine does.
 
                if (Even and then N * 2 > D)
                      or else
@@ -390,7 +377,9 @@ package body Eval_Fat is
 
                --  Do not round to even as is done with IEEE arithmetic, but
                --  instead round away from zero when the result is exactly
-               --  between two machine numbers. See RM 4.9(38).
+               --  between two machine numbers. This biased rounding method
+               --  should not be used to convert static expressions to
+               --  machine numbers, see AI95-268.
 
                if N * 2 >= D then
                   Fraction := Fraction + 1;
@@ -475,7 +464,7 @@ package body Eval_Fat is
    ------------------
 
    function Leading_Part (RT : R; X : T; Radix_Digits : UI) return T is
-      RD : constant UI := UI_Min (Radix_Digits, Machine_Mantissa (RT));
+      RD : constant UI := UI_Min (Radix_Digits, Machine_Mantissa_Value (RT));
       L  : UI;
       Y  : T;
    begin
@@ -496,7 +485,7 @@ package body Eval_Fat is
    is
       X_Frac : T;
       X_Exp  : UI;
-      Emin   : constant UI := UI_From_Int (Machine_Emin (RT));
+      Emin   : constant UI := Machine_Emin_Value (RT);
 
    begin
       Decompose (RT, X, X_Frac, X_Exp, Mode);
@@ -513,12 +502,11 @@ package body Eval_Fat is
 
       if X_Exp < Emin then
          declare
-            Emin_Den : constant UI :=
-                         UI_From_Int
-                           (Machine_Emin (RT) - Machine_Mantissa (RT) + 1);
+            Emin_Den : constant UI := Machine_Emin_Value (RT)
+                                        - Machine_Mantissa_Value (RT) + Uint_1;
          begin
-            if X_Exp < Emin_Den or not Denorm_On_Target then
-               if UR_Is_Negative (X) then
+            if X_Exp < Emin_Den or not Has_Denormals (RT) then
+               if Has_Signed_Zeros (RT) and then UR_Is_Negative (X) then
                   Error_Msg_N
                     ("floating-point value underflows to -0.0?", Enode);
                   return Ureal_M_0;
@@ -529,7 +517,7 @@ package body Eval_Fat is
                   return Ureal_0;
                end if;
 
-            elsif Denorm_On_Target then
+            elsif Has_Denormals (RT) then
 
                --  Emin - Mant <= X_Exp < Emin, so result is denormal. Handle
                --  gradual underflow by first computing the number of
@@ -568,108 +556,6 @@ package body Eval_Fat is
 
       return Scaling (RT, X_Frac, X_Exp);
    end Machine;
-
-   ------------------
-   -- Machine_Emin --
-   ------------------
-
-   function Machine_Emin (RT : R) return Int is
-      Digs : constant UI := Digits_Value (RT);
-      Emin : Int;
-
-   begin
-      if Vax_Float (RT) then
-         if Digs = VAXFF_Digits then
-            Emin := VAXFF_Machine_Emin;
-
-         elsif Digs = VAXDF_Digits then
-            Emin := VAXDF_Machine_Emin;
-
-         else
-            pragma Assert (Digs = VAXGF_Digits);
-            Emin := VAXGF_Machine_Emin;
-         end if;
-
-      elsif Is_AAMP_Float (RT) then
-         if Digs = AAMPS_Digits then
-            Emin := AAMPS_Machine_Emin;
-
-         else
-            pragma Assert (Digs = AAMPL_Digits);
-            Emin := AAMPL_Machine_Emin;
-         end if;
-
-      else
-         if Digs = IEEES_Digits then
-            Emin := IEEES_Machine_Emin;
-
-         elsif Digs = IEEEL_Digits then
-            Emin := IEEEL_Machine_Emin;
-
-         else
-            pragma Assert (Digs = IEEEX_Digits);
-            Emin := IEEEX_Machine_Emin;
-         end if;
-      end if;
-
-      return Emin;
-   end Machine_Emin;
-
-   ----------------------
-   -- Machine_Mantissa --
-   ----------------------
-
-   function Machine_Mantissa (RT : R) return Nat is
-      Digs : constant UI := Digits_Value (RT);
-      Mant : Nat;
-
-   begin
-      if Vax_Float (RT) then
-         if Digs = VAXFF_Digits then
-            Mant := VAXFF_Machine_Mantissa;
-
-         elsif Digs = VAXDF_Digits then
-            Mant := VAXDF_Machine_Mantissa;
-
-         else
-            pragma Assert (Digs = VAXGF_Digits);
-            Mant := VAXGF_Machine_Mantissa;
-         end if;
-
-      elsif Is_AAMP_Float (RT) then
-         if Digs = AAMPS_Digits then
-            Mant := AAMPS_Machine_Mantissa;
-
-         else
-            pragma Assert (Digs = AAMPL_Digits);
-            Mant := AAMPL_Machine_Mantissa;
-         end if;
-
-      else
-         if Digs = IEEES_Digits then
-            Mant := IEEES_Machine_Mantissa;
-
-         elsif Digs = IEEEL_Digits then
-            Mant := IEEEL_Machine_Mantissa;
-
-         else
-            pragma Assert (Digs = IEEEX_Digits);
-            Mant := IEEEX_Machine_Mantissa;
-         end if;
-      end if;
-
-      return Mant;
-   end Machine_Mantissa;
-
-   -------------------
-   -- Machine_Radix --
-   -------------------
-
-   function Machine_Radix (RT : R) return Nat is
-      pragma Warnings (Off, RT);
-   begin
-      return Radix;
-   end Machine_Radix;
 
    -----------
    -- Model --
@@ -818,8 +704,8 @@ package body Eval_Fat is
    ----------
 
    function Succ (RT : R; X : T) return T is
-      Emin     : constant UI := UI_From_Int (Machine_Emin (RT));
-      Mantissa : constant UI := UI_From_Int (Machine_Mantissa (RT));
+      Emin     : constant UI := Machine_Emin_Value (RT);
+      Mantissa : constant UI := Machine_Mantissa_Value (RT);
       Exp      : UI := UI_Max (Emin, Exponent (RT, X));
       Frac     : T;
       New_Frac : T;
@@ -832,7 +718,7 @@ package body Eval_Fat is
       --  Set exponent such that the radix point will be directly following the
       --  mantissa after scaling.
 
-      if Denorm_On_Target or Exp /= Emin then
+      if Has_Denormals (RT) or Exp /= Emin then
          Exp := Exp - Mantissa;
       else
          Exp := Exp - 1;

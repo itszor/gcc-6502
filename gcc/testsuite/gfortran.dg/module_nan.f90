@@ -1,6 +1,7 @@
 ! { dg-do run }
 ! { dg-options "-fno-range-check" }
-! { dg-options "-fno-range-check -mieee" { target sh*-*-* } }
+! { dg-add-options ieee }
+! { dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 !
 ! PR fortran/34318
 !
@@ -18,12 +19,10 @@ program a
   if (log(abs(inf))  < huge(inf)) call abort()
   if (log(abs(minf)) < huge(inf)) call abort()
   if (.not. isnan(nan)) call abort()
-  write(str,*) inf
+  write(str,"(sp,f10.2)") inf
   if (adjustl(str) /= "+Infinity") call abort()
   write(str,*) minf
   if (adjustl(str) /= "-Infinity") call abort()
   write(str,*) nan
   if (adjustl(str) /= "NaN") call abort()
 end program a
-
-! { dg-final { cleanup-modules "nonordinal" } }

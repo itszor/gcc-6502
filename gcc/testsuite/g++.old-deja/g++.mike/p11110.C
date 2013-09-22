@@ -6,7 +6,7 @@ class data;
 class conatiner {
 public:
   virtual void* first    ();
-  virtual data* contents (void* i);     // { dg-error "" } candidates
+  virtual data* contents (void* i);     // { dg-message "conatiner::contents|no known conversion" }
 };
 
 class user {
@@ -17,5 +17,6 @@ private:
 };
 
 data* user::data1() const {
-  return (_c.contents (_c.first));	// { dg-error "" } 
+  return (_c.contents (_c.first));	// { dg-error "match" } 
+  // { dg-message "candidate" "candidate note" { target *-*-* } 20 }
 }

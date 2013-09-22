@@ -1,11 +1,16 @@
 /* { dg-do compile } */
-/* { dg-options -O2 } */
+/* { dg-options "-O2 -fno-early-inlining" } */
 
 extern void do_something_usefull();
 /* Check that we finish compiling even if instructed to
    flatten a cyclic callgraph.  Verify we correctly
    flatten with another function marked flatten in the
-   callgraph.  */
+   callgraph. 
+
+   Main inline is cureful about indirect calls giving
+   precedence to breaking cycle at indirect call sites.
+   Early inliner can't do similar analysis, so we need
+   to disable it if we want cycles to be broken consistently.  */
 
 void __attribute__((flatten)) direct(void)
 {

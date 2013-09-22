@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.java.awt.font.opentype;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.CharBuffer;
@@ -409,7 +411,7 @@ final class GlyphNamer
 
     readPost();
   }
-  
+
 
   /**
    * Sets up the information which allows to retrieve the information
@@ -623,7 +625,7 @@ final class GlyphNamer
    *     print "  private static final String %s" % name
    *     for i in range(0, len(s), 60):
    *         print '    + "%s"' % s[i:i+60]
-   *     
+   *
    * glyphs = {}
    * for line in open('aglfn13.txt', 'r').readlines():
    *     if line[0] == '#': continue
@@ -1007,7 +1009,7 @@ final class GlyphNamer
      */
     min = 0;
     max = AGLFN_GLYPHS.length() - 1;
-    mid = max >> 1;    
+    mid = max >> 1;
     midChar = AGLFN_GLYPHS.charAt(mid);
     do
     {
@@ -1021,7 +1023,7 @@ final class GlyphNamer
       midChar = AGLFN_GLYPHS.charAt(mid);
     }
     while (min < max);
-    
+
     if (midChar != c)
       return null;
 
@@ -1076,8 +1078,8 @@ final class GlyphNamer
       if (name != null)
         return name;
     }
-    
-    StringBuffer buf = new StringBuffer(numChars * 8);
+
+    CPStringBuilder buf = new CPStringBuilder(numChars * 8);
     for (int i = 0; i < numChars; i++)
     {
       if (i > 0)

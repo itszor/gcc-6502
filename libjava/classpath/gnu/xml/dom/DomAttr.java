@@ -1,4 +1,4 @@
-/* DomAttr.java -- 
+/* DomAttr.java --
    Copyright (C) 1999,2000,2001,2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.Attr;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;
@@ -63,7 +65,7 @@ import org.w3c.dom.events.MutationEvent;
  * methods (setNodeValue, setValue, and Element.setAttribute) to modify
  * those values.  That is, if you manipulate those children directly,
  * elements won't get notified that attribute values have changed.
- * The natural fix for that will report other modifications, but won't 
+ * The natural fix for that will report other modifications, but won't
  * be able to expose "previous" attribute value; it'll need to be cached
  * or something (at which point why bother using child nodes). </p>
  *
@@ -77,10 +79,10 @@ public class DomAttr
   extends DomNsNode
   implements Attr
 {
-  
+
   private boolean specified;
   private String value; // string value cache
-  
+
   /**
    * Constructs an Attr node associated with the specified document.
    * The "specified" flag is initialized to true, since this DOM has
@@ -93,7 +95,7 @@ public class DomAttr
    *
    * @param owner The document with which this node is associated
    * @param namespaceURI Combined with the local part of the name,
-   *	this is used to uniquely identify a type of attribute
+   *    this is used to uniquely identify a type of attribute
    * @param name Name of this attribute, which may include a prefix
    */
   protected DomAttr(DomDocument owner, String namespaceURI, String name)
@@ -101,12 +103,42 @@ public class DomAttr
     super(ATTRIBUTE_NODE, owner, namespaceURI, name);
     specified = true;
     length = 1;
-    
+
     // XXX register self to get insertion/removal events
     // and character data change events and when they happen,
     // report self-mutation
   }
-  
+
+  /**
+   * Constructs an Attr node associated with the specified document.
+   * The "specified" flag is initialized to true, since this DOM has
+   * no current "back door" mechanisms to manage default values so
+   * that every value must effectively be "specified".
+   *
+   * <p>This constructor should only be invoked by a Document as part of
+   * its createAttribute functionality, or through a subclass which is
+   * similarly used in a "Sub-DOM" style layer.
+   * <p>
+   * With this constructor, the prefix and local part are given explicitly
+   * rather than being computed.  This allows them to be explicitly set to
+   * {@code null} as required by {@link Document#createAttribute(String)}.
+   * </p>
+   *
+   * @param owner The document with which this node is associated
+   * @param namespaceURI Combined with the local part of the name,
+   *    this is used to uniquely identify a type of attribute
+   * @param name Name of this attribute, which may include a prefix
+   * @param prefix the namespace prefix of the name.  May be {@code null}.
+   * @param localName the local part of the name.  May be {@code null}.
+   */
+  protected DomAttr(DomDocument owner, String namespaceURI, String name,
+                    String prefix, String localName)
+  {
+    super(ATTRIBUTE_NODE, owner, namespaceURI, name, prefix, localName);
+    specified = true;
+    length = 1;
+  }
+
   /**
    * <b>DOM L1</b>
    * Returns the attribute name (same as getNodeName)
@@ -115,7 +147,7 @@ public class DomAttr
   {
     return getNodeName();
   }
-  
+
   /**
    * <b>DOM L1</b>
    * Returns true if a parser reported this was in the source text.
@@ -124,7 +156,7 @@ public class DomAttr
   {
     return specified;
   }
-  
+
   /**
    * Records whether this attribute was in the source text.
    */
@@ -147,7 +179,7 @@ public class DomAttr
         return (value == null) ? "" : value;
       }
     // Otherwise collect child node-values
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     for (DomNode ctx = first; ctx != null; ctx = ctx.next)
       {
         switch (ctx.nodeType)
@@ -162,7 +194,7 @@ public class DomAttr
       }
     return buf.toString();
   }
-  
+
   /**
    * <b>DOM L1</b>
    * Assigns the value of the attribute; it will have one child,
@@ -173,7 +205,7 @@ public class DomAttr
   {
     setNodeValue(value);
   }
-  
+
   /**
    * <b>DOM L1</b>
    * Returns the value of the attribute as a non-null string; same
@@ -184,7 +216,7 @@ public class DomAttr
   {
     return getNodeValue();
   }
-  
+
   /**
    * <b>DOM L1</b>
    * Assigns the attribute value; using this API, no entity or
@@ -214,7 +246,7 @@ public class DomAttr
     this.value = value;
     length = 1;
     specified = true;
-    
+
     mutating(oldValue, value, MutationEvent.MODIFICATION);
   }
 
@@ -302,7 +334,7 @@ public class DomAttr
   {
     return null;
   }
-    
+
   /**
    * Shallow clone of the attribute, breaking all ties with any
    * elements.
@@ -313,18 +345,18 @@ public class DomAttr
     retval.specified = true;
     return retval;
   }
-    
+
   private void mutating(String oldValue, String newValue, short why)
   {
     if (!reportMutations || parent == null || equal(newValue, oldValue))
       {
         return;
       }
-    
+
     // EVENT:  DOMAttrModified, target = parent,
-    //	prev/new values provided, also attr name
-    MutationEvent	event;
-    
+    //  prev/new values provided, also attr name
+    MutationEvent       event;
+
     event = (MutationEvent) createEvent ("MutationEvents");
     event.initMutationEvent ("DOMAttrModified",
                              true /* bubbles */, false /* nocancel */,
@@ -333,7 +365,7 @@ public class DomAttr
   }
 
   // DOM Level 3 methods
-  
+
   public TypeInfo getSchemaTypeInfo()
   {
     if (parent != null)
@@ -377,4 +409,3 @@ public class DomAttr
   }
 
 }
-

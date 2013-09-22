@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,6 +43,11 @@ package Sem_Ch10 is
    --  its private part, compiling a private child unit, or compiling the
    --  private declarations of a public child unit.
 
+   function Is_Legal_Shadow_Entity_In_Body (T : Entity_Id) return Boolean;
+   --  Assuming that type T is an incomplete type coming from a limited with
+   --  view, determine whether the package where T resides is imported through
+   --  a regular with clause in the current package body.
+
    procedure Remove_Context (N : Node_Id);
    --  Removes the entities from the context clause of the given compilation
    --  unit from the visibility chains. This is done on exit from a unit as
@@ -56,13 +61,18 @@ package Sem_Ch10 is
    --  private part of a nested package, even if this package appears in
    --  the visible part of the enclosing compilation unit. This Ada 2005
    --  rule imposes extra steps in order to install/remove the private_with
-   --  clauses of the an enclosing unit.
+   --  clauses of an enclosing unit.
 
-   procedure Load_Needed_Body (N : Node_Id; OK : out Boolean);
-   --  Load and analyze the body of a context unit that is generic, or
-   --  that contains generic units or inlined units. The body becomes
-   --  part of the semantic dependency set of the unit that needs it.
-   --  The returned result in OK is True if the load is successful,
-   --  and False if the requested file cannot be found.
+   procedure Load_Needed_Body
+     (N          : Node_Id;
+      OK         : out Boolean;
+      Do_Analyze : Boolean := True);
+   --  Load and analyze the body of a context unit that is generic, or that
+   --  contains generic units or inlined units. The body becomes part of the
+   --  semantic dependency set of the unit that needs it. The returned result
+   --  in OK is True if the load is successful, and False if the requested file
+   --  cannot be found. If the flag Do_Analyze is false, the unit is loaded and
+   --  parsed only. This allows a selective analysis in some inlining cases
+   --  where a full analysis would lead so circularities in the back-end.
 
 end Sem_Ch10;

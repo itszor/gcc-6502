@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -34,7 +32,7 @@
 --  Support for universal integer arithmetic
 
 --  WARNING: There is a C version of this package. Any changes to this
---  source file must be properly reflected in the C header file sinfo.h
+--  source file must be properly reflected in the C header file uintp.h
 
 with Alloc;
 with Table;
@@ -233,10 +231,7 @@ package Uintp is
    function UI_Modular_Inverse (N : Uint; Modulo : Uint) return Uint;
    --  Compute the multiplicative inverse of N in modular arithmetics with the
    --  given Modulo (uses Euclid's algorithm). Note: the call is considered
-   --  to be erroneous (and the behavior is undefined) if n is not inversible.
-
-   function UI_From_Dint (Input : Dint) return Uint;
-   --  Converts Dint value to universal integer form
+   --  to be erroneous (and the behavior is undefined) if n is not invertible.
 
    function UI_From_Int (Input : Int) return Uint;
    --  Converts Int value to universal integer form
@@ -253,9 +248,9 @@ package Uintp is
    --  not in Char_Code range.
 
    function Num_Bits (Input : Uint) return Nat;
-   --  Approximate number of binary bits in given universal integer.
-   --  This function is used for capacity checks, and it can be one
-   --  bit off without affecting its usage.
+   --  Approximate number of binary bits in given universal integer. This
+   --  function is used for capacity checks, and it can be one bit off
+   --  without affecting its usage.
 
    ---------------------
    -- Output Routines --
@@ -263,10 +258,10 @@ package Uintp is
 
    type UI_Format is (Hex, Decimal, Auto);
    --  Used to determine whether UI_Image/UI_Write output is in hexadecimal
-   --  or decimal format. Auto, the default setting, lets the routine make
-   --  a decision based on the value.
+   --  or decimal format. Auto, the default setting, lets the routine make a
+   --  decision based on the value.
 
-   UI_Image_Max    : constant := 32;
+   UI_Image_Max    : constant := 48; -- Enough for a 128-bit number
    UI_Image_Buffer : String (1 .. UI_Image_Max);
    UI_Image_Length : Natural;
    --  Buffer used for UI_Image as described below
@@ -276,8 +271,8 @@ package Uintp is
    --  followed by the value in UI_Image_Buffer. The form of the value is an
    --  integer literal in either decimal (no base) or hexadecimal (base 16)
    --  format. If Hex is True on entry, then hex mode is forced, otherwise
-   --  UI_Image makes a guess at which output format is more convenient. The
-   --  value must fit in UI_Image_Buffer. If necessary, the result is an
+   --  UI_Image makes a guess at which output format is more convenient.
+   --  The value must fit in UI_Image_Buffer. If necessary, the result is an
    --  approximation of the proper value, using an exponential format. The
    --  image of No_Uint is output as a single question mark.
 
@@ -285,9 +280,9 @@ package Uintp is
    --  Writes a representation of Uint, consisting of a possible minus sign,
    --  followed by the value to the output file. The form of the value is an
    --  integer literal in either decimal (no base) or hexadecimal (base 16)
-   --  format as appropriate. UI_Format shows which format to use. Auto,
-   --  the default, asks UI_Write to make a guess at which output format
-   --  will be more convenient to read.
+   --  format as appropriate. UI_Format shows which format to use. Auto, the
+   --  default, asks UI_Write to make a guess at which output format will be
+   --  more convenient to read.
 
    procedure pid (Input : Uint);
    pragma Export (Ada, pid);
@@ -360,11 +355,11 @@ package Uintp is
    -- Mark/Release Processing --
    -----------------------------
 
-   --  The space used by Uint data is not automatically reclaimed. However,
-   --  a mark-release regime is implemented which allows storage to be
-   --  released back to a previously noted mark. This is used for example
-   --  when doing comparisons, where only intermediate results get stored
-   --  that do not need to be saved for future use.
+   --  The space used by Uint data is not automatically reclaimed. However, a
+   --  mark-release regime is implemented which allows storage to be released
+   --  back to a previously noted mark. This is used for example when doing
+   --  comparisons, where only intermediate results get stored that do not
+   --  need to be saved for future use.
 
    type Save_Mark is private;
 
@@ -375,18 +370,16 @@ package Uintp is
    --  Release storage allocated since mark was noted
 
    procedure Release_And_Save (M : Save_Mark; UI : in out Uint);
-   --  Like Release, except that the given Uint value (which is typically
-   --  among the data being released) is recopied after the release, so
-   --  that it is the most recent item, and UI is updated to point to
-   --  its copied location.
+   --  Like Release, except that the given Uint value (which is typically among
+   --  the data being released) is recopied after the release, so that it is
+   --  the most recent item, and UI is updated to point to its copied location.
 
    procedure Release_And_Save (M : Save_Mark; UI1, UI2 : in out Uint);
    --  Like Release, except that the given Uint values (which are typically
-   --  among the data being released) are recopied after the release, so
-   --  that they are the most recent items, and UI1 and UI2 are updated if
-   --  necessary to point to the copied locations. This routine is careful
-   --  to do things in the right order, so that the values do not clobber
-   --  one another.
+   --  among the data being released) are recopied after the release, so that
+   --  they are the most recent items, and UI1 and UI2 are updated if necessary
+   --  to point to the copied locations. This routine is careful to do things
+   --  in the right order, so that the values do not clobber one another.
 
    -----------------------------------
    -- Representation of Uint Values --
@@ -406,14 +399,15 @@ private
    --  Base is defined to allow efficient execution of the primitive operations
    --  (a0, b0, c0) defined in the section "The Classical Algorithms"
    --  (sec. 4.3.1) of Donald Knuth's "The Art of Computer  Programming",
-   --  Vol. 2. These algorithms are used in this package.
+   --  Vol. 2. These algorithms are used in this package. In particular,
+   --  the product of two single digits in this base fits in a 32-bit integer.
 
    Base_Bits : constant := 15;
    --  Number of bits in base value
 
    Base : constant Int := 2 ** Base_Bits;
 
-   --  Values in the range -(Base+1) .. Max_Direct are encoded directly as
+   --  Values in the range -(Base-1) .. Max_Direct are encoded directly as
    --  Uint values by adding a bias value. The value of Max_Direct is chosen
    --  so that a directly represented number always fits in two digits when
    --  represented in base format.
@@ -472,6 +466,11 @@ private
    Uint_Minus_80  : constant Uint := Uint (Uint_Direct_Bias - 80);
    Uint_Minus_128 : constant Uint := Uint (Uint_Direct_Bias - 128);
 
+   Uint_Max_Simple_Mul : constant := Uint_Direct_Bias + 2 ** 15;
+   --  If two values are directly represented and less than or equal to this
+   --  value, then we know the product fits in a 32-bit integer. This allows
+   --  UI_Mul to efficiently compute the product in this case.
+
    type Save_Mark is record
       Save_Uint   : Uint;
       Save_Udigit : Int;
@@ -498,15 +497,14 @@ private
    type UI_Vector is array (Pos range <>) of Int;
    --  Vector containing the integer values of a Uint value
 
-   --  Note: An earlier version of this package used pointers of arrays
-   --  of Ints (dynamically allocated) for the Uint type. The change
-   --  leads to a few less natural idioms used throughout this code, but
-   --  eliminates all uses of the heap except for the table package itself.
-   --  For example, Uint parameters are often converted to UI_Vectors for
-   --  internal manipulation. This is done by creating the local UI_Vector
-   --  using the function N_Digits on the Uint to find the size needed for
-   --  the vector, and then calling Init_Operand to copy the values out
-   --  of the table into the vector.
+   --  Note: An earlier version of this package used pointers of arrays of Ints
+   --  (dynamically allocated) for the Uint type. The change leads to a few
+   --  less natural idioms used throughout this code, but eliminates all uses
+   --  of the heap except for the table package itself. For example, Uint
+   --  parameters are often converted to UI_Vectors for internal manipulation.
+   --  This is done by creating the local UI_Vector using the function N_Digits
+   --  on the Uint to find the size needed for the vector, and then calling
+   --  Init_Operand to copy the values out of the table into the vector.
 
    type Uint_Entry is record
       Length : Pos;

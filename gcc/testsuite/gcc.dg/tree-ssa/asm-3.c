@@ -5,7 +5,11 @@
 #ifdef __hppa__
 #define REGISTER "1"
 #else
+#ifdef __moxie__
+#define REGISTER "8"
+#else
 #define REGISTER "0"
+#endif
 #endif
 
 static inline int source(void)
@@ -27,6 +31,6 @@ void test(void)
 /* { dg-final { scan-tree-dump-times "hardreg" 3 "optimized" } } */
 
 /* In particular, hardreg should *not* appear in the call to bar.  */
-/* { dg-final { scan-tree-dump-times "bar \[(\]t\[)\]" 1 "optimized" } } */
+/* { dg-final { scan-tree-dump-times "bar \[(\]\[^\n\r\]*_.\[)\]" 1 "optimized" } } */
 
 /* { dg-final { cleanup-tree-dump "optimized" } } */

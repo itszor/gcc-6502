@@ -1,40 +1,34 @@
 /* Implementation of the FGET, FGETC, FPUT, FPUTC, FLUSH 
    FTELL, TTYNAM and ISATTY intrinsics.
-   Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2005-2013 Free Software Foundation, Inc.
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "io.h"
-
-#ifdef HAVE_STDLIB_H
+#include "fbuf.h"
+#include "unix.h"
 #include <stdlib.h>
-#endif
-
 #include <string.h>
+
 
 static const int five = 5;
 static const int six = 6;
@@ -46,21 +40,26 @@ int
 PREFIX(fgetc) (const int * unit, char * c, gfc_charlen_type c_len)
 {
   int ret;
-  size_t s;
   gfc_unit * u = find_unit (*unit);
 
   if (u == NULL)
     return -1;
 
-  s = 1;
+  fbuf_reset (u);
+  if (u->mode == WRITING)
+    {
+      sflush (u->s);
+      u->mode = READING;
+    }
+
   memset (c, ' ', c_len);
-  ret = sread (u->s, c, &s);
+  ret = sread (u->s, c, 1);
   unlock_unit (u);
 
-  if (ret != 0)
+  if (ret < 0)
     return ret;
 
-  if (s != 1)
+  if (ret != 1)
     return -1;
   else
     return 0;
@@ -119,17 +118,24 @@ int
 PREFIX(fputc) (const int * unit, char * c,
 	       gfc_charlen_type c_len __attribute__((unused)))
 {
-  size_t s;
-  int ret;
+  ssize_t s;
   gfc_unit * u = find_unit (*unit);
 
   if (u == NULL)
     return -1;
 
-  s = 1;
-  ret = swrite (u->s, c, &s);
+  fbuf_reset (u);
+  if (u->mode == READING)
+    {
+      sflush (u->s);
+      u->mode = WRITING;
+    }
+
+  s = swrite (u->s, c, 1);
   unlock_unit (u);
-  return ret;
+  if (s < 0)
+    return -1;
+  return 0;
 }
 
 
@@ -196,7 +202,7 @@ flush_i4 (GFC_INTEGER_4 *unit)
       us = find_unit (*unit);
       if (us != NULL)
 	{
-	  flush (us->s);
+	  sflush (us->s);
 	  unlock_unit (us);
 	}
     }
@@ -219,7 +225,7 @@ flush_i8 (GFC_INTEGER_8 *unit)
       us = find_unit (*unit);
       if (us != NULL)
 	{
-	  flush (us->s);
+	  sflush (us->s);
 	  unlock_unit (us);
 	}
     }
@@ -234,27 +240,40 @@ void
 fseek_sub (int * unit, GFC_IO_INT * offset, int * whence, int * status)
 {
   gfc_unit * u = find_unit (*unit);
-  try result = FAILURE;
+  ssize_t result = -1;
 
-  if (u != NULL && is_seekable(u->s))
+  if (u != NULL)
     {
-      if (*whence == 0)
-        result = sseek(u->s, *offset);                       /* SEEK_SET */
-      else if (*whence == 1)
-        result = sseek(u->s, file_position(u->s) + *offset); /* SEEK_CUR */
-      else if (*whence == 2)
-        result = sseek(u->s, file_length(u->s) + *offset);   /* SEEK_END */
+      result = sseek(u->s, *offset, *whence);
 
       unlock_unit (u);
     }
 
   if (status)
-    *status = (result == FAILURE ? -1 : 0);
+    *status = (result < 0 ? -1 : 0);
 }
 
 
 
 /* FTELL intrinsic */
+
+static gfc_offset
+gf_ftell (int unit)
+{
+  gfc_unit * u = find_unit (unit);
+  if (u == NULL)
+    return -1;
+  int pos = fbuf_reset (u);
+  if (pos != 0)
+    sseek (u->s, pos, SEEK_CUR);
+  gfc_offset ret = stell (u->s);
+  unlock_unit (u);
+  return ret;
+}
+
+
+/* Here is the ftell function with an incorrect return type; retained
+   due to ABI compatibility.  */
 
 extern size_t PREFIX(ftell) (int *);
 export_proto_np(PREFIX(ftell));
@@ -262,14 +281,24 @@ export_proto_np(PREFIX(ftell));
 size_t
 PREFIX(ftell) (int * unit)
 {
-  gfc_unit * u = find_unit (*unit);
-  size_t ret;
-  if (u == NULL)
-    return ((size_t) -1);
-  ret = (size_t) stream_offset (u->s);
-  unlock_unit (u);
-  return ret;
+  return gf_ftell (*unit);
 }
+
+
+/* Here is the ftell function with the correct return type, ensuring
+   that large files can be supported as long as the target supports
+   large integers; as of 4.8 the FTELL intrinsic function will call
+   this one instead of the old ftell above.  */
+
+extern GFC_IO_INT PREFIX(ftell2) (int *);
+export_proto_np(PREFIX(ftell2));
+
+GFC_IO_INT
+PREFIX(ftell2) (int * unit)
+{
+  return gf_ftell (*unit);
+}
+
 
 #define FTELL_SUB(kind) \
   extern void ftell_i ## kind ## _sub (int *, GFC_INTEGER_ ## kind *); \
@@ -277,14 +306,7 @@ PREFIX(ftell) (int * unit)
   void \
   ftell_i ## kind ## _sub (int * unit, GFC_INTEGER_ ## kind * offset) \
   { \
-    gfc_unit * u = find_unit (*unit); \
-    if (u == NULL) \
-      *offset = -1; \
-    else \
-      { \
-	*offset = stream_offset (u->s); \
-	unlock_unit (u); \
-      } \
+    *offset = gf_ftell (*unit);			\
   }
 
 FTELL_SUB(1)
@@ -346,22 +368,23 @@ void
 ttynam_sub (int *unit, char * name, gfc_charlen_type name_len)
 {
   gfc_unit *u;
-  char * n;
-  int i;
+  int nlen;
+  int err = 1;
 
-  memset (name, ' ', name_len);
   u = find_unit (*unit);
   if (u != NULL)
     {
-      n = stream_ttyname (u->s);
-      if (n != NULL)
+      err = stream_ttyname (u->s, name, name_len);
+      if (err == 0)
 	{
-	  i = 0;
-	  while (*n && i < name_len)
-	    name[i++] = *(n++);
+	  nlen = strlen (name);
+	  memset (&name[nlen], ' ', name_len - nlen);
 	}
+
       unlock_unit (u);
     }
+  if (err != 0)
+    memset (name, ' ', name_len);
 }
 
 
@@ -376,14 +399,15 @@ ttynam (char ** name, gfc_charlen_type * name_len, int unit)
   u = find_unit (unit);
   if (u != NULL)
     {
-      *name = stream_ttyname (u->s);
-      if (*name != NULL)
+      *name = xmalloc (TTY_NAME_MAX);
+      int err = stream_ttyname (u->s, *name, TTY_NAME_MAX);
+      if (err == 0)
 	{
 	  *name_len = strlen (*name);
-	  *name = strdup (*name);
 	  unlock_unit (u);
 	  return;
 	}
+      free (*name);
       unlock_unit (u);
     }
 

@@ -55,5 +55,3 @@ contains
       call create_(self)
    end subroutine
 end
-
-! { dg-final { cleanup-modules "BAR_MODULE FOO_MODULE" } }

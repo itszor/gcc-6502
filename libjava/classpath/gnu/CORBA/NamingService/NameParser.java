@@ -44,6 +44,8 @@ import gnu.CORBA.IOR;
 import gnu.CORBA.Unexpected;
 import gnu.CORBA.Version;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.omg.CORBA.BAD_PARAM;
 import org.omg.CORBA.DATA_CONVERSION;
 import org.omg.CORBA.ORB;
@@ -62,20 +64,19 @@ import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.util.ArrayList;
 import java.util.StringTokenizer;
 
 /**
  * Parses the alternative IOR representations into our IOR structure.
- * 
+ *
  * TODO This parser currently supports only one address per target string. A
  * string with the multiple addresses will be accepted, but only the last
  * address will be taken into consideration. The fault tolerance is not yet
  * implemented.
- * 
+ *
  * The key string is filtered using {@link java.net.URLDecoder} that replaces
  * the agreed escape sequences by the corresponding non alphanumeric characters.
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (AudriusA@Bioinformatics.org)
  */
 public class NameParser
@@ -95,17 +96,17 @@ public class NameParser
    * The IOR prefix.
    */
   public static final String pxIOR = "ior";
-  
+
   /**
    * The file:// prefix.
    */
   public static final String pxFILE = "file://";
-  
+
   /**
    * The ftp:// prefix.
    */
   public static final String pxFTP = "ftp://";
-  
+
   /**
    * The http:// prefix.
    */
@@ -148,7 +149,7 @@ public class NameParser
 
   /**
    * Parse CORBALOC.
-   * 
+   *
    * The expected format is: <br>
    * 1. corbaloc:[iiop][version.subversion@]:host[:port]/key <br>
    * 2. corbaloc:rir:[/key] <br>
@@ -157,12 +158,12 @@ public class NameParser
    * 5. file://[file name]<br>
    * 6. http://[url]<br>
    * 7. ftp://[url]<br>
-   * 
+   *
    * Protocol defaults to IOP, the object key defaults to the NameService.
-   * 
+   *
    * @param corbaloc the string to parse.
    * @param orb the ORB, needed to create IORs and resolve rir references.
-   * 
+   *
    * @return the resolved object.
    */
   public synchronized org.omg.CORBA.Object corbaloc(String corbaloc,
@@ -171,7 +172,7 @@ public class NameParser
   {
     return corbaloc(corbaloc, orb, 0);
   }
-  
+
   /**
    * Parse controlling against the infinite recursion loop.
    */
@@ -183,7 +184,7 @@ public class NameParser
     // by malicious attempt.
     if (recursion > 10)
       throw new DATA_CONVERSION("More than 10 redirections");
-    
+
     if (corbaloc.startsWith(pxFILE))
       return corbaloc(readFile(corbaloc.substring(pxFILE.length())), orb, recursion+1);
     else if (corbaloc.startsWith(pxHTTP))
@@ -302,7 +303,7 @@ public class NameParser
             ior.Internet.version = new Version(major, minor);
 
             // Then host data goes till '/' or ':'.
-            StringBuffer bhost = new StringBuffer(corbaloc.length());
+            CPStringBuilder bhost = new CPStringBuilder(corbaloc.length());
             while (!t[p].equals(":") && !t[p].equals("/") && !t[p].equals(","))
               bhost.append(t[p++]);
 
@@ -346,7 +347,7 @@ public class NameParser
     else
       throw new DATA_CONVERSION("Unsupported protocol '" + t[p] + "'");
   }
-  
+
   /**
    * Read IOR from the file in the local file system.
    */
@@ -375,7 +376,7 @@ public class NameParser
         throw (d);
       }
   }
-  
+
   /**
    * Read IOR from the remote URL.
    */
@@ -395,7 +396,7 @@ public class NameParser
       {
         InputStreamReader r = new InputStreamReader(u.openStream());
 
-        StringBuffer b = new StringBuffer();
+        CPStringBuilder b = new CPStringBuilder();
         int c;
 
         while ((c = r.read()) > 0)
@@ -466,7 +467,7 @@ public class NameParser
               + "' found");
         }
 
-    StringBuffer bKey = new StringBuffer();
+    CPStringBuilder bKey = new CPStringBuilder();
     p++;
 
     while (p < t.length && !t[p].equals("#"))

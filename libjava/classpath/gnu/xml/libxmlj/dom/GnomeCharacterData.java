@@ -1,4 +1,4 @@
-/* GnomeCharacterData.java - 
+/* GnomeCharacterData.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
+
+import gnu.java.lang.CPStringBuilder;
 
 import org.w3c.dom.CharacterData;
 import org.w3c.dom.DOMException;
@@ -107,7 +109,7 @@ abstract class GnomeCharacterData
 
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(getClass().getName());
+    CPStringBuilder buffer = new CPStringBuilder(getClass().getName());
     buffer.append("[data=");
     buffer.append(getData());
     buffer.append("]");

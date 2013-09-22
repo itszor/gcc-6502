@@ -1,4 +1,4 @@
-! { dg-do compile}
+! { dg-do compile }
 !
 ! PR fortran/34763
 ! Before, gfortran did not allow for the "END" in
@@ -14,6 +14,5 @@
             REAL  ::  TLS1,TLS2
             END ! OK
       END INTERFACE
-      end ! { dg-error "END SUBROUTINE statement" }
-      end module ! { dg-error "END SUBROUTINE statement" }
-! { dg-error "Unexpected end of file" "" { target "*-*-*" } 0 }
+      end subroutine
+      end module

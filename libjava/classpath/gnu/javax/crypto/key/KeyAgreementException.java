@@ -1,4 +1,4 @@
-/* KeyAgreementException.java -- 
+/* KeyAgreementException.java --
    Copyright (C) 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.javax.crypto.key;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
@@ -66,7 +68,7 @@ public class KeyAgreementException
   /**
    * Constructs a new instance of <code>KeyAgreementException</code> with a
    * detailed message. The <i>root</i> exception is <code>null</code>.
-   * 
+   *
    * @param detail a possibly <code>null</code> string containing details of
    *          the exception.
    * @see Throwable#getMessage()
@@ -79,7 +81,7 @@ public class KeyAgreementException
   /**
    * Constructs a new instance of <code>KeyAgreementException</code> with a
    * detailed message and a <i>root</i> exception.
-   * 
+   *
    * @param detail a possibly <code>null</code> string containing details of
    *          the exception.
    * @param cause a possibly <code>null</code> root exception that caused this
@@ -97,7 +99,7 @@ public class KeyAgreementException
    * Returns the cause of this throwable or <code>null</code> if the cause is
    * nonexistent or unknown. The <i>cause</i> is the throwable that caused this
    * exception to be thrown.
-   * 
+   *
    * @return the possibly <code>null</code> exception that caused this one.
    */
   public Throwable getCause()
@@ -121,7 +123,7 @@ public class KeyAgreementException
    * Prints this exception's stack trace to a print stream. If this exception
    * has a <i>root</i> exception; the stack trace of the <i>root</i> exception
    * is also printed to the print stream.
-   * 
+   *
    * @param ps the non-null print stream to which to print.
    */
   public void printStackTrace(PrintStream ps)
@@ -135,7 +137,7 @@ public class KeyAgreementException
    * Prints this exception's stack trace to a print writer. If this exception
    * has a <i>root</i> exception; the stack trace of the <i>root</i> exception
    * is also printed to the print writer.
-   * 
+   *
    * @param pw the non-null print writer to use for output.
    */
   public void printStackTrace(PrintWriter pw)
@@ -151,13 +153,13 @@ public class KeyAgreementException
    * and if it has a <i>root</i> exception, the string representation of the
    * root exception. This string representation is meant for debugging and is
    * not meant to be interpreted programmatically.
-   * 
+   *
    * @return the non-null string representation of this exception.
    * @see Throwable#getMessage()
    */
   public String toString()
   {
-    StringBuffer sb = new StringBuffer(this.getClass().getName()).append(": ")
+    CPStringBuilder sb = new CPStringBuilder(this.getClass().getName()).append(": ")
         .append(super.toString());
     if (cause != null)
       sb.append("; caused by: ").append(cause.toString());

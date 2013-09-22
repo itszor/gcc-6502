@@ -1,5 +1,4 @@
-# Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 2000, 2001, 2002, 2003,
-# 2004, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 1992-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,6 +23,7 @@
 #
 load_lib prune.exp
 load_lib gcc-defs.exp
+load_lib timeout.exp
 load_lib target-libpath.exp
 
 #
@@ -124,6 +124,9 @@ proc g++_link_flags { paths } {
       }
       if [file exists "${gccpath}/libstdc++-v3/src/.libs/libstdc++.a"] {
           append flags " -L${gccpath}/libstdc++-v3/src/.libs "
+          # Some targets use libstdc++.a%s in their specs, so they need a
+          # -B option for uninstalled testing.
+          append flags " -B${gccpath}/libstdc++-v3/src/.libs "
           append ld_library_path ":${gccpath}/libstdc++-v3/src/.libs"
       }
       # Look for libstdc++.${shlib_ext}.
@@ -184,11 +187,20 @@ proc g++_init { args } {
     global TOOL_EXECUTABLE TOOL_OPTIONS
     global GXX_UNDER_TEST
     global TESTING_IN_BUILD_TREE
-    global target_triplet
+    global gcc_warning_prefix
+    global gcc_error_prefix
+    global TEST_ALWAYS_FLAGS
 
     # We set LC_ALL and LANG to C so that we get the same error messages as expected.
     setenv LC_ALL C
     setenv LANG C
+
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
 
     if ![info exists GXX_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {
@@ -197,7 +209,7 @@ proc g++_init { args } {
 	    if { [is_remote host] || ! [info exists TESTING_IN_BUILD_TREE] } {
 		set GXX_UNDER_TEST [transform c++]
 	    } else {
-		set GXX_UNDER_TEST [findfile $base_dir/../../g++ "$base_dir/../../g++ -B$base_dir/../../" [findfile $base_dir/g++ "$base_dir/g++ -B$base_dir/" [transform c++]]]
+		set GXX_UNDER_TEST [findfile $base_dir/../../xg++ "$base_dir/../../xg++ -B$base_dir/../../" [findfile $base_dir/xg++ "$base_dir/xg++ -B$base_dir/" [transform c++]]]
 	    }
 	}
     }
@@ -229,6 +241,13 @@ proc g++_init { args } {
 
     set ALWAYS_CXXFLAGS ""
 
+    # TEST_ALWAYS_FLAGS are flags that should be passed to every
+    # compilation command.  They are passed first to allow individual
+    # tests to override them.
+    if [info exists TEST_ALWAYS_FLAGS] {
+	lappend ALWAYS_CXXFLAGS "additional_flags=$TEST_ALWAYS_FLAGS"
+    }
+
     if ![is_remote host] {
 	if [info exists TOOL_OPTIONS] {
 	    lappend ALWAYS_CXXFLAGS "additional_flags=[g++_include_flags [get_multilibs ${TOOL_OPTIONS}] ]"
@@ -247,7 +266,10 @@ proc g++_init { args } {
     # error-message parsing machinery.
     lappend ALWAYS_CXXFLAGS "additional_flags=-fmessage-length=0"
 
-    if { [string match "*-*-darwin*" $target_triplet] } {
+    set gcc_warning_prefix "warning:"
+    set gcc_error_prefix "error:"
+
+    if { [istarget *-*-darwin*] } {
 	lappend ALWAYS_CXXFLAGS "ldflags=-multiply_defined suppress"
        }
 
@@ -273,8 +295,8 @@ proc g++_target_compile { source dest type options } {
     }
 
     lappend options "additional_flags=[libio_include_flags]"
-    lappend options "additional_flags=-fno-show-column"
     lappend options "compiler=$GXX_UNDER_TEST"
+    lappend options "timeout=[timeout_value]"
 
     set options [concat $gpp_compile_options $options]
 
@@ -296,9 +318,14 @@ proc g++_target_compile { source dest type options } {
 #
 # ${tool}_option_help
 #
+# Changed "additional" to "extra" because runtest.exp treats --a* as --all.
+#
+# This shouldn't be necessary at all; it should be entirely redundant with
+# --tool_opts, except that --tool_opts currently breaks multilib: see
+# http://lists.gnu.org/archive/html/dejagnu/2002-10/msg00007.html
 
 proc ${tool}_option_help { } {
-    send_user " --additional_options,OPTIONS\t\tUse OPTIONS to compile the testcase files. OPTIONS should be comma-separated.\n"
+    send_user " --extra_opts,OPTIONS\t\tUse OPTIONS to compile the testcase files. OPTIONS should be comma-separated.\n"
 }
 
 #
@@ -306,12 +333,13 @@ proc ${tool}_option_help { } {
 #
 
 proc ${tool}_option_proc { option } {
-    if [regexp "^--additional_options," $option] {
+    if [regexp "^--extra_opts," $option] {
 	global gpp_compile_options
-	regsub "--additional_options," $option "" option
+	regsub "^--extra_opts," $option "" option
 	foreach x [split $option ","] {
 	    lappend gpp_compile_options "additional_flags=$x"
 	}
+	verbose -log "gpp_compile_options set to $gpp_compile_options"
 	return 1
     } else {
 	return 0

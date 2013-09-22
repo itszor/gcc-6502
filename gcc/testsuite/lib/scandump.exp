@@ -1,4 +1,4 @@
-#   Copyright (C) 2000, 2002, 2003, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2000-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -44,23 +44,27 @@ proc scan-dump { args } {
         }
     }
 
-    # This assumes that we are three frames down from dg-test, and that
-    # it still stores the filename of the testcase in a local variable "name".
-    # A cleaner solution would require a new DejaGnu release.
-    upvar 3 name testcase
+    set testcase [testname-for-summary]
 
+    set printable_pattern [make_pattern_printable [lindex $args 1]]
+    set suf [dump-suffix [lindex $args 2]]
+    set testname "$testcase scan-[lindex $args 0]-dump $suf \"$printable_pattern\""
     set src [file tail [lindex $testcase 0]]
-    set output_file "[glob $src.[lindex $args 2]]"
+    set output_file "[glob -nocomplain $src.[lindex $args 2]]"
+    if { $output_file == "" } {
+	verbose -log "$testcase: dump file does not exist"
+	unresolved "$testname"
+	return
+    }
 
     set fd [open $output_file r]
     set text [read $fd]
     close $fd
 
-    set suf [dump-suffix [lindex $args 2]]
     if [regexp -- [lindex $args 1] $text] {
-	pass "$testcase scan-[lindex $args 0]-dump $suf \"[lindex $args 1]\""
+	pass "$testname"
     } else {
-	fail "$testcase scan-[lindex $args 0]-dump $suf \"[lindex $args 1]\""
+	fail "$testname"
     }
 }
 
@@ -81,23 +85,26 @@ proc scan-dump-times { args } {
 	}
     }
 
-    # This assumes that we are three frames down from dg-test, and that
-    # it still stores the filename of the testcase in a local variable "name".
-    # A cleaner solution would require a new DejaGnu release.
-    upvar 3 name testcase
-
+    set testcase [testname-for-summary]
+    set suf [dump-suffix [lindex $args 3]]
+    set printable_pattern [make_pattern_printable [lindex $args 1]]
+    set testname "$testcase scan-[lindex $args 0]-dump-times $suf \"$printable_pattern\" [lindex $args 2]"
     set src [file tail [lindex $testcase 0]]
-    set output_file "[glob $src.[lindex $args 3]]"
+    set output_file "[glob -nocomplain $src.[lindex $args 3]]"
+    if { $output_file == "" } {
+	verbose -log "$testcase: dump file does not exist"
+	unresolved "$testname"
+	return
+    }
 
     set fd [open $output_file r]
     set text [read $fd]
     close $fd
 
-    set suf [dump-suffix [lindex $args 3]]
     if { [llength [regexp -inline -all -- [lindex $args 1] $text]] == [lindex $args 2]} {
-        pass "$testcase scan-[lindex $args 0]-dump-times $suf \"[lindex $args 1]\" [lindex $args 2]"
+        pass "$testname"
     } else {
-        fail "$testcase scan-[lindex $args 0]-dump-times $suf \"[lindex $args 1]\" [lindex $args 2]"
+        fail "$testname"
     }
 }
 
@@ -118,22 +125,26 @@ proc scan-dump-not { args } {
 	}
     }
 
-    # This assumes that we are three frames down from dg-test, and that
-    # it still stores the filename of the testcase in a local variable "name".
-    # A cleaner solution would require a new DejaGnu release.
-    upvar 3 name testcase
+    set testcase [testname-for-summary]
+    set printable_pattern [make_pattern_printable [lindex $args 1]]
+    set suf [dump-suffix [lindex $args 2]]
+    set testname "$testcase scan-[lindex $args 0]-dump-not $suf \"$printable_pattern\""
     set src [file tail [lindex $testcase 0]]
-    set output_file "[glob $src.[lindex $args 2]]"
+    set output_file "[glob -nocomplain $src.[lindex $args 2]]"
+    if { $output_file == "" } {
+	verbose -log "$testcase: dump file does not exist"
+	unresolved "$testname"
+	return
+    }
 
     set fd [open $output_file r]
     set text [read $fd]
     close $fd
 
-    set suf [dump-suffix [lindex $args 2]]
     if ![regexp -- [lindex $args 1] $text] {
-	pass "$testcase scan-[lindex $args 0]-dump-not $suf \"[lindex $args 1]\""
+	pass "$testname"
     } else {
-	fail "$testcase scan-[lindex $args 0]-dump-not $suf \"[lindex $args 1]\""
+	fail "$testname"
     }
 }
 
@@ -167,19 +178,26 @@ proc scan-dump-dem { args } {
 	verbose -log "c++filt is $cxxfilt"
     }
 
-    upvar 3 name testcase
+    set testcase [testname-for-summary]
+    set printable_pattern [make_pattern_printable [lindex $args 1]]
+    set suf [dump-suffix [lindex $args 2]]
+    set testname "$testcase scan-[lindex $args 0]-dump-dem $suf \"$printable_pattern\""
     set src [file tail [lindex $testcase 0]]
-    set output_file "[glob $src.[lindex $args 2]]"
+    set output_file "[glob -nocomplain $src.[lindex $args 2]]"
+    if { $output_file == "" } {
+	verbose -log "$testcase: dump file does not exist"
+	unresolved "$testname"
+	return
+    }
 
     set fd [open "| $cxxfilt < $output_file" r]
     set text [read $fd]
     close $fd
 
-    set suf [dump-suffix [lindex $args 2]]
     if [regexp -- [lindex $args 1] $text] {
-	pass "$testcase scan-[lindex $args 0]-dump-dem $suf \"[lindex $args 1]\""
+	pass "$testname"
     } else {
-	fail "$testcase scan-[lindex $args 0]-dump-dem $suf \"[lindex $args 1]\""
+	fail "$testname"
     }
 }
 
@@ -212,18 +230,25 @@ proc scan-dump-dem-not { args } {
 	verbose -log "c++filt is $cxxfilt"
     }
 
-    upvar 3 name testcase
+    set testcase [testname-for-summary]
+    set printable_pattern [make_pattern_printable [lindex $args 1]
+    set suf [dump-suffix [lindex $args 2]]
+    set testname "$testcase scan-[lindex $args 0]-dump-dem-not $suf \"$printable_pattern\""
     set src [file tail [lindex $testcase 0]]
-    set output_file "[glob $src.[lindex $args 2]]"
+    set output_file "[glob -nocomplain $src.[lindex $args 2]]"
+    if { $output_file == "" } {
+	verbose -log "$testcase: dump file does not exist"
+	unresolved "$testname"
+	return
+    }
 
     set fd [open "| $cxxfilt < $output_file" r]
     set text [read $fd]
     close $fd
 
-    set suf [dump-suffix [lindex $args 2]]
     if ![regexp -- [lindex $args 1] $text] {
-	pass "$testcase scan-[lindex $args 0]-dump-dem-not $suf \"[lindex $args 1]\""
+	pass "$testname"
     } else {
-	fail "$testcase scan-[lindex $args 0]-dump-dem-not $suf \"[lindex $args 1]\""
+	fail "$testname"
     }
 }

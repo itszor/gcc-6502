@@ -1,9 +1,9 @@
-/* Verify that we generate movua to load unaligned 32-bit values.  */
-/* { dg-do compile { target "sh*-*-*" } } */
-/* { dg-options "-O" } */
-/* { dg-final { scan-assembler-times "\tmovua\\.l\t" 6 } } */
+/* Verify that we generate movua to load unaligned 32-bit values on SH4A.  */
+/* { dg-do run { target "sh*-*-*" } } */
+/* { dg-options "-O1 -save-temps -fno-inline" } */
+/* { dg-skip-if "" { "sh*-*-*" } { "*" } { "-m4a*" } }  */
+/* { dg-final { scan-assembler-times "movua.l" 6 } } */
 
-#ifdef __SH4A__
 /* Aligned.  */
 struct s0 { long long d : 32; } x0;
 long long f0() {
@@ -35,15 +35,15 @@ long long f4() {
 }
 
 /* Aligned.  */
-struct u0 { unsigned long long d : 32; } y0;
+struct u0 { unsigned long long d : 32; } y_0;
 unsigned long long g0() {
-  return y0.d;
+  return y_0.d;
 }
 
 /* Unaligned load.  */
-struct u1 { long long c : 8; unsigned long long d : 32; } y1;
+struct u1 { long long c : 8; unsigned long long d : 32; } y_1;
 unsigned long long g1() {
-  return y1.d;
+  return y_1.d;
 }
 
 /* Unaligned load.  */
@@ -63,11 +63,29 @@ struct u4 { long long c : 32; unsigned long long d : 32; } y4;
 unsigned long long g4() {
   return y4.d;
 }
-#else
-asm ("movua.l\t");
-asm ("movua.l\t");
-asm ("movua.l\t");
-asm ("movua.l\t");
-asm ("movua.l\t");
-asm ("movua.l\t");
-#endif
+
+#include <assert.h>
+
+int
+main (void)
+{
+  x1.d = 0x12345678;
+  assert (f1 () == 0x12345678);
+
+  x2.d = 0x12345678;
+  assert (f2 () == 0x12345678);
+
+  x3.d = 0x12345678;
+  assert (f3 () == 0x12345678);
+
+  y_1.d = 0x12345678;
+  assert (g1 () == 0x12345678);
+
+  y2.d = 0x12345678;
+  assert (g2 () == 0x12345678);
+
+  y3.d = 0x12345678;
+  assert (g3 () == 0x12345678);
+
+  return 0;
+}

@@ -1,12 +1,11 @@
 // Numeric functions implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,9 +48,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_numeric.h
+/** @file bits/stl_numeric.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{numeric}
  */
 
 #ifndef _STL_NUMERIC_H
@@ -64,8 +58,51 @@
 
 #include <bits/concept_check.h>
 #include <debug/debug.h>
+#include <bits/move.h> // For _GLIBCXX_MOVE
 
-_GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
+#if __cplusplus >= 201103L
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  /**
+   *  @brief  Create a range of sequentially increasing values.
+   *
+   *  For each element in the range @p [first,last) assigns @p value and
+   *  increments @p value as if by @p ++value.
+   *
+   *  @param  __first  Start of range.
+   *  @param  __last  End of range.
+   *  @param  __value  Starting value.
+   *  @return  Nothing.
+   */
+  template<typename _ForwardIterator, typename _Tp>
+    void
+    iota(_ForwardIterator __first, _ForwardIterator __last, _Tp __value)
+    {
+      // concept requirements
+      __glibcxx_function_requires(_Mutable_ForwardIteratorConcept<
+				  _ForwardIterator>)
+      __glibcxx_function_requires(_ConvertibleConcept<_Tp,
+	    typename iterator_traits<_ForwardIterator>::value_type>)
+      __glibcxx_requires_valid_range(__first, __last);
+
+      for (; __first != __last; ++__first)
+	{
+	  *__first = __value;
+	  ++__value;
+	}
+    }
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
+
+#endif
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_ALGO
 
   /**
    *  @brief  Accumulate values in a range.
@@ -73,9 +110,9 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
    *  Accumulates the values in the range [first,last) using operator+().  The
    *  initial value is @a init.  The values are processed in order.
    *
-   *  @param  first  Start of range.
-   *  @param  last  End of range.
-   *  @param  init  Starting value to add other values to.
+   *  @param  __first  Start of range.
+   *  @param  __last  End of range.
+   *  @param  __init  Starting value to add other values to.
    *  @return  The final sum.
    */
   template<typename _InputIterator, typename _Tp>
@@ -95,13 +132,13 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
    *  @brief  Accumulate values in a range with operation.
    *
    *  Accumulates the values in the range [first,last) using the function
-   *  object @a binary_op.  The initial value is @a init.  The values are
+   *  object @p __binary_op.  The initial value is @p __init.  The values are
    *  processed in order.
    *
-   *  @param  first  Start of range.
-   *  @param  last  End of range.
-   *  @param  init  Starting value to add other values to.
-   *  @param  binary_op  Function object to accumulate with.
+   *  @param  __first  Start of range.
+   *  @param  __last  End of range.
+   *  @param  __init  Starting value to add other values to.
+   *  @param  __binary_op  Function object to accumulate with.
    *  @return  The final sum.
    */
   template<typename _InputIterator, typename _Tp, typename _BinaryOperation>
@@ -121,15 +158,15 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
   /**
    *  @brief  Compute inner product of two ranges.
    *
-   *  Starting with an initial value of @a init, multiplies successive
+   *  Starting with an initial value of @p __init, multiplies successive
    *  elements from the two ranges and adds each product into the accumulated
    *  value using operator+().  The values in the ranges are processed in
    *  order.
    *
-   *  @param  first1  Start of range 1.
-   *  @param  last1  End of range 1.
-   *  @param  first2  Start of range 2.
-   *  @param  init  Starting value to add other values to.
+   *  @param  __first1  Start of range 1.
+   *  @param  __last1  End of range 1.
+   *  @param  __first2  Start of range 2.
+   *  @param  __init  Starting value to add other values to.
    *  @return  The final inner product.
    */
   template<typename _InputIterator1, typename _InputIterator2, typename _Tp>
@@ -150,21 +187,21 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
   /**
    *  @brief  Compute inner product of two ranges.
    *
-   *  Starting with an initial value of @a init, applies @a binary_op2 to
+   *  Starting with an initial value of @p __init, applies @p __binary_op2 to
    *  successive elements from the two ranges and accumulates each result into
-   *  the accumulated value using @a binary_op1.  The values in the ranges are
+   *  the accumulated value using @p __binary_op1.  The values in the ranges are
    *  processed in order.
    *
-   *  @param  first1  Start of range 1.
-   *  @param  last1  End of range 1.
-   *  @param  first2  Start of range 2.
-   *  @param  init  Starting value to add other values to.
-   *  @param  binary_op1  Function object to accumulate with.
-   *  @param  binary_op2  Function object to apply to pairs of input values.
+   *  @param  __first1  Start of range 1.
+   *  @param  __last1  End of range 1.
+   *  @param  __first2  Start of range 2.
+   *  @param  __init  Starting value to add other values to.
+   *  @param  __binary_op1  Function object to accumulate with.
+   *  @param  __binary_op2  Function object to apply to pairs of input values.
    *  @return  The final inner product.
    */
   template<typename _InputIterator1, typename _InputIterator2, typename _Tp,
-	    typename _BinaryOperation1, typename _BinaryOperation2>
+	   typename _BinaryOperation1, typename _BinaryOperation2>
     inline _Tp
     inner_product(_InputIterator1 __first1, _InputIterator1 __last1,
 		  _InputIterator2 __first2, _Tp __init,
@@ -184,16 +221,16 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
   /**
    *  @brief  Return list of partial sums
    *
-   *  Accumulates the values in the range [first,last) using operator+().
+   *  Accumulates the values in the range [first,last) using the @c + operator.
    *  As each successive input value is added into the total, that partial sum
-   *  is written to @a result.  Therefore, the first value in result is the
-   *  first value of the input, the second value in result is the sum of the
-   *  first and second input values, and so on.
+   *  is written to @p __result.  Therefore, the first value in @p __result is
+   *  the first value of the input, the second value in @p __result is the sum
+   *  of the first and second input values, and so on.
    *
-   *  @param  first  Start of input range.
-   *  @param  last  End of input range.
-   *  @param  result  Output to write sums to.
-   *  @return  Iterator pointing just beyond the values written to result.
+   *  @param  __first  Start of input range.
+   *  @param  __last  End of input range.
+   *  @param  __result  Output sum.
+   *  @return  Iterator pointing just beyond the values written to __result.
    */
   template<typename _InputIterator, typename _OutputIterator>
     _OutputIterator
@@ -223,16 +260,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
   /**
    *  @brief  Return list of partial sums
    *
-   *  Accumulates the values in the range [first,last) using operator+().
+   *  Accumulates the values in the range [first,last) using @p __binary_op.
    *  As each successive input value is added into the total, that partial sum
-   *  is written to @a result.  Therefore, the first value in result is the
-   *  first value of the input, the second value in result is the sum of the
-   *  first and second input values, and so on.
+   *  is written to @p __result.  Therefore, the first value in @p __result is
+   *  the first value of the input, the second value in @p __result is the sum
+   *  of the first and second input values, and so on.
    *
-   *  @param  first  Start of input range.
-   *  @param  last  End of input range.
-   *  @param  result  Output to write sums to.
-   *  @return  Iterator pointing just beyond the values written to result.
+   *  @param  __first  Start of input range.
+   *  @param  __last  End of input range.
+   *  @param  __result  Output sum.
+   *  @param  __binary_op  Function object.
+   *  @return  Iterator pointing just beyond the values written to __result.
    */
   template<typename _InputIterator, typename _OutputIterator,
 	   typename _BinaryOperation>
@@ -264,12 +302,15 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
    *  @brief  Return differences between adjacent values.
    *
    *  Computes the difference between adjacent values in the range
-   *  [first,last) using operator-() and writes the result to @a result.
+   *  [first,last) using operator-() and writes the result to @p __result.
    *
-   *  @param  first  Start of input range.
-   *  @param  last  End of input range.
-   *  @param  result  Output to write sums to.
+   *  @param  __first  Start of input range.
+   *  @param  __last  End of input range.
+   *  @param  __result  Output sums.
    *  @return  Iterator pointing just beyond the values written to result.
+   *
+   *  _GLIBCXX_RESOLVE_LIB_DEFECTS
+   *  DR 539. partial_sum and adjacent_difference should mention requirements
    */
   template<typename _InputIterator, typename _OutputIterator>
     _OutputIterator
@@ -292,7 +333,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
 	{
 	  _ValueType __tmp = *__first;
 	  *++__result = __tmp - __value;
-	  __value = __tmp;
+	  __value = _GLIBCXX_MOVE(__tmp);
 	}
       return ++__result;
     }
@@ -301,13 +342,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
    *  @brief  Return differences between adjacent values.
    *
    *  Computes the difference between adjacent values in the range
-   *  [first,last) using the function object @a binary_op and writes the
-   *  result to @a result.
+   *  [__first,__last) using the function object @p __binary_op and writes the
+   *  result to @p __result.
    *
-   *  @param  first  Start of input range.
-   *  @param  last  End of input range.
-   *  @param  result  Output to write sums to.
+   *  @param  __first  Start of input range.
+   *  @param  __last  End of input range.
+   *  @param  __result  Output sum.
+   *  @param  __binary_op Function object.
    *  @return  Iterator pointing just beyond the values written to result.
+   *
+   *  _GLIBCXX_RESOLVE_LIB_DEFECTS
+   *  DR 539. partial_sum and adjacent_difference should mention requirements
    */
   template<typename _InputIterator, typename _OutputIterator,
 	   typename _BinaryOperation>
@@ -331,11 +376,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_P)
 	{
 	  _ValueType __tmp = *__first;
 	  *++__result = __binary_op(__tmp, __value);
-	  __value = __tmp;
+	  __value = _GLIBCXX_MOVE(__tmp);
 	}
       return ++__result;
     }
 
-_GLIBCXX_END_NESTED_NAMESPACE
+_GLIBCXX_END_NAMESPACE_ALGO
+} // namespace std
 
 #endif /* _STL_NUMERIC_H */

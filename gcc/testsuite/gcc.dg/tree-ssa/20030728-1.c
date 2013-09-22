@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-optimized" } */
+/* { dg-options "-O2 -fdump-rtl-expand-details" } */
     
 
 union tree_node;
@@ -41,7 +41,9 @@ objects_must_conflict_p (t1, t2)
   return foo (t2 ? get_alias_set (t2) : 0);
 }
 
-/* There should be two assignments of variables to the value zero.  */
-/* { dg-final { scan-tree-dump-times " = 0" 2 "optimized"} } */
+/* There should be one assignment of variables to the value zero.  There
+   used to be two assignments, but improvements in threading allowed the
+   second to be propagated into all its uses and eliminated.   */
+/* { dg-final { scan-rtl-dump-times "PART.. = 0" 1 "expand"} } */
  
-/* { dg-final { cleanup-tree-dump "optimized" } } */
+/* { dg-final { cleanup-rtl-dump "expand" } } */

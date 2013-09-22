@@ -1,5 +1,5 @@
 /* score.h for Sunplus S+CORE processor
-   Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Sunnorth.
 
    This file is part of GCC.
@@ -20,19 +20,9 @@
 
 #include "score-conv.h"
 
-/* Controlling the Compilation Driver.  */
-#undef SWITCH_TAKES_ARG
-#define SWITCH_TAKES_ARG(CHAR) \
-  (DEFAULT_SWITCH_TAKES_ARG (CHAR) || (CHAR) == 'G')
-
-#undef CPP_SPEC
-#define CPP_SPEC                 "%{mscore3:-D__score3__} %{G*}"
-
 #undef CC1_SPEC
 #define CC1_SPEC                 "%{!mel:-meb} %{mel:-mel } \
 %{!mscore*:-mscore7}    \
-%{mscore3:-mscore3}     \
-%{mscore3d:-mscore3d}   \
 %{mscore7:-mscore7}     \
 %{mscore7d:-mscore7d}   \
 %{G*}"
@@ -42,14 +32,8 @@
 %{!mscore*:-march=score7}         \
 %{mscore7:-march=score7}          \
 %{mscore7d:-march=score7}         \
-%{mscore3:-march=score3}          \
-%{mscore3d:-march=score3}         \
-%{march=score5:-march=score7}     \
-%{march=score5u:-march=score7}    \
 %{march=score7:-march=score7}     \
 %{march=score7d:-march=score7}    \
-%{march=score3:-march=score3}     \
-%{march=score3d:-march=score3}    \
 %{G*}"
 
 #undef LINK_SPEC
@@ -57,14 +41,8 @@
 %{!mscore*:-mscore7_elf}          \
 %{mscore7:-mscore7_elf}           \
 %{mscore7d:-mscore7_elf}          \
-%{mscore3:-mscore3_elf}           \
-%{mscore3d:-mscore3_elf}          \
-%{march=score5:-mscore7_elf}      \
-%{march=score5u:-mscore7_elf}     \
 %{march=score7:-mscore7_elf}      \
 %{march=score7d:-mscore7_elf}     \
-%{march=score3:-mscore3_elf}      \
-%{march=score3d:-mscore3_elf}     \
 %{G*}"
 
 /* Run-time Target Specification.  */
@@ -77,44 +55,20 @@
       builtin_define ("__scorele__");           \
     else                                        \
       builtin_define ("__scorebe__");           \
-    if (TARGET_SCORE5)                          \
-      builtin_define ("__score5__");            \
-    if (TARGET_SCORE5U)                         \
-      builtin_define ("__score5u__");           \
     if (TARGET_SCORE7)                          \
       builtin_define ("__score7__");            \
     if (TARGET_SCORE7D)                         \
       builtin_define ("__score7d__");           \
-    if (TARGET_SCORE3)                          \
-      builtin_define ("__score3__");            \
-    if (TARGET_SCORE3D)                         \
-      builtin_define ("__score3d__");           \
   } while (0)
 
 #define TARGET_DEFAULT         0
 
 #define SCORE_GCC_VERSION      "1.6"
 
-#define TARGET_VERSION \
-      fprintf (stderr, "Sunplus S+core rev=%s", SCORE_GCC_VERSION);
-
-#define OVERRIDE_OPTIONS       score_override_options ()
-
-/* Show we can debug even without a frame pointer.  */
-#define CAN_DEBUG_WITHOUT_FP
-
 /* Target machine storage layout.  */
 #define BITS_BIG_ENDIAN        0
 #define BYTES_BIG_ENDIAN       (TARGET_LITTLE_ENDIAN == 0)
 #define WORDS_BIG_ENDIAN       (TARGET_LITTLE_ENDIAN == 0)
-
-/* Define this to set the endianness to use in libgcc2.c, which can
-   not depend on target_flags.  */
-#if defined(__scorele__)
-#define LIBGCC2_WORDS_BIG_ENDIAN       0
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN       1
-#endif
 
 /* Width of a word, in units (bytes).  */
 #define UNITS_PER_WORD                 4
@@ -198,8 +152,6 @@
    support long double, we also want a 128-bit integer type.  */
 #define MAX_FIXED_MODE_SIZE            LONG_DOUBLE_TYPE_SIZE
 
-#define TARGET_FLOAT_FORMAT            IEEE_FLOAT_FORMAT
-
 /* Layout of Data Type.  */
 /* Set the sizes of the core types.  */
 #define INT_TYPE_SIZE                   32
@@ -218,6 +170,8 @@
 /* Default definitions for size_t and ptrdiff_t.  */
 #define SIZE_TYPE                       "unsigned int"
 
+#define UINTPTR_TYPE			"long unsigned int"
+
 /* Register Usage
 
    S+core have:
@@ -235,8 +189,8 @@
 
    Regarding coprocessor registers: without evidence to the contrary,
    it's best to assume that each coprocessor register has a unique
-   use.  This can be overridden, in, e.g., override_options() or
-   CONDITIONAL_REGISTER_USAGE should the assumption be inappropriate
+   use.  This can be overridden, in, e.g., TARGET_OPTION_OVERRIDE or
+   TARGET_CONDITIONAL_REGISTER_USAGE should the assumption be inappropriate
    for a particular target.  */
 
 /* Control Registers, use mfcr/mtcr insn
@@ -322,13 +276,6 @@
 
 /* Macro to conditionally modify fixed_regs/call_used_regs.  */
 #define PIC_OFFSET_TABLE_REGNUM          29
-
-#define CONDITIONAL_REGISTER_USAGE                     \
-{                                                      \
-   if (!flag_pic)                                      \
-     fixed_regs[PIC_OFFSET_TABLE_REGNUM] =             \
-     call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 0;      \
-}
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
@@ -438,7 +385,7 @@ enum reg_class
    register REGNO.  In general there is more that one such class;
    choose a class which is "minimal", meaning that no smaller class
    also contains the register.  */
-#define REGNO_REG_CLASS(REGNO)         score_reg_class (REGNO)
+#define REGNO_REG_CLASS(REGNO) (enum reg_class) score_reg_class (REGNO)
 
 /* A macro whose definition is the name of the class to which a
    valid base register must belong.  A base register is one used in
@@ -470,34 +417,10 @@ extern enum reg_class score_char_to_class[256];
 #define SECONDARY_OUTPUT_RELOAD_CLASS(CLASS, MODE, X) \
   score_secondary_reload_class (CLASS, MODE, X)
 
-/* Return the maximum number of consecutive registers
-   needed to represent mode MODE in a register of class CLASS.  */
-#define CLASS_MAX_NREGS(CLASS, MODE) \
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1) / UNITS_PER_WORD)
-
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS)    \
   (GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO)        \
    ? reg_classes_intersect_p (HI_REG, (CLASS)) : 0)
 
-/* The letters I, J, K, L, M, N, O, and P in a register constraint
-   string can be used to stand for particular ranges of immediate
-   operands.  This macro defines what the ranges are.  C is the
-   letter, and VALUE is a constant value.  Return 1 if VALUE is
-   in the range specified by C.  */
-#define CONST_OK_FOR_LETTER_P(VALUE, C) score_const_ok_for_letter_p (VALUE, C)
-
-/* Similar, but for floating constants, and defining letters G and H.
-   Here VALUE is the CONST_DOUBLE rtx itself.  */
-
-#define CONST_DOUBLE_OK_FOR_LETTER_P(VALUE, C)        \
-  ((C) == 'G' && (VALUE) == CONST0_RTX (GET_MODE (VALUE)))
-
-/* Letters in the range `Q' through `U' may be defined in a
-   machine-dependent fashion to stand for arbitrary operand types.
-   The machine description macro `EXTRA_CONSTRAINT' is passed the
-   operand as its first argument and the constraint letter as its
-   second operand.  */
-#define EXTRA_CONSTRAINT(VALUE, C)      score_extra_constraint (VALUE, C)
 
 /* Basic Stack Layout.  */
 /* Stack layout; function entry, exit and calling.  */
@@ -508,7 +431,7 @@ extern enum reg_class score_char_to_class[256];
 
 /* The offset of the first local variable from the beginning of the frame.
    See compute_frame_size for details about the frame layout.  */
-#define STARTING_FRAME_OFFSET           current_function_outgoing_args_size
+#define STARTING_FRAME_OFFSET           crtl->outgoing_args_size
 
 /* The argument pointer always points to the first argument.  */
 #define FIRST_PARM_OFFSET(FUNDECL)      0
@@ -527,6 +450,7 @@ extern enum reg_class score_char_to_class[256];
 
 /* The register that holds the return address in exception handlers.  */
 #define EH_RETURN_STACKADJ_RTX          gen_rtx_REG (Pmode, EH_REGNUM)
+#define EH_RETURN_HANDLER_RTX  		gen_rtx_REG (SImode, 30)
 
 /* Registers That Address the Stack Frame.  */
 /* Register to use for pushing function arguments.  */
@@ -545,24 +469,12 @@ extern enum reg_class score_char_to_class[256];
 #define STATIC_CHAIN_REGNUM             23
 
 /* Elimination Frame Pointer and Arg Pointer  */
-/* Value should be nonzero if functions must have frame pointers.
-   Zero means the frame pointer need not be set up (and parms
-   may be accessed via the stack pointer) in functions that seem suitable.
-   This is computed in `reload', in reload1.c.  */
-#define FRAME_POINTER_REQUIRED          current_function_calls_alloca
 
 #define ELIMINABLE_REGS                                \
   {{ ARG_POINTER_REGNUM, STACK_POINTER_REGNUM},        \
    { ARG_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM},   \
    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM},      \
    { FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM}}
-
-/* We can always eliminate to the hard frame pointer.  We can eliminate
-   to the stack pointer unless a frame pointer is needed.  */
-#define CAN_ELIMINATE(FROM, TO)        \
-  (((TO) == HARD_FRAME_POINTER_REGNUM) \
-   || ((TO) == STACK_POINTER_REGNUM    \
-       && !frame_pointer_needed))
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET) \
   (OFFSET) = score_initial_elimination_offset ((FROM), (TO))
@@ -578,27 +490,10 @@ extern enum reg_class score_char_to_class[256];
    allocate the area reserved for arguments passed in registers.
    If `ACCUMULATE_OUTGOING_ARGS' is also defined, the only effect
    of this macro is to determine whether the space is included in
-   `current_function_outgoing_args_size'.  */
-#define OUTGOING_REG_PARM_STACK_SPACE   1
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
+   `crtl->outgoing_args_size'.  */
+#define OUTGOING_REG_PARM_STACK_SPACE(FNTYPE) 1
 
 /* Passing Arguments in Registers  */
-/* Determine where to put an argument to a function.
-   Value is zero to push the argument on the stack,
-   or a hard register in which to store the argument.
-
-   MODE is the argument's machine mode.
-   TYPE is the data type of the argument (as a tree).
-    This is null for libcalls where that information may
-    not be available.
-   CUM is a variable of type CUMULATIVE_ARGS which gives info about
-    the preceding args and about the function being called.
-   NAMED is nonzero if this argument is a named parameter
-    (otherwise it is an extra parameter matching an ellipsis).  */
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  score_function_arg (&CUM, MODE, TYPE, NAMED)
-
 /* A C type for declaring a variable that is used as the first argument of
    `FUNCTION_ARG' and other related values.  For some target machines, the
    type `int' suffices and can hold the number of bytes of argument so far.  */
@@ -616,12 +511,6 @@ typedef struct score_args
    For a library call, FNTYPE is 0.  */
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, INDIRECT, n_named_args) \
   score_init_cumulative_args (&CUM, FNTYPE, LIBNAME)
-
-/* Update the data in CUM to advance over an argument
-   of mode MODE and data type TYPE.
-   (TYPE is null for libcalls where that information may not be available.)  */
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED) \
-  score_function_arg_advance (&CUM, MODE, TYPE, NAMED)
 
 /* 1 if N is a possible register number for function argument passing.
    We have no FP argument registers when soft-float.  When FP registers
@@ -663,47 +552,6 @@ typedef struct score_args
         fprintf (FILE, " jl   _mcount \n");                           \
         fprintf (FILE, " .set nor1 \n");                              \
       }                                                               \
-    else if (TARGET_SCORE3)                                           \
-      {                                                               \
-        fprintf (FILE, " .set r1  \n");                               \
-        fprintf (FILE, " mv!   r%d,r%d \n", AT_REGNUM, RA_REGNUM);    \
-        fprintf (FILE, " addi! r%d, %d \n", STACK_POINTER_REGNUM, -8);\
-        fprintf (FILE, " jl   _mcount \n");                           \
-        fprintf (FILE, " .set nor1 \n");                              \
-      }                                                               \
-  } while (0)
-
-#define TRAMPOLINE_TEMPLATE(STREAM)                                   \
-  do {                                                                \
-    if (TARGET_SCORE7)                                                \
-      {                                                               \
-        fprintf (STREAM, "\t.set r1\n");                              \
-        fprintf (STREAM, "\tmv r31, r3\n");                           \
-        fprintf (STREAM, "\tbl nextinsn\n");                          \
-        fprintf (STREAM, "nextinsn:\n");                              \
-        fprintf (STREAM, "\tlw r1, [r3, 6*4-8]\n");                   \
-        fprintf (STREAM, "\tlw r23, [r3, 6*4-4]\n");                  \
-        fprintf (STREAM, "\tmv r3, r31\n");                           \
-        fprintf (STREAM, "\tbr! r1\n");                               \
-        fprintf (STREAM, "\tnop!\n");                                 \
-        fprintf (STREAM, "\t.set nor1\n");                            \
-      }                                                               \
-    else if (TARGET_SCORE3)                                           \
-      {                                                               \
-        fprintf (STREAM, "\t.set r1\n");                              \
-        fprintf (STREAM, "\tmv! r31, r3\n");                          \
-        fprintf (STREAM, "\tnop!\n");                                 \
-        fprintf (STREAM, "\tbl nextinsn\n");                          \
-        fprintf (STREAM, "nextinsn:\n");                              \
-        fprintf (STREAM, "\tlw! r1, [r3, 6*4-8]\n");                  \
-        fprintf (STREAM, "\tnop!\n");                                 \
-        fprintf (STREAM, "\tlw r23, [r3, 6*4-4]\n");                  \
-        fprintf (STREAM, "\tmv! r3, r31\n");                          \
-        fprintf (STREAM, "\tnop!\n");                                 \
-        fprintf (STREAM, "\tbr! r1\n");                               \
-        fprintf (STREAM, "\tnop!\n");                                 \
-        fprintf (STREAM, "\t.set nor1\n");                            \
-      }                                                               \
   } while (0)
 
 /* Trampolines for Nested Functions.  */
@@ -711,15 +559,6 @@ typedef struct score_args
 
 /* A C expression for the size in bytes of the trampoline, as an integer.  */
 #define TRAMPOLINE_SIZE                (24 + GET_MODE_SIZE (ptr_mode) * 2)
-
-/* A C statement to initialize the variable parts of a trampoline.
-   ADDR is an RTX for the address of the trampoline; FNADDR is an
-   RTX for the address of the nested function; STATIC_CHAIN is an
-   RTX for the static chain value that should be passed to the
-   function when it is called.  */
-
-#define INITIALIZE_TRAMPOLINE(ADDR, FUNC, CHAIN) \
-  score_initialize_trampoline (ADDR, FUNC, CHAIN)
 
 #define HAVE_PRE_INCREMENT              1
 #define HAVE_PRE_DECREMENT              1
@@ -730,21 +569,8 @@ typedef struct score_args
 #define HAVE_PRE_MODIFY_REG             0
 #define HAVE_POST_MODIFY_REG            0
 
-/* Recognize any constant value that is a valid address.  */
-#define CONSTANT_ADDRESS_P(X)           CONSTANT_P (X)
-
 /* Maximum number of registers that can appear in a valid memory address.  */
 #define MAX_REGS_PER_ADDRESS            1
-
-#ifdef REG_OK_STRICT
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)   \
-  if (score_address_p (MODE, X, 1))                \
-    goto LABEL;
-#else
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)   \
-  if (score_address_p (MODE, X, 0))                \
-    goto LABEL;
-#endif
 
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
@@ -766,18 +592,6 @@ typedef struct score_args
 
 #define REG_OK_FOR_INDEX_P(X) 0
 
-#define LEGITIMIZE_ADDRESS(X, OLDX, MODE, WIN)   \
-  do {                                           \
-    if (score_legitimize_address (&(X)))         \
-      goto WIN;                                  \
-  } while (0)
-
-/* Go to LABEL if ADDR (a legitimate address expression)
-   has an effect that depends on the machine mode it is used for.  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)       {}
-
-#define LEGITIMATE_CONSTANT_P(X)        1
-
 /* Condition Code Status.  */
 #define SELECT_CC_MODE(OP, X, Y)        score_select_cc_mode (OP, X, Y)
 
@@ -786,16 +600,8 @@ typedef struct score_args
 #define REVERSIBLE_CC_MODE(MODE)        1
 
 /* Describing Relative Costs of Operations  */
-/* Compute extra cost of moving data between one register class and another.  */
-#define REGISTER_MOVE_COST(MODE, FROM, TO) \
-  score_register_move_cost (MODE, FROM, TO)
-
-/* Moves to and from memory are quite expensive */
-#define MEMORY_MOVE_COST(MODE, CLASS, TO_P) \
-  (4 + memory_move_secondary_cost ((MODE), (CLASS), (TO_P)))
-
 /* Try to generate sequences that don't involve branches.  */
-#define BRANCH_COST                     2
+#define BRANCH_COST(speed_p, predictable_p) 2
 
 /* Nonzero if access to memory by bytes is slow and undesirable.  */
 #define SLOW_BYTE_ACCESS                1
@@ -938,9 +744,6 @@ typedef struct score_args
         fprintf (STREAM, "\tpush! %s,[%s]\n",        \
                  reg_names[REGNO],                   \
                  reg_names[STACK_POINTER_REGNUM]);   \
-    else if (TARGET_SCORE3)                          \
-        fprintf (STREAM, "\tpush!\t%s\n",            \
-                 reg_names[REGNO]);                  \
   } while (0)
 
 /* This is how to output an insn to pop a register from the stack.  */
@@ -950,9 +753,6 @@ typedef struct score_args
       fprintf (STREAM, "\tpop! %s,[%s]\n",           \
                reg_names[REGNO],                     \
                reg_names[STACK_POINTER_REGNUM]);     \
-    else if (TARGET_SCORE3)                          \
-      fprintf (STREAM, "\tpop!\t%s\n",               \
-               reg_names[REGNO]);                    \
   } while (0)
 
 /* Output of Dispatch Tables.  */
@@ -965,28 +765,6 @@ typedef struct score_args
         fprintf (STREAM, "\t.gpword %sL%d\n", LOCAL_LABEL_PREFIX, VALUE); \
       else                                                                \
         fprintf (STREAM, "\t.word %sL%d\n", LOCAL_LABEL_PREFIX, VALUE);   \
-    else if (TARGET_SCORE3)                                               \
-      {                                                                   \
-        switch (GET_MODE(BODY))                                           \
-          {                                                               \
-          case QImode: /* TBB */                                          \
-            asm_fprintf (STREAM, "\t.byte\t(%LL%d-%LL%d_tbb)/2\n",        \
-                         VALUE, REL);                                     \
-            break;                                                        \
-          case HImode: /* TBH */                                          \
-            asm_fprintf (STREAM, "\t.2byte\t(%LL%d-%LL%d_tbb)/2\n",       \
-                         VALUE, REL);                                     \
-            break;                                                        \
-          case SImode:                                                    \
-            if (flag_pic)                                                 \
-              fprintf (STREAM, "\t.gpword %sL%d\n", LOCAL_LABEL_PREFIX, VALUE); \
-            else                                                          \
-              fprintf (STREAM, "\t.word %sL%d\n", LOCAL_LABEL_PREFIX, VALUE);   \
-            break;                                                        \
-          default:                                                        \
-            gcc_unreachable();                                            \
-          }                                                               \
-      }                                                                   \
   } while (0)
 
 /* Jump table alignment is explicit in ASM_OUTPUT_CASE_LABEL.  */
@@ -1006,13 +784,6 @@ typedef struct score_args
 /* Specify the machine mode that this machine uses
    for the index in the tablejump instruction.  */
 #define CASE_VECTOR_MODE                SImode
-
-#define CASE_VECTOR_PC_RELATIVE         (TARGET_SCORE3)
-
-#define CASE_VECTOR_SHORTEN_MODE(min, max, body)                \
-   ((min < 0 || max >= 0x2000 || TARGET_SCORE7) ? SImode        \
-   : (max >= 0x200) ? HImode                                    \
-   : QImode)
 
 /* This is how to output an element of a case-vector that is absolute.  */
 #define ASM_OUTPUT_ADDR_VEC_ELT(STREAM, VALUE) \
@@ -1087,7 +858,7 @@ typedef struct score_args
    for 32-bit targets.  */
 #define FUNCTION_MODE                   Pmode
 
-struct extern_list GTY ((chain_next ("%h.next")))
+struct GTY ((chain_next ("%h.next"))) extern_list
 {
   struct extern_list *next;             /* next external  */
   const char *name;                     /* name of the external  */

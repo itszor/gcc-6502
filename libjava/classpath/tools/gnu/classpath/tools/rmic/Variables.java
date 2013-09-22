@@ -1,6 +1,5 @@
 /* Variables.java --
-   Copyright (c) 2004, 2005
-   Free Software Foundation, Inc.
+   Copyright (c) 2004, 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -17,7 +16,24 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Classpath; see the file COPYING.  If not, write to the
 Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-02111-1307 USA. */
+02111-1307 USA.
+
+Linking this library statically or dynamically with other modules is
+making a combined work based on this library.  Thus, the terms and
+conditions of the GNU General Public License cover the whole
+combination.
+
+As a special exception, the copyright holders of this library give you
+permission to link this library with independent modules to produce an
+executable, regardless of the license terms of these independent
+modules, and to copy and distribute the resulting executable under
+terms of your choice, provided that you also meet, for each linked
+independent module, the terms and conditions of the license of that
+module.  An independent module is a module which is not derived from
+or based on this library.  If you modify this library, you may extend
+this exception to your version of the library, but you are not
+obligated to do so.  If you do not wish to do so, delete this
+exception statement from your version. */
 
 package gnu.classpath.tools.rmic;
 
@@ -27,10 +43,10 @@ import java.util.Iterator;
 
 class Variables
 {
-  private final HashSet free = new HashSet();
-  private final HashMap names = new HashMap();
-  private final HashSet wides = new HashSet();
-  private final HashSet declared = new HashSet();
+  private final HashSet<Integer> free = new HashSet<Integer>();
+  private final HashMap<Object,Integer> names = new HashMap<Object,Integer>();
+  private final HashSet<Object> wides = new HashSet<Object>();
+  private final HashSet<Object> declared = new HashSet<Object>();
   private boolean allocated = false;
 
   public void declare(Object name)
@@ -60,7 +76,7 @@ class Variables
   {
     // total allocation size is first unallocated slot
     int i = free.size() + names.size() + wides.size();
-    names.put(name, new Integer(i));
+    names.put(name, Integer.valueOf(i));
     if (size == 2) wides.add(name);
     return i;
   }
@@ -86,10 +102,10 @@ class Variables
     if (size == 2)
       {
         // look for consecutive free slots
-        for (Iterator it = free.iterator(); it.hasNext(); )
+        for (Iterator<Integer> it = free.iterator(); it.hasNext(); )
           {
-            Integer i = (Integer) it.next();
-            Integer next = new Integer(i.intValue() + 1);
+            Integer i = it.next();
+            Integer next = Integer.valueOf(i.intValue() + 1);
             if (free.contains(next))
               {
                 free.remove(i);
@@ -102,7 +118,7 @@ class Variables
       }
     else if (free.size() > 0)
       {
-        Integer i = (Integer) free.iterator().next();
+        Integer i = free.iterator().next();
         free.remove(i);
         names.put(name, i);
         return i.intValue();
@@ -119,11 +135,11 @@ class Variables
     if (declared.contains(name))
       throw new IllegalStateException(name + " can't be deallocated");
 
-    Integer i = (Integer) names.get(name);
+    Integer i = names.get(name);
     names.remove(name);
     free.add(i);
     if (wides.remove(name))
-      free.add(new Integer(i.intValue() + 1));
+      free.add(Integer.valueOf(i.intValue() + 1));
     return i.intValue();
   }
 
@@ -132,6 +148,6 @@ class Variables
     if (! names.containsKey(name))
       throw new IllegalArgumentException("no variable " + name);
 
-    return ((Integer) names.get(name)).intValue();
+    return names.get(name).intValue();
   }
 }

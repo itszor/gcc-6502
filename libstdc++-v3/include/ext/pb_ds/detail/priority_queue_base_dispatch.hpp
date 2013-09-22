@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,12 +34,21 @@
 // warranty.
 
 /**
- * @file priority_queue_base_dispatch.hpp
+ * @file detail/priority_queue_base_dispatch.hpp
  * Contains an pqiative container dispatching base.
  */
 
 #ifndef PB_DS_PRIORITY_QUEUE_BASE_DS_DISPATCHER_HPP
 #define PB_DS_PRIORITY_QUEUE_BASE_DS_DISPATCHER_HPP
+
+#define PB_DS_ASSERT_VALID(X)						\
+  _GLIBCXX_DEBUG_ONLY(X.assert_valid(__FILE__, __LINE__);)
+
+#define PB_DS_DEBUG_VERIFY(_Cond)					\
+  _GLIBCXX_DEBUG_VERIFY_AT(_Cond,					\
+			   _M_message(#_Cond" assertion from %1;:%2;")	\
+			   ._M_string(__FILE__)._M_integer(__LINE__)	\
+			   ,__file,__line)
 
 #include <ext/pb_ds/detail/pairing_heap_/pairing_heap_.hpp>
 #include <ext/pb_ds/detail/binomial_heap_/binomial_heap_.hpp>
@@ -53,45 +56,59 @@
 #include <ext/pb_ds/detail/binary_heap_/binary_heap_.hpp>
 #include <ext/pb_ds/detail/thin_heap_/thin_heap_.hpp>
 
+#undef PB_DS_DEBUG_VERIFY
+#undef PB_DS_ASSERT_VALID
+
 namespace __gnu_pbds
 {
-    namespace detail
-    {
-
-      template<typename Value_Type, typename Cmp_Fn, typename Tag, typename Allocator>
-      struct priority_queue_base_dispatch;
-
-      template<typename Value_Type, typename Cmp_Fn, typename Allocator>
-      struct priority_queue_base_dispatch<Value_Type, Cmp_Fn, pairing_heap_tag, Allocator>
+  namespace detail
+  {
+    /// Specialization for pairing_heap.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct container_base_dispatch<_VTp, Cmp_Fn, _Alloc, pairing_heap_tag,
+				     null_type>
       {
-	typedef pairing_heap_< Value_Type, Cmp_Fn, Allocator> type;
+	/// Dispatched type.
+	typedef pairing_heap<_VTp, Cmp_Fn, _Alloc> 		type;
       };
 
-      template<typename Value_Type, typename Cmp_Fn, typename Allocator>
-      struct priority_queue_base_dispatch<Value_Type, Cmp_Fn, binomial_heap_tag, Allocator>
+    /// Specialization for binomial_heap.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct container_base_dispatch<_VTp, Cmp_Fn, _Alloc, binomial_heap_tag,
+				     null_type>
       {
-	typedef binomial_heap_< Value_Type, Cmp_Fn, Allocator> type;
+	/// Dispatched type.
+	typedef binomial_heap<_VTp, Cmp_Fn, _Alloc> 		type;
       };
 
-      template<typename Value_Type, typename Cmp_Fn, typename Allocator>
-      struct priority_queue_base_dispatch<Value_Type, Cmp_Fn, rc_binomial_heap_tag, Allocator>
+    /// Specialization for rc_binary_heap.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct container_base_dispatch<_VTp, Cmp_Fn, _Alloc, rc_binomial_heap_tag,
+  				     null_type>
       {
-	typedef rc_binomial_heap_< Value_Type, Cmp_Fn, Allocator> type;
+	/// Dispatched type.
+	typedef rc_binomial_heap<_VTp, Cmp_Fn, _Alloc>	       	type;
       };
 
-      template<typename Value_Type, typename Cmp_Fn, typename Allocator>
-      struct priority_queue_base_dispatch<Value_Type, Cmp_Fn, binary_heap_tag, Allocator>
+    /// Specialization for binary_heap.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct container_base_dispatch<_VTp, Cmp_Fn, _Alloc, binary_heap_tag,
+  				     null_type>
       {
-	typedef binary_heap_< Value_Type, Cmp_Fn, Allocator> type;
+	/// Dispatched type.
+	typedef binary_heap<_VTp, Cmp_Fn, _Alloc> 		type;
       };
 
-      template<typename Value_Type, typename Cmp_Fn, typename Allocator>
-      struct priority_queue_base_dispatch<Value_Type, Cmp_Fn, thin_heap_tag, Allocator>
+    /// Specialization for thin_heap.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct container_base_dispatch<_VTp, Cmp_Fn, _Alloc, thin_heap_tag,
+  				     null_type>    
       {
-	typedef thin_heap_< Value_Type, Cmp_Fn, Allocator> type;
+	/// Dispatched type.
+	typedef thin_heap<_VTp, Cmp_Fn, _Alloc> 		type;
       };
-
-    } // namespace detail
+    //@} group pbds
+  } // namespace detail
 } // namespace __gnu_pbds
 
 #endif // #ifndef PB_DS_PRIORITY_QUEUE_BASE_DS_DISPATCHER_HPP

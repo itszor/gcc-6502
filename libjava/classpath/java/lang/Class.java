@@ -1,5 +1,5 @@
 /* Class.java -- Representation of a Java class.
-   Copyright (C) 1998, 1999, 2000, 2002, 2003, 2004, 2005, 2006
+   Copyright (C) 1998, 1999, 2000, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation
 
 This file is part of GNU Classpath.
@@ -66,7 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 
 
 /**
@@ -99,7 +99,7 @@ import java.util.HashSet;
  * @since 1.0
  * @see ClassLoader
  */
-public final class Class<T> 
+public final class Class<T>
   implements Serializable, Type, AnnotatedElement, GenericDeclaration
 {
   /**
@@ -215,7 +215,7 @@ public final class Class<T>
    * @since 1.2
    */
   public static Class<?> forName(String name, boolean initialize,
-				 ClassLoader classloader)
+                                 ClassLoader classloader)
     throws ClassNotFoundException
   {
     if (classloader == null)
@@ -232,7 +232,7 @@ public final class Class<T>
       }
     return (Class<?>) VMClass.forName(name, initialize, classloader);
   }
-  
+
   /**
    * Get all the public member classes and interfaces declared in this
    * class or inherited from superclasses. This returns an array of length
@@ -263,7 +263,7 @@ public final class Class<T>
       list.addAll(Arrays.asList(superClass.internalGetClasses()));
     return list.toArray(new Class<?>[list.size()]);
   }
-  
+
   /**
    * Get the ClassLoader that loaded this class.  If the class was loaded
    * by the bootstrap classloader, this method will return null.
@@ -288,7 +288,7 @@ public final class Class<T>
     if (loader != null && sm != null)
       {
         // Get the calling classloader
-	ClassLoader cl = VMStackWalker.getCallingClassLoader();
+        ClassLoader cl = VMStackWalker.getCallingClassLoader();
         if (cl != null && !cl.isAncestorOf(loader))
           sm.checkPermission(new RuntimePermission("getClassLoader"));
       }
@@ -331,9 +331,9 @@ public final class Class<T>
     Constructor[] constructors = getDeclaredConstructors(true);
     for (int i = 0; i < constructors.length; i++)
       {
-	Constructor constructor = constructors[i];
-	if (matchParameters(types, constructor.getParameterTypes()))
-	  return constructor;
+        Constructor constructor = constructors[i];
+        if (matchParameters(types, constructor.getParameterTypes()))
+          return constructor;
       }
     throw new NoSuchMethodException();
   }
@@ -377,9 +377,9 @@ public final class Class<T>
     Constructor[] constructors = getDeclaredConstructors(false);
     for (int i = 0; i < constructors.length; i++)
       {
-	Constructor constructor = constructors[i];
-	if (matchParameters(types, constructor.getParameterTypes()))
-	  return constructor;
+        Constructor constructor = constructors[i];
+        if (matchParameters(types, constructor.getParameterTypes()))
+          return constructor;
       }
     throw new NoSuchMethodException();
   }
@@ -429,7 +429,7 @@ public final class Class<T>
   {
     return VMClass.getDeclaredConstructors (this, publicOnly);
   }
-  
+
   /**
    * Get a field declared in this class, where name is its simple name. The
    * implicit length field of arrays is not available. A security check may
@@ -440,17 +440,20 @@ public final class Class<T>
    * @return the field
    * @throws NoSuchFieldException if the field does not exist
    * @throws SecurityException if the security check fails
+   * @throws NullPointerException if <code>fieldName</code> is null
    * @see #getDeclaredFields()
    * @since 1.1
    */
   public Field getDeclaredField(String name) throws NoSuchFieldException
   {
+    if (name == null)
+      throw new NullPointerException();
     memberAccessCheck(Member.DECLARED);
     Field[] fields = getDeclaredFields(false);
     for (int i = 0; i < fields.length; i++)
       {
-	if (fields[i].getName().equals(name))
-	  return fields[i];
+        if (fields[i].getName().equals(name))
+          return fields[i];
       }
     throw new NoSuchFieldException();
   }
@@ -496,12 +499,15 @@ public final class Class<T>
    * @return the method
    * @throws NoSuchMethodException if the method does not exist
    * @throws SecurityException if the security check fails
+   * @throws NullPointerException if <code>methodName</code> is null
    * @see #getDeclaredMethods()
    * @since 1.1
    */
   public Method getDeclaredMethod(String methodName, Class<?>... types)
     throws NoSuchMethodException
   {
+    if (methodName == null)
+      throw new NullPointerException();
     memberAccessCheck(Member.DECLARED);
     Method match = matchMethod(getDeclaredMethods(false), methodName, types);
     if (match == null)
@@ -535,7 +541,7 @@ public final class Class<T>
   {
     return VMClass.getDeclaredMethods (this, publicOnly);
   }
- 
+
   /**
    * If this is a nested or inner class, return the class that declared it.
    * If not, return null.
@@ -560,12 +566,15 @@ public final class Class<T>
    * @return the field
    * @throws NoSuchFieldException if the field does not exist
    * @throws SecurityException if the security check fails
+   * @throws NullPointerException if <code>fieldName</code> is null
    * @see #getFields()
    * @since 1.1
    */
   public Field getField(String fieldName)
     throws NoSuchFieldException
   {
+    if (fieldName == null)
+      throw new NullPointerException();
     memberAccessCheck(Member.PUBLIC);
     Field field = internalGetField(fieldName);
     if (field == null)
@@ -596,7 +605,7 @@ public final class Class<T>
    */
   private Field[] internalGetFields()
   {
-    HashSet<Field> set = new HashSet<Field>();
+    LinkedHashSet<Field> set = new LinkedHashSet<Field>();
     set.addAll(Arrays.asList(getDeclaredFields(true)));
     Class[] interfaces = getInterfaces();
     for (int i = 0; i < interfaces.length; i++)
@@ -643,7 +652,7 @@ public final class Class<T>
     private Class[] params;
     private Class returnType;
     private int hash;
-    
+
     MethodKey(Method m)
     {
       name = m.getName();
@@ -651,36 +660,36 @@ public final class Class<T>
       returnType = m.getReturnType();
       hash = name.hashCode() ^ returnType.hashCode();
       for(int i = 0; i < params.length; i++)
-	{
-	  hash ^= params[i].hashCode();
-	}
+        {
+          hash ^= params[i].hashCode();
+        }
     }
-    
+
     public boolean equals(Object o)
     {
       if (o instanceof MethodKey)
-	{
-	  MethodKey m = (MethodKey) o;
-	  if (m.name.equals(name) && m.params.length == params.length
-	      && m.returnType == returnType)
-	    {
-	      for (int i = 0; i < params.length; i++)
-		{
-		  if (m.params[i] != params[i])
-		    return false;
-		}
-	      return true;
-	    }
-	}
+        {
+          MethodKey m = (MethodKey) o;
+          if (m.name.equals(name) && m.params.length == params.length
+              && m.returnType == returnType)
+            {
+              for (int i = 0; i < params.length; i++)
+                {
+                  if (m.params[i] != params[i])
+                    return false;
+                }
+              return true;
+            }
+        }
       return false;
     }
-    
+
     public int hashCode()
     {
       return hash;
     }
   }
-  
+
   /**
    * Get a public method declared or inherited in this class, where name is
    * its simple name. The implicit methods of Object are not available from
@@ -700,12 +709,15 @@ public final class Class<T>
    * @return the method
    * @throws NoSuchMethodException if the method does not exist
    * @throws SecurityException if the security check fails
+   * @throws NullPointerException if <code>methodName</code> is null
    * @see #getMethods()
    * @since 1.1
    */
   public Method getMethod(String methodName, Class<?>... types)
     throws NoSuchMethodException
   {
+    if (methodName == null)
+      throw new NullPointerException();
     memberAccessCheck(Member.PUBLIC);
     Method method = internalGetMethod(methodName, types);
     if (method == null)
@@ -725,21 +737,21 @@ public final class Class<T>
     Class superClass = getSuperclass();
     if (superClass != null)
       {
-	match = superClass.internalGetMethod(methodName, args);
-	if(match != null)
-	  return match;
+        match = superClass.internalGetMethod(methodName, args);
+        if(match != null)
+          return match;
       }
     Class[] interfaces = getInterfaces();
     for (int i = 0; i < interfaces.length; i++)
       {
-	match = interfaces[i].internalGetMethod(methodName, args);
-	if (match != null)
-	  return match;
+        match = interfaces[i].internalGetMethod(methodName, args);
+        if (match != null)
+          return match;
       }
     return null;
   }
 
-  /** 
+  /**
    * Find the best matching method in <code>list</code> according to
    * the definition of ``best matching'' used by <code>getMethod()</code>
    *
@@ -756,14 +768,14 @@ public final class Class<T>
     Method match = null;
     for (int i = 0; i < list.length; i++)
       {
-	Method method = list[i];
-	if (!method.getName().equals(name))
-	  continue;
-	if (!matchParameters(args, method.getParameterTypes()))
-	  continue;
-	if (match == null
-	    || match.getReturnType().isAssignableFrom(method.getReturnType()))
-	  match = method;
+        Method method = list[i];
+        if (!method.getName().equals(name))
+          continue;
+        if (!matchParameters(args, method.getParameterTypes()))
+          continue;
+        if (match == null
+            || match.getReturnType().isAssignableFrom(method.getReturnType()))
+          match = method;
       }
     return match;
   }
@@ -783,12 +795,12 @@ public final class Class<T>
       return false;
     for (int i = 0; i < types1.length; i++)
       {
-	if (types1[i] != types2[i])
-	  return false;
+        if (types1[i] != types2[i])
+          return false;
       }
     return true;
   }
-  
+
   /**
    * Get all the public methods declared in this class or inherited from
    * superclasses. This returns an array of length 0 if there are no methods,
@@ -825,25 +837,25 @@ public final class Class<T>
     Class[] interfaces = getInterfaces();
     for(int i = 0; i < interfaces.length; i++)
       {
-	methods = interfaces[i].internalGetMethods();
-	for(int j = 0; j < methods.length; j++)
-	  {
-	    map.put(new MethodKey(methods[j]), methods[j]);
-	  }
+        methods = interfaces[i].internalGetMethods();
+        for(int j = 0; j < methods.length; j++)
+          {
+            map.put(new MethodKey(methods[j]), methods[j]);
+          }
       }
     Class superClass = getSuperclass();
     if(superClass != null)
       {
-	methods = superClass.internalGetMethods();
-	for(int i = 0; i < methods.length; i++)
-	  {
-	    map.put(new MethodKey(methods[i]), methods[i]);
-	  }
+        methods = superClass.internalGetMethods();
+        for(int i = 0; i < methods.length; i++)
+          {
+            map.put(new MethodKey(methods[i]), methods[i]);
+          }
       }
     methods = getDeclaredMethods(true);
     for(int i = 0; i < methods.length; i++)
       {
-	map.put(new MethodKey(methods[i]), methods[i]);
+        map.put(new MethodKey(methods[i]), methods[i]);
       }
     return map.values().toArray(new Method[map.size()]);
   }
@@ -867,7 +879,7 @@ public final class Class<T>
           Modifier.FINAL | Modifier.STATIC | Modifier.ABSTRACT |
           Modifier.INTERFACE));
   }
-  
+
   /**
    * Get the name of this class, separated by dots for package separators.
    * If the class represents a primitive type, or void, then the
@@ -896,7 +908,7 @@ public final class Class<T>
    * @return the name of this class
    */
   public String getName()
-  { 
+  {
     return VMClass.getName (this);
   }
 
@@ -959,16 +971,16 @@ public final class Class<T>
   {
     if (resourceName.length() > 0)
       {
-	if (resourceName.charAt(0) != '/')
-	  {
-	    String pkg = getPackagePortion(getName());
-	    if (pkg.length() > 0)
-	      resourceName = pkg.replace('.','/') + '/' + resourceName;
-	  }
-	else
-	  {
-	    resourceName = resourceName.substring(1);
-	  }
+        if (resourceName.charAt(0) != '/')
+          {
+            String pkg = getPackagePortion(getName());
+            if (pkg.length() > 0)
+              resourceName = pkg.replace('.','/') + '/' + resourceName;
+          }
+        else
+          {
+            resourceName = resourceName.substring(1);
+          }
       }
     return resourceName;
   }
@@ -984,7 +996,7 @@ public final class Class<T>
   {
     return signers == null ? null : (Object[]) signers.clone ();
   }
-  
+
   /**
    * Set the signers of this class.
    *
@@ -1006,7 +1018,7 @@ public final class Class<T>
   {
     return VMClass.getSuperclass (this);
   }
-  
+
   /**
    * Return whether this class is an array type.
    *
@@ -1017,7 +1029,7 @@ public final class Class<T>
   {
     return VMClass.isArray (this);
   }
-  
+
   /**
    * Discover whether an instance of the Class parameter would be an
    * instance of this Class as well.  Think of doing
@@ -1036,7 +1048,7 @@ public final class Class<T>
   {
     return VMClass.isAssignableFrom (this, c);
   }
- 
+
   /**
    * Discover whether an Object is an instance of this Class.  Think of it
    * as almost like <code>o instanceof (this class)</code>.
@@ -1049,7 +1061,7 @@ public final class Class<T>
   {
     return VMClass.isInstance (this, o);
   }
-  
+
   /**
    * Check whether this class is an interface or not.  Array types are not
    * interfaces.
@@ -1060,7 +1072,7 @@ public final class Class<T>
   {
     return VMClass.isInterface (this);
   }
-  
+
   /**
    * Return whether this class is a primitive type.  A primitive type class
    * is a class representing a kind of "placeholder" for the various
@@ -1084,7 +1096,7 @@ public final class Class<T>
   {
     return VMClass.isPrimitive (this);
   }
-  
+
   /**
    * Get a new instance of this class by calling the no-argument constructor.
    * The class is initialized if it has not been already. A security check
@@ -1109,55 +1121,55 @@ public final class Class<T>
     Constructor<T> constructor;
     synchronized(this)
       {
-	constructor = this.constructor;
+        constructor = this.constructor;
       }
     if (constructor == null)
       {
-	Constructor[] constructors = getDeclaredConstructors(false);
-	for (int i = 0; i < constructors.length; i++)
-	  {
-	    if (constructors[i].getParameterTypes().length == 0)
-	      {
-		constructor = constructors[i];
-		break;
-	      }
-	  }
-	if (constructor == null)
-	  throw new InstantiationException(getName());
-	if (!Modifier.isPublic(constructor.getModifiers())
+        Constructor[] constructors = getDeclaredConstructors(false);
+        for (int i = 0; i < constructors.length; i++)
+          {
+            if (constructors[i].getParameterTypes().length == 0)
+              {
+                constructor = constructors[i];
+                break;
+              }
+          }
+        if (constructor == null)
+          throw new InstantiationException(getName());
+        if (!Modifier.isPublic(constructor.getModifiers())
             || !Modifier.isPublic(VMClass.getModifiers(this, true)))
-	  {
-	    setAccessible(constructor);
-	  }
-	synchronized(this)
-	  {
-	    if (this.constructor == null)
-	      this.constructor = constructor;
-	  }	    
+          {
+            setAccessible(constructor);
+          }
+        synchronized(this)
+          {
+            if (this.constructor == null)
+              this.constructor = constructor;
+          }
       }
     int modifiers = constructor.getModifiers();
     if (!Modifier.isPublic(modifiers)
         || !Modifier.isPublic(VMClass.getModifiers(this, true)))
       {
-	Class caller = VMStackWalker.getCallingClass();
-	if (caller != null &&
-	    caller != this &&
-	    (Modifier.isPrivate(modifiers)
-	     || getClassLoader() != caller.getClassLoader()
-	     || !getPackagePortion(getName())
-	     .equals(getPackagePortion(caller.getName()))))
-	  throw new IllegalAccessException(getName()
-					   + " has an inaccessible constructor");
+        Class caller = VMStackWalker.getCallingClass();
+        if (caller != null &&
+            caller != this &&
+            (Modifier.isPrivate(modifiers)
+             || getClassLoader() != caller.getClassLoader()
+             || !getPackagePortion(getName())
+             .equals(getPackagePortion(caller.getName()))))
+          throw new IllegalAccessException(getName()
+                                           + " has an inaccessible constructor");
       }
     try
       {
-        return constructor.newInstance(null);
+        return constructor.newInstance();
       }
     catch (InvocationTargetException e)
       {
-	VMClass.throwException(e.getTargetException());
-	throw (InternalError) new InternalError
-	  ("VMClass.throwException returned").initCause(e);
+        VMClass.throwException(e.getTargetException());
+        throw (InternalError) new InternalError
+          ("VMClass.throwException returned").initCause(e);
       }
   }
 
@@ -1288,14 +1300,14 @@ public final class Class<T>
    * returns an appropriately cast reference to this object.  Otherwise,
    * a <code>ClassCastException</code> is thrown.
    * </p>
-   * 
+   *
    * @param klass the class object, the parameterized type (<code>U</code>) of
    *              which should be a superclass of the parameterized type of
    *              this instance.
    * @return a reference to this object, appropriately cast.
    * @throws ClassCastException if this class can not be converted to one
    *                            which represents a subclass of the specified
-   *                            type, <code>U</code>. 
+   *                            type, <code>U</code>.
    * @since 1.5
    */
   public <U> Class<? extends U> asSubclass(Class<U> klass)
@@ -1328,16 +1340,16 @@ public final class Class<T>
     Field[] fields = getDeclaredFields(true);
     for (int i = 0; i < fields.length; i++)
       {
-	Field field = fields[i];
-	if (field.getName().equals(name))
-	  return field;
+        Field field = fields[i];
+        if (field.getName().equals(name))
+          return field;
       }
     Class[] interfaces = getInterfaces();
     for (int i = 0; i < interfaces.length; i++)
       {
-	Field field = interfaces[i].internalGetField(name);
-	if(field != null)
-	  return field;
+        Field field = interfaces[i].internalGetField(name);
+        if(field != null)
+          return field;
       }
     Class superClass = getSuperclass();
     if (superClass != null)
@@ -1368,10 +1380,10 @@ public final class Class<T>
     SecurityManager sm = SecurityManager.current;
     if (sm != null)
       {
-	sm.checkMemberAccess(this, which);
-	Package pkg = getPackage();
-	if (pkg != null)
-	  sm.checkPackageAccess(pkg.getName());
+        sm.checkMemberAccess(this, which);
+        Package pkg = getPackage();
+        if (pkg != null)
+          sm.checkPackageAccess(pkg.getName());
       }
   }
 
@@ -1388,30 +1400,30 @@ public final class Class<T>
   {
     if (isEnum())
       {
-	try
-	  {
+        try
+          {
             Method m = getMethod("values");
             setAccessible(m);
-	    return (T[]) m.invoke(null);
-	  }
-	catch (NoSuchMethodException exception)
-	  {
-	    throw new Error("Enum lacks values() method");
-	  }
-	catch (IllegalAccessException exception)
-	  {
-	    throw new Error("Unable to access Enum class");
-	  }
-	catch (InvocationTargetException exception)
-	  {
-	    throw new
-	      RuntimeException("The values method threw an exception",
-			       exception);
-	  }
+            return (T[]) m.invoke(null);
+          }
+        catch (NoSuchMethodException exception)
+          {
+            throw new Error("Enum lacks values() method");
+          }
+        catch (IllegalAccessException exception)
+          {
+            throw new Error("Unable to access Enum class");
+          }
+        catch (InvocationTargetException exception)
+          {
+            throw new
+              RuntimeException("The values method threw an exception",
+                               exception);
+          }
       }
     else
       {
-	return null;
+        return null;
       }
   }
 
@@ -1458,7 +1470,7 @@ public final class Class<T>
    * <code>getName()</code> which follows the last ".".  Anonymous
    * classes have no name, and so the result of calling this method is
    * "".  The simple name of an array consists of the simple name of
-   * its component type, followed by "[]".  Thus, an array with the 
+   * its component type, followed by "[]".  Thus, an array with the
    * component type of an anonymous class has a simple name of simply
    * "[]".
    *
@@ -1485,7 +1497,7 @@ public final class Class<T>
     Annotation[] annotations = getAnnotations();
     for (Annotation annotation : annotations)
       if (annotation.annotationType() == annotationClass)
-	foundAnnotation = (A) annotation;
+        foundAnnotation = (A) annotation;
     return foundAnnotation;
   }
 
@@ -1506,15 +1518,15 @@ public final class Class<T>
     for (Annotation a : getDeclaredAnnotations())
       map.put((Class) a.annotationType(), a);
     for (Class<? super T> s = getSuperclass();
-	 s != null;
-	 s = s.getSuperclass())
+         s != null;
+         s = s.getSuperclass())
       {
-	for (Annotation a : s.getDeclaredAnnotations())
-	  {
-	    Class k = (Class) a.annotationType();
-	    if (! map.containsKey(k) && k.isAnnotationPresent(Inherited.class))
-	      map.put(k, a);
-	  }
+        for (Annotation a : s.getDeclaredAnnotations())
+          {
+            Class k = (Class) a.annotationType();
+            if (! map.containsKey(k) && k.isAnnotationPresent(Inherited.class))
+              map.put(k, a);
+          }
       }
     Collection<Annotation> v = map.values();
     return v.toArray(new Annotation[v.size()]);
@@ -1533,7 +1545,7 @@ public final class Class<T>
    * The canonical name for top-level classes, top-level interfaces and
    * primitive types is always the same as the fully-qualified name.
    * For array types, the canonical name is the canonical name of its
-   * component type with `[]' appended.  
+   * component type with `[]' appended.
    * </p>
    * <p>
    * The canonical name of a member class always refers to the place where
@@ -1590,7 +1602,7 @@ public final class Class<T>
 
   /**
    * Returns the constructor which immediately encloses this class.  If
-   * this class is a top-level class, or a local or anonymous class 
+   * this class is a top-level class, or a local or anonymous class
    * immediately enclosed by a type definition, instance initializer
    * or static initializer, then <code>null</code> is returned.
    *
@@ -1606,7 +1618,7 @@ public final class Class<T>
 
   /**
    * Returns the method which immediately encloses this class.  If
-   * this class is a top-level class, or a local or anonymous class 
+   * this class is a top-level class, or a local or anonymous class
    * immediately enclosed by a type definition, instance initializer
    * or static initializer, then <code>null</code> is returned.
    *
@@ -1718,7 +1730,7 @@ public final class Class<T>
    * An array of size zero is returned if this class has no type
    * variables.
    *
-   * @return the type variables associated with this class. 
+   * @return the type variables associated with this class.
    * @throws GenericSignatureFormatError if the generic signature does
    *         not conform to the format specified in the Virtual Machine
    *         specification, version 3.
@@ -1743,8 +1755,8 @@ public final class Class<T>
    * @return true if an annotation exists for the specified type.
    * @since 1.5
    */
-  public boolean isAnnotationPresent(Class<? extends Annotation> 
-				     annotationClass)
+  public boolean isAnnotationPresent(Class<? extends Annotation>
+                                     annotationClass)
   {
     return getAnnotation(annotationClass) != null;
   }

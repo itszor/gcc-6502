@@ -2,41 +2,40 @@
 --                                                                          --
 --                GNAT RUN-TIME LIBRARY (GNARL) COMPONENTS                  --
 --                                                                          --
---      S Y S T E M . T A S K I N G . P R O T E C T E D _ O B J E C T S .   --
---                               E N T R I E S                              --
+--                SYSTEM.TASKING.PROTECTED_OBJECTS.ENTRIES                  --
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package contains all the simple primitives related to
---  Protected_Objects with entries (i.e init, lock, unlock).
+--  This package contains all simple primitives related to Protected_Objects
+--  with entries (i.e init, lock, unlock).
+
 --  The handling of protected objects with no entries is done in
 --  System.Tasking.Protected_Objects, the complex routines for protected
 --  objects with entries in System.Tasking.Protected_Objects.Operations.
+
 --  The split between Entries and Operations is needed to break circular
 --  dependencies inside the run time.
 
@@ -44,8 +43,6 @@
 --  Any changes to this interface may require corresponding compiler changes.
 
 with Ada.Finalization;
---  used for Limited_Controlled
-
 with Ada.Unchecked_Conversion;
 
 package System.Tasking.Protected_Objects.Entries is
@@ -62,26 +59,34 @@ package System.Tasking.Protected_Objects.Entries is
 
    type Protected_Entry_Body_Array is
      array (Positive_Protected_Entry_Index range <>) of Entry_Body;
-   --  This is an array of the executable code for all entry bodies of
-   --  a protected type.
+   --  Contains executable code for all entry bodies of a protected type
 
    type Protected_Entry_Body_Access is access all Protected_Entry_Body_Array;
 
    type Protected_Entry_Queue_Array is
      array (Protected_Entry_Index range <>) of Entry_Queue;
 
-   --  This type contains the GNARL state of a protected object. The
-   --  application-defined portion of the state (i.e. private objects)
-   --  is maintained by the compiler-generated code.
-   --  note that there is a simplified version of this type declared in
-   --  System.Tasking.PO_Simple that handle the simple case (no entries).
+   --  The following declarations define an array that contains the string
+   --  names of entries and entry family members, together with an associated
+   --  access type.
+
+   type Protected_Entry_Names_Array is
+     array (Entry_Index range <>) of String_Access;
+
+   type Protected_Entry_Names_Access is access all Protected_Entry_Names_Array;
+
+   --  The following type contains the GNARL state of a protected object.
+   --  The application-defined portion of the state (i.e. private objects)
+   --  is maintained by the compiler-generated code. Note that there is a
+   --  simplified version of this type declared in System.Tasking.PO_Simple
+   --  that handle the simple case (no entries).
 
    type Protection_Entries (Num_Entries : Protected_Entry_Index) is new
      Ada.Finalization.Limited_Controlled
    with record
-      L                 : aliased Task_Primitives.Lock;
-      --  The underlying lock associated with a Protection_Entries.
-      --  Note that you should never (un)lock Object.L directly, but instead
+      L : aliased Task_Primitives.Lock;
+      --  The underlying lock associated with a Protection_Entries. Note
+      --  that you should never (un)lock Object.L directly, but instead
       --  use Lock_Entries/Unlock_Entries.
 
       Compiler_Info : System.Address;
@@ -114,7 +119,7 @@ package System.Tasking.Protected_Objects.Entries is
       Old_Base_Priority : System.Any_Priority;
       --  Task's base priority when the protected operation was called
 
-      Pending_Action  : Boolean;
+      Pending_Action : Boolean;
       --  Flag indicating that priority has been dipped temporarily in order
       --  to avoid violating the priority ceiling of the lock associated with
       --  this protected object, in Lock_Server. The flag tells Unlock_Server
@@ -133,15 +138,20 @@ package System.Tasking.Protected_Objects.Entries is
       --  Pointer to an array containing the executable code for all entry
       --  bodies of a protected type.
 
-      --  The following function maps the entry index in a call (which denotes
-      --  the queue to the proper entry) into the body of the entry.
-
       Find_Body_Index : Find_Body_Index_Access;
-      Entry_Queues      : Protected_Entry_Queue_Array (1 .. Num_Entries);
+      --  A function which maps the entry index in a call (which denotes the
+      --  queue of the proper entry) into the body of the entry.
+
+      Entry_Queues : Protected_Entry_Queue_Array (1 .. Num_Entries);
+
+      Entry_Names : Protected_Entry_Names_Access := null;
+      --  An array of string names which denotes entry [family member] names.
+      --  The structure is indexed by protected entry index and contains Num_
+      --  Entries components.
    end record;
 
-   --  No default initial values for this type, since call records
-   --  will need to be re-initialized before every use.
+   --  No default initial values for this type, since call records will need to
+   --  be re-initialized before every use.
 
    type Protection_Entries_Access is access all Protection_Entries'Class;
    --  See comments in s-tassta.adb about the implicit call to Current_Master
@@ -160,7 +170,7 @@ package System.Tasking.Protected_Objects.Entries is
      (Object : Protection_Entries_Access) return Boolean;
    --  Returns True if an Interrupt_Handler or Attach_Handler pragma applies
    --  to the protected object. That is to say this primitive returns False for
-   --  Protection, but is overriden to return True when interrupt handlers are
+   --  Protection, but is overridden to return True when interrupt handlers are
    --  declared so the check required by C.3.1(11) can be implemented in
    --  System.Tasking.Protected_Objects.Initialize_Protection.
 
@@ -180,7 +190,7 @@ package System.Tasking.Protected_Objects.Entries is
    --  Unlock has been made by the caller. Program_Error is raised in case of
    --  ceiling violation.
 
-   procedure Lock_Entries
+   procedure Lock_Entries_With_Status
      (Object            : Protection_Entries_Access;
       Ceiling_Violation : out Boolean);
    --  Same as above, but return the ceiling violation status instead of
@@ -198,10 +208,20 @@ package System.Tasking.Protected_Objects.Entries is
    --  possible future use. At the current time, everyone uses Lock for both
    --  read and write locks.
 
+   function Number_Of_Entries
+     (Object : Protection_Entries_Access) return Entry_Index;
+   --  Return the number of entries of a protected object
+
    procedure Set_Ceiling
      (Object : Protection_Entries_Access;
       Prio   : System.Any_Priority);
    --  Sets the new ceiling priority of the protected object
+
+   procedure Set_Entry_Names
+     (Object : Protection_Entries_Access;
+      Names  : Protected_Entry_Names_Access);
+   --  Associate an array of string that denote entry [family] names with a
+   --  protected object.
 
    procedure Unlock_Entries (Object : Protection_Entries_Access);
    --  Relinquish ownership of the lock for the object represented by the
@@ -213,7 +233,7 @@ package System.Tasking.Protected_Objects.Entries is
 
 private
 
-   procedure Finalize (Object : in out Protection_Entries);
+   overriding procedure Finalize (Object : in out Protection_Entries);
    --  Clean up a Protection object; in particular, finalize the associated
    --  Lock object.
 

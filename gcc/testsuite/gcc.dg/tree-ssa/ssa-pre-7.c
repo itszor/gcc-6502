@@ -1,5 +1,5 @@
 /* { dg-do compile } */ 
-/* { dg-options "-O2 -fno-tree-dominator-opts -fdump-tree-fre-stats" } */
+/* { dg-options "-O2 -fno-tree-dominator-opts -fdump-tree-fre1-stats" } */
 int
 foo (int *array)
 {
@@ -7,6 +7,6 @@ foo (int *array)
           return array[1];
       return 0;
 }
-/* We should eliminate one address calculation, and one load.  */
-/* { dg-final { scan-tree-dump-times "Eliminated: 2" 1 "fre"} } */
-/* { dg-final { cleanup-tree-dump "fre" } } */
+/* We should eliminate one load.  */
+/* { dg-final { scan-tree-dump-times "Eliminated: 1" 1 "fre1"} } */
+/* { dg-final { cleanup-tree-dump "fre1" } } */

@@ -1,5 +1,5 @@
 /* Mudflap: narrow-pointer bounds-checking by tree rewriting.
-   Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Frank Ch. Eigler <fche@redhat.com>
    and Graydon Hoare <graydon@redhat.com>
 
@@ -7,28 +7,22 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
 
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 
@@ -244,10 +238,10 @@ WRAPPER(void, free, void *buf)
   static int freeq_initialized = 0;
   DECLARE(void, free, void *);
 
-  BEGIN_PROTECT (free, buf);
-
   if (UNLIKELY(buf == NULL))
     return;
+
+  BEGIN_PROTECT (free, buf);
 
 #if PIC
   /* Check whether the given buffer might have come from a
@@ -327,6 +321,11 @@ WRAPPER(void, free, void *buf)
 void *
 __mf_0fn_mmap (void *start, size_t l, int prot, int f, int fd, off_t off)
 {
+#if defined(__FreeBSD__)
+  if (f == 0x1000 && fd == -1 && prot == 0 && off == 0)
+    return 0;
+#endif /* Ignore red zone allocation request for initial thread's stack. */
+
   return (void *) -1;
 }
 #endif
@@ -413,6 +412,61 @@ WRAPPER(int , munmap, void *start, size_t length)
   return result;
 }
 #endif /* HAVE_MMAP */
+
+
+#ifdef HAVE_MMAP64
+#if PIC
+/* A special bootstrap variant. */
+void *
+__mf_0fn_mmap64 (void *start, size_t l, int prot, int f, int fd, off64_t off)
+{
+  return (void *) -1;
+}
+#endif
+
+
+#undef mmap
+WRAPPER(void *, mmap64,
+	void  *start,  size_t length, int prot,
+	int flags, int fd, off64_t offset)
+{
+  DECLARE(void *, mmap64, void *, size_t, int,
+			    int, int, off64_t);
+  void *result;
+  BEGIN_PROTECT (mmap64, start, length, prot, flags, fd, offset);
+
+  result = CALL_REAL (mmap64, start, length, prot,
+			flags, fd, offset);
+
+  /*
+  VERBOSE_TRACE ("mmap64 (%08lx, %08lx, ...) => %08lx\n",
+		 (uintptr_t) start, (uintptr_t) length,
+		 (uintptr_t) result);
+  */
+
+  if (result != (void *)-1)
+    {
+      /* Register each page as a heap object.  Why not register it all
+	 as a single segment?  That's so that a later munmap() call
+	 can unmap individual pages.  XXX: would __MF_TYPE_GUESS make
+	 this more automatic?  */
+      size_t ps = getpagesize ();
+      uintptr_t base = (uintptr_t) result;
+      uintptr_t offset;
+
+      for (offset=0; offset<length; offset+=ps)
+	{
+	  /* XXX: We could map PROT_NONE to __MF_TYPE_NOACCESS. */
+	  /* XXX: Unaccessed HEAP pages are reported as leaks.  Is this
+	     appropriate for unaccessed mmap pages? */
+	  __mf_register ((void *) CLAMPADD (base, offset), ps,
+			 __MF_TYPE_HEAP_I, "mmap64 page");
+	}
+    }
+
+  return result;
+}
+#endif /* HAVE_MMAP64 */
 
 
 /* This wrapper is a little different, as it's called indirectly from

@@ -3,5 +3,5 @@
 extern "C" struct A
 {
   friend void foo(int) {} // { dg-error "declaration" }
-  friend void foo() {} // { dg-error "foo" }
+  friend void foo() {} // { dg-error "foo" "err" }
 };

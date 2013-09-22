@@ -2,13 +2,13 @@
 # 
 # aclocal -I .. -I ../config && autoconf && autoheader && automake
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 AC_INIT(libssp, 1.0)
 AC_CONFIG_SRCDIR(ssp.c)
 AC_CANONICAL_SYSTEM
 ACX_NONCANONICAL_TARGET
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([no-dist])
 
 AC_MSG_CHECKING([for --enable-version-specific-runtime-libs])
 AC_ARG_ENABLE(version-specific-runtime-libs,
@@ -41,7 +41,7 @@ AC_LANG_C
 m4_rename([_AC_ARG_VAR_PRECIOUS],[real_PRECIOUS])
 m4_define([_AC_ARG_VAR_PRECIOUS],[])
 AC_PROG_CC
-m4_rename([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
+m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 AC_SUBST(CFLAGS)
 
@@ -72,25 +72,49 @@ if test x$ssp_hidden = xyes; then
 fi
 
 AC_MSG_CHECKING([whether symbol versioning is supported])
-cat > conftest.map <<EOF
+AC_ARG_ENABLE(symvers,
+AS_HELP_STRING([--disable-symvers],
+  [disable symbol versioning for libssp]),
+ssp_use_symver=$enableval,
+ssp_use_symver=yes)
+if test "x$ssp_use_symver" != xno; then
+  if test x$gcc_no_link = xyes; then
+    # If we cannot link, we cannot build shared libraries, so do not use
+    # symbol versioning.
+    ssp_use_symver=no
+  else
+    save_LDFLAGS="$LDFLAGS"
+    LDFLAGS="$LDFLAGS -fPIC -shared -Wl,--version-script,./conftest.map"
+    cat > conftest.map <<EOF
 FOO_1.0 {
   global: *foo*; bar; local: *;
 };
 EOF
-save_LDFLAGS="$LDFLAGS"
-LDFLAGS="$LDFLAGS -fPIC -shared -Wl,--version-script,./conftest.map"
-if test x$gcc_no_link = xyes; then
-  # If we cannot link, we cannot build shared libraries, so do not use
-  # symbol versioning.
-  ssp_use_symver=no
-else
-  AC_TRY_LINK([int foo;],[],[ssp_use_symver=yes],[ssp_use_symver=no])
+    AC_TRY_LINK([int foo;],[],[ssp_use_symver=gnu],[ssp_use_symver=no])
+    if test x$ssp_use_symver = xno; then
+      case "$target_os" in
+        solaris2*)
+          LDFLAGS="$save_LDFLAGS"
+          LDFLAGS="$LDFLAGS -fPIC -shared -Wl,-M,./conftest.map"
+          # Sun ld cannot handle wildcards and treats all entries as undefined.
+          cat > conftest.map <<EOF
+FOO_1.0 {
+  global: foo; local: *;
+};
+EOF
+          AC_TRY_LINK([int foo;],[],[ssp_use_symver=sun],[ssp_use_symver=no])
+	  ;;
+      esac
+    fi
+    LDFLAGS="$save_LDFLAGS"
+  fi
 fi
-LDFLAGS="$save_LDFLAGS"
 AC_MSG_RESULT($ssp_use_symver)
-AM_CONDITIONAL(LIBSSP_USE_SYMVER, [test "x$ssp_use_symver" = xyes])
+AM_CONDITIONAL(LIBSSP_USE_SYMVER, [test "x$ssp_use_symver" != xno])
+AM_CONDITIONAL(LIBSSP_USE_SYMVER_GNU, [test "x$ssp_use_symver" = xgnu])
+AM_CONDITIONAL(LIBSSP_USE_SYMVER_SUN, [test "x$ssp_use_symver" = xsun])
 
-AC_CHECK_HEADERS(alloca.h paths.h syslog.h string.h unistd.h fcntl.h stdio.h limits.h)
+AC_CHECK_HEADERS(alloca.h malloc.h paths.h syslog.h string.h unistd.h fcntl.h stdio.h limits.h)
 
 if test x$gcc_no_link = xyes; then
   # Presume the ISO C functions are available; add target-specific
@@ -98,7 +122,7 @@ if test x$gcc_no_link = xyes; then
   AC_DEFINE(HAVE_STRNCPY)
   AC_DEFINE(HAVE_STRNCAT)
 else
-  AC_CHECK_FUNCS(mempcpy strncpy strncat)
+  AC_CHECK_FUNCS(memmove mempcpy strncpy strncat)
 fi
 
 AC_MSG_CHECKING([whether vsnprintf is usable])
@@ -131,6 +155,7 @@ fi
 AC_SUBST(ssp_have_usable_vsnprintf)
 
 AM_PROG_LIBTOOL
+ACX_LT_HOST_FLAGS
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 

@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package java.security.cert;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Engine;
 
@@ -126,7 +128,7 @@ public class CertStore
   /**
    * Returns an instance of the given certificate store type from the first
    * installed provider.
-   * 
+   *
    * @param type The type of <code>CertStore</code> to create.
    * @param params The parameters to initialize this cert store with.
    * @return The new instance.
@@ -159,7 +161,7 @@ public class CertStore
   /**
    * Returns an instance of the given certificate store type from a named
    * provider.
-   * 
+   *
    * @param type The type of <code>CertStore</code> to create.
    * @param params The parameters to initialize this cert store with.
    * @param provider The name of the provider to use.
@@ -207,7 +209,7 @@ public class CertStore
                                       Provider provider)
       throws InvalidAlgorithmParameterException, NoSuchAlgorithmException
   {
-    StringBuilder sb = new StringBuilder("CertStore of type [")
+    CPStringBuilder sb = new CPStringBuilder("CertStore of type [")
         .append(type).append("] from provider[")
         .append(provider).append("] could not be created");
     Throwable cause;

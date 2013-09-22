@@ -1,7 +1,7 @@
 /* PR target/25199 */
 /* { dg-do compile } */
 /* { dg-options "-Os -mtune=pentium4" } */
-/* { dg-require-effective-target ilp32 } */
+/* { dg-require-effective-target ia32 } */
 
 struct S
 {
@@ -23,4 +23,4 @@ foo (struct S *x)
 
 /* { dg-final { scan-assembler-not "movl\[ \t\]*123" } } */
 /* { dg-final { scan-assembler "movzbl\[ \t\]*123" } } */
-/* { dg-final { scan-assembler "movl\[ \t\]*120" } } */
+/* { dg-final { scan-assembler "mov(zb)?l\[ \t\]*120" } } */

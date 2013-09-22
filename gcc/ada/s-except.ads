@@ -6,79 +6,61 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2006-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2006-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package contains internal routines used as debugger helpers.
---  It should be compiled without optimization to let debuggers inspect
---  parameter values reliably from breakpoints on the routines.
-
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
-
-with System.Standard_Library;
 
 package System.Exceptions is
 
-   pragma Warnings (Off);
    pragma Preelaborate_05;
-   pragma Warnings (On);
    --  To let Ada.Exceptions "with" us and let us "with" Standard_Library
 
-   package SSL renames System.Standard_Library;
-   --  To let some of the hooks below have formal parameters typed in
-   --  accordance with what GDB expects.
+   ZCX_By_Default : constant Boolean;
+   --  Visible copy to allow Ada.Exceptions to know the exception model.
 
-   procedure Debug_Raise_Exception (E : SSL.Exception_Data_Ptr);
-   pragma Export
-     (Ada, Debug_Raise_Exception, "__gnat_debug_raise_exception");
-   --  Hook called at a "raise" point for an exception E, when it is
-   --  just about to be propagated.
+private
 
-   procedure Debug_Unhandled_Exception (E : SSL.Exception_Data_Ptr);
-   pragma Export
-     (Ada, Debug_Unhandled_Exception, "__gnat_unhandled_exception");
-   --  Hook called during the propagation process of an exception E, as soon
-   --  as it is known to be unhandled.
-
-   procedure Debug_Raise_Assert_Failure;
-   pragma Export
-     (Ada, Debug_Raise_Assert_Failure, "__gnat_debug_raise_assert_failure");
-   --  Hook called when an assertion failed. This is used by the debugger to
-   --  intercept assertion failures, and treat them specially.
-
-   procedure Local_Raise (Excep : System.Address);
-   pragma Export (Ada, Local_Raise);
-   --  This is a dummy routine, used only by the debugger for the purpose of
-   --  logging local raise statements that were transformed into a direct goto
-   --  to the handler code. The compiler in this case generates:
+   type Require_Body;
+   --  Dummy Taft-amendment type to make it legal (and required) to provide
+   --  a body for this package.
    --
-   --    Local_Raise (exception_data'address);
-   --    goto Handler
+   --  We do this because this unit used to have a body in earlier versions
+   --  of GNAT, and it causes various bootstrap path problems etc if we remove
+   --  a body, since we may pick up old unwanted bodies.
    --
-   --  The argument is the address of the exception data
+   --  Note: we use this standard Ada method of requiring a body rather
+   --  than the cleaner pragma No_Body because System.Exceptions is a compiler
+   --  unit, and older bootstrap compilers do not support pragma No_Body. This
+   --  type can be removed, and s-except.adb can be replaced by a source
+   --  containing just that pragma, when we decide to move to a 2008 compiler
+   --  as the minimal bootstrap compiler version. ???
+
+   ZCX_By_Default : constant Boolean := System.ZCX_By_Default;
+
+   Foreign_Exception : exception;
+   pragma Unreferenced (Foreign_Exception);
+   --  This hidden exception is used to represent non-Ada exception to
+   --  Ada handlers. It is in fact referenced by its linking name.
 
 end System.Exceptions;

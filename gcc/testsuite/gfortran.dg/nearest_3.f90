@@ -1,5 +1,6 @@
 ! { dg-do run }
-! { dg-options "-pedantic-errors -mieee" { target sh*-*-* } } 
+! { dg-add-options ieee }
+! { dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 !
 ! PR fortran/34209
 !

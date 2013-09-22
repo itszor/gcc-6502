@@ -1,4 +1,4 @@
-/* ChooseNode.java -- 
+/* ChooseNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerException;
 import org.w3c.dom.Node;
@@ -74,13 +76,13 @@ final class ChooseNode
                  context, pos, len,
                  parent, nextSibling);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("choose");
+    CPStringBuilder buf = new CPStringBuilder("choose");
     buf.append('[');
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

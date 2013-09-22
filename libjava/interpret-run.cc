@@ -23,18 +23,22 @@ details.  */
   // returns.
   java::lang::Thread *thread = java::lang::Thread::currentThread();
   
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
   _Jv_InterpFrame frame_desc (meth, thread, NULL, &pc);
 #else
   _Jv_InterpFrame frame_desc (meth, thread);
 #endif
+
+#ifdef DIRECT_THREADED
+  ThreadCountAdjuster adj (meth, &frame_desc);
+#endif // DIRECT_THREADED
 
   _Jv_word stack[meth->max_stack];
   _Jv_word *sp = stack;
 
   _Jv_word locals[meth->max_locals];
 
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
   // This is the information needed to get and set local variables with
   // proper type checking.
   frame_desc.locals = locals;
@@ -122,7 +126,7 @@ details.  */
           continue;
         }
     }
-#endif /* DEBUG */
+#endif /* __GCJ_DEBUG */
 
 #define INSN_LABEL(op) &&insn_##op
 
@@ -343,7 +347,7 @@ details.  */
 
 #ifdef DIRECT_THREADED
 
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
 #undef NEXT_INSN
 #define NEXT_INSN							\
   do									\
@@ -361,37 +365,58 @@ details.  */
     }									\
   while (0)
 
+// We fail to rewrite a breakpoint if there is another thread
+// currently executing this method.  This is a bug, but there's
+// nothing else we can do that doesn't cause a data race.
 #undef REWRITE_INSN
 #define REWRITE_INSN(INSN,SLOT,VALUE)					\
-  do {									\
-    if (pc[-2].insn == breakpoint_insn->insn)				\
-      {									\
-	using namespace ::gnu::gcj::jvmti;				\
-	jlocation location = meth->insn_index (pc - 2);			\
-	_Jv_RewriteBreakpointInsn (meth->self, location, (pc_t) INSN);	\
-      }									\
-    else								\
-      pc[-2].insn = INSN;						\
+  do									\
+    {									\
+      _Jv_MutexLock (&rewrite_insn_mutex);				\
+      if (meth->thread_count <= 1)					\
+	{								\
+	  if (pc[-2].insn == breakpoint_insn->insn)			\
+	    {								\
+	      using namespace ::gnu::gcj::jvmti;			\
+	      jlocation location = meth->insn_index (pc - 2);		\
+	      _Jv_RewriteBreakpointInsn (meth->self, location, (pc_t) INSN); \
+	    }								\
+	  else								\
+	    pc[-2].insn = INSN;						\
 									\
-    pc[-1].SLOT = VALUE;						\
-  }									\
+	  pc[-1].SLOT = VALUE;						\
+	}								\
+      _Jv_MutexUnlock (&rewrite_insn_mutex);				\
+    }									\
   while (0)
 
 #undef INTERP_REPORT_EXCEPTION
 #define INTERP_REPORT_EXCEPTION(Jthrowable) REPORT_EXCEPTION (Jthrowable)
-#else // !DEBUG
+#else // !__GCJ_DEBUG
 #undef NEXT_INSN
 #define NEXT_INSN goto *((pc++)->insn)
+
+// Rewriting a multi-word instruction in the presence of multiple
+// threads is a data race if a thread reads part of an instruction
+// while some other thread is rewriting that instruction.  We detect
+// more than one thread executing a method and don't rewrite the
+// instruction.  A thread entering a method blocks on
+// rewrite_insn_mutex until the write is complete.
 #define REWRITE_INSN(INSN,SLOT,VALUE)		\
   do {						\
-    pc[-2].insn = INSN;				\
-    pc[-1].SLOT = VALUE;			\
+    _Jv_MutexLock (&rewrite_insn_mutex);	\
+    if (meth->thread_count <= 1)		\
+      {						\
+	pc[-2].insn = INSN;			\
+	pc[-1].SLOT = VALUE;			\
+      }						\
+    _Jv_MutexUnlock (&rewrite_insn_mutex);	\
   }						\
   while (0)
 
 #undef INTERP_REPORT_EXCEPTION
 #define INTERP_REPORT_EXCEPTION(Jthrowable) /* not needed when not debugging */
-#endif // !DEBUG
+#endif // !__GCJ_DEBUG
 
 #define INTVAL() ((pc++)->int_val)
 #define AVAL() ((pc++)->datum)
@@ -425,7 +450,7 @@ details.  */
 
 #else
 
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
 #define NEXT_INSN							\
   do									\
     {									\
@@ -2652,7 +2677,7 @@ details.  */
         {
           sp = stack;
           sp++->o = ex; // Push exception.
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
           if (JVMTI_REQUESTED_EVENT (ExceptionCatch))
             {
               using namespace gnu::gcj::jvmti;

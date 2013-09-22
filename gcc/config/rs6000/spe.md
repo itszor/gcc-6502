@@ -1,6 +1,5 @@
 ;; e500 SPE description
-;; Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2002-2013 Free Software Foundation, Inc.
 ;; Contributed by Aldy Hernandez (aldy@quesejoda.com)
 
 ;; This file is part of GCC.
@@ -99,7 +98,7 @@
 
 ;; Floating point conversion instructions.
 
-(define_insn "fixuns_truncdfsi2"
+(define_insn "spe_fixuns_truncdfsi2"
   [(set (match_operand:SI 0 "gpc_reg_operand" "=r")
 	(unsigned_fix:SI (match_operand:DF 1 "gpc_reg_operand" "r")))]
   "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE"
@@ -164,7 +163,7 @@
 
 ;; SPE SIMD instructions
 
-(define_insn "spe_evabs"
+(define_insn "absv2si2"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
 	(abs:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")))]
   "TARGET_SPE"
@@ -181,7 +180,7 @@
   [(set_attr "type" "vecsimple")
    (set_attr  "length" "4")])
 
-(define_insn "spe_evand"
+(define_insn "andv2si3"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
         (and:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
 		  (match_operand:V2SI 2 "gpc_reg_operand" "r")))]
@@ -441,12 +440,11 @@
 
 (define_insn "spe_evmergehi"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
-	(vec_merge:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
-			(vec_select:V2SI
-			 (match_operand:V2SI 2 "gpc_reg_operand" "r")
-			 (parallel [(const_int 1)
-				    (const_int 0)]))
-			(const_int 2)))]
+	(vec_select:V2SI
+	  (vec_concat:V4SI
+	    (match_operand:V2SI 1 "gpc_reg_operand" "r")
+	    (match_operand:V2SI 2 "gpc_reg_operand" "r"))
+	  (parallel [(const_int 0) (const_int 2)])))]
   "TARGET_SPE"
   "evmergehi %0,%1,%2"
   [(set_attr "type" "vecsimple")
@@ -454,9 +452,11 @@
 
 (define_insn "spe_evmergehilo"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
-	(vec_merge:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
-			(match_operand:V2SI 2 "gpc_reg_operand" "r")
-			(const_int 2)))]
+	(vec_select:V2SI
+	  (vec_concat:V4SI
+	    (match_operand:V2SI 1 "gpc_reg_operand" "r")
+	    (match_operand:V2SI 2 "gpc_reg_operand" "r"))
+	  (parallel [(const_int 0) (const_int 3)])))]
   "TARGET_SPE"
   "evmergehilo %0,%1,%2"
   [(set_attr "type" "vecsimple")
@@ -464,12 +464,11 @@
 
 (define_insn "spe_evmergelo"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
-	(vec_merge:V2SI (vec_select:V2SI
-			 (match_operand:V2SI 1 "gpc_reg_operand" "r")
-			 (parallel [(const_int 1)
-				    (const_int 0)]))
-			(match_operand:V2SI 2 "gpc_reg_operand" "r")
-			(const_int 2)))]
+	(vec_select:V2SI
+	  (vec_concat:V4SI
+	    (match_operand:V2SI 1 "gpc_reg_operand" "r")
+	    (match_operand:V2SI 2 "gpc_reg_operand" "r"))
+	  (parallel [(const_int 1) (const_int 3)])))]
   "TARGET_SPE"
   "evmergelo %0,%1,%2"
   [(set_attr "type" "vecsimple")
@@ -477,19 +476,28 @@
 
 (define_insn "spe_evmergelohi"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
-	(vec_merge:V2SI (vec_select:V2SI
-			 (match_operand:V2SI 1 "gpc_reg_operand" "r")
-			 (parallel [(const_int 1)
-				    (const_int 0)]))
-			(vec_select:V2SI
-			 (match_operand:V2SI 2 "gpc_reg_operand" "r")
-			 (parallel [(const_int 1)
-				    (const_int 0)]))
-			(const_int 2)))]
+	(vec_select:V2SI
+	  (vec_concat:V4SI
+	    (match_operand:V2SI 1 "gpc_reg_operand" "r")
+	    (match_operand:V2SI 2 "gpc_reg_operand" "r"))
+	  (parallel [(const_int 1) (const_int 2)])))]
   "TARGET_SPE"
   "evmergelohi %0,%1,%2"
   [(set_attr "type" "vecsimple")
    (set_attr  "length" "4")])
+
+(define_expand "vec_perm_constv2si"
+  [(match_operand:V2SI 0 "gpc_reg_operand" "")
+   (match_operand:V2SI 1 "gpc_reg_operand" "")
+   (match_operand:V2SI 2 "gpc_reg_operand" "")
+   (match_operand:V2SI 3 "" "")]
+  "TARGET_SPE"
+{
+  if (rs6000_expand_vec_perm_const (operands))
+    DONE;
+  else
+    FAIL;
+})
 
 (define_insn "spe_evnand"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
@@ -1898,7 +1906,7 @@
   [(set_attr "type" "veccomplex")
    (set_attr  "length" "4")])
 
-(define_insn "spe_evaddw"
+(define_insn "addv2si3"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
         (plus:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
 		   (match_operand:V2SI 2 "gpc_reg_operand" "r")))]
@@ -1967,7 +1975,7 @@
   [(set_attr "type" "veccomplex")
    (set_attr  "length" "4")])
 
-(define_insn "spe_evsubfw"
+(define_insn "subv2si3"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
         (minus:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
 		    (match_operand:V2SI 2 "gpc_reg_operand" "r")))]
@@ -2028,7 +2036,7 @@
   [(set_attr "type" "veccomplex")
    (set_attr  "length" "4")])
 
-(define_insn "spe_evdivws"
+(define_insn "divv2si3"
   [(set (match_operand:V2SI 0 "gpc_reg_operand" "=r")
         (div:V2SI (match_operand:V2SI 1 "gpc_reg_operand" "r")
 		  (match_operand:V2SI 2 "gpc_reg_operand" "r")))
@@ -2280,9 +2288,9 @@
 	known to be dead.  */
       if (refers_to_regno_p (REGNO (operands[0]), REGNO (operands[0]) + 1,
 			     operands[1], 0))
-	return \"{l|lwz} %L0,%L1\;{l|lwz} %0,%1\";
+	return \"lwz %L0,%L1\;lwz %0,%1\";
       else
-        return \"{l%U1%X1|lwz%U1%X1} %0,%1\;{l|lwz} %L0,%L1\";
+        return \"lwz%U1%X1 %0,%1\;lwz %L0,%L1\";
     }
 }"
   [(set_attr "length" "8,8")])
@@ -2306,9 +2314,9 @@
 	return \"evldd%X1 %Z0,%y1\;evmergehi %Y0,%Z0,%Z0\";
       if (refers_to_regno_p (REGNO (operands[0]), REGNO (operands[0]) + 1,
 			     operands[1], 0))
-	return \"{l|lwz} %Z0,%L1\;{l|lwz} %Y0,%1\";
+	return \"lwz %Z0,%L1\;lwz %Y0,%1\";
       else
-        return \"{l%U1%X1|lwz%U1%X1} %Y0,%1\;{l|lwz} %Z0,%L1\";
+        return \"lwz%U1%X1 %Y0,%1\;lwz %Z0,%L1\";
     }
 }"
   [(set_attr "length" "8,8")])
@@ -2320,15 +2328,33 @@
   "evmergehi %0,%1,%1\;mr %L0,%1\;evmergehi %Y0,%L1,%L1\;mr %Z0,%L1"
   [(set_attr "length" "16")])
 
-(define_insn "*mov_si<mode>_e500_subreg0"
+(define_insn "mov_si<mode>_e500_subreg0"
   [(set (subreg:SI (match_operand:SPE64TF 0 "register_operand" "+r,&r") 0)
 	(match_operand:SI 1 "input_operand" "r,m"))]
   "(TARGET_E500_DOUBLE && (<MODE>mode == DFmode || <MODE>mode == TFmode))
    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode)"
   "@
    evmergelo %0,%1,%0
-   evmergelohi %0,%0,%0\;{l%U1%X1|lwz%U1%X1} %0,%1\;evmergelohi %0,%0,%0"
+   evmergelohi %0,%0,%0\;lwz%U1%X1 %0,%1\;evmergelohi %0,%0,%0"
   [(set_attr "length" "4,12")])
+
+(define_insn_and_split "*mov_si<mode>_e500_subreg0_elf_low"
+  [(set (subreg:SI (match_operand:SPE64TF 0 "register_operand" "+r") 0)
+	(lo_sum:SI (match_operand:SI 1 "gpc_reg_operand" "r")
+		   (match_operand 2 "" "")))]
+  "((TARGET_E500_DOUBLE && (<MODE>mode == DFmode || <MODE>mode == TFmode))
+    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode))
+   && TARGET_ELF && !TARGET_64BIT && can_create_pseudo_p ()"
+  "#"
+  "&& 1"
+  [(pc)]
+{
+  rtx tmp = gen_reg_rtx (SImode);
+  emit_insn (gen_elf_low (tmp, operands[1], operands[2]));
+  emit_insn (gen_mov_si<mode>_e500_subreg0 (operands[0], tmp));
+  DONE;
+}
+  [(set_attr "length" "8")])
 
 ;; ??? Could use evstwwe for memory stores in some cases, depending on
 ;; the offset.
@@ -2339,7 +2365,7 @@
    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode)"
   "@
    evmergehi %0,%0,%1
-   evmergelohi %1,%1,%1\;{st%U0%X0|stw%U0%X0} %1,%0"
+   evmergelohi %1,%1,%1\;stw%U0%X0 %1,%0"
   [(set_attr "length" "4,8")])
 
 (define_insn "*mov_si<mode>_e500_subreg4"
@@ -2349,7 +2375,16 @@
    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode)"
   "@
    mr %0,%1
-   {l%U1%X1|lwz%U1%X1} %0,%1")
+   lwz%U1%X1 %0,%1")
+
+(define_insn "*mov_si<mode>_e500_subreg4_elf_low"
+  [(set (subreg:SI (match_operand:SPE64TF 0 "register_operand" "+r") 4)
+	(lo_sum:SI (match_operand:SI 1 "gpc_reg_operand" "r")
+		   (match_operand 2 "" "")))]
+  "((TARGET_E500_DOUBLE && (<MODE>mode == DFmode || <MODE>mode == TFmode))
+    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode))
+   && TARGET_ELF && !TARGET_64BIT"
+  "addic %0,%1,%K2")
 
 (define_insn "*mov_si<mode>_e500_subreg4_2"
   [(set (match_operand:SI 0 "rs6000_nonimmediate_operand" "+r,m")
@@ -2358,7 +2393,7 @@
    || (TARGET_SPE && <MODE>mode != DFmode && <MODE>mode != TFmode)"
   "@
    mr %0,%1
-   {st%U0%X0|stw%U0%X0} %1,%0")
+   stw%U0%X0 %1,%0")
 
 (define_insn "*mov_sitf_e500_subreg8"
   [(set (subreg:SI (match_operand:TF 0 "register_operand" "+r,&r") 8)
@@ -2366,7 +2401,7 @@
   "TARGET_E500_DOUBLE"
   "@
    evmergelo %L0,%1,%L0
-   evmergelohi %L0,%L0,%L0\;{l%U1%X1|lwz%U1%X1} %L0,%1\;evmergelohi %L0,%L0,%L0"
+   evmergelohi %L0,%L0,%L0\;lwz%U1%X1 %L0,%1\;evmergelohi %L0,%L0,%L0"
   [(set_attr "length" "4,12")])
 
 (define_insn "*mov_sitf_e500_subreg8_2"
@@ -2375,7 +2410,7 @@
   "TARGET_E500_DOUBLE"
   "@
    evmergehi %0,%0,%L1
-   evmergelohi %L1,%L1,%L1\;{st%U0%X0|stw%U0%X0} %L1,%0"
+   evmergelohi %L1,%L1,%L1\;stw%U0%X0 %L1,%0"
   [(set_attr "length" "4,8")])
 
 (define_insn "*mov_sitf_e500_subreg12"
@@ -2384,7 +2419,7 @@
   "TARGET_E500_DOUBLE"
   "@
    mr %L0,%1
-   {l%U1%X1|lwz%U1%X1} %L0,%1")
+   lwz%U1%X1 %L0,%1")
 
 (define_insn "*mov_sitf_e500_subreg12_2"
   [(set (match_operand:SI 0 "rs6000_nonimmediate_operand" "+r,m")
@@ -2392,7 +2427,7 @@
   "TARGET_E500_DOUBLE"
   "@
    mr %0,%L1
-   {st%U0%X0|stw%U0%X0} %L1,%0")
+   stw%U0%X0 %L1,%0")
 
 ;; FIXME: Allow r=CONST0.
 (define_insn "*movdf_e500_double"
@@ -2909,8 +2944,6 @@
   "mfspefscr %0"
   [(set_attr "type" "vecsimple")])
 
-;; FP comparison stuff.
-
 ;; Flip the GT bit.
 (define_insn "e500_flip_gt_bit"
   [(set (match_operand:CCFP 0 "cc_reg_operand" "=y")
@@ -2933,7 +2966,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1000))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efscmpeq %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -2943,7 +2977,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1001))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && flag_finite_math_only && !flag_trapping_math"
   "efststeq %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -2953,7 +2988,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1002))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efscmpgt %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -2963,7 +2999,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1003))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && flag_finite_math_only && !flag_trapping_math"
   "efststgt %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -2973,7 +3010,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1004))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efscmplt %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -2983,7 +3021,8 @@
 	 [(compare:CCFP (match_operand:SF 1 "gpc_reg_operand" "r")
 			(match_operand:SF 2 "gpc_reg_operand" "r"))]
 	 1005))]
-  "TARGET_HARD_FLOAT && !TARGET_FPRS && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS
+   && flag_finite_math_only && !flag_trapping_math"
   "efststlt %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -2995,7 +3034,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 CMPDFEQ_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmpeq %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -3005,7 +3045,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 TSTDFEQ_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtsteq %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -3015,7 +3056,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 CMPDFGT_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmpgt %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -3025,7 +3067,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 TSTDFGT_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtstgt %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -3035,7 +3078,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 CMPDFLT_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && !flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmplt %0,%1,%2"
   [(set_attr "type" "veccmp")])
 
@@ -3045,7 +3089,8 @@
 	 [(compare:CCFP (match_operand:DF 1 "gpc_reg_operand" "r")
 			(match_operand:DF 2 "gpc_reg_operand" "r"))]
 	 TSTDFLT_GPR))]
-  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && flag_unsafe_math_optimizations"
+  "TARGET_HARD_FLOAT && TARGET_E500_DOUBLE
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtstlt %0,%1,%2"
   [(set_attr "type" "veccmpsimple")])
 
@@ -3059,7 +3104,7 @@
 	 CMPTFEQ_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && !flag_unsafe_math_optimizations"
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmpeq %0,%1,%2\;bng %0,$+8\;efdcmpeq %0,%L1,%L2"
   [(set_attr "type" "veccmp")
    (set_attr "length" "12")])
@@ -3072,7 +3117,7 @@
 	 TSTTFEQ_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && flag_unsafe_math_optimizations"
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtsteq %0,%1,%2\;bng %0,$+8\;efdtsteq %0,%L1,%L2"
   [(set_attr "type" "veccmpsimple")
    (set_attr "length" "12")])
@@ -3085,7 +3130,7 @@
 	 CMPTFGT_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && !flag_unsafe_math_optimizations"
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmpgt %0,%1,%2\;bgt %0,$+16\;efdcmpeq %0,%1,%2\;bng %0,$+8\;efdcmpgt %0,%L1,%L2"
   [(set_attr "type" "veccmp")
    (set_attr "length" "20")])
@@ -3098,7 +3143,7 @@
 	 TSTTFGT_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && flag_unsafe_math_optimizations"
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtstgt %0,%1,%2\;bgt %0,$+16\;efdtsteq %0,%1,%2\;bng %0,$+8\;efdtstgt %0,%L1,%L2"
   [(set_attr "type" "veccmpsimple")
    (set_attr "length" "20")])
@@ -3111,7 +3156,7 @@
 	 CMPTFLT_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && !flag_unsafe_math_optimizations"
+   && !(flag_finite_math_only && !flag_trapping_math)"
   "efdcmplt %0,%1,%2\;bgt %0,$+16\;efdcmpeq %0,%1,%2\;bng %0,$+8\;efdcmplt %0,%L1,%L2"
   [(set_attr "type" "veccmp")
    (set_attr "length" "20")])
@@ -3124,7 +3169,7 @@
 	 TSTTFLT_GPR))]
   "!TARGET_IEEEQUAD
    && TARGET_HARD_FLOAT && TARGET_E500_DOUBLE && TARGET_LONG_DOUBLE_128
-   && flag_unsafe_math_optimizations"
+   && flag_finite_math_only && !flag_trapping_math"
   "efdtstlt %0,%1,%2\;bgt %0,$+16\;efdtsteq %0,%1,%2\;bng %0,$+8\;efdtstlt %0,%L1,%L2"
   [(set_attr "type" "veccmpsimple")
    (set_attr "length" "20")])
@@ -3135,6 +3180,44 @@
 	(unspec:CCFP [(match_operand 1 "cc_reg_operand" "y")
 		      (match_operand 2 "cc_reg_operand" "y")]
 		     E500_CR_IOR_COMPARE))]
-  "TARGET_E500"
+  "TARGET_HARD_FLOAT && !TARGET_FPRS"
   "cror 4*%0+gt,4*%1+gt,4*%2+gt"
   [(set_attr "type" "cr_logical")])
+
+;; Out-of-line prologues and epilogues.
+(define_insn "*save_gpregs_spe"
+  [(match_parallel 0 "any_parallel_operand"
+		   [(clobber (reg:P 65))
+		    (use (match_operand:P 1 "symbol_ref_operand" "s"))
+		    (use (reg:P 11))
+		    (set (match_operand:V2SI 2 "memory_operand" "=m")
+			 (match_operand:V2SI 3 "gpc_reg_operand" "r"))])]
+  "TARGET_SPE_ABI"
+  "bl %z1"
+  [(set_attr "type" "branch")
+   (set_attr "length" "4")])
+
+(define_insn "*restore_gpregs_spe"
+ [(match_parallel 0 "any_parallel_operand"
+		  [(clobber (reg:P 65))
+		   (use (match_operand:P 1 "symbol_ref_operand" "s"))
+		   (use (reg:P 11))
+		   (set (match_operand:V2SI 2 "gpc_reg_operand" "=r")
+			(match_operand:V2SI 3 "memory_operand" "m"))])]
+ "TARGET_SPE_ABI"
+ "bl %z1"
+ [(set_attr "type" "branch")
+  (set_attr "length" "4")])
+
+(define_insn "*return_and_restore_gpregs_spe"
+ [(match_parallel 0 "any_parallel_operand"
+		  [(return)
+		   (clobber (reg:P 65))
+		   (use (match_operand:P 1 "symbol_ref_operand" "s"))
+		   (use (reg:P 11))
+		   (set (match_operand:V2SI 2 "gpc_reg_operand" "=r")
+			(match_operand:V2SI 3 "memory_operand" "m"))])]
+ "TARGET_SPE_ABI"
+ "b %z1"
+ [(set_attr "type" "branch")
+  (set_attr "length" "4")])

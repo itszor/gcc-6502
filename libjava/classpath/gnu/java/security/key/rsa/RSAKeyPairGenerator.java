@@ -1,5 +1,5 @@
-/* RSAKeyPairGenerator.java -- 
-   Copyright 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
+/* RSAKeyPairGenerator.java --
+   Copyright 2001, 2002, 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -70,7 +70,8 @@ import java.util.logging.Logger;
 public class RSAKeyPairGenerator
     implements IKeyPairGenerator
 {
-  private static final Logger log = Logger.getLogger(RSAKeyPairGenerator.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(RSAKeyPairGenerator.class.getName()) : null;
 
   /** The BigInteger constant 1. */
   private static final BigInteger ONE = BigInteger.ONE;
@@ -135,7 +136,7 @@ public class RSAKeyPairGenerator
 
   /**
    * Configures this instance.
-   * 
+   *
    * @param attributes the map of name/value pairs to use.
    * @exception IllegalArgumentException if the designated MODULUS_LENGTH value
    *              is less than 1024.
@@ -175,7 +176,7 @@ public class RSAKeyPairGenerator
    * The algorithm used here is described in <i>nessie-pss-B.pdf</i> document
    * which is part of the RSA-PSS submission to NESSIE.
    * </p>
-   * 
+   *
    * @return an RSA keypair.
    */
   public KeyPair generate()
@@ -225,7 +226,7 @@ public class RSAKeyPairGenerator
 
   /**
    * Fills the designated byte array with random data.
-   * 
+   *
    * @param buffer the byte array to fill with random data.
    */
   private void nextRandomBytes(byte[] buffer)

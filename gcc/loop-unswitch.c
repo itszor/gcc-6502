@@ -1,5 +1,5 @@
 /* Loop unswitching for GNU compiler.
-   Copyright (C) 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,10 +26,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "obstack.h"
 #include "basic-block.h"
 #include "cfgloop.h"
-#include "cfglayout.h"
 #include "params.h"
-#include "output.h"
 #include "expr.h"
+#include "dumpfile.h"
 
 /* This pass moves constant conditions out of loops, duplicating the loop
    in progress, i.e. this code:
@@ -79,7 +78,7 @@ along with GCC; see the file COPYING3.  If not see
   with handling this case.  */
 
 static struct loop *unswitch_loop (struct loop *, basic_block, rtx, rtx);
-static void unswitch_single_loop (struct loop *, rtx, int);
+static bool unswitch_single_loop (struct loop *, rtx, int);
 static rtx may_unswitch_on (basic_block, struct loop *, rtx *);
 
 /* Prepare a sequence comparing OP0 with OP1 using COMP and jumping to LABEL if
@@ -109,6 +108,7 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
       gcc_assert (rtx_equal_p (op1, XEXP (cond, 1)));
       emit_jump_insn (copy_insn (PATTERN (cinsn)));
       jump = get_last_insn ();
+      gcc_assert (JUMP_P (jump));
       JUMP_LABEL (jump) = JUMP_LABEL (cinsn);
       LABEL_NUSES (JUMP_LABEL (jump))++;
       redirect_jump (jump, label, 0);
@@ -120,13 +120,14 @@ compare_and_jump_seq (rtx op0, rtx op1, enum rtx_code comp, rtx label, int prob,
       op0 = force_operand (op0, NULL_RTX);
       op1 = force_operand (op1, NULL_RTX);
       do_compare_rtx_and_jump (op0, op1, comp, 0,
-			       mode, NULL_RTX, NULL_RTX, label);
+			       mode, NULL_RTX, NULL_RTX, label, -1);
       jump = get_last_insn ();
+      gcc_assert (JUMP_P (jump));
       JUMP_LABEL (jump) = label;
       LABEL_NUSES (label)++;
     }
-  REG_NOTES (jump) = gen_rtx_EXPR_LIST (REG_BR_PROB, GEN_INT (prob),
-					REG_NOTES (jump));
+  add_reg_note (jump, REG_BR_PROB, GEN_INT (prob));
+
   seq = get_insns ();
   end_sequence ();
 
@@ -139,19 +140,22 @@ unswitch_loops (void)
 {
   loop_iterator li;
   struct loop *loop;
+  bool changed = false;
 
   /* Go through inner loops (only original ones).  */
 
   FOR_EACH_LOOP (li, loop, LI_ONLY_INNERMOST)
-    {
-      unswitch_single_loop (loop, NULL_RTX, 0);
-#ifdef ENABLE_CHECKING
-      verify_dominators (CDI_DOMINATORS);
-      verify_loop_structure ();
-#endif
-    }
+    changed |= unswitch_single_loop (loop, NULL_RTX, 0);
 
   iv_analysis_done ();
+
+  /* If we unswitched any loop discover new loops that are eventually
+     exposed by making irreducible regions reducible.  */
+  if (changed)
+    {
+      calculate_dominance_info (CDI_DOMINATORS);
+      fix_loop_structure (NULL);
+    }
 }
 
 /* Checks whether we can unswitch LOOP on condition at end of BB -- one of its
@@ -246,8 +250,9 @@ reversed_condition (rtx cond)
 /* Unswitch single LOOP.  COND_CHECKED holds list of conditions we already
    unswitched on and are therefore known to be true in this LOOP.  NUM is
    number of unswitchings done; do not allow it to grow too much, it is too
-   easy to create example on that the code would grow exponentially.  */
-static void
+   easy to create example on that the code would grow exponentially.
+   Returns true LOOP was unswitched.  */
+static bool 
 unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
 {
   basic_block *bbs;
@@ -256,13 +261,14 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
   rtx cond, rcond = NULL_RTX, conds, rconds, acond, cinsn;
   int repeat;
   edge e;
+  HOST_WIDE_INT iterations;
 
   /* Do not unswitch too much.  */
   if (num > PARAM_VALUE (PARAM_MAX_UNSWITCH_LEVEL))
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching anymore, hit max level\n");
-      return;
+      return false;
     }
 
   /* Only unswitch innermost loops.  */
@@ -270,7 +276,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, not innermost loop\n");
-      return;
+      return false;
     }
 
   /* We must be able to duplicate loop body.  */
@@ -278,7 +284,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, can't duplicate loop\n");
-      return;
+      return false;
     }
 
   /* The loop should not be too large, to limit code growth.  */
@@ -286,23 +292,24 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, loop too big\n");
-      return;
+      return false;
     }
 
   /* Do not unswitch in cold areas.  */
-  if (!maybe_hot_bb_p (loop->header))
+  if (optimize_loop_for_size_p (loop))
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, not hot area\n");
-      return;
+      return false;
     }
 
   /* Nor if the loop usually does not roll.  */
-  if (expected_loop_iterations (loop) < 1)
+  iterations = estimated_loop_iterations_int (loop);
+  if (iterations >= 0 && iterations <= 1)
     {
       if (dump_file)
 	fprintf (dump_file, ";; Not unswitching, loop iterations < 1\n");
-      return;
+      return false;
     }
 
   do
@@ -320,7 +327,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
       if (i == loop->num_nodes)
 	{
 	  free (bbs);
-	  return;
+	  return false;
 	}
 
       if (cond != const0_rtx
@@ -364,7 +371,7 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     fprintf (dump_file, ";; Unswitching loop\n");
 
   /* Unswitch the loop on this condition.  */
-  nloop = unswitch_loop (loop, bbs[i], cond, cinsn);
+  nloop = unswitch_loop (loop, bbs[i], copy_rtx_if_shared (cond), cinsn);
   gcc_assert (nloop);
 
   /* Invoke itself on modified loops.  */
@@ -376,6 +383,8 @@ unswitch_single_loop (struct loop *loop, rtx cond_checked, int num)
     free_EXPR_LIST_node (rconds);
 
   free (bbs);
+
+  return true;
 }
 
 /* Unswitch a LOOP w.r. to given basic block UNSWITCH_ON.  We only support
@@ -391,7 +400,6 @@ unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
   edge entry, latch_edge, true_edge, false_edge, e;
   basic_block switch_bb, unswitch_on_alt;
   struct loop *nloop;
-  sbitmap zero_bitmap;
   int irred_flag, prob;
   rtx seq;
 
@@ -408,7 +416,6 @@ unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
   /* Make a copy.  */
   irred_flag = entry->flags & EDGE_IRREDUCIBLE_LOOP;
   entry->flags &= ~EDGE_IRREDUCIBLE_LOOP;
-  zero_bitmap = sbitmap_alloc (2);
   if (!duplicate_loop_to_header_edge (loop, entry, 1,
 			      	      NULL, NULL, NULL, 0))
     return NULL;
@@ -453,6 +460,7 @@ unswitch_loop (struct loop *loop, basic_block unswitch_on, rtx cond, rtx cinsn)
 		   BRANCH_EDGE (switch_bb), FALLTHRU_EDGE (switch_bb), true,
 		   prob, REG_BR_PROB_BASE - prob);
 
+  copy_loop_info (loop, nloop);
   /* Remove branches that are now unreachable in new loops.  */
   remove_path (true_edge);
   remove_path (false_edge);

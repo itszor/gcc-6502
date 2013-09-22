@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2000-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2000-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,39 +23,35 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  Check the Naming Scheme of a project file, find the source files
+--  Find source dirs and source files for a project
+
+with Prj.Tree;
 
 private package Prj.Nmsc is
 
-   --  It would be nicer to have a higher level statement of what these
-   --  procedures do (related to their names), rather than just an english
-   --  language summary of the implementation ???
+   procedure Process_Naming_Scheme
+     (Tree         : Project_Tree_Ref;
+      Root_Project : Project_Id;
+      Node_Tree    : Prj.Tree.Project_Node_Tree_Ref;
+      Flags        : Processing_Flags);
+   --  Perform consistency and semantic checks on all the projects in the tree.
+   --  This procedure interprets the various case statements in the project
+   --  based on the current external references. After checking the validity of
+   --  the naming scheme, it searches for all the source files of the project.
+   --  The result of this procedure is a filled-in data structure for
+   --  Project_Id which contains all the information about the project. This
+   --  information is only valid while the external references are preserved.
 
-   procedure Check
-     (Project         : Project_Id;
-      In_Tree         : Project_Tree_Ref;
-      Report_Error    : Put_Line_Access;
-      When_No_Sources : Error_Warning;
-      Current_Dir     : String);
-   --  Check the object directory and the source directories
-   --
-   --  Check the library attributes, including the library directory if any
-   --
-   --  Get the set of specification and implementation suffixes, if any
-   --
-   --  Check the naming scheme for Ada
-   --
-   --  Find the Ada source files if any
-   --
-   --  Check the naming scheme for the supported languages (c, c++, ...) other
-   --  than Ada. Find the source files if any.
-   --
-   --  If Report_Error is null , use the standard error reporting mechanism
-   --  (Errout). Otherwise, report errors using Report_Error.
-   --
-   --  Current_Dir is for optimization purposes only, avoiding system calls.
-   --
-   --  When_No_Sources indicates what should be done when no sources of a
-   --  language are found in a project where this language is declared.
+   procedure Process_Aggregated_Projects
+     (Tree      : Project_Tree_Ref;
+      Project   : Project_Id;
+      Node_Tree : Prj.Tree.Project_Node_Tree_Ref;
+      Flags     : Processing_Flags);
+   --  Assuming Project is an aggregate project, find out (based on the
+   --  current external references) what are the projects it aggregates.
+   --  This has to be done in phase 1 of the processing, so that we know the
+   --  full list of languages required for root_project and its aggregated
+   --  projects. As a result, it cannot be done as part of
+   --  Process_Naming_Scheme.
 
 end Prj.Nmsc;

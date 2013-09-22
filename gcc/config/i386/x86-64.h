@@ -1,5 +1,5 @@
 /* OS independent definitions for AMD x86-64.
-   Copyright (C) 2001, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
    Contributed by Bo Thorsen <bo@suse.de>.
 
 This file is part of GCC.
@@ -14,8 +14,13 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING3.  If not see
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 <http://www.gnu.org/licenses/>.  */
 
 #undef ASM_COMMENT_START
@@ -32,10 +37,10 @@ along with GCC; see the file COPYING3.  If not see
 #define MCOUNT_NAME "mcount"
 
 #undef SIZE_TYPE
-#define SIZE_TYPE (TARGET_64BIT ? "long unsigned int" : "unsigned int")
+#define SIZE_TYPE (TARGET_LP64 ? "long unsigned int" : "unsigned int")
 
 #undef PTRDIFF_TYPE
-#define PTRDIFF_TYPE (TARGET_64BIT ? "long int" : "int")
+#define PTRDIFF_TYPE (TARGET_LP64 ? "long int" : "int")
 
 #undef WCHAR_TYPE
 #define WCHAR_TYPE "int"
@@ -43,12 +48,8 @@ along with GCC; see the file COPYING3.  If not see
 #undef WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE 32
 
-#undef CC1_SPEC
-#define CC1_SPEC "%(cc1_cpu) %{profile:-p}"
-
 #undef ASM_SPEC
-#define ASM_SPEC "%{v:-V} %{Qy:} %{!Qn:-Qy} %{n} %{T} %{Ym,*} %{Yd,*} \
- %{Wa,*:%*} %{m32:--32} %{m64:--64}"
+#define ASM_SPEC "%{m32:--32} %{m64:--64}"
 
 #undef ASM_OUTPUT_ALIGNED_BSS
 #define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \
@@ -69,11 +70,22 @@ along with GCC; see the file COPYING3.  If not see
 	fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
 	/* Make sure that we have at least 8 byte alignment if > 8 byte \
 	   alignment is preferred.  */					\
-	if ((LOG) > 3 && (1 << (LOG)) > ((MAX_SKIP) + 1))		\
-	  fprintf ((FILE), "\t.p2align 3\n");				\
+	if ((LOG) > 3							\
+	    && (1 << (LOG)) > ((MAX_SKIP) + 1)				\
+	    && (MAX_SKIP) >= 7)						\
+	  fputs ("\t.p2align 3\n", (FILE));				\
       }									\
     }									\
   } while (0)
+#undef  ASM_OUTPUT_MAX_SKIP_PAD
+#define ASM_OUTPUT_MAX_SKIP_PAD(FILE, LOG, MAX_SKIP)			\
+  if ((LOG) != 0)							\
+    {									\
+      if ((MAX_SKIP) == 0)						\
+        fprintf ((FILE), "\t.p2align %d\n", (LOG));			\
+      else								\
+        fprintf ((FILE), "\t.p2align %d,,%d\n", (LOG), (MAX_SKIP));	\
+    }
 #endif
 
 

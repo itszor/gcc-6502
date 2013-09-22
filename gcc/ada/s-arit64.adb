@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -213,11 +211,7 @@ package body System.Arith_64 is
          end if;
 
       else
-         if Zhi /= 0 then
-            T2 := Ylo * Zhi;
-         else
-            T2 := 0;
-         end if;
+         T2 := (if Zhi /= 0 then Ylo * Zhi else 0);
       end if;
 
       T1 := Ylo * Zlo;
@@ -256,23 +250,13 @@ package body System.Arith_64 is
 
       if X >= 0 then
          R := To_Int (Ru);
-
-         if Den_Pos then
-            Q := To_Int (Qu);
-         else
-            Q := -To_Int (Qu);
-         end if;
+         Q := (if Den_Pos then To_Int (Qu) else -To_Int (Qu));
 
       --  Case of dividend (X) sign negative
 
       else
          R := -To_Int (Ru);
-
-         if Den_Pos then
-            Q := -To_Int (Qu);
-         else
-            Q := To_Int (Qu);
-         end if;
+         Q := (if Den_Pos then -To_Int (Qu) else To_Int (Qu));
       end if;
    end Double_Divide;
 
@@ -550,11 +534,9 @@ package body System.Arith_64 is
             --  which ensured the first bit of the divisor is set, this gives
             --  an estimate of the quotient that is at most two too high.
 
-            if D (J + 1) = Zhi then
-               Qd (J + 1) := 2 ** 32 - 1;
-            else
-               Qd (J + 1) := Lo ((D (J + 1) & D (J + 2)) / Zhi);
-            end if;
+            Qd (J + 1) := (if D (J + 1) = Zhi
+                           then 2 ** 32 - 1
+                           else Lo ((D (J + 1) & D (J + 2)) / Zhi));
 
             --  Compute amount to subtract
 
@@ -600,27 +582,15 @@ package body System.Arith_64 is
 
       --  Case of dividend (X * Y) sign positive
 
-      if (X >= 0 and then Y >= 0)
-        or else (X < 0 and then Y < 0)
-      then
+      if (X >= 0 and then Y >= 0) or else (X < 0 and then Y < 0) then
          R := To_Pos_Int (Ru);
-
-         if Z > 0 then
-            Q := To_Pos_Int (Qu);
-         else
-            Q := To_Neg_Int (Qu);
-         end if;
+         Q := (if Z > 0 then To_Pos_Int (Qu) else To_Neg_Int (Qu));
 
       --  Case of dividend (X * Y) sign negative
 
       else
          R := To_Neg_Int (Ru);
-
-         if Z > 0 then
-            Q := To_Neg_Int (Qu);
-         else
-            Q := To_Pos_Int (Qu);
-         end if;
+         Q := (if Z > 0 then To_Neg_Int (Qu) else To_Pos_Int (Qu));
       end if;
    end Scaled_Divide;
 

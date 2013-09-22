@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -45,7 +43,7 @@ package body Ada.Strings.Wide_Wide_Fixed is
       Pattern : Wide_Wide_String;
       Going   : Direction := Forward;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
+        Wide_Wide_Maps.Identity)
       return Natural
    renames Ada.Strings.Wide_Wide_Search.Index;
 
@@ -70,7 +68,7 @@ package body Ada.Strings.Wide_Wide_Fixed is
       From    : Positive;
       Going   : Direction := Forward;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
+        Wide_Wide_Maps.Identity)
       return Natural
    renames Ada.Strings.Wide_Wide_Search.Index;
 
@@ -106,7 +104,7 @@ package body Ada.Strings.Wide_Wide_Fixed is
      (Source  : Wide_Wide_String;
       Pattern : Wide_Wide_String;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
+        Wide_Wide_Maps.Identity)
       return Natural
    renames Ada.Strings.Wide_Wide_Search.Count;
 
@@ -121,6 +119,15 @@ package body Ada.Strings.Wide_Wide_Fixed is
      (Source : Wide_Wide_String;
       Set    : Wide_Wide_Maps.Wide_Wide_Character_Set) return Natural
    renames Ada.Strings.Wide_Wide_Search.Count;
+
+   procedure Find_Token
+     (Source : Wide_Wide_String;
+      Set    : Wide_Wide_Maps.Wide_Wide_Character_Set;
+      From   : Positive;
+      Test   : Membership;
+      First  : out Positive;
+      Last   : out Natural)
+   renames Ada.Strings.Wide_Wide_Search.Find_Token;
 
    procedure Find_Token
      (Source : Wide_Wide_String;
@@ -406,9 +413,9 @@ package body Ada.Strings.Wide_Wide_Fixed is
       else
          declare
             Result_Length : constant Natural :=
-                              Natural'Max
-                                (Source'Length,
-                                 Position - Source'First + New_Item'Length);
+              Natural'Max
+                (Source'Length,
+                 Position - Source'First + New_Item'Length);
 
             Result : Wide_Wide_String (1 .. Result_Length);
 
@@ -442,30 +449,37 @@ package body Ada.Strings.Wide_Wide_Fixed is
       High   : Natural;
       By     : Wide_Wide_String) return Wide_Wide_String
    is
-      Result_Length : Natural;
-
    begin
       if Low > Source'Last + 1 or else High < Source'First - 1 then
          raise Index_Error;
-      else
-         Result_Length :=
-           Source'Length - Natural'Max (High - Low + 1, 0) + By'Length;
+      end if;
 
+      if High >= Low then
          declare
+            Front_Len : constant Integer :=
+              Integer'Max (0, Low - Source'First);
+            --  Length of prefix of Source copied to result
+
+            Back_Len : constant Integer :=
+              Integer'Max (0, Source'Last - High);
+            --  Length of suffix of Source copied to result
+
+            Result_Length : constant Integer :=
+              Front_Len + By'Length + Back_Len;
+            --  Length of result
+
             Result : Wide_Wide_String (1 .. Result_Length);
 
          begin
-            if High >= Low then
-               Result :=
-                  Source (Source'First .. Low - 1) & By &
-                  Source (High + 1 .. Source'Last);
-            else
-               Result := Source (Source'First .. Low - 1) & By &
-                         Source (Low .. Source'Last);
-            end if;
-
+            Result (1 .. Front_Len) := Source (Source'First .. Low - 1);
+            Result (Front_Len + 1 .. Front_Len + By'Length) := By;
+            Result (Front_Len + By'Length + 1 .. Result'Length) :=
+              Source (High + 1 .. Source'Last);
             return Result;
          end;
+
+      else
+         return Insert (Source, Before => Low, New_Item => By);
       end if;
    end Replace_Slice;
 
@@ -612,7 +626,7 @@ package body Ada.Strings.Wide_Wide_Fixed is
       else
          declare
             Result : constant Wide_Wide_String (1 .. High - Low + 1) :=
-                       Source (Low .. High);
+              Source (Low .. High);
 
          begin
             return Result;

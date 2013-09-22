@@ -2,30 +2,27 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---        A D A . C O N T A I N E R S . R E D _ B L A C K _ T R E E S .     --
---                    G E N E R I C _ O P E R A T I O N S                   --
+--             ADA.CONTAINERS.RED_BLACK_TREES.GENERIC_OPERATIONS            --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -51,6 +48,8 @@ package body Ada.Containers.Red_Black_Trees.Generic_Operations is
 
    procedure Left_Rotate  (Tree : in out Tree_Type; X : Node_Access);
    procedure Right_Rotate (Tree : in out Tree_Type; Y : Node_Access);
+
+--  Why is all the following code commented out ???
 
 --     ---------------------
 --     -- Check_Invariant --
@@ -174,9 +173,14 @@ package body Ada.Containers.Red_Black_Trees.Generic_Operations is
                if Right (W) = null
                  or else Color (Right (W)) = Black
                then
-                  if Left (W) /= null then
-                     Set_Color (Left (W), Black);
-                  end if;
+                  --  As a condition for setting the color of the left child to
+                  --  black, the left child access value must be non-null. A
+                  --  truth table analysis shows that if we arrive here, that
+                  --  condition holds, so there's no need for an explicit test.
+                  --  The assertion is here to document what we know is true.
+
+                  pragma Assert (Left (W) /= null);
+                  Set_Color (Left (W), Black);
 
                   Set_Color (W, Red);
                   Right_Rotate (Tree, W);
@@ -211,9 +215,15 @@ package body Ada.Containers.Red_Black_Trees.Generic_Operations is
 
             else
                if Left (W) = null or else Color (Left (W)) = Black then
-                  if Right (W) /= null then
-                     Set_Color (Right (W), Black);
-                  end if;
+
+                  --  As a condition for setting the color of the right child
+                  --  to black, the right child access value must be non-null.
+                  --  A truth table analysis shows that if we arrive here, that
+                  --  condition holds, so there's no need for an explicit test.
+                  --  The assertion is here to document what we know is true.
+
+                  pragma Assert (Right (W) /= null);
+                  Set_Color (Right (W), Black);
 
                   Set_Color (W, Red);
                   Left_Rotate (Tree, W);
@@ -252,6 +262,8 @@ package body Ada.Containers.Red_Black_Trees.Generic_Operations is
          raise Program_Error with
            "attempt to tamper with cursors (container is busy)";
       end if;
+
+      --  Why are these all commented out ???
 
 --    pragma Assert (Tree.Length > 0);
 --    pragma Assert (Tree.Root /= null);

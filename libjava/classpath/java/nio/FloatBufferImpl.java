@@ -1,4 +1,4 @@
-/* FloatBufferImpl.java -- 
+/* FloatBufferImpl.java --
    Copyright (C) 2002, 2003, 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -43,41 +43,40 @@ package java.nio;
  */
 final class FloatBufferImpl extends FloatBuffer
 {
-  private boolean readOnly;
+  private final boolean readOnly;
 
   FloatBufferImpl (int capacity)
   {
     this (new float [capacity], 0, capacity, capacity, 0, -1, false);
   }
-  
-  FloatBufferImpl (float[] buffer, int offset, int capacity, int limit, int position, int mark, boolean readOnly)
+
+  FloatBufferImpl (float[] buffer, int offset, int capacity, int limit,
+                   int position, int mark, boolean readOnly)
   {
-    super (capacity, limit, position, mark);
-    this.backing_buffer = buffer;
-    this.array_offset = offset;
+    super (capacity, limit, position, mark, null, buffer, offset);
     this.readOnly = readOnly;
   }
-  
+
   public boolean isReadOnly ()
   {
     return readOnly;
   }
-  
+
   public FloatBuffer slice ()
   {
     return new FloatBufferImpl (backing_buffer, array_offset + position (), remaining (), remaining (), 0, -1, isReadOnly ());
   }
-  
+
   public FloatBuffer duplicate ()
   {
     return new FloatBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, isReadOnly ());
   }
-  
+
   public FloatBuffer asReadOnlyBuffer ()
   {
     return new FloatBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, true);
   }
-  
+
   public FloatBuffer compact ()
   {
     checkIfReadOnly();
@@ -93,7 +92,7 @@ final class FloatBufferImpl extends FloatBuffer
     limit(capacity());
     return this;
   }
-  
+
   public boolean isDirect ()
   {
     return false;
@@ -114,12 +113,12 @@ final class FloatBufferImpl extends FloatBuffer
     position (position () + 1);
     return result;
   }
-  
+
   /**
    * Relative put method. Writes <code>value</code> to the next position
    * in the buffer.
-   * 
-   * @exception BufferOverflowException If there no remaining 
+   *
+   * @exception BufferOverflowException If there no remaining
    * space in this buffer.
    * @exception ReadOnlyBufferException If this buffer is read-only.
    */
@@ -132,7 +131,7 @@ final class FloatBufferImpl extends FloatBuffer
     position (position () + 1);
     return this;
   }
-  
+
   /**
    * Absolute get method. Reads the <code>float</code> at position
    * <code>index</code>.
@@ -146,7 +145,7 @@ final class FloatBufferImpl extends FloatBuffer
 
     return backing_buffer [index];
   }
-  
+
   /**
    * Absolute put method. Writes <code>value</code> to position
    * <code>index</code> in the buffer.
@@ -163,7 +162,7 @@ final class FloatBufferImpl extends FloatBuffer
     backing_buffer [index] = value;
     return this;
   }
-  
+
   public ByteOrder order ()
   {
     return ByteOrder.nativeOrder ();

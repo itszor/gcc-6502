@@ -1,5 +1,5 @@
 # Expect driver script for GCC Regression Tests
-# Copyright (C) 2003, 2007 Free Software Foundation
+# Copyright (C) 2003-2013 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,8 +23,12 @@ if $tracelevel then {
 
 # load support procs
 load_lib fortran-torture.exp
+load_lib torture-options.exp
 
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.f]] {
+torture-init
+set-torture-options [get-fortran-torture-options]
+
+foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.\[fF\]{,90,95,03,08} ]] {
     # If we're only testing specific files and this isn't one of them, skip it.
     if ![runtest_file_p $runtests $testcase] then {
 	continue
@@ -32,30 +36,4 @@ foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.f]] {
     fortran-torture $testcase
 }
 
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.F]] {
-    if ![runtest_file_p $runtests $testcase] then {
-	continue
-    }
-    fortran-torture $testcase
-}
-
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.f90]] {
-    if ![runtest_file_p $runtests $testcase] then {
-	continue
-    }
-    fortran-torture $testcase
-}
-
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.f95]] {
-    if ![runtest_file_p $runtests $testcase] then {
-	continue
-    }
-    fortran-torture $testcase
-}
-
-foreach testcase [lsort [glob -nocomplain $srcdir/$subdir/*.f03]] {
-    if ![runtest_file_p $runtests $testcase] then {
-	continue
-    }
-    fortran-torture $testcase
-}
+torture-finish

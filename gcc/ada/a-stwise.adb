@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -32,6 +30,7 @@
 ------------------------------------------------------------------------------
 
 with Ada.Strings.Wide_Maps; use Ada.Strings.Wide_Maps;
+with System;                use System;
 
 package body Ada.Strings.Wide_Search is
 
@@ -74,44 +73,56 @@ package body Ada.Strings.Wide_Search is
       Mapping : Wide_Maps.Wide_Character_Mapping := Wide_Maps.Identity)
       return Natural
    is
-      N : Natural;
-      J : Natural;
+      PL1 : constant Integer := Pattern'Length - 1;
+      Num : Natural;
+      Ind : Natural;
+      Cur : Natural;
 
    begin
       if Pattern = "" then
          raise Pattern_Error;
       end if;
 
-      --  Handle the case of non-identity mappings by creating a mapped
-      --  string and making a recursive call using the identity mapping
-      --  on this mapped string.
+      Num := 0;
+      Ind := Source'First;
 
-      if Mapping /= Wide_Maps.Identity then
-         declare
-            Mapped_Source : Wide_String (Source'Range);
+      --  Unmapped case
 
-         begin
-            for J in Source'Range loop
-               Mapped_Source (J) := Value (Mapping, Source (J));
+      if Mapping'Address = Wide_Maps.Identity'Address then
+         while Ind <= Source'Last - PL1 loop
+            if Pattern = Source (Ind .. Ind + PL1) then
+               Num := Num + 1;
+               Ind := Ind + Pattern'Length;
+            else
+               Ind := Ind + 1;
+            end if;
+         end loop;
+
+      --  Mapped case
+
+      else
+         while Ind <= Source'Last - PL1 loop
+            Cur := Ind;
+            for K in Pattern'Range loop
+               if Pattern (K) /= Value (Mapping, Source (Cur)) then
+                  Ind := Ind + 1;
+                  goto Cont;
+               else
+                  Cur := Cur + 1;
+               end if;
             end loop;
 
-            return Count (Mapped_Source, Pattern);
-         end;
+            Num := Num + 1;
+            Ind := Ind + Pattern'Length;
+
+         <<Cont>>
+            null;
+         end loop;
       end if;
 
-      N := 0;
-      J := Source'First;
+      --  Return result
 
-      while J <= Source'Last - (Pattern'Length - 1) loop
-         if Source (J .. J + (Pattern'Length - 1)) = Pattern then
-            N := N + 1;
-            J := J + Pattern'Length;
-         else
-            J := J + 1;
-         end if;
-      end loop;
-
-      return N;
+      return Num;
    end Count;
 
    function Count
@@ -119,14 +130,43 @@ package body Ada.Strings.Wide_Search is
       Pattern : Wide_String;
       Mapping : Wide_Maps.Wide_Character_Mapping_Function) return Natural
    is
-      Mapped_Source : Wide_String (Source'Range);
+      PL1 : constant Integer := Pattern'Length - 1;
+      Num : Natural;
+      Ind : Natural;
+      Cur : Natural;
 
    begin
-      for J in Source'Range loop
-         Mapped_Source (J) := Mapping (Source (J));
+      if Pattern = "" then
+         raise Pattern_Error;
+      end if;
+
+      --  Check for null pointer in case checks are off
+
+      if Mapping = null then
+         raise Constraint_Error;
+      end if;
+
+      Num := 0;
+      Ind := Source'First;
+      while Ind <= Source'Last - PL1 loop
+         Cur := Ind;
+         for K in Pattern'Range loop
+            if Pattern (K) /= Mapping (Source (Cur)) then
+               Ind := Ind + 1;
+               goto Cont;
+            else
+               Cur := Cur + 1;
+            end if;
+         end loop;
+
+         Num := Num + 1;
+         Ind := Ind + Pattern'Length;
+
+      <<Cont>>
+         null;
       end loop;
 
-      return Count (Mapped_Source, Pattern);
+      return Num;
    end Count;
 
    function Count
@@ -152,6 +192,40 @@ package body Ada.Strings.Wide_Search is
    procedure Find_Token
      (Source : Wide_String;
       Set    : Wide_Maps.Wide_Character_Set;
+      From   : Positive;
+      Test   : Membership;
+      First  : out Positive;
+      Last   : out Natural)
+   is
+   begin
+      for J in From .. Source'Last loop
+         if Belongs (Source (J), Set, Test) then
+            First := J;
+
+            for K in J + 1 .. Source'Last loop
+               if not Belongs (Source (K), Set, Test) then
+                  Last := K - 1;
+                  return;
+               end if;
+            end loop;
+
+            --  Here if J indexes first char of token, and all chars after J
+            --  are in the token.
+
+            Last := Source'Last;
+            return;
+         end if;
+      end loop;
+
+      --  Here if no token found
+
+      First := From;
+      Last  := 0;
+   end Find_Token;
+
+   procedure Find_Token
+     (Source : Wide_String;
+      Set    : Wide_Maps.Wide_Character_Set;
       Test   : Membership;
       First  : out Positive;
       Last   : out Natural)
@@ -168,8 +242,8 @@ package body Ada.Strings.Wide_Search is
                end if;
             end loop;
 
-            --  Here if J indexes 1st char of token, and all chars
-            --  after J are in the token
+            --  Here if J indexes first char of token, and all chars after J
+            --  are in the token.
 
             Last := Source'Last;
             return;
@@ -193,41 +267,93 @@ package body Ada.Strings.Wide_Search is
       Mapping : Wide_Maps.Wide_Character_Mapping := Wide_Maps.Identity)
       return Natural
    is
+      PL1 : constant Integer := Pattern'Length - 1;
+      Cur : Natural;
+
+      Ind : Integer;
+      --  Index for start of match check. This can be negative if the pattern
+      --  length is greater than the string length, which is why this variable
+      --  is Integer instead of Natural. In this case, the search loops do not
+      --  execute at all, so this Ind value is never used.
+
    begin
       if Pattern = "" then
          raise Pattern_Error;
       end if;
 
-      --  Handle the case of non-identity mappings by creating a mapped
-      --  string and making a recursive call using the identity mapping
-      --  on this mapped string.
-
-      if Mapping /= Identity then
-         declare
-            Mapped_Source : Wide_String (Source'Range);
-
-         begin
-            for J in Source'Range loop
-               Mapped_Source (J) := Value (Mapping, Source (J));
-            end loop;
-
-            return Index (Mapped_Source, Pattern, Going);
-         end;
-      end if;
+      --  Forwards case
 
       if Going = Forward then
-         for J in Source'First .. Source'Last - Pattern'Length + 1 loop
-            if Pattern = Source (J .. J + Pattern'Length - 1) then
-               return J;
-            end if;
-         end loop;
+         Ind := Source'First;
 
-      else -- Going = Backward
-         for J in reverse Source'First .. Source'Last - Pattern'Length + 1 loop
-            if Pattern = Source (J .. J + Pattern'Length - 1) then
-               return J;
-            end if;
-         end loop;
+         --  Unmapped forward case
+
+         if Mapping'Address = Wide_Maps.Identity'Address then
+            for J in 1 .. Source'Length - PL1 loop
+               if Pattern = Source (Ind .. Ind + PL1) then
+                  return Ind;
+               else
+                  Ind := Ind + 1;
+               end if;
+            end loop;
+
+         --  Mapped forward case
+
+         else
+            for J in 1 .. Source'Length - PL1 loop
+               Cur := Ind;
+
+               for K in Pattern'Range loop
+                  if Pattern (K) /= Value (Mapping, Source (Cur)) then
+                     goto Cont1;
+                  else
+                     Cur := Cur + 1;
+                  end if;
+               end loop;
+
+               return Ind;
+
+            <<Cont1>>
+               Ind := Ind + 1;
+            end loop;
+         end if;
+
+      --  Backwards case
+
+      else
+         --  Unmapped backward case
+
+         Ind := Source'Last - PL1;
+
+         if Mapping'Address = Wide_Maps.Identity'Address then
+            for J in reverse 1 .. Source'Length - PL1 loop
+               if Pattern = Source (Ind .. Ind + PL1) then
+                  return Ind;
+               else
+                  Ind := Ind - 1;
+               end if;
+            end loop;
+
+         --  Mapped backward case
+
+         else
+            for J in reverse 1 .. Source'Length - PL1 loop
+               Cur := Ind;
+
+               for K in Pattern'Range loop
+                  if Pattern (K) /= Value (Mapping, Source (Cur)) then
+                     goto Cont2;
+                  else
+                     Cur := Cur + 1;
+                  end if;
+               end loop;
+
+               return Ind;
+
+            <<Cont2>>
+               Ind := Ind - 1;
+            end loop;
+         end if;
       end if;
 
       --  Fall through if no match found. Note that the loops are skipped
@@ -242,14 +368,74 @@ package body Ada.Strings.Wide_Search is
       Going   : Direction := Forward;
       Mapping : Wide_Maps.Wide_Character_Mapping_Function) return Natural
    is
-      Mapped_Source : Wide_String (Source'Range);
+      PL1 : constant Integer := Pattern'Length - 1;
+      Ind : Natural;
+      Cur : Natural;
 
    begin
-      for J in Source'Range loop
-         Mapped_Source (J) := Mapping (Source (J));
-      end loop;
+      if Pattern = "" then
+         raise Pattern_Error;
+      end if;
 
-      return Index (Mapped_Source, Pattern, Going);
+      --  Check for null pointer in case checks are off
+
+      if Mapping = null then
+         raise Constraint_Error;
+      end if;
+
+      --  If Pattern longer than Source it can't be found
+
+      if Pattern'Length > Source'Length then
+         return 0;
+      end if;
+
+      --  Forwards case
+
+      if Going = Forward then
+         Ind := Source'First;
+         for J in 1 .. Source'Length - PL1 loop
+            Cur := Ind;
+
+            for K in Pattern'Range loop
+               if Pattern (K) /= Mapping.all (Source (Cur)) then
+                  goto Cont1;
+               else
+                  Cur := Cur + 1;
+               end if;
+            end loop;
+
+            return Ind;
+
+         <<Cont1>>
+            Ind := Ind + 1;
+         end loop;
+
+      --  Backwards case
+
+      else
+         Ind := Source'Last - PL1;
+         for J in reverse 1 .. Source'Length - PL1 loop
+            Cur := Ind;
+
+            for K in Pattern'Range loop
+               if Pattern (K) /= Mapping.all (Source (Cur)) then
+                  goto Cont2;
+               else
+                  Cur := Cur + 1;
+               end if;
+            end loop;
+
+            return Ind;
+
+         <<Cont2>>
+            Ind := Ind - 1;
+         end loop;
+      end if;
+
+      --  Fall through if no match found. Note that the loops are skipped
+      --  completely in the case of the pattern being longer than the source.
+
+      return 0;
    end Index;
 
    function Index
@@ -259,6 +445,8 @@ package body Ada.Strings.Wide_Search is
       Going  : Direction  := Forward) return Natural
    is
    begin
+      --  Forwards case
+
       if Going = Forward then
          for J in Source'Range loop
             if Belongs (Source (J), Set, Test) then
@@ -266,7 +454,9 @@ package body Ada.Strings.Wide_Search is
             end if;
          end loop;
 
-      else -- Going = Backward
+      --  Backwards case
+
+      else
          for J in reverse Source'Range loop
             if Belongs (Source (J), Set, Test) then
                return J;

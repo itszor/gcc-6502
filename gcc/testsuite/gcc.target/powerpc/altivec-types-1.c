@@ -1,6 +1,6 @@
 /* { dg-do compile { target powerpc*-*-linux* } } */
 /* { dg-require-effective-target powerpc_altivec_ok } */
-/* { dg-options "-maltivec" } */
+/* { dg-options "-maltivec -mno-vsx" } */
 
 /* Valid AltiVec vector types should be accepted with no warnings.  */
 
@@ -24,6 +24,7 @@ __vector unsigned vuj;
 __vector signed vsj;
 __vector __bool vbj;
 __vector float vf;
+__vector _Bool vb;
 
 /* These should be rejected as invalid AltiVec types.  */
 
@@ -37,7 +38,6 @@ __vector signed long long int vslli;	/* { dg-error "AltiVec types" "" } */
 __vector __bool long long int vblli;	/* { dg-error "AltiVec types" "" } */
 __vector double vd1;			/* { dg-error "AltiVec types" "" } */
 __vector long double vld;		/* { dg-error "AltiVec types" "" } */
-__vector _Bool vb;			/* { dg-error "AltiVec types" "" } */
 __vector _Complex float vcf;		/* { dg-error "AltiVec types" "" } */
 __vector _Complex double vcd;		/* { dg-error "AltiVec types" "" } */
 __vector _Complex long double vcld;	/* { dg-error "AltiVec types" "" } */
@@ -86,3 +86,6 @@ __vector __bool float vbf;		/* { dg-error "" "" } */
 __vector __bool double vbd;		/* { dg-error "" "" } */
 __vector __bool short float blf;	/* { dg-error "" "" } */
 __vector __bool short double vlbd;	/* { dg-error "" "" } */
+
+/* { dg-message "note: previous" "prev vsf" { target *-*-* } 79 } */
+/* { dg-message "note: previous" "prev vsd" { target *-*-* } 82 } */

@@ -1,4 +1,4 @@
-/* NormalizeSpaceFunction.java -- 
+/* NormalizeSpaceFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.xpath;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.List;
 import java.util.StringTokenizer;
 import javax.xml.namespace.QName;
@@ -59,25 +61,26 @@ final class NormalizeSpaceFunction
 
   final Expr arg;
 
-  NormalizeSpaceFunction(List args)
+  NormalizeSpaceFunction(List<Expr> args)
   {
-    this((Expr) args.get(0));
+    this(args.get(0));
   }
-  
+
   NormalizeSpaceFunction(Expr arg)
   {
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = (arg == null) ? null : arg.evaluate(context, pos, len);
     String s = _string(context, val);
     StringTokenizer st = new StringTokenizer(s, " \t\r\n");
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     if (st.hasMoreTokens())
       {
-        buf.append(st.nextToken()); 
+        buf.append(st.nextToken());
         while (st.hasMoreTokens())
           {
             buf.append(' ');
@@ -101,5 +104,5 @@ final class NormalizeSpaceFunction
   {
     return (arg == null) ? "normalize-space()" : "normalize-space(" + arg + ")";
   }
-  
+
 }

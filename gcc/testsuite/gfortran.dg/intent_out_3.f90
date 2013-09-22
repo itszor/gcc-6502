@@ -15,5 +15,5 @@ CONTAINS
  END SUBROUTINE S1
 END MODULE M1
 USE M1
-CALL S1(D1%I(3)) ! { dg-error "must be definable" }
+CALL S1(D1%I(3)) ! { dg-error "variable definition context" }
 END

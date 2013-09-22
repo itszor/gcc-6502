@@ -59,31 +59,23 @@ cls_struct_64byte_gn(ffi_cif* cif __UNUSED__, void* resp, void** args,
 int main (void)
 {
   ffi_cif cif;
-#ifndef USING_MMAP
-  static ffi_closure cl;
-#endif
-  ffi_closure *pcl;
+  void *code;
+  ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
   void* args_dbl[5];
   ffi_type* cls_struct_fields[9];
   ffi_type cls_struct_type;
   ffi_type* dbl_arg_types[5];
-
-#ifdef USING_MMAP
-  pcl = allocate_mmap (sizeof(ffi_closure));
-#else
-  pcl = &cl;
-#endif
-
-  cls_struct_type.size = 0;
-  cls_struct_type.alignment = 0;
-  cls_struct_type.type = FFI_TYPE_STRUCT;
-  cls_struct_type.elements = cls_struct_fields;
 
   struct cls_struct_64byte e_dbl = { 9.0, 2.0, 6.0, 5.0, 3.0, 4.0, 8.0, 1.0 };
   struct cls_struct_64byte f_dbl = { 1.0, 2.0, 3.0, 7.0, 2.0, 5.0, 6.0, 7.0 };
   struct cls_struct_64byte g_dbl = { 4.0, 5.0, 7.0, 9.0, 1.0, 1.0, 2.0, 9.0 };
   struct cls_struct_64byte h_dbl = { 8.0, 6.0, 1.0, 4.0, 0.0, 3.0, 3.0, 1.0 };
   struct cls_struct_64byte res_dbl;
+
+  cls_struct_type.size = 0;
+  cls_struct_type.alignment = 0;
+  cls_struct_type.type = FFI_TYPE_STRUCT;
+  cls_struct_type.elements = cls_struct_fields;
 
   cls_struct_fields[0] = &ffi_type_double;
   cls_struct_fields[1] = &ffi_type_double;
@@ -116,13 +108,13 @@ int main (void)
 	 res_dbl.d, res_dbl.e, res_dbl.f, res_dbl.g, res_dbl.h);
   /* { dg-output "\nres: 22 15 17 25 6 13 19 18" } */
 
-  CHECK(ffi_prep_closure(pcl, &cif, cls_struct_64byte_gn, NULL) == FFI_OK);
+  CHECK(ffi_prep_closure_loc(pcl, &cif, cls_struct_64byte_gn, NULL, code) == FFI_OK);
 
   res_dbl = ((cls_struct_64byte(*)(cls_struct_64byte,
 				   cls_struct_64byte,
 				   cls_struct_64byte,
 				   cls_struct_64byte))
-	     (pcl))(e_dbl, f_dbl, g_dbl, h_dbl);
+	     (code))(e_dbl, f_dbl, g_dbl, h_dbl);
   /* { dg-output "\n22 15 17 25 6 13 19 18" } */
   printf("res: %g %g %g %g %g %g %g %g\n", res_dbl.a, res_dbl.b, res_dbl.c,
 	 res_dbl.d, res_dbl.e, res_dbl.f, res_dbl.g, res_dbl.h);

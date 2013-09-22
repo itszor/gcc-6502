@@ -1,29 +1,26 @@
-/* Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU OpenMP Library (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version.
+   under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
    Libgomp is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-   FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+   FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
    more details.
 
-   You should have received a copy of the GNU Lesser General Public License 
-   along with libgomp; see the file COPYING.LIB.  If not, write to the
-   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files, some
-   of which are compiled with GCC, to produce an executable, this library
-   does not by itself cause the resulting executable to be covered by the
-   GNU General Public License.  This exception does not however invalidate
-   any other reasons why the executable file might be covered by the GNU
-   General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This file handles the SECTIONS construct.  */
 
@@ -37,9 +34,25 @@ gomp_sections_init (struct gomp_work_share *ws, unsigned count)
 {
   ws->sched = GFS_DYNAMIC;
   ws->chunk_size = 1;
-  ws->end = count + 1;
+  ws->end = count + 1L;
   ws->incr = 1;
   ws->next = 1;
+#ifdef HAVE_SYNC_BUILTINS
+  /* Prepare things to make each iteration faster.  */
+  if (sizeof (long) > sizeof (unsigned))
+    ws->mode = 1;
+  else
+    {
+      struct gomp_thread *thr = gomp_thread ();
+      struct gomp_team *team = thr->ts.team;
+      long nthreads = team ? team->nthreads : 1;
+
+      ws->mode = ((nthreads | ws->end)
+		  < 1UL << (sizeof (long) * __CHAR_BIT__ / 2 - 1));
+    }
+#else
+  ws->mode = 0;
+#endif
 }
 
 /* This routine is called when first encountering a sections construct
@@ -59,14 +72,24 @@ GOMP_sections_start (unsigned count)
   long s, e, ret;
 
   if (gomp_work_share_start (false))
-    gomp_sections_init (thr->ts.work_share, count);
+    {
+      gomp_sections_init (thr->ts.work_share, count);
+      gomp_work_share_init_done ();
+    }
 
+#ifdef HAVE_SYNC_BUILTINS
+  if (gomp_iter_dynamic_next (&s, &e))
+    ret = s;
+  else
+    ret = 0;
+#else
+  gomp_mutex_lock (&thr->ts.work_share->lock);
   if (gomp_iter_dynamic_next_locked (&s, &e))
     ret = s;
   else
     ret = 0;
-
   gomp_mutex_unlock (&thr->ts.work_share->lock);
+#endif
 
   return ret;
 }
@@ -83,8 +106,15 @@ GOMP_sections_start (unsigned count)
 unsigned
 GOMP_sections_next (void)
 {
-  struct gomp_thread *thr = gomp_thread ();
   long s, e, ret;
+
+#ifdef HAVE_SYNC_BUILTINS
+  if (gomp_iter_dynamic_next (&s, &e))
+    ret = s;
+  else
+    ret = 0;
+#else
+  struct gomp_thread *thr = gomp_thread ();
 
   gomp_mutex_lock (&thr->ts.work_share->lock);
   if (gomp_iter_dynamic_next_locked (&s, &e))
@@ -92,6 +122,7 @@ GOMP_sections_next (void)
   else
     ret = 0;
   gomp_mutex_unlock (&thr->ts.work_share->lock);
+#endif
 
   return ret;
 }
@@ -103,15 +134,12 @@ void
 GOMP_parallel_sections_start (void (*fn) (void *), void *data,
 			      unsigned num_threads, unsigned count)
 {
-  struct gomp_work_share *ws;
+  struct gomp_team *team;
 
-  num_threads = gomp_resolve_num_threads (num_threads);
-  if (gomp_dyn_var && num_threads > count)
-    num_threads = count;
-
-  ws = gomp_new_work_share (false, num_threads);
-  gomp_sections_init (ws, count);
-  gomp_team_start (fn, data, num_threads, ws);
+  num_threads = gomp_resolve_num_threads (num_threads, count);
+  team = gomp_new_team (num_threads);
+  gomp_sections_init (&team->work_shares[0], count);
+  gomp_team_start (fn, data, num_threads, team);
 }
 
 /* The GOMP_section_end* routines are called after the thread is told

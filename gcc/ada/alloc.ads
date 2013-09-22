@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -63,6 +61,9 @@ package Alloc is
    Elmts_Initial                    : constant := 1_200;   -- Elists
    Elmts_Increment                  : constant := 100;
 
+   File_Name_Chars_Initial          : constant := 10_000;  -- Osint
+   File_Name_Chars_Increment        : constant := 100;
+
    Inlined_Bodies_Initial           : constant := 50;      -- Inline
    Inlined_Bodies_Increment         : constant := 200;
 
@@ -98,6 +99,12 @@ package Alloc is
 
    Nodes_Initial                    : constant := 50_000;  -- Atree
    Nodes_Increment                  : constant := 100;
+
+   Notes_Initial                    : constant := 100;     -- Lib
+   Notes_Increment                  : constant := 200;
+
+   Obsolescent_Warnings_Initial     : constant := 50;      -- Sem_Prag
+   Obsolescent_Warnings_Increment   : constant := 200;
 
    Orig_Nodes_Initial               : constant := 50_000;  -- Atree
    Orig_Nodes_Increment             : constant := 100;
@@ -141,10 +148,16 @@ package Alloc is
    Unreferenced_Entities_Initial    : constant := 1_000;   -- Sem_Warn
    Unreferenced_Entities_Increment  : constant := 100;
 
+   Warnings_Off_Pragmas_Initial     : constant := 500;     -- Sem_Warn
+   Warnings_Off_Pragmas_Increment   : constant := 100;
+
    With_List_Initial                : constant := 10;      -- Features
    With_List_Increment              : constant := 300;
 
    Xrefs_Initial                    : constant := 5_000;   -- Cross-refs
    Xrefs_Increment                  : constant := 300;
+
+   Drefs_Initial                    : constant := 5;       -- Dereferences
+   Drefs_Increment                  : constant := 1_000;
 
 end Alloc;

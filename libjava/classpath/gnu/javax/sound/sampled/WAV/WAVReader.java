@@ -1,5 +1,5 @@
 /* WAVReader.java -- Read WAV files.
-   Copyright (C) 2006 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -52,7 +52,7 @@ import javax.sound.sampled.spi.AudioFileReader;
 
 /**
  * A WAV file reader.
- * 
+ *
  * This code reads WAV files.
  *
  * There are many decent documents on the web describing the WAV file
@@ -66,24 +66,24 @@ import javax.sound.sampled.spi.AudioFileReader;
  */
 public class WAVReader extends AudioFileReader
 {
-  private static long readUnsignedIntLE (DataInputStream is) 
+  private static long readUnsignedIntLE (DataInputStream is)
     throws IOException
   {
     byte[] buf = new byte[4];
     is.readFully(buf);
-    return (buf[0] & 0xFF 
-	    | ((buf[1] & 0xFF) << 8)
-	    | ((buf[2] & 0xFF) << 16)
-	    | ((buf[3] & 0xFF) << 24));
+    return (buf[0] & 0xFF
+            | ((buf[1] & 0xFF) << 8)
+            | ((buf[2] & 0xFF) << 16)
+            | ((buf[3] & 0xFF) << 24));
   }
 
-  private static short readUnsignedShortLE (DataInputStream is) 
+  private static short readUnsignedShortLE (DataInputStream is)
     throws IOException
   {
     byte[] buf = new byte[2];
     is.readFully(buf);
-    return (short) (buf[0] & 0xFF 
-		    | ((buf[1] & 0xFF) << 8));
+    return (short) (buf[0] & 0xFF
+                    | ((buf[1] & 0xFF) << 8));
   }
 
   /* Get an AudioFileFormat from the given File.
@@ -115,7 +115,7 @@ public class WAVReader extends AudioFileReader
       din = (DataInputStream) in;
     else
       din = new DataInputStream(in);
-    
+
     if (din.readInt() != 0x52494646) // "RIFF"
       throw new UnsupportedAudioFileException("Invalid WAV chunk header.");
 
@@ -128,39 +128,39 @@ public class WAVReader extends AudioFileReader
     boolean foundFmt = false;
     boolean foundData = false;
 
-    short compressionCode = 0, numberChannels = 0, blockAlign = 0, bitsPerSample = 0;
+    short compressionCode = 0, numberChannels = 0, bitsPerSample = 0;
     long sampleRate = 0, bytesPerSecond = 0;
     long chunkLength = 0;
 
     while (! foundData)
       {
-	int chunkId = din.readInt();
-	chunkLength = readUnsignedIntLE(din);
-	switch (chunkId)
-	  {
-	  case 0x666D7420: // "fmt "
-	    foundFmt = true;
-	    compressionCode = readUnsignedShortLE(din);
-	    numberChannels = readUnsignedShortLE(din);
-	    sampleRate = readUnsignedIntLE(din);
-	    bytesPerSecond = readUnsignedIntLE(din);
-	    blockAlign = readUnsignedShortLE(din);
-	    bitsPerSample = readUnsignedShortLE(din);
-	    din.skip(chunkLength - 16);
-	    break;
-	  case 0x66616374: // "fact"
-	    // FIXME: hold compression format dependent data.
-	    din.skip(chunkLength);
-	    break;
-	  case 0x64617461: // "data"
-	    if (! foundFmt)
-	      throw new UnsupportedAudioFileException("This implementation requires WAV fmt chunks precede data chunks.");
-	    foundData = true;
-	    break;
-	  default:
-	    // Unrecognized chunk.  Skip it.
-	    din.skip(chunkLength);
-	  }
+        int chunkId = din.readInt();
+        chunkLength = readUnsignedIntLE(din);
+        switch (chunkId)
+          {
+          case 0x666D7420: // "fmt "
+            foundFmt = true;
+            compressionCode = readUnsignedShortLE(din);
+            numberChannels = readUnsignedShortLE(din);
+            sampleRate = readUnsignedIntLE(din);
+            bytesPerSecond = readUnsignedIntLE(din);
+            readUnsignedShortLE(din); // blockAlign
+            bitsPerSample = readUnsignedShortLE(din);
+            din.skip(chunkLength - 16);
+            break;
+          case 0x66616374: // "fact"
+            // FIXME: hold compression format dependent data.
+            din.skip(chunkLength);
+            break;
+          case 0x64617461: // "data"
+            if (! foundFmt)
+              throw new UnsupportedAudioFileException("This implementation requires WAV fmt chunks precede data chunks.");
+            foundData = true;
+            break;
+          default:
+            // Unrecognized chunk.  Skip it.
+            din.skip(chunkLength);
+          }
       }
 
     AudioFormat.Encoding encoding;
@@ -168,25 +168,25 @@ public class WAVReader extends AudioFileReader
     switch (compressionCode)
       {
       case 1: // PCM/uncompressed
-	if (bitsPerSample <= 8)
-	  encoding = AudioFormat.Encoding.PCM_UNSIGNED;
-	else
-	  encoding = AudioFormat.Encoding.PCM_SIGNED;
-	break;
+        if (bitsPerSample <= 8)
+          encoding = AudioFormat.Encoding.PCM_UNSIGNED;
+        else
+          encoding = AudioFormat.Encoding.PCM_SIGNED;
+        break;
 
       default:
-	throw new UnsupportedAudioFileException("Unrecognized WAV compression code: 0x" 
-						+ Integer.toHexString(compressionCode));
+        throw new UnsupportedAudioFileException("Unrecognized WAV compression code: 0x"
+                                                + Integer.toHexString(compressionCode));
       }
 
     return new AudioFileFormat (AudioFileFormat.Type.WAVE,
-				new AudioFormat(encoding,
-						(float) sampleRate, 
-						bitsPerSample,
-						numberChannels, 
-						((bitsPerSample + 7) / 8) * numberChannels,
-						(float) bytesPerSecond, false),
-				(int) chunkLength);
+                                new AudioFormat(encoding,
+                                                (float) sampleRate,
+                                                bitsPerSample,
+                                                numberChannels,
+                                                ((bitsPerSample + 7) / 8) * numberChannels,
+                                                (float) bytesPerSecond, false),
+                                (int) chunkLength);
   }
 
   /* Get an AudioFileFormat from the given URL.

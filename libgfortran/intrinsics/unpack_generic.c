@@ -1,48 +1,69 @@
 /* Generic implementation of the UNPACK intrinsic
-   Copyright 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Ligbfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 
+/* All the bounds checking for unpack in one function.  If field is NULL,
+   we don't check it, for the unpack0 functions.  */
+
+static void
+unpack_bounds (gfc_array_char *ret, const gfc_array_char *vector,
+	 const gfc_array_l1 *mask, const gfc_array_char *field)
+{
+  index_type vec_size, mask_count;
+  vec_size = size0 ((array_t *) vector);
+  mask_count = count_0 (mask);
+  if (vec_size < mask_count)
+    runtime_error ("Incorrect size of return value in UNPACK"
+		   " intrinsic: should be at least %ld, is"
+		   " %ld", (long int) mask_count,
+		   (long int) vec_size);
+
+  if (field != NULL)
+    bounds_equal_extents ((array_t *) field, (array_t *) mask,
+			  "FIELD", "UNPACK");
+
+  if (ret->base_addr != NULL)
+    bounds_equal_extents ((array_t *) ret, (array_t *) mask,
+			  "return value", "UNPACK");
+
+}
+
 static void
 unpack_internal (gfc_array_char *ret, const gfc_array_char *vector,
 		 const gfc_array_l1 *mask, const gfc_array_char *field,
-		 index_type size, index_type fsize)
+		 index_type size)
 {
   /* r.* indicates the return array.  */
   index_type rstride[GFC_MAX_DIMENSIONS];
   index_type rstride0;
   index_type rs;
-  char *rptr;
+  char * restrict rptr;
   /* v.* indicates the vector array.  */
   index_type vstride0;
   char *vptr;
@@ -65,7 +86,7 @@ unpack_internal (gfc_array_char *ret, const gfc_array_char *vector,
 
   empty = 0;
 
-  mptr = mask->data;
+  mptr = mask->base_addr;
 
   /* Use the same loop for all logical types, by using GFC_LOGICAL_1
      and using shifting to address size and endian issues.  */
@@ -85,7 +106,7 @@ unpack_internal (gfc_array_char *ret, const gfc_array_char *vector,
   else
     runtime_error ("Funny sized logical array");
 
-  if (ret->data == NULL)
+  if (ret->base_addr == NULL)
     {
       /* The front end has signalled that we need to populate the
 	 return array descriptor.  */
@@ -94,18 +115,17 @@ unpack_internal (gfc_array_char *ret, const gfc_array_char *vector,
       for (n = 0; n < dim; n++)
 	{
 	  count[n] = 0;
-	  ret->dim[n].stride = rs;
-	  ret->dim[n].lbound = 0;
-	  ret->dim[n].ubound = mask->dim[n].ubound - mask->dim[n].lbound;
-	  extent[n] = ret->dim[n].ubound + 1;
+	  GFC_DIMENSION_SET(ret->dim[n], 0,
+			    GFC_DESCRIPTOR_EXTENT(mask,n) - 1, rs);
+	  extent[n] = GFC_DESCRIPTOR_EXTENT(ret,n);
 	  empty = empty || extent[n] <= 0;
-	  rstride[n] = ret->dim[n].stride * size;
-	  fstride[n] = field->dim[n].stride * fsize;
-	  mstride[n] = mask->dim[n].stride * mask_kind;
+	  rstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(ret, n);
+	  fstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(field, n);
+	  mstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(mask, n);
 	  rs *= extent[n];
 	}
       ret->offset = 0;
-      ret->data = internal_malloc_size (rs * size);
+      ret->base_addr = xmalloc (rs * size);
     }
   else
     {
@@ -113,33 +133,24 @@ unpack_internal (gfc_array_char *ret, const gfc_array_char *vector,
       for (n = 0; n < dim; n++)
 	{
 	  count[n] = 0;
-	  extent[n] = ret->dim[n].ubound + 1 - ret->dim[n].lbound;
+	  extent[n] = GFC_DESCRIPTOR_EXTENT(ret,n);
 	  empty = empty || extent[n] <= 0;
-	  rstride[n] = ret->dim[n].stride * size;
-	  fstride[n] = field->dim[n].stride * fsize;
-	  mstride[n] = mask->dim[n].stride * mask_kind;
+	  rstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(ret, n);
+	  fstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(field, n);
+	  mstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(mask, n);
 	}
-      if (rstride[0] == 0)
-	rstride[0] = size;
     }
 
   if (empty)
     return;
 
-  if (fstride[0] == 0)
-    fstride[0] = fsize;
-  if (mstride[0] == 0)
-    mstride[0] = 1;
-
-  vstride0 = vector->dim[0].stride * size;
-  if (vstride0 == 0)
-    vstride0 = size;
+  vstride0 = GFC_DESCRIPTOR_STRIDE_BYTES(vector,0);
   rstride0 = rstride[0];
   fstride0 = fstride[0];
   mstride0 = mstride[0];
-  rptr = ret->data;
-  fptr = field->data;
-  vptr = vector->data;
+  rptr = ret->base_addr;
+  fptr = field->base_addr;
+  vptr = vector->base_addr;
 
   while (rptr)
     {
@@ -196,10 +207,165 @@ void
 unpack1 (gfc_array_char *ret, const gfc_array_char *vector,
 	 const gfc_array_l1 *mask, const gfc_array_char *field)
 {
-  unpack_internal (ret, vector, mask, field,
-		   GFC_DESCRIPTOR_SIZE (vector),
-		   GFC_DESCRIPTOR_SIZE (field));
+  index_type type_size;
+  index_type size;
+
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, field);
+
+  type_size = GFC_DTYPE_TYPE_SIZE (vector);
+  size = GFC_DESCRIPTOR_SIZE (vector);
+
+  switch(type_size)
+    {
+    case GFC_DTYPE_LOGICAL_1:
+    case GFC_DTYPE_INTEGER_1:
+    case GFC_DTYPE_DERIVED_1:
+      unpack1_i1 ((gfc_array_i1 *) ret, (gfc_array_i1 *) vector,
+		  mask, (gfc_array_i1 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_2:
+    case GFC_DTYPE_INTEGER_2:
+      unpack1_i2 ((gfc_array_i2 *) ret, (gfc_array_i2 *) vector,
+		  mask, (gfc_array_i2 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_4:
+    case GFC_DTYPE_INTEGER_4:
+      unpack1_i4 ((gfc_array_i4 *) ret, (gfc_array_i4 *) vector,
+		  mask, (gfc_array_i4 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_8:
+    case GFC_DTYPE_INTEGER_8:
+      unpack1_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) vector,
+		  mask, (gfc_array_i8 *) field);
+      return;
+
+#ifdef HAVE_GFC_INTEGER_16
+    case GFC_DTYPE_LOGICAL_16:
+    case GFC_DTYPE_INTEGER_16:
+      unpack1_i16 ((gfc_array_i16 *) ret, (gfc_array_i16 *) vector,
+		   mask, (gfc_array_i16 *) field);
+      return;
+#endif
+
+    case GFC_DTYPE_REAL_4:
+      unpack1_r4 ((gfc_array_r4 *) ret, (gfc_array_r4 *) vector,
+		  mask, (gfc_array_r4 *) field);
+      return;
+
+    case GFC_DTYPE_REAL_8:
+      unpack1_r8 ((gfc_array_r8 *) ret, (gfc_array_r8 *) vector,
+		  mask, (gfc_array_r8 *) field);
+      return;
+
+/* FIXME: This here is a hack, which will have to be removed when
+   the array descriptor is reworked.  Currently, we don't store the
+   kind value for the type, but only the size.  Because on targets with
+   __float128, we have sizeof(logn double) == sizeof(__float128),
+   we cannot discriminate here and have to fall back to the generic
+   handling (which is suboptimal).  */
+#if !defined(GFC_REAL_16_IS_FLOAT128)
+# ifdef HAVE_GFC_REAL_10
+    case GFC_DTYPE_REAL_10:
+      unpack1_r10 ((gfc_array_r10 *) ret, (gfc_array_r10 *) vector,
+		   mask, (gfc_array_r10 *) field);
+      return;
+# endif
+
+# ifdef HAVE_GFC_REAL_16
+    case GFC_DTYPE_REAL_16:
+      unpack1_r16 ((gfc_array_r16 *) ret, (gfc_array_r16 *) vector,
+		   mask, (gfc_array_r16 *) field);
+      return;
+# endif
+#endif
+
+    case GFC_DTYPE_COMPLEX_4:
+      unpack1_c4 ((gfc_array_c4 *) ret, (gfc_array_c4 *) vector,
+		  mask, (gfc_array_c4 *) field);
+      return;
+
+    case GFC_DTYPE_COMPLEX_8:
+      unpack1_c8 ((gfc_array_c8 *) ret, (gfc_array_c8 *) vector,
+		  mask, (gfc_array_c8 *) field);
+      return;
+
+/* FIXME: This here is a hack, which will have to be removed when
+   the array descriptor is reworked.  Currently, we don't store the
+   kind value for the type, but only the size.  Because on targets with
+   __float128, we have sizeof(logn double) == sizeof(__float128),
+   we cannot discriminate here and have to fall back to the generic
+   handling (which is suboptimal).  */
+#if !defined(GFC_REAL_16_IS_FLOAT128)
+# ifdef HAVE_GFC_COMPLEX_10
+    case GFC_DTYPE_COMPLEX_10:
+      unpack1_c10 ((gfc_array_c10 *) ret, (gfc_array_c10 *) vector,
+		   mask, (gfc_array_c10 *) field);
+      return;
+# endif
+
+# ifdef HAVE_GFC_COMPLEX_16
+    case GFC_DTYPE_COMPLEX_16:
+      unpack1_c16 ((gfc_array_c16 *) ret, (gfc_array_c16 *) vector,
+		   mask, (gfc_array_c16 *) field);
+      return;
+# endif
+#endif
+
+    case GFC_DTYPE_DERIVED_2:
+      if (GFC_UNALIGNED_2(ret->base_addr) || GFC_UNALIGNED_2(vector->base_addr)
+	  || GFC_UNALIGNED_2(field->base_addr))
+	break;
+      else
+	{
+	  unpack1_i2 ((gfc_array_i2 *) ret, (gfc_array_i2 *) vector,
+		      mask, (gfc_array_i2 *) field);
+	  return;
+	}
+
+    case GFC_DTYPE_DERIVED_4:
+      if (GFC_UNALIGNED_4(ret->base_addr) || GFC_UNALIGNED_4(vector->base_addr)
+	  || GFC_UNALIGNED_4(field->base_addr))
+	break;
+      else
+	{
+	  unpack1_i4 ((gfc_array_i4 *) ret, (gfc_array_i4 *) vector,
+		      mask, (gfc_array_i4 *) field);
+	  return;
+	}
+
+    case GFC_DTYPE_DERIVED_8:
+      if (GFC_UNALIGNED_8(ret->base_addr) || GFC_UNALIGNED_8(vector->base_addr)
+	  || GFC_UNALIGNED_8(field->base_addr))
+	break;
+      else
+	{
+	  unpack1_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) vector,
+		      mask, (gfc_array_i8 *) field);
+	  return;
+	}
+
+#ifdef HAVE_GFC_INTEGER_16
+    case GFC_DTYPE_DERIVED_16:
+      if (GFC_UNALIGNED_16(ret->base_addr)
+	  || GFC_UNALIGNED_16(vector->base_addr)
+	  || GFC_UNALIGNED_16(field->base_addr))
+	break;
+      else
+	{
+	  unpack1_i16 ((gfc_array_i16 *) ret, (gfc_array_i16 *) vector,
+		       mask, (gfc_array_i16 *) field);
+	  return;
+	}
+#endif
+    }
+
+  unpack_internal (ret, vector, mask, field, size);
 }
+
 
 extern void unpack1_char (gfc_array_char *, GFC_INTEGER_4,
 			  const gfc_array_char *, const gfc_array_l1 *,
@@ -212,10 +378,37 @@ unpack1_char (gfc_array_char *ret,
 	      GFC_INTEGER_4 ret_length __attribute__((unused)),
 	      const gfc_array_char *vector, const gfc_array_l1 *mask,
 	      const gfc_array_char *field, GFC_INTEGER_4 vector_length,
-	      GFC_INTEGER_4 field_length)
+	      GFC_INTEGER_4 field_length __attribute__((unused)))
 {
-  unpack_internal (ret, vector, mask, field, vector_length, field_length);
+
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, field);
+
+  unpack_internal (ret, vector, mask, field, vector_length);
 }
+
+
+extern void unpack1_char4 (gfc_array_char *, GFC_INTEGER_4,
+			   const gfc_array_char *, const gfc_array_l1 *,
+			   const gfc_array_char *, GFC_INTEGER_4,
+			   GFC_INTEGER_4);
+export_proto(unpack1_char4);
+
+void
+unpack1_char4 (gfc_array_char *ret,
+	       GFC_INTEGER_4 ret_length __attribute__((unused)),
+	       const gfc_array_char *vector, const gfc_array_l1 *mask,
+	       const gfc_array_char *field, GFC_INTEGER_4 vector_length,
+	       GFC_INTEGER_4 field_length __attribute__((unused)))
+{
+
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, field);
+
+  unpack_internal (ret, vector, mask, field,
+		   vector_length * sizeof (gfc_char4_t));
+}
+
 
 extern void unpack0 (gfc_array_char *, const gfc_array_char *,
 		     const gfc_array_l1 *, char *);
@@ -227,11 +420,167 @@ unpack0 (gfc_array_char *ret, const gfc_array_char *vector,
 {
   gfc_array_char tmp;
 
+  index_type type_size;
+
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, NULL);
+
+  type_size = GFC_DTYPE_TYPE_SIZE (vector);
+
+  switch (type_size)
+    {
+    case GFC_DTYPE_LOGICAL_1:
+    case GFC_DTYPE_INTEGER_1:
+    case GFC_DTYPE_DERIVED_1:
+      unpack0_i1 ((gfc_array_i1 *) ret, (gfc_array_i1 *) vector,
+		  mask, (GFC_INTEGER_1 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_2:
+    case GFC_DTYPE_INTEGER_2:
+      unpack0_i2 ((gfc_array_i2 *) ret, (gfc_array_i2 *) vector,
+		  mask, (GFC_INTEGER_2 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_4:
+    case GFC_DTYPE_INTEGER_4:
+      unpack0_i4 ((gfc_array_i4 *) ret, (gfc_array_i4 *) vector,
+		  mask, (GFC_INTEGER_4 *) field);
+      return;
+
+    case GFC_DTYPE_LOGICAL_8:
+    case GFC_DTYPE_INTEGER_8:
+      unpack0_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) vector,
+		  mask, (GFC_INTEGER_8 *) field);
+      return;
+
+#ifdef HAVE_GFC_INTEGER_16
+    case GFC_DTYPE_LOGICAL_16:
+    case GFC_DTYPE_INTEGER_16:
+      unpack0_i16 ((gfc_array_i16 *) ret, (gfc_array_i16 *) vector,
+		   mask, (GFC_INTEGER_16 *) field);
+      return;
+#endif
+
+    case GFC_DTYPE_REAL_4:
+      unpack0_r4 ((gfc_array_r4 *) ret, (gfc_array_r4 *) vector,
+		  mask, (GFC_REAL_4 *) field);
+      return;
+
+    case GFC_DTYPE_REAL_8:
+      unpack0_r8 ((gfc_array_r8 *) ret, (gfc_array_r8*) vector,
+		  mask, (GFC_REAL_8  *) field);
+      return;
+
+/* FIXME: This here is a hack, which will have to be removed when
+   the array descriptor is reworked.  Currently, we don't store the
+   kind value for the type, but only the size.  Because on targets with
+   __float128, we have sizeof(logn double) == sizeof(__float128),
+   we cannot discriminate here and have to fall back to the generic
+   handling (which is suboptimal).  */
+#if !defined(GFC_REAL_16_IS_FLOAT128)
+# ifdef HAVE_GFC_REAL_10
+    case GFC_DTYPE_REAL_10:
+      unpack0_r10 ((gfc_array_r10 *) ret, (gfc_array_r10 *) vector,
+		   mask, (GFC_REAL_10 *) field);
+      return;
+# endif
+
+# ifdef HAVE_GFC_REAL_16
+    case GFC_DTYPE_REAL_16:
+      unpack0_r16 ((gfc_array_r16 *) ret, (gfc_array_r16 *) vector,
+		   mask, (GFC_REAL_16 *) field);
+      return;
+# endif
+#endif
+
+    case GFC_DTYPE_COMPLEX_4:
+      unpack0_c4 ((gfc_array_c4 *) ret, (gfc_array_c4 *) vector,
+		  mask, (GFC_COMPLEX_4 *) field);
+      return;
+
+    case GFC_DTYPE_COMPLEX_8:
+      unpack0_c8 ((gfc_array_c8 *) ret, (gfc_array_c8 *) vector,
+		  mask, (GFC_COMPLEX_8 *) field);
+      return;
+
+/* FIXME: This here is a hack, which will have to be removed when
+   the array descriptor is reworked.  Currently, we don't store the
+   kind value for the type, but only the size.  Because on targets with
+   __float128, we have sizeof(logn double) == sizeof(__float128),
+   we cannot discriminate here and have to fall back to the generic
+   handling (which is suboptimal).  */
+#if !defined(GFC_REAL_16_IS_FLOAT128)
+# ifdef HAVE_GFC_COMPLEX_10
+    case GFC_DTYPE_COMPLEX_10:
+      unpack0_c10 ((gfc_array_c10 *) ret, (gfc_array_c10 *) vector,
+		   mask, (GFC_COMPLEX_10 *) field);
+      return;
+# endif
+
+# ifdef HAVE_GFC_COMPLEX_16
+    case GFC_DTYPE_COMPLEX_16:
+      unpack0_c16 ((gfc_array_c16 *) ret, (gfc_array_c16 *) vector,
+		   mask, (GFC_COMPLEX_16 *) field);
+      return;
+# endif
+#endif
+
+    case GFC_DTYPE_DERIVED_2:
+      if (GFC_UNALIGNED_2(ret->base_addr) || GFC_UNALIGNED_2(vector->base_addr)
+	  || GFC_UNALIGNED_2(field))
+	break;
+      else
+	{
+	  unpack0_i2 ((gfc_array_i2 *) ret, (gfc_array_i2 *) vector,
+		      mask, (GFC_INTEGER_2 *) field);
+	  return;
+	}
+
+    case GFC_DTYPE_DERIVED_4:
+      if (GFC_UNALIGNED_4(ret->base_addr) || GFC_UNALIGNED_4(vector->base_addr)
+	  || GFC_UNALIGNED_4(field))
+	break;
+      else
+	{
+	  unpack0_i4 ((gfc_array_i4 *) ret, (gfc_array_i4 *) vector,
+		      mask, (GFC_INTEGER_4 *) field);
+	  return;
+	}
+
+    case GFC_DTYPE_DERIVED_8:
+      if (GFC_UNALIGNED_8(ret->base_addr) || GFC_UNALIGNED_8(vector->base_addr)
+	  || GFC_UNALIGNED_8(field))
+	break;
+      else
+	{
+	  unpack0_i8 ((gfc_array_i8 *) ret, (gfc_array_i8 *) vector,
+		      mask, (GFC_INTEGER_8 *) field);
+	  return;
+	}
+
+#ifdef HAVE_GFC_INTEGER_16
+    case GFC_DTYPE_DERIVED_16:
+      if (GFC_UNALIGNED_16(ret->base_addr)
+	  || GFC_UNALIGNED_16(vector->base_addr)
+	  || GFC_UNALIGNED_16(field))
+	break;
+      else
+	{
+	  unpack0_i16 ((gfc_array_i16 *) ret, (gfc_array_i16 *) vector,
+		       mask, (GFC_INTEGER_16 *) field);
+	  return;
+	}
+#endif
+
+    }
+
   memset (&tmp, 0, sizeof (tmp));
   tmp.dtype = 0;
-  tmp.data = field;
-  unpack_internal (ret, vector, mask, &tmp, GFC_DESCRIPTOR_SIZE (vector), 0);
+  tmp.base_addr = field;
+  unpack_internal (ret, vector, mask, &tmp, GFC_DESCRIPTOR_SIZE (vector));
 }
+
 
 extern void unpack0_char (gfc_array_char *, GFC_INTEGER_4,
 			  const gfc_array_char *, const gfc_array_l1 *,
@@ -247,8 +596,36 @@ unpack0_char (gfc_array_char *ret,
 {
   gfc_array_char tmp;
 
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, NULL);
+
   memset (&tmp, 0, sizeof (tmp));
   tmp.dtype = 0;
-  tmp.data = field;
-  unpack_internal (ret, vector, mask, &tmp, vector_length, 0);
+  tmp.base_addr = field;
+  unpack_internal (ret, vector, mask, &tmp, vector_length);
+}
+
+
+extern void unpack0_char4 (gfc_array_char *, GFC_INTEGER_4,
+			   const gfc_array_char *, const gfc_array_l1 *,
+			   char *, GFC_INTEGER_4, GFC_INTEGER_4);
+export_proto(unpack0_char4);
+
+void
+unpack0_char4 (gfc_array_char *ret,
+	       GFC_INTEGER_4 ret_length __attribute__((unused)),
+	       const gfc_array_char *vector, const gfc_array_l1 *mask,
+	       char *field, GFC_INTEGER_4 vector_length,
+	       GFC_INTEGER_4 field_length __attribute__((unused)))
+{
+  gfc_array_char tmp;
+
+  if (unlikely(compile_options.bounds_check))
+    unpack_bounds (ret, vector, mask, NULL);
+
+  memset (&tmp, 0, sizeof (tmp));
+  tmp.dtype = 0;
+  tmp.base_addr = field;
+  unpack_internal (ret, vector, mask, &tmp,
+		   vector_length * sizeof (gfc_char4_t));
 }

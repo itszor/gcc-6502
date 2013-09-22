@@ -1,11 +1,11 @@
 // { dg-do compile }
 
-// Copyright (C) 2007 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 #include <algorithm>
 
@@ -32,8 +31,34 @@ namespace std
     find(_IIter, _IIter, const _Tp&);
 
   template<typename _IIter, typename _Predicate>
-    _IIter 
+    _IIter
     find_if(_IIter, _IIter, _Predicate);
+
+#if __cplusplus >= 201103L
+  template<typename _IIter, typename _Predicate>
+    bool
+    all_of(_IIter, _IIter, _Predicate);
+
+  template<typename _IIter, typename _Predicate>
+    bool
+    any_of(_IIter, _IIter, _Predicate);
+
+  template<typename _IIter, typename _Predicate>
+    bool
+    none_of(_IIter, _IIter, _Predicate);
+
+  template<typename _IIter, typename _Predicate>
+    _IIter
+    find_if_not(_IIter, _IIter, _Predicate);
+
+  template<typename _IIter, typename _Predicate>
+    bool
+    is_partitioned(_IIter, _IIter, _Predicate);
+
+  template<typename _FIter, typename _Predicate>
+    _FIter
+    partition_point(_FIter, _FIter, _Predicate);
+#endif
 
   template<typename _FIter1, typename _FIter2>
     _FIter1
@@ -115,6 +140,12 @@ namespace std
     void 
     swap(_Tp&, _Tp& b);
 
+#if __cplusplus >= 201103L
+  template<typename _Tp, size_t _Nm>
+    void
+    swap(_Tp (&)[_Nm], _Tp (&)[_Nm]);
+#endif
+
   template<typename _FIter1, typename _FIter2>
     _FIter2 
     swap_ranges(_FIter1 first1, _FIter1, _FIter2);
@@ -179,6 +210,21 @@ namespace std
   template<typename _IIter, typename _OIter, typename _Predicate>
     _OIter 
     remove_copy_if(_IIter, _IIter, _OIter, _Predicate);
+
+#if __cplusplus >= 201103L
+  template<typename _IIter, typename _OIter, typename _Predicate>
+    _OIter 
+    copy_if(_IIter, _IIter, _OIter, _Predicate);
+
+  template<typename _IIter, typename _Size, typename _OIter>
+    _OIter
+    copy_n(_IIter, _Size, _OIter);
+
+  template<typename _IIter, typename _OIter1,
+	   typename _OIter2, typename _Predicate>
+    pair<_OIter1, _OIter2>
+    partition_copy(_IIter, _IIter, _OIter1, _OIter2, _Predicate);
+#endif
 
   template<typename _FIter>
     _FIter 
@@ -401,7 +447,7 @@ namespace std
     void 
     sort_heap(_RAIter, _RAIter, _Compare);
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
   template<typename _RAIter>
     bool 
     is_heap(_RAIter, _RAIter);
@@ -468,7 +514,7 @@ namespace std
     _FIter 
     max_element(_FIter, _FIter, _Compare);
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
   template<typename _Tp>
     pair<const _Tp&, const _Tp&>
     minmax(const _Tp&, const _Tp&);
@@ -482,8 +528,32 @@ namespace std
     minmax_element(_FIter, _FIter);
 
   template<typename _FIter, typename _Compare>
-    pair<_FIter, _FIter> 
+    pair<_FIter, _FIter>
     minmax_element(_FIter, _FIter, _Compare);
+
+  template<typename _Tp>
+    _Tp
+    min(initializer_list<_Tp>);
+
+  template<typename _Tp, typename _Compare>
+    _Tp
+    min(initializer_list<_Tp>, _Compare);
+
+  template<typename _Tp>
+    _Tp
+    max(initializer_list<_Tp>);
+
+  template<typename _Tp, typename _Compare>
+    _Tp
+    max(initializer_list<_Tp>, _Compare);
+
+  template<typename _Tp>
+    pair<_Tp, _Tp>
+    minmax(initializer_list<_Tp>);
+
+  template<typename _Tp, typename _Compare>
+    pair<_Tp, _Tp>
+    minmax(initializer_list<_Tp>, _Compare);
 #endif
 
   template<typename _IIter1, typename _IIter2>

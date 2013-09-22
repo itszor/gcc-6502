@@ -1,5 +1,5 @@
-/* XMLInputFactory.java -- 
-   Copyright (C) 2005,2006  Free Software Foundation, Inc.
+/* XMLInputFactory.java --
+   Copyright (C) 2005,2006,2009  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -44,7 +44,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.Reader;
-import java.io.Writer;
 import java.util.Properties;
 import javax.xml.stream.util.XMLEventAllocator;
 import javax.xml.transform.Source;
@@ -133,7 +132,7 @@ public abstract class XMLInputFactory
   /**
    * Property used to control namespace support.
    */
-  public static final String IS_NAMESPACE_AWARE = 
+  public static final String IS_NAMESPACE_AWARE =
     "javax.xml.stream.isNamespaceAware";
 
   /**
@@ -207,6 +206,11 @@ public abstract class XMLInputFactory
    * system resource</li>
    * <li>the default factory class</li>
    * </ol>
+   * @param factoryId name of the factory, same as a property name
+   * @param classLoader the class loader to use
+   * @return the factory implementation
+   * @exception FactoryConfigurationError if an instance of this factory
+   * cannot be loaded
    */
   public static XMLInputFactory newInstance(String factoryId,
                                             ClassLoader classLoader)
@@ -230,7 +234,7 @@ public abstract class XMLInputFactory
           {
             try
               {
-                Class t = (loader != null) ? loader.loadClass(className) :
+                Class<?> t = (loader != null) ? loader.loadClass(className) :
                   Class.forName(className);
                 return (XMLInputFactory) t.newInstance();
               }
@@ -348,7 +352,7 @@ public abstract class XMLInputFactory
   public abstract XMLEventReader createXMLEventReader(String systemId,
                                                       Reader reader)
     throws XMLStreamException;
-  
+
   /**
    * Creates a new event reader.
    */
@@ -445,4 +449,3 @@ public abstract class XMLInputFactory
   public abstract XMLEventAllocator getEventAllocator();
 
 }
-

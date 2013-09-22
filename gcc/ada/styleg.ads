@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,9 +28,6 @@
 --  a separate package so that they can more easily be customized. Calls
 --  to these subprograms are only made if Opt.Style_Check is set True.
 --  Styleg does not depends on the GNAT tree (Atree, Sinfo, ...).
-
---  For the compiler, there is also a child package Styleg.C that depends
---  on the GNAT tree.
 
 with Types; use Types;
 
@@ -63,6 +60,10 @@ package Styleg is
    --  is capitalized in an appropriate manner. Reserved is set if
    --  the attribute designator is a reserved word (access, digits,
    --  delta or range) to allow differing rules for the two cases.
+
+   procedure Check_Boolean_Operator (Node : Node_Id);
+   --  Node is a node for an AND or OR operator. Check that the usage meets
+   --  the style rules.
 
    procedure Check_Box;
    --  Called after scanning out a box to check spacing
@@ -116,6 +117,10 @@ package Styleg is
    --  the current line, used to check for appropriate line terminator usage.
    --  The parameter Len is the length of the current line.
 
+   procedure Check_Not_In;
+   --  Called with Scan_Ptr pointing to an IN token, and Prev_Token_Ptr
+   --  pointing to a NOT token. Used to check proper layout of NOT IN.
+
    procedure Check_Pragma_Name;
    --  The current token is a pragma identifier. Check that it is spelled
    --  properly (i.e. with an appropriate casing convention).
@@ -136,7 +141,7 @@ package Styleg is
    pragma Inline (Check_Separate_Stmt_Lines);
    --  Called after scanning THEN (not preceded by AND) or ELSE (not preceded
    --  by OR). Used to check that no tokens follow on the same line (which
-   --  would intefere with coverage testing). Handles case of THEN ABORT as
+   --  would interfere with coverage testing). Handles case of THEN ABORT as
    --  an exception, as well as PRAGMA after ELSE.
 
    procedure Check_Unary_Plus_Or_Minus;
@@ -146,8 +151,8 @@ package Styleg is
    --  Called after scanning a vertical bar to check spacing
 
    procedure Check_Xtra_Parens (Loc : Source_Ptr);
-   --  Called after scanning a conditional expression that has at least one
-   --  level of parentheses around the entire expression.
+   --  Called after scanning an if, case, or quantified expression that has at
+   --  least one level of parentheses around the entire expression.
 
    function Mode_In_Check return Boolean;
    pragma Inline (Mode_In_Check);
@@ -172,10 +177,5 @@ package Styleg is
    --  lower case letters. On entry Token_Ptr points to the keyword token.
    --  This is not used for keywords appearing as attribute designators,
    --  where instead Check_Attribute_Name (True) is called.
-
-   function RM_Column_Check return Boolean;
-   pragma Inline (RM_Column_Check);
-   --  Determines whether style checking is active and the RM column check
-   --  mode is set requiring checking of RM format layout.
 
 end Styleg;

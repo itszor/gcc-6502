@@ -1,7 +1,6 @@
 /* Functions related to mangling class names for the GNU compiler
    for the Java(TM) language.
-   Copyright (C) 1998, 1999, 2001, 2002, 2003, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1998-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,12 +27,11 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "jcf.h"
 #include "tree.h"
 #include "java-tree.h"
 #include "obstack.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "ggc.h"
 #include "langhooks-def.h"
 
@@ -72,176 +70,12 @@ struct obstack *mangle_obstack;
 /* atms: array template mangled string. */
 static GTY(()) tree atms;
 
-static int
-utf8_cmp (const unsigned char *str, int length, const char *name)
-{
-  const unsigned char *limit = str + length;
-  int i;
-
-  for (i = 0; name[i]; ++i)
-    {
-      int ch = UTF8_GET (str, limit);
-      if (ch != name[i])
-	return ch - name[i];
-    }
-
-  return str == limit ? 0 : 1;
-}
-
-/* A sorted list of all C++ keywords.  */
-static const char *const cxx_keywords[] =
-{
-  "_Complex",
-  "__alignof",
-  "__alignof__",
-  "__asm",
-  "__asm__",
-  "__attribute",
-  "__attribute__",
-  "__builtin_va_arg",
-  "__complex",
-  "__complex__",
-  "__const",
-  "__const__",
-  "__extension__",
-  "__imag",
-  "__imag__",
-  "__inline",
-  "__inline__",
-  "__label__",
-  "__null",
-  "__real",
-  "__real__",
-  "__restrict",
-  "__restrict__",
-  "__signed",
-  "__signed__",
-  "__typeof",
-  "__typeof__",
-  "__volatile",
-  "__volatile__",
-  "and",
-  "and_eq",
-  "asm",
-  "auto",
-  "bitand",
-  "bitor",
-  "bool",
-  "break",
-  "case",
-  "catch",
-  "char",
-  "class",
-  "compl",
-  "const",
-  "const_cast",
-  "continue",
-  "default",
-  "delete",
-  "do",
-  "double",
-  "dynamic_cast",
-  "else",
-  "enum",
-  "explicit",
-  "export",
-  "extern",
-  "false",
-  "float",
-  "for",
-  "friend",
-  "goto",
-  "if",
-  "inline",
-  "int",
-  "long",
-  "mutable",
-  "namespace",
-  "new",
-  "not",
-  "not_eq",
-  "operator",
-  "or",
-  "or_eq",
-  "private",
-  "protected",
-  "public",
-  "register",
-  "reinterpret_cast",
-  "return",
-  "short",
-  "signed",
-  "sizeof",
-  "static",
-  "static_cast",
-  "struct",
-  "switch",
-  "template",
-  "this",      
-  "throw",
-  "true",
-  "try",
-  "typedef",
-  "typeid",
-  "typename",
-  "typeof",
-  "union",
-  "unsigned",
-  "using",
-  "virtual",
-  "void",
-  "volatile",
-  "wchar_t",
-  "while",
-  "xor",
-  "xor_eq"
-};
-
-/* Return true if NAME is a C++ keyword.  */
-static int
-cxx_keyword_p (const char *name, int length)
-{
-  int last = ARRAY_SIZE (cxx_keywords);
-  int first = 0;
-  int mid = (last + first) / 2;
-  int old = -1;
-
-  for (mid = (last + first) / 2;
-       mid != old;
-       old = mid, mid = (last + first) / 2)
-    {
-      int kwl = strlen (cxx_keywords[mid]);
-      int min_length = kwl > length ? length : kwl;
-      int r = utf8_cmp ((const unsigned char *) name, min_length, cxx_keywords[mid]);
-
-      if (r == 0)
-	{
-	  int i;
-	  /* We've found a match if all the remaining characters are `$'.  */
-	  for (i = min_length; i < length && name[i] == '$'; ++i)
-	    ;
-	  if (i == length)
-	    return 1;
-	  r = 1;
-	}
-
-      if (r < 0)
-	last = mid;
-      else
-	first = mid;
-    }
-  return 0;
-}
-
 /* This is the mangling interface: a decl, a class field (.class) and
    the vtable. */
 
 void
 java_mangle_decl (tree decl)
 {
-  if (TREE_CODE (decl) == RECORD_TYPE)
-    mangle_type (decl);
-
   /* A copy of the check from the beginning of lhd_set_decl_assembler_name.
      Only FUNCTION_DECLs and VAR_DECLs for variables with static storage
      duration need a real DECL_ASSEMBLER_NAME.  */
@@ -395,10 +229,6 @@ mangle_member_name (tree name)
 {
   append_gpp_mangled_name (IDENTIFIER_POINTER (name),
 			   IDENTIFIER_LENGTH (name));
-
-  /* If NAME happens to be a C++ keyword, add `$'.  */
-  if (cxx_keyword_p (IDENTIFIER_POINTER (name), IDENTIFIER_LENGTH (name)))
-    obstack_1grow (mangle_obstack, '$');
 }
 
 /* Append the mangled name of TYPE onto OBSTACK.  */
@@ -785,13 +615,13 @@ compression_table_add (tree type)
 {
   if (compression_next == TREE_VEC_LENGTH (compression_table))
     {
-      tree new = make_tree_vec (2*compression_next);
+      tree new_table = make_tree_vec (2*compression_next);
       int i;
 
       for (i = 0; i < compression_next; i++)
-	TREE_VEC_ELT (new, i) = TREE_VEC_ELT (compression_table, i);
+	TREE_VEC_ELT (new_table, i) = TREE_VEC_ELT (compression_table, i);
 
-      compression_table = new;
+      compression_table = new_table;
     }
   TREE_VEC_ELT (compression_table, compression_next++) = type;
 }

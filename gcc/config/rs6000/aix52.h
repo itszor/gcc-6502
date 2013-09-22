@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for IBM RS/6000 POWER running AIX V5.2.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by David Edelsohn (edelsohn@gnu.org).
 
    This file is part of GCC.
@@ -20,32 +19,20 @@
    along with GCC; see the file COPYING3.  If not see
    <http://www.gnu.org/licenses/>.  */
 
-/* Sometimes certain combinations of command options do not make sense
-   on a particular target machine.  You can define a macro
-   `OVERRIDE_OPTIONS' to take account of this.  This macro, if
-   defined, is executed once just after all the command options have
-   been parsed.
+/* The macro SUBTARGET_OVERRIDE_OPTIONS is provided for subtargets, to
+   get control in TARGET_OPTION_OVERRIDE.  */
 
-   The macro SUBTARGET_OVERRIDE_OPTIONS is provided for subtargets, to
-   get control.  */
-
-#define NON_POWERPC_MASKS (MASK_POWER | MASK_POWER2)
 #define SUBTARGET_OVERRIDE_OPTIONS					\
 do {									\
-  if (TARGET_64BIT && (target_flags & NON_POWERPC_MASKS))		\
-    {									\
-      target_flags &= ~NON_POWERPC_MASKS;				\
-      warning (0, "-maix64 and POWER architecture are incompatible");	\
-    }									\
   if (TARGET_64BIT && ! TARGET_POWERPC64)				\
     {									\
-      target_flags |= MASK_POWERPC64;					\
+      rs6000_isa_flags |= OPTION_MASK_POWERPC64;			\
       warning (0, "-maix64 requires PowerPC64 architecture remain enabled"); \
     }									\
   if (TARGET_SOFT_FLOAT && TARGET_LONG_DOUBLE_128)			\
     {									\
       rs6000_long_double_type_size = 64;				\
-      if (rs6000_explicit_options.long_double)				\
+      if (global_options_set.x_rs6000_long_double_type_size)		\
 	warning (0, "soft-float and long-double-128 are incompatible");	\
     }									\
   if (TARGET_POWERPC64 && ! TARGET_64BIT)				\
@@ -63,7 +50,7 @@ do {									\
 #define ASM_CPU_SPEC \
 "%{!mcpu*: %{!maix64: \
   %{mpowerpc64: -mppc64} \
-  %{!mpower64: %(asm_default)}}} \
+  %{!mpowerpc64: %(asm_default)}}} \
 %{mcpu=power3: -m620} \
 %{mcpu=power4: -m620} \
 %{mcpu=power5: -m620} \
@@ -99,7 +86,7 @@ do {									\
 #define CPP_SPEC "%{posix: -D_POSIX_SOURCE}	\
   %{ansi: -D_ANSI_C_SOURCE}			\
   %{maix64: -D__64BIT__}			\
-  %{mpe: -I/usr/lpp/ppe.poe/include}		\
+  %{mpe: -I%R/usr/lpp/ppe.poe/include}		\
   %{pthread: -D_THREAD_SAFE}"
 
 /* The GNU C++ standard library requires that these macros be 
@@ -108,25 +95,24 @@ do {									\
 #define CPLUSPLUS_CPP_SPEC			\
   "-D_ALL_SOURCE				\
    %{maix64: -D__64BIT__}			\
-   %{mpe: -I/usr/lpp/ppe.poe/include}		\
+   %{mpe: -I%R/usr/lpp/ppe.poe/include}		\
    %{pthread: -D_THREAD_SAFE}"
 
 #undef  TARGET_DEFAULT
-#define TARGET_DEFAULT (MASK_POWERPC | MASK_NEW_MNEMONICS)
+#define TARGET_DEFAULT 0
 
 #undef  PROCESSOR_DEFAULT
 #define PROCESSOR_DEFAULT PROCESSOR_POWER4
 #undef  PROCESSOR_DEFAULT64
 #define PROCESSOR_DEFAULT64 PROCESSOR_POWER4
 
-#undef  TARGET_POWER
-#define TARGET_POWER 0
-
 /* AIX does not support Altivec.  */
 #undef  TARGET_ALTIVEC
 #define TARGET_ALTIVEC 0
 #undef  TARGET_ALTIVEC_ABI
 #define TARGET_ALTIVEC_ABI 0
+#undef  TARGET_EXTRA_BUILTINS
+#define TARGET_EXTRA_BUILTINS 0
 
 /* Define this macro as a C expression for the initializer of an
    array of string to tell the driver program which options are
@@ -140,10 +126,10 @@ do {									\
 #undef	MULTILIB_DEFAULTS
 
 #undef LIB_SPEC
-#define LIB_SPEC "%{pg:-L/lib/profiled -L/usr/lib/profiled}\
-   %{p:-L/lib/profiled -L/usr/lib/profiled}\
+#define LIB_SPEC "%{pg:-L%R/lib/profiled -L%R/usr/lib/profiled}\
+   %{p:-L%R/lib/profiled -L%R/usr/lib/profiled}\
    %{!maix64:%{!shared:%{g*:-lg}}}\
-   %{mpe:-L/usr/lpp/ppe.poe/lib -lmpi -lvtd}\
+   %{mpe:-L%R/usr/lpp/ppe.poe/lib -lmpi -lvtd}\
    %{pthread:-lpthreads} -lc"
 
 #undef LINK_SPEC
@@ -172,12 +158,6 @@ do {									\
 #undef  WCHAR_TYPE_SIZE
 #define WCHAR_TYPE_SIZE (!TARGET_64BIT ? 16 : 32)
 
-/* AIX V5 uses PowerPC nop (ori 0,0,0) instruction as call glue for PowerPC
-   and "cror 31,31,31" for POWER architecture.  */
-
-#undef RS6000_CALL_GLUE
-#define RS6000_CALL_GLUE "{cror 31,31,31|nop}"
-
 /* AIX 4.2 and above provides initialization and finalization function
    support from linker command line.  */
 #undef HAS_INIT_SECTION
@@ -196,3 +176,10 @@ extern long long int    atoll(const char *);
 
 /* This target uses the aix64.opt file.  */
 #define TARGET_USES_AIX64_OPT 1
+
+/* This target defines SUPPORTS_WEAK and TARGET_ASM_NAMED_SECTION,
+   but does not have crtbegin/end.  */
+
+#define TARGET_USE_JCR_SECTION 0
+
+#define TARGET_AIX_VERSION 52

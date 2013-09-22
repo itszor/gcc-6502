@@ -4,7 +4,8 @@
 #include "tree-vect.h"
 
 #define N 16
-char x[N] __attribute__ ((__aligned__(16)));
+char x[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+char cb[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = {0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
  
 __attribute__ ((noinline))
 int main1 (char *y)
@@ -13,7 +14,6 @@ int main1 (char *y)
     char *p;
     char *q;
   } s;
-  char cb[N] __attribute__ ((__aligned__(16))) = {0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
   int i;
 
   /* Not vectorized - can't antialias the pointer s.p from the array cb.  */
@@ -58,5 +58,6 @@ int main (void)
    If/when the aliasing problems are resolved, unalignment may
    prevent vectorization on some targets.  */
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect" { xfail *-*-* } } } */
-/* { dg-final { scan-tree-dump-times "can't determine dependence between" 2 "vect" } } */
+/* { dg-final { scan-tree-dump-times "can't determine dependence" 2 "vect" { target { ! vect_multiple_sizes } } } } */
+/* { dg-final { scan-tree-dump-times "can't determine dependence" 4 "vect" { target vect_multiple_sizes } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

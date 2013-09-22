@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.javax.net.ssl;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 
 import java.security.Principal;
@@ -67,7 +69,7 @@ public abstract class Session implements SSLSession, Serializable
   protected final long creationTime;
   protected long lastAccessedTime;
   protected int applicationBufferSize;
-  
+
   protected ID sessionId;
   protected Certificate[] localCerts;
   protected Certificate[] peerCerts;
@@ -139,12 +141,12 @@ public abstract class Session implements SSLSession, Serializable
       }
     return null;
   }
-  
+
   public int getPacketBufferSize()
   {
     return applicationBufferSize + 2048;
   }
-  
+
   public Certificate[] getPeerCertificates() throws SSLPeerUnverifiedException
   {
     if (!peerVerified)
@@ -163,17 +165,17 @@ public abstract class Session implements SSLSession, Serializable
       return null;
     return (X509Certificate[]) peerCertChain.clone();
   }
-  
+
   public String getPeerHost()
   {
     return peerHost;
   }
-  
+
   public int getPeerPort()
   {
     return peerPort;
   }
-  
+
   public Principal getPeerPrincipal() throws SSLPeerUnverifiedException
   {
     if (!peerVerified)
@@ -182,33 +184,33 @@ public abstract class Session implements SSLSession, Serializable
       return null;
     return peerCertChain[0].getSubjectDN();
   }
-  
+
   public SSLSessionContext getSessionContext()
   {
     return context;
   }
-  
+
   public String[] getValueNames()
   {
     Set<String> keys = this.values.keySet();
     return keys.toArray(new String[keys.size()]);
   }
-  
+
   public Object getValue(String name)
   {
     return values.get(name);
   }
-  
+
   public void invalidate()
   {
     valid = false;
   }
-  
+
   public boolean isValid()
   {
     return valid;
   }
-  
+
   public void putValue(String name, Object value)
   {
     values.put(name, value);
@@ -222,7 +224,7 @@ public abstract class Session implements SSLSession, Serializable
       {
       }
   }
-  
+
   public void removeValue(String name)
   {
     Object value = values.remove(name);
@@ -234,9 +236,9 @@ public abstract class Session implements SSLSession, Serializable
       }
     catch (Exception x)
       {
-      }   
+      }
   }
-  
+
   public final boolean isTruncatedMac()
   {
     return truncatedMac;
@@ -246,31 +248,31 @@ public abstract class Session implements SSLSession, Serializable
    * Prepare this session for serialization. Private data will be encrypted
    * with the given password, and this object will then be ready to be
    * serialized.
-   * 
+   *
    * @param password The password to protect this session with.
    * @throws SSLException If encrypting this session's private data fails.
    */
   public abstract void prepare (char[] password) throws SSLException;
-  
+
   /**
    * Repair this session's private data after deserialization. This method
    * will decrypt this session's private data, and prepare the session for
    * use in new SSL connections.
-   * 
+   *
    * @param password The password to decrypt the private data with.
    * @throws SSLException
    */
   public abstract void repair(char[] password) throws SSLException;
-  
+
   /**
    * Get the private data of this session. This method may only be called
    * after first calling {@link #prepare(char[])}.
-   * 
+   *
    * @return The sealed private data.
    * @throws SSLException If the private data have not been sealed.
    */
   public abstract SealedObject privateData() throws SSLException;
-  
+
   /**
    * Set the private data of this session.
    * @param data
@@ -349,7 +351,7 @@ public abstract class Session implements SSLSession, Serializable
 
     public String toString()
     {
-      StringBuffer str = new StringBuffer (3 * id.length + 1);
+      CPStringBuilder str = new CPStringBuilder (3 * id.length + 1);
       for (int i = 0; i < id.length; i++)
         {
           int x = id[i] & 0xFF;

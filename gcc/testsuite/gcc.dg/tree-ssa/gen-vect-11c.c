@@ -1,12 +1,14 @@
 /* { dg-do run { target vect_cmdline_needed } } */
-/* { dg-options "-O2 -ftree-vectorize -ftree-vectorizer-verbose=3 -fdump-tree-vect-stats" } */
-/* { dg-options "-O2 -ftree-vectorize -ftree-vectorizer-verbose=3 -fdump-tree-vect-stats -mno-sse" { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O2 -ftree-vectorize -fdump-tree-vect-details" } */
+/* { dg-options "-O2 -ftree-vectorize -fdump-tree-vect-details -mno-sse" { target { i?86-*-* x86_64-*-* } } } */
 
 #include <stdlib.h>
 
 #define N 16
 
-#if LONG_MAX == 2147483647
+/* One x86_64 mingw a long remains 4 bytes sized, but machine word
+   is 8 bytes.  */
+#if LONG_MAX == 2147483647 && !defined (_WIN64)
 typedef short half_word;
 #else
 typedef int half_word;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,11 +27,14 @@
 --  checking rules. For documentation of these rules, see comments on the
 --  individual procedures.
 
+with Atree;    use Atree;
 with Casing;   use Casing;
 with Csets;    use Csets;
+with Einfo;    use Einfo;
 with Err_Vars; use Err_Vars;
 with Opt;      use Opt;
 with Scans;    use Scans;
+with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Stylesw;  use Stylesw;
 
@@ -78,7 +81,8 @@ package body Styleg is
 
    function Is_White_Space (C : Character) return Boolean;
    pragma Inline (Is_White_Space);
-   --  Returns True for space, HT, VT or FF, False otherwise
+   --  Returns True for space or HT, False otherwise
+   --  What about VT and FF, should they return True ???
 
    procedure Require_Following_Space;
    pragma Inline (Require_Following_Space);
@@ -94,12 +98,12 @@ package body Styleg is
    -- Check_Abs_Or_Not --
    ----------------------
 
-   --  In check tokens mode (-gnatyt), ABS/NOT must be followed by a space
+   --  In check token mode (-gnatyt), ABS/NOT must be followed by a space
 
    procedure Check_Abs_Not is
    begin
       if Style_Check_Tokens then
-         if Source (Scan_Ptr) > ' ' then
+         if Source (Scan_Ptr) > ' ' then -- ???
             Error_Space_Required (Scan_Ptr);
          end if;
       end if;
@@ -109,7 +113,7 @@ package body Styleg is
    -- Check_Apostrophe --
    ----------------------
 
-   --  Do not allow space before or after apostrophe
+   --  Do not allow space before or after apostrophe -- OR AFTER???
 
    procedure Check_Apostrophe is
    begin
@@ -145,7 +149,8 @@ package body Styleg is
    begin
       if Style_Check_Attribute_Casing then
          if Determine_Token_Casing /= Mixed_Case then
-            Error_Msg_SC ("(style) bad capitalization, mixed case required");
+            Error_Msg_SC -- CODEFIX
+              ("(style) bad capitalization, mixed case required");
          end if;
       end if;
    end Check_Attribute_Name;
@@ -164,6 +169,87 @@ package body Styleg is
          Require_Following_Space;
       end if;
    end Check_Binary_Operator;
+
+   ----------------------------
+   -- Check_Boolean_Operator --
+   ----------------------------
+
+   procedure Check_Boolean_Operator (Node : Node_Id) is
+
+      function OK_Boolean_Operand (N : Node_Id) return Boolean;
+      --  Returns True for simple variable, or "not X1" or "X1 and X2" or
+      --  "X1 or X2" where X1, X2 are recursively OK_Boolean_Operand's.
+
+      ------------------------
+      -- OK_Boolean_Operand --
+      ------------------------
+
+      function OK_Boolean_Operand (N : Node_Id) return Boolean is
+      begin
+         if Nkind_In (N, N_Identifier, N_Expanded_Name) then
+            return True;
+
+         elsif Nkind (N) = N_Op_Not then
+            return OK_Boolean_Operand (Original_Node (Right_Opnd (N)));
+
+         elsif Nkind_In (N, N_Op_And, N_Op_Or) then
+            return OK_Boolean_Operand (Original_Node (Left_Opnd (N)))
+                     and then
+                   OK_Boolean_Operand (Original_Node (Right_Opnd (N)));
+
+         else
+            return False;
+         end if;
+      end OK_Boolean_Operand;
+
+   --  Start of processing for Check_Boolean_Operator
+
+   begin
+      if Style_Check_Boolean_And_Or
+        and then Comes_From_Source (Node)
+      then
+         declare
+            Orig : constant Node_Id := Original_Node (Node);
+
+         begin
+            if Nkind_In (Orig, N_Op_And, N_Op_Or) then
+               declare
+                  L : constant Node_Id := Original_Node (Left_Opnd  (Orig));
+                  R : constant Node_Id := Original_Node (Right_Opnd (Orig));
+
+               begin
+                  --  First OK case, simple boolean constants/identifiers
+
+                  if OK_Boolean_Operand (L)
+                       and then
+                     OK_Boolean_Operand (R)
+                  then
+                     return;
+
+                  --  Second OK case, modular types
+
+                  elsif Is_Modular_Integer_Type (Etype (Node)) then
+                     return;
+
+                  --  Third OK case, array types
+
+                  elsif Is_Array_Type (Etype (Node)) then
+                     return;
+
+                  --  Otherwise we have an error
+
+                  elsif Nkind (Orig) = N_Op_And then
+                     Error_Msg -- CODEFIX
+                       ("(style) `AND THEN` required", Sloc (Orig));
+                  else
+                     Error_Msg -- CODEFIX
+                       ("(style) `OR ELSE` required", Sloc (Orig));
+                  end if;
+               end;
+            end if;
+         end;
+      end if;
+   end Check_Boolean_Operator;
 
    ---------------
    -- Check_Box --
@@ -238,7 +324,8 @@ package body Styleg is
 
    --    1. Any comment that is not at the start of a line, i.e. where the
    --       initial minuses are not the first non-blank characters on the
-   --       line must have at least one blank after the second minus.
+   --       line must have at least one blank after the second minus or a
+   --       special character as defined in rule 5.
 
    --    2. A row of all minuses of any length is permitted (see procedure
    --       box above in the source of this routine).
@@ -274,8 +361,11 @@ package body Styleg is
       --  Returns True if the last two characters on the line are -- which
       --  characterizes a box comment (as for example follows this spec).
 
+      function Is_Special_Character (C : Character) return Boolean;
+      --  Determines if C is a special character (see rule 5 above)
+
       function Same_Column_As_Next_Non_Blank_Line return Boolean;
-      --  Called for a full line comment. If the indentation of this commment
+      --  Called for a full line comment. If the indentation of this comment
       --  matches that of the next non-blank line in the source, then True is
       --  returned, otherwise False.
 
@@ -296,6 +386,22 @@ package body Styleg is
 
          return Source (S - 1) = '-' and then Source (S - 2) = '-';
       end Is_Box_Comment;
+
+      --------------------------
+      -- Is_Special_Character --
+      --------------------------
+
+      function Is_Special_Character (C : Character) return Boolean is
+      begin
+         if GNAT_Mode then
+            return C = '!';
+         else
+            return
+              Character'Pos (C) in 16#21# .. 16#2F#
+                or else
+              Character'Pos (C) in 16#3A# .. 16#3F#;
+         end if;
+      end Is_Special_Character;
 
       ----------------------------------------
       -- Same_Column_As_Next_Non_Blank_Line --
@@ -332,18 +438,22 @@ package body Styleg is
          if Scan_Ptr > Source_First (Current_Source_File)
            and then Source (Scan_Ptr - 1) > ' '
          then
-            Error_Msg_S ("(style) space required");
+            Error_Msg_S -- CODEFIX
+              ("(style) space required");
          end if;
       end if;
 
       --  For a comment that is not at the start of the line, the only
       --  requirement is that we cannot have a non-blank character after
-      --  the second minus sign.
+      --  the second minus sign or a special character.
 
       if Scan_Ptr /= First_Non_Blank_Location then
          if Style_Check_Comments then
-            if Source (Scan_Ptr + 2) > ' ' then
-               Error_Msg ("(style) space required", Scan_Ptr + 2);
+            if Source (Scan_Ptr + 2) > ' '
+              and then not Is_Special_Character (Source (Scan_Ptr + 2))
+            then
+               Error_Msg -- CODEFIX
+                 ("(style) space required", Scan_Ptr + 2);
             end if;
          end if;
 
@@ -357,7 +467,8 @@ package body Styleg is
          if Style_Check_Indentation /= 0 then
             if Start_Column rem Style_Check_Indentation /= 0 then
                if not Same_Column_As_Next_Non_Blank_Line then
-                  Error_Msg_S ("(style) bad column");
+                  Error_Msg_S -- CODEFIX
+                    ("(style) bad column");
                end if;
 
                return;
@@ -386,18 +497,8 @@ package body Styleg is
             --  This is not permitted in internal GNAT implementation units
             --  except for the case of --! as used by gnatprep output.
 
-            if GNAT_Mode then
-               if C = '!' then
-                  return;
-               end if;
-
-            else
-               if Character'Pos (C) in 16#21# .. 16#2F#
-                    or else
-                  Character'Pos (C) in 16#3A# .. 16#3F#
-               then
-                  return;
-               end if;
+            if Is_Special_Character (C) then
+               return;
             end if;
 
             --  The only other case in which we allow a character after
@@ -407,10 +508,13 @@ package body Styleg is
             S := Scan_Ptr + 2;
             while Source (S) >= ' ' loop
                if Source (S) /= '-' then
-                  if Is_Box_Comment then
+                  if Is_Box_Comment
+                    or else Style_Check_Comments_Spacing = 1
+                  then
                      Error_Space_Required (Scan_Ptr + 2);
                   else
-                     Error_Msg ("(style) two spaces required", Scan_Ptr + 2);
+                     Error_Msg -- CODEFIX
+                       ("(style) two spaces required", Scan_Ptr + 2);
                   end if;
 
                   return;
@@ -421,14 +525,17 @@ package body Styleg is
 
          --  If we are followed by a blank, then the comment is OK if the
          --  character following this blank is another blank or a format
-         --  effector.
+         --  effector, or if the required comment spacing is 1.
 
-         elsif Source (Scan_Ptr + 3) <= ' ' then
+         elsif Source (Scan_Ptr + 3) <= ' '
+           or else Style_Check_Comments_Spacing = 1
+         then
             return;
 
-         --  Here is the case where we only have one blank after the two
-         --  minus signs, which is an error unless the line ends with two
-         --  minus signs, the case of a box comment.
+         --  Here is the case where we only have one blank after the two minus
+         --  signs, with Style_Check_Comments_Spacing set to 2, which is an
+         --  error unless the line ends with two minus signs, the case of a
+         --  box comment.
 
          elsif not Is_Box_Comment then
             Error_Space_Required (Scan_Ptr + 3);
@@ -440,7 +547,7 @@ package body Styleg is
    -- Check_Dot_Dot --
    -------------------
 
-   --  In check token mode (-gnatyt), colon must be surrounded by spaces
+   --  In check token mode (-gnatyt), ".." must be surrounded by spaces
 
    procedure Check_Dot_Dot is
    begin
@@ -463,12 +570,12 @@ package body Styleg is
          --  We expect one blank line, from the EOF, but no more than one
 
          if Blank_Lines = 2 then
-            Error_Msg
+            Error_Msg -- CODEFIX
               ("(style) blank line not allowed at end of file",
                Blank_Line_Location);
 
          elsif Blank_Lines >= 3 then
-            Error_Msg
+            Error_Msg -- CODEFIX
               ("(style) blank lines not allowed at end of file",
                Blank_Line_Location);
          end if;
@@ -495,7 +602,8 @@ package body Styleg is
    procedure Check_HT is
    begin
       if Style_Check_Horizontal_Tabs then
-         Error_Msg_S ("(style) horizontal tab not allowed");
+         Error_Msg_S -- CODEFIX
+           ("(style) horizontal tab not allowed");
       end if;
    end Check_HT;
 
@@ -503,9 +611,9 @@ package body Styleg is
    -- Check_Indentation --
    -----------------------
 
-   --  In check indentation mode (-gnatyn for n a digit), a new statement or
+   --  In check indentation mode (-gnaty? for ? a digit), a new statement or
    --  declaration is required to start in a column that is a multiple of the
-   --  indentiation amount.
+   --  indentation amount.
 
    procedure Check_Indentation is
    begin
@@ -513,7 +621,8 @@ package body Styleg is
          if Token_Ptr = First_Non_Blank_Location
            and then Start_Column rem Style_Check_Indentation /= 0
          then
-            Error_Msg_SC ("(style) bad indentation");
+            Error_Msg_SC -- CODEFIX
+              ("(style) bad indentation");
          end if;
       end if;
    end Check_Indentation;
@@ -522,9 +631,9 @@ package body Styleg is
    -- Check_Left_Paren --
    ----------------------
 
-   --  In tone check mode (-gnatyt), left paren must not be preceded by an
-   --  identifier character or digit (a separating space is required) and
-   --  may never be followed by a space.
+   --  In check token mode (-gnatyt), left paren must not be preceded by an
+   --  identifier character or digit (a separating space is required) and may
+   --  never be followed by a space.
 
    procedure Check_Left_Paren is
    begin
@@ -587,22 +696,28 @@ package body Styleg is
 
       if Style_Check_Form_Feeds then
          if Source (Scan_Ptr) = ASCII.FF then
-            Error_Msg_S ("(style) form feed not allowed");
+            Error_Msg_S -- CODEFIX
+              ("(style) form feed not allowed");
          elsif Source (Scan_Ptr) = ASCII.VT then
-            Error_Msg_S ("(style) vertical tab not allowed");
+            Error_Msg_S -- CODEFIX
+              ("(style) vertical tab not allowed");
          end if;
       end if;
 
-      --  Check DOS line terminator (ignore EOF, since we only get called
-      --  with an EOF if it is the last character in the buffer, and was
-      --  therefore not present in the sources
+      --  Check DOS line terminator
 
       if Style_Check_DOS_Line_Terminator then
+
+         --  Ignore EOF, since we only get called with an EOF if it is the last
+         --  character in the buffer (and was therefore not in the source
+         --  file), since the terminating EOF is added to stop the scan.
+
          if Source (Scan_Ptr) = EOF then
             null;
-         elsif Source (Scan_Ptr) /= LF
-           or else Source (Scan_Ptr + 1) = CR
-         then
+
+         --  Bad terminator if we don't have an LF
+
+         elsif Source (Scan_Ptr) /= LF then
             Error_Msg_S ("(style) incorrect line terminator");
          end if;
       end if;
@@ -618,7 +733,7 @@ package body Styleg is
       --  Issue message for blanks at end of line if option enabled
 
       if Style_Check_Blanks_At_End and then L < Len then
-         Error_Msg
+         Error_Msg -- CODEFIX
            ("(style) trailing spaces not permitted", S);
       end if;
 
@@ -640,7 +755,7 @@ package body Styleg is
 
       else
          if Style_Check_Blank_Lines and then Blank_Lines > 1 then
-            Error_Msg
+            Error_Msg -- CODEFIX
               ("(style) multiple blank lines", Blank_Line_Location);
          end if;
 
@@ -649,6 +764,24 @@ package body Styleg is
          Blank_Lines := 0;
       end if;
    end Check_Line_Terminator;
+
+   ------------------
+   -- Check_Not_In --
+   ------------------
+
+   --  In check tokens mode, only one space between NOT and IN
+
+   procedure Check_Not_In is
+   begin
+      if Style_Check_Tokens then
+         if Source (Token_Ptr - 1) /= ' '
+           or else Token_Ptr - Prev_Token_Ptr /= 4
+         then -- CODEFIX?
+            Error_Msg
+              ("(style) single space must separate NOT and IN", Token_Ptr - 1);
+         end if;
+      end if;
+   end Check_Not_In;
 
    --------------------------
    -- Check_No_Space_After --
@@ -704,7 +837,8 @@ package body Styleg is
    begin
       if Style_Check_Pragma_Casing then
          if Determine_Token_Casing /= Mixed_Case then
-            Error_Msg_SC ("(style) bad capitalization, mixed case required");
+            Error_Msg_SC -- CODEFIX
+              ("(style) bad capitalization, mixed case required");
          end if;
       end if;
    end Check_Pragma_Name;
@@ -713,12 +847,17 @@ package body Styleg is
    -- Check_Right_Paren --
    -----------------------
 
-   --  In check tokens mode (-gnatyt), right paren must never be preceded by
+   --  In check token mode (-gnatyt), right paren must not be immediately
+   --  followed by an identifier character, and must never be preceded by
    --  a space unless it is the initial non-blank character on the line.
 
    procedure Check_Right_Paren is
    begin
       if Style_Check_Tokens then
+         if Identifier_Char (Source (Token_Ptr + 1)) then
+            Error_Space_Required (Token_Ptr + 1);
+         end if;
+
          Check_No_Space_Before;
       end if;
    end Check_Right_Paren;
@@ -727,7 +866,7 @@ package body Styleg is
    -- Check_Semicolon --
    ---------------------
 
-   --  In check tokens mode (-gnatyt), semicolon does not permit a preceding
+   --  In check token mode (-gnatyt), semicolon does not permit a preceding
    --  space and a following space is required.
 
    procedure Check_Semicolon is
@@ -808,7 +947,7 @@ package body Styleg is
 
       else
          if Token = Tok_Then then
-            Error_Msg
+            Error_Msg -- CODEFIX
               ("(style) no statements may follow THEN on same line", S);
          else
             Error_Msg
@@ -841,7 +980,7 @@ package body Styleg is
    -- Check_Unary_Plus_Or_Minus --
    -------------------------------
 
-   --  In check tokem mode (-gnatyt), unary plus or minus must not be
+   --  In check token mode (-gnatyt), unary plus or minus must not be
    --  followed by a space.
 
    procedure Check_Unary_Plus_Or_Minus is
@@ -872,7 +1011,8 @@ package body Styleg is
    procedure Check_Xtra_Parens (Loc : Source_Ptr) is
    begin
       if Style_Check_Xtra_Parens then
-         Error_Msg ("redundant parentheses?", Loc);
+         Error_Msg -- CODEFIX
+           ("redundant parentheses?", Loc);
       end if;
    end Check_Xtra_Parens;
 
@@ -891,7 +1031,8 @@ package body Styleg is
 
    procedure Error_Space_Not_Allowed (S : Source_Ptr) is
    begin
-      Error_Msg ("(style) space not allowed", S);
+      Error_Msg -- CODEFIX
+        ("(style) space not allowed", S);
    end Error_Space_Not_Allowed;
 
    --------------------------
@@ -900,7 +1041,8 @@ package body Styleg is
 
    procedure Error_Space_Required (S : Source_Ptr) is
    begin
-      Error_Msg ("(style) space required", S);
+      Error_Msg -- CODEFIX
+        ("(style) space required", S);
    end Error_Space_Required;
 
    --------------------
@@ -932,7 +1074,8 @@ package body Styleg is
    begin
       if Style_Check_End_Labels then
          Error_Msg_Node_1 := Name;
-         Error_Msg_SP ("(style) `END &` required");
+         Error_Msg_SP -- CODEFIX
+           ("(style) `END &` required");
       end if;
    end No_End_Name;
 
@@ -947,7 +1090,8 @@ package body Styleg is
    begin
       if Style_Check_End_Labels then
          Error_Msg_Node_1 := Name;
-         Error_Msg_SP ("(style) `EXIT &` required");
+         Error_Msg_SP -- CODEFIX
+           ("(style) `EXIT &` required");
       end if;
    end No_Exit_Name;
 
@@ -955,14 +1099,15 @@ package body Styleg is
    -- Non_Lower_Case_Keyword --
    ----------------------------
 
-   --  In check casing mode (-gnatyk), reserved keywords must be be spelled
+   --  In check casing mode (-gnatyk), reserved keywords must be spelled
    --  in all lower case (excluding keywords range, access, delta and digits
    --  used as attribute designators).
 
    procedure Non_Lower_Case_Keyword is
    begin
       if Style_Check_Keyword_Casing then
-         Error_Msg_SC ("(style) reserved words must be all lower case");
+         Error_Msg_SC -- CODEFIX
+           ("(style) reserved words must be all lower case");
       end if;
    end Non_Lower_Case_Keyword;
 
@@ -989,14 +1134,5 @@ package body Styleg is
          Error_Space_Required (Token_Ptr);
       end if;
    end Require_Preceding_Space;
-
-   ---------------------
-   -- RM_Column_Check --
-   ---------------------
-
-   function RM_Column_Check return Boolean is
-   begin
-      return Style_Check and Style_Check_Layout;
-   end RM_Column_Check;
 
 end Styleg;

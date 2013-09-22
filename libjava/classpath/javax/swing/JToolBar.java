@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package javax.swing;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -81,7 +83,7 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
     }
 
     /**
-     * Returns a set containing the current state of the {@link JToolBar} 
+     * Returns a set containing the current state of the {@link JToolBar}
      * component.  The current implementation simply calls the superclass.
      *
      * @return The accessible state set.
@@ -132,16 +134,16 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
     public void layoutContainer(Container c)
     {
       if (! (c instanceof JToolBar))
-	throw new Error("DefaultToolBarLayout can only be used on JToolBars.");
+        throw new Error("DefaultToolBarLayout can only be used on JToolBars.");
       Insets insets = getInsets();
       Insets margin = getMargin();
       int middle;
       if (margin != null)
         {
-	  insets.left += margin.left;
-	  insets.top += margin.top;
-	  insets.bottom += margin.bottom;
-	  insets.right += margin.right;
+          insets.left += margin.left;
+          insets.top += margin.top;
+          insets.bottom += margin.bottom;
+          insets.right += margin.right;
         }
       Component[] components = c.getComponents();
       Dimension tdims = c.getSize();
@@ -150,39 +152,39 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
 
       if (getOrientation() == SwingUtilities.HORIZONTAL)
         {
-	  start += insets.left;
-	  for (int i = 0; i < components.length; i++)
-	    {
-	      if (components[i] != null && components[i].isVisible())
-	        {
-		  pref = components[i].getPreferredSize();
-		  if (pref != null)
-		    {
-		      middle = (tdims.height - pref.height) / 2;
-		      components[i].setBounds(start, middle, pref.width,
-		                              pref.height);
-		      start += pref.width;
-		    }
-	        }
-	    }
+          start += insets.left;
+          for (int i = 0; i < components.length; i++)
+            {
+              if (components[i] != null && components[i].isVisible())
+                {
+                  pref = components[i].getPreferredSize();
+                  if (pref != null)
+                    {
+                      middle = (tdims.height - pref.height) / 2;
+                      components[i].setBounds(start, middle, pref.width,
+                                              pref.height);
+                      start += pref.width;
+                    }
+                }
+            }
         }
       else
         {
-	  start += insets.top;
-	  for (int i = 0; i < components.length; i++)
-	    {
-	      if (components[i] != null && components[i].isVisible())
-	        {
-		  pref = components[i].getPreferredSize();
-		  if (pref != null)
-		    {
-		      middle = (tdims.width - pref.width) / 2;
-		      components[i].setBounds(middle, start, pref.width,
-		                              pref.height);
-		      start += pref.height;
-		    }
-	        }
-	    }
+          start += insets.top;
+          for (int i = 0; i < components.length; i++)
+            {
+              if (components[i] != null && components[i].isVisible())
+                {
+                  pref = components[i].getPreferredSize();
+                  if (pref != null)
+                    {
+                      middle = (tdims.width - pref.width) / 2;
+                      components[i].setBounds(middle, start, pref.width,
+                                              pref.height);
+                      start += pref.height;
+                    }
+                }
+            }
         }
     }
 
@@ -221,33 +223,33 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
 
       if (orientation == SwingConstants.HORIZONTAL)
         {
-	  for (int i = 0; i < components.length; i++)
-	    {
-	      dims = components[i].getPreferredSize();
-	      if (dims != null)
-	        {
-		  if (dims.height > limit)
-		    limit = dims.height;
-		  total += dims.width;
-	        }
-	    }
-	  w = total;
-	  h = limit;
+          for (int i = 0; i < components.length; i++)
+            {
+              dims = components[i].getPreferredSize();
+              if (dims != null)
+                {
+                  if (dims.height > limit)
+                    limit = dims.height;
+                  total += dims.width;
+                }
+            }
+          w = total;
+          h = limit;
         }
       else
         {
-	  for (int i = 0; i < components.length; i++)
-	    {
-	      dims = components[i].getPreferredSize();
-	      if (dims != null)
-	        {
-		  if (dims.width > limit)
-		    limit = dims.width;
-		  total += dims.height;
-	        }
-	    }
-	  w = limit;
-	  h = total;
+          for (int i = 0; i < components.length; i++)
+            {
+              dims = components[i].getPreferredSize();
+              if (dims != null)
+                {
+                  if (dims.width > limit)
+                    limit = dims.width;
+                  total += dims.height;
+                }
+            }
+          w = limit;
+          h = total;
         }
 
       Insets insets = getInsets();
@@ -257,8 +259,8 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
       Insets margin = getMargin();
       if (margin != null)
         {
-	  w += margin.left + margin.right;
-	  h += margin.top + margin.bottom;
+          w += margin.left + margin.right;
+          h += margin.top + margin.bottom;
         }
 
       return new Dimension(w, h);
@@ -507,10 +509,10 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
   {
     if (b != rollover)
       {
-	rollover = b;
-	firePropertyChange("rollover", ! rollover, rollover);
-	revalidate();
-	repaint();
+        rollover = b;
+        firePropertyChange("rollover", ! rollover, rollover);
+        revalidate();
+        repaint();
       }
   }
 
@@ -539,7 +541,7 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
 
     for (int i = 0; i < components.length; i++)
       if (components[i] == component)
-	return i;
+        return i;
 
     return -1;
   } // getComponentIndex()
@@ -582,11 +584,11 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
         || margin.right != this.margin.right || margin.top != this.margin.top
         || margin.bottom != this.margin.bottom)))
       {
-	Insets oldMargin = this.margin;
-	this.margin = margin;
-	firePropertyChange("margin", oldMargin, this.margin);
-	revalidate();
-	repaint();
+        Insets oldMargin = this.margin;
+        this.margin = margin;
+        firePropertyChange("margin", oldMargin, this.margin);
+        revalidate();
+        repaint();
       }
   } // setMargin()
 
@@ -610,10 +612,10 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
   {
     if (painted != paintBorder)
       {
-	paintBorder = painted;
-	firePropertyChange("borderPainted", ! paintBorder,
-	                   paintBorder);
-	repaint();
+        paintBorder = painted;
+        firePropertyChange("borderPainted", ! paintBorder,
+                           paintBorder);
+        repaint();
       }
   } // setBorderPainted()
 
@@ -637,8 +639,8 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
   {
     if (floatable != this.floatable)
       {
-	this.floatable = floatable;
-	firePropertyChange("floatable", ! floatable, floatable);
+        this.floatable = floatable;
+        firePropertyChange("floatable", ! floatable, floatable);
       }
   } // setFloatable()
 
@@ -679,11 +681,11 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
                                          + " is not a legal orientation");
     if (orientation != this.orientation)
       {
-	int oldOrientation = this.orientation;
-	this.orientation = orientation;
-	firePropertyChange("orientation", oldOrientation, this.orientation);
-	revalidate();
-	repaint();
+        int oldOrientation = this.orientation;
+        this.orientation = orientation;
+        firePropertyChange("orientation", oldOrientation, this.orientation);
+        revalidate();
+        repaint();
       }
   } // setOrientation()
 
@@ -758,7 +760,7 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
 
   /**
    * Returns a string describing the attributes for the <code>JToolBar</code>
-   * component, for use in debugging.  The return value is guaranteed to be 
+   * component, for use in debugging.  The return value is guaranteed to be
    * non-<code>null</code>, but the format of the string may vary between
    * implementations.
    *
@@ -766,7 +768,7 @@ public class JToolBar extends JComponent implements SwingConstants, Accessible
    */
   protected String paramString()
   {
-    StringBuffer sb = new StringBuffer(super.paramString());
+    CPStringBuilder sb = new CPStringBuilder(super.paramString());
     sb.append(",floatable=").append(floatable);
     sb.append(",margin=");
     if (margin != null)

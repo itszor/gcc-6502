@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -45,11 +43,11 @@ package Scans is
 
    --  The following type is used to identify token types returned by Scan.
    --  The class column in this table indicates the token classes which
-   --  apply to the token, as defined by subsquent subtype declarations.
+   --  apply to the token, as defined by subsequent subtype declarations.
 
    --  Note: Namet.Is_Keyword_Name depends on the fact that the first entry in
    --  this type declaration is *not* for a reserved word. For details on why
-   --  there is this requirement, see Scans.Initialize_Ada_Keywords.
+   --  there is this requirement, see Initialize_Ada_Keywords below.
 
    type Token_Type is (
 
@@ -65,7 +63,7 @@ package Scans is
 
       Tok_Operator_Symbol, -- op symbol    Name, Literal, Lit_Or_Name, Desig
 
-      Tok_Identifier,      -- identifer    Name, Lit_Or_Name, Desig
+      Tok_Identifier,      -- identifier   Name, Lit_Or_Name, Desig
 
       Tok_Double_Asterisk, -- **
 
@@ -132,6 +130,7 @@ package Scans is
       Tok_Record,          -- RECORD       Eterm, Sterm
       Tok_Renames,         -- RENAMES      Eterm, Sterm
       Tok_Reverse,         -- REVERSE      Eterm, Sterm
+      Tok_Some,            -- SOME         Eterm, Sterm
       Tok_Tagged,          -- TAGGED       Eterm, Sterm
       Tok_Then,            -- THEN         Eterm, Sterm
 
@@ -194,24 +193,28 @@ package Scans is
       Tok_Project,
       Tok_Extends,
       Tok_External,
-      --  These three entries represent keywords for the project file language
+      Tok_External_As_List,
+      --  These four entries represent keywords for the project file language
       --  and can be returned only in the case of scanning project files.
 
       Tok_Comment,
       --  This entry is used when scanning project files (where it represents
       --  an entire comment), and in preprocessing with the -C switch set
       --  (where it represents just the "--" of a comment). For the project
-      --  file case, the text of the comment is stored in
+      --  file case, the text of the comment is stored in Comment_Id.
 
       Tok_End_Of_Line,
       --  Represents an end of line. Not used during normal compilation scans
       --  where end of line is ignored. Active for preprocessor scanning and
-      --  also when scanning project files (where it is neede because of ???)
+      --  also when scanning project files (where it is needed because of ???)
 
       Tok_Special,
       --  Used only in preprocessor scanning (to represent one of the
       --  characters '#', '$', '?', '@', '`', '\', '^', '~', or '_'. The
       --  character value itself is stored in Scans.Special_Character.
+
+      Tok_SPARK_Hide,
+      --  HIDE directive in SPARK
 
       No_Token);
       --  No_Token is used for initializing Token values to indicate that
@@ -339,7 +342,8 @@ package Scans is
 
    procedure Initialize_Ada_Keywords;
    --  Set up Token_Type values in Names table entries for Ada reserved
-   --  words.
+   --  words. This ignores Ada_Version; Ada_Version is taken into account in
+   --  Snames.Is_Keyword_Name.
 
    --------------------------
    -- Scan State Variables --
@@ -348,36 +352,43 @@ package Scans is
    --  Note: these variables can only be referenced during the parsing of a
    --  file. Reference to any of them from Sem or the expander is wrong.
 
-   Scan_Ptr : Source_Ptr;
+   --  These variables are initialized as required by Scn.Initialize_Scanner,
+   --  and should not be referenced before such a call. However, there are
+   --  situations in which these variables are saved and restored, and this
+   --  may happen before the first Initialize_Scanner call, resulting in the
+   --  assignment of invalid values. To avoid this, and allow building with
+   --  the -gnatVa switch, we initialize some variables to known valid values.
+
+   Scan_Ptr : Source_Ptr := No_Location; -- init for -gnatVa
    --  Current scan pointer location. After a call to Scan, this points
    --  just past the end of the token just scanned.
 
-   Token : Token_Type;
+   Token : Token_Type := No_Token; -- init for -gnatVa
    --  Type of current token
 
-   Token_Ptr : Source_Ptr;
+   Token_Ptr : Source_Ptr := No_Location; -- init for -gnatVa
    --  Pointer to first character of current token
 
-   Current_Line_Start : Source_Ptr;
+   Current_Line_Start : Source_Ptr := No_Location; -- init for -gnatVa
    --  Pointer to first character of line containing current token
 
-   Start_Column : Column_Number;
+   Start_Column : Column_Number := No_Column_Number; -- init for -gnatVa
    --  Starting column number (zero origin) of the first non-blank character
    --  on the line containing the current token. This is used for error
    --  recovery circuits which depend on looking at the column line up.
 
-   Type_Token_Location : Source_Ptr;
+   Type_Token_Location : Source_Ptr := No_Location; -- init for -gnatVa
    --  Within a type declaration, gives the location of the TYPE keyword that
    --  opened the type declaration. Used in checking the end column of a record
    --  declaration, which can line up either with the TYPE keyword, or with the
    --  start of the line containing the RECORD keyword.
 
-   Checksum : Word;
+   Checksum : Word := 0; -- init for -gnatVa
    --  Used to accumulate a CRC representing the tokens in the source
    --  file being compiled. This CRC includes only program tokens, and
    --  excludes comments.
 
-   First_Non_Blank_Location : Source_Ptr;
+   First_Non_Blank_Location : Source_Ptr := No_Location; -- init for -gnatVa
    --  Location of first non-blank character on the line containing the
    --  current token (i.e. the location of the character whose column number
    --  is stored in Start_Column).
@@ -411,21 +422,34 @@ package Scans is
    --  We do things this way to minimize the impact on comment scanning.
 
    Character_Code : Char_Code;
-   --  Valid only when Token is Tok_Char_Literal
+   --  Valid only when Token is Tok_Char_Literal. Contains the value of the
+   --  scanned literal.
 
    Real_Literal_Value : Ureal;
-   --  Valid only when Token is Tok_Real_Literal
+   --  Valid only when Token is Tok_Real_Literal, contains the value of the
+   --  scanned literal.
 
    Int_Literal_Value : Uint;
-   --  Valid only when Token = Tok_Integer_Literal;
+   --  Valid only when Token = Tok_Integer_Literal, contains the value of the
+   --  scanned literal.
+
+   Based_Literal_Uses_Colon : Boolean;
+   --  Valid only when Token = Tok_Integer_Literal or Tok_Real_Literal. Set
+   --  True only for the case of a based literal using ':' instead of '#'.
 
    String_Literal_Id : String_Id;
-   --  Id for currently scanned string value.
    --  Valid only when Token = Tok_String_Literal or Tok_Operator_Symbol.
+   --  Contains the Id for currently scanned string value.
 
    Wide_Character_Found : Boolean := False;
-   --  Set True if wide character found.
-   --  Valid only when Token = Tok_String_Literal.
+   --  Valid only when Token = Tok_String_Literal. Set True if wide character
+   --  found (i.e. a character that does not fit in Character, but fits in
+   --  Wide_Wide_Character).
+
+   Wide_Wide_Character_Found : Boolean := False;
+   --  Valid only when Token = Tok_String_Literal. Set True if wide wide
+   --  character found (i.e. a character that does not fit in Character or
+   --  Wide_Character).
 
    Special_Character : Character;
    --  Valid only when Token = Tok_Special. Returns one of the characters
@@ -439,6 +463,11 @@ package Scans is
    --
    --  Is it really right for this to be a Name rather than a String, what
    --  about the case of Wide_Wide_Characters???
+
+   Inside_If_Expression : Nat := 0;
+   --  This is a counter that is set non-zero while scanning out an if
+   --  expression (incremented on entry, decremented on exit). It is used to
+   --  disconnect format checks that normally apply to keywords THEN, ELSE etc.
 
    --------------------------------------------------------
    -- Procedures for Saving and Restoring the Scan State --

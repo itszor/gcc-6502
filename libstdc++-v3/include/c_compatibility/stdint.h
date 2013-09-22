@@ -1,11 +1,11 @@
 // -*- C++ -*- compatibility header.
 
-// Copyright (C) 2007 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -13,35 +13,98 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file stdint.h
  *  This is a Standard C++ Library header.
  */
 
-#include <bits/c++config.h>
-
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-# include <cstdint>
-#else
-# if _GLIBCXX_HAVE_STDINT_H
-#  include_next <stdint.h>
-# endif
-#endif
-
 #ifndef _GLIBCXX_STDINT_H
 #define _GLIBCXX_STDINT_H 1
 
-#endif
+#pragma GCC system_header
+
+#include <bits/c++config.h>
+
+#if __cplusplus >= 201103L
+
+// For 8.22.1/1 (see C99, Notes 219, 220, 222)
+# if _GLIBCXX_HAVE_STDINT_H
+#  ifndef __STDC_LIMIT_MACROS
+#   define _UNDEF__STDC_LIMIT_MACROS
+#   define __STDC_LIMIT_MACROS
+#  endif
+#  ifndef __STDC_CONSTANT_MACROS
+#   define _UNDEF__STDC_CONSTANT_MACROS
+#   define __STDC_CONSTANT_MACROS
+#  endif
+#  include_next <stdint.h>
+#  ifdef _UNDEF__STDC_LIMIT_MACROS
+#   undef __STDC_LIMIT_MACROS
+#   undef _UNDEF__STDC_LIMIT_MACROS
+#  endif
+#  ifdef _UNDEF__STDC_CONSTANT_MACROS
+#   undef __STDC_CONSTANT_MACROS
+#   undef _UNDEF__STDC_CONSTANT_MACROS
+#  endif
+# endif
+
+#ifdef _GLIBCXX_USE_C99_STDINT_TR1
+
+namespace std
+{
+  using ::int8_t;
+  using ::int16_t;
+  using ::int32_t;
+  using ::int64_t;
+
+  using ::int_fast8_t;
+  using ::int_fast16_t;
+  using ::int_fast32_t;
+  using ::int_fast64_t;
+
+  using ::int_least8_t;
+  using ::int_least16_t;
+  using ::int_least32_t;
+  using ::int_least64_t;
+
+  using ::intmax_t;
+  using ::intptr_t;
+  
+  using ::uint8_t;
+  using ::uint16_t;
+  using ::uint32_t;
+  using ::uint64_t;
+
+  using ::uint_fast8_t;
+  using ::uint_fast16_t;
+  using ::uint_fast32_t;
+  using ::uint_fast64_t;
+
+  using ::uint_least8_t;
+  using ::uint_least16_t;
+  using ::uint_least32_t;
+  using ::uint_least64_t;
+
+  using ::uintmax_t;
+  using ::uintptr_t;
+} // namespace
+
+#endif // _GLIBCXX_USE_C99_STDINT_TR1
+
+#else
+
+# if _GLIBCXX_HAVE_STDINT_H
+#  include_next <stdint.h>
+# endif
+
+#endif // C++11
+
+#endif // _GLIBCXX_STDINT_H

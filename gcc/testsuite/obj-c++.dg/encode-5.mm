@@ -1,20 +1,19 @@
 /* Method encoding tests for stand-alone @protocol declarations.  */
 /* Contributed by Ziemowit Laski <zlaski@apple.com>.  */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../objc-obj-c++-shared/runtime.h"
 #include <objc/Protocol.h>
+
 #ifdef __cplusplus
 #define ProtoBool bool
 #else
 #define ProtoBool _Bool
 #endif
-
-#ifndef __NEXT_RUNTIME__
-#include <objc/objc-api.h>
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
 
 #define CHECK_IF(expr) if(!(expr)) abort()
 
@@ -37,6 +36,7 @@ typedef struct _XXRect { XXPoint origin; XXSize size; struct _XXRect *next; } XX
 
 Protocol *proto = @protocol(Proto);
 struct objc_method_description *meth;
+struct objc_method_description meth_object;
 unsigned totsize, offs0, offs1, offs2, offs3, offs4, offs5, offs6, offs7;
 
 static void scan_initial(const char *pattern) {
@@ -49,7 +49,9 @@ static void scan_initial(const char *pattern) {
 int main(void) {
   const char *string;
 
-  meth = [proto descriptionForInstanceMethod: @selector(char:float:double:unsigned:short:long:)];
+  meth_object = protocol_getMethodDescription (proto,
+		   @selector(char:float:double:unsigned:short:long:), YES, YES);
+  meth = &meth_object;
   if (sizeof (long) == 8)
     string = "v%u@%u:%uc%uf%ud%uI%us%uq%u";
   else
@@ -58,16 +60,37 @@ int main(void) {
   CHECK_IF(offs3 == offs2 + sizeof(int) && offs4 == offs3 + sizeof(float));
   CHECK_IF(offs5 == offs4 + sizeof(double) && offs6 == offs5 + sizeof(unsigned));
   CHECK_IF(offs7 == offs6 + sizeof(int) && totsize == offs7 + sizeof(long));
-  meth = [proto descriptionForInstanceMethod: @selector(setRect:withBool:withInt:)];
+  meth_object = protocol_getMethodDescription (proto,
+		  @selector(setRect:withBool:withInt:), YES, YES);
+  meth = &meth_object;
   scan_initial("^v%u@%u:%u{_XXRect={?=ff(__XXAngle=II)}{?=dd}^{_XXRect}}%uB%ui%u");
   CHECK_IF(offs3 == offs2 + sizeof(XXRect) && offs4 == offs3 + sizeof(int));
   CHECK_IF(totsize == offs4 + sizeof(int));
-  meth = [proto descriptionForClassMethod: @selector(getEnum:enum:bool:)];
-  scan_initial("^i%u@%u:%u^{?=ff(__XXAngle=II)}%ui%uc%u");
+  meth_object = protocol_getMethodDescription (proto,
+		  @selector(getEnum:enum:bool:), YES, NO);
+  meth = &meth_object; 
+
+  /* Here we have the complication that 'enum Enum' could be encoded
+     as 'i' on __NEXT_RUNTIME_, and (most likely) as 'I' on the GNU
+     runtime.  So we get the @encode(enum Enum), then put it into the
+     string in place of the traditional 'i'.
+  */
+  /* scan_initial("^i%u@%u:%u^{?=ff(__XXAngle=II)}%ui%uc%u"); */
+  {
+    char pattern[1024];
+
+    sprintf (pattern, "^%s%%u@%%u:%%u^{?=ff(__XXAngle=II)}%%u%s%%uc%%u",
+	     @encode(enum Enum), @encode(enum Enum));
+    scan_initial(pattern);
+  }
+
   CHECK_IF(offs3 == offs2 + sizeof(XXPoint *) && offs4 == offs3 + sizeof(enum Enum));
   CHECK_IF(totsize == offs4 + sizeof(int));  /* 'ObjCBool' is really 'char' */
-  meth = [proto descriptionForClassMethod: @selector(getBool:)];         
+  meth_object = protocol_getMethodDescription (proto,
+		  @selector(getBool:), YES, NO);
+  meth = &meth_object;
   scan_initial("^^B%u@%u:%u^*%u");
   CHECK_IF(totsize == offs2 + sizeof(ObjCBool **));
   return 0;
 }
+

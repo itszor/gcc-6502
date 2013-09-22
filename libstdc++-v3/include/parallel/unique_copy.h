@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/unique_copy.h
  *  @brief Parallel implementations of std::unique_copy().
@@ -35,164 +29,169 @@
 
 // Written by Robert Geisberger and Robin Dapp.
 
-#ifndef _GLIBCXX_PARALLEL_UNIQUE_H
-#define _GLIBCXX_PARALLEL_UNIQUE_H 1
+#ifndef _GLIBCXX_PARALLEL_UNIQUE_COPY_H
+#define _GLIBCXX_PARALLEL_UNIQUE_COPY_H 1
 
 #include <parallel/parallel.h>
 #include <parallel/multiseq_selection.h>
 
 namespace __gnu_parallel
 {
+  /** @brief Parallel std::unique_copy(), w/__o explicit equality predicate.
+    *  @param __first Begin iterator of input sequence.
+    *  @param __last End iterator of input sequence.
+    *  @param __result Begin iterator of result __sequence.
+    *  @param __binary_pred Equality predicate.
+    *  @return End iterator of result __sequence. */
+  template<typename _IIter,
+           class _OutputIterator,
+           class _BinaryPredicate>
+    _OutputIterator
+    __parallel_unique_copy(_IIter __first, _IIter __last,
+			   _OutputIterator __result,
+			   _BinaryPredicate __binary_pred)
+    {
+      _GLIBCXX_CALL(__last - __first)
 
-/** @brief Parallel std::unique_copy(), w/o explicit equality predicate.
-  *  @param first Begin iterator of input sequence.
-  *  @param last End iterator of input sequence.
-  *  @param result Begin iterator of result sequence.
-  *  @param binary_pred Equality predicate.
-  *  @return End iterator of result sequence. */
-template<typename InputIterator,
-	 class OutputIterator,
-	 class BinaryPredicate>
-  OutputIterator
-  parallel_unique_copy(InputIterator first, InputIterator last,
-                       OutputIterator result, BinaryPredicate binary_pred)
-  {
-    _GLIBCXX_CALL(last - first)
+      typedef std::iterator_traits<_IIter> _TraitsType;
+      typedef typename _TraitsType::value_type _ValueType;
+      typedef typename _TraitsType::difference_type _DifferenceType;
 
-    typedef std::iterator_traits<InputIterator> traits_type;
-    typedef typename traits_type::value_type value_type;
-    typedef typename traits_type::difference_type difference_type;
+      _DifferenceType __size = __last - __first;
 
-    difference_type size = last - first;
+      if (__size == 0)
+	return __result;
 
-    if (size == 0)
-      return result;
+      // Let the first thread process two parts.
+      _DifferenceType *__counter;
+      _DifferenceType *__borders;
 
-    // Let the first thread process two parts.
-    difference_type *counter;
-    difference_type *borders;
-
-    thread_index_t num_threads = get_max_threads();
-    // First part contains at least one element.
-#   pragma omp parallel num_threads(num_threads)
+      _ThreadIndex __num_threads = __get_max_threads();
+      // First part contains at least one element.
+#     pragma omp parallel num_threads(__num_threads)
       {
 #       pragma omp single
+	{
+	  __num_threads = omp_get_num_threads();
+	  __borders = new _DifferenceType[__num_threads + 2];
+	  __equally_split(__size, __num_threads + 1, __borders);
+	  __counter = new _DifferenceType[__num_threads + 1];
+	}
+
+	_ThreadIndex __iam = omp_get_thread_num();
+
+	_DifferenceType __begin, __end;
+
+	// Check for length without duplicates
+	// Needed for position in output
+	_DifferenceType __i = 0;
+	_OutputIterator __out = __result;
+
+	if (__iam == 0)
           {
-	    num_threads = omp_get_num_threads();
-	    borders = new difference_type[num_threads + 2];
-	    equally_split(size, num_threads + 1, borders);
-	    counter = new difference_type[num_threads + 1];
+            __begin = __borders[0] + 1;   // == 1
+            __end = __borders[__iam + 1];
+
+            ++__i;
+            *__out++ = *__first;
+
+            for (_IIter __iter = __first + __begin; __iter < __first + __end;
+		 ++__iter)
+              {
+        	if (!__binary_pred(*__iter, *(__iter - 1)))
+                  {
+                    ++__i;
+                    *__out++ = *__iter;
+                  }
+              }
           }
+	else
+          {
+            __begin = __borders[__iam]; //one part
+            __end = __borders[__iam + 1];
 
-        thread_index_t iam = omp_get_thread_num();
+            for (_IIter __iter = __first + __begin; __iter < __first + __end;
+		 ++__iter)
+              {
+        	if (!__binary_pred(*__iter, *(__iter - 1)))
+                  ++__i;
+              }
+          }
+	__counter[__iam] = __i;
 
-        difference_type begin, end;
+	// Last part still untouched.
+	_DifferenceType __begin_output;
 
-        // Check for length without duplicates
-        // Needed for position in output
-        difference_type i = 0;
-        OutputIterator out = result;
+#       pragma omp barrier
 
-        if (iam == 0)
-        {
-          begin = borders[0] + 1;	// == 1
-          end = borders[iam + 1];
+	// Store result in output on calculated positions.
+	__begin_output = 0;
 
-          ++i;
-          *out++ = *first;
+	if (__iam == 0)
+          {
+            for (_ThreadIndex __t = 0; __t < __num_threads; ++__t)
+              __begin_output += __counter[__t];
 
-          for (InputIterator iter = first + begin; iter < first + end; ++iter)
-            {
-              if (!binary_pred(*iter, *(iter-1)))
-                {
-                  ++i;
-                  *out++ = *iter;
-                }
-            }
-        }
-      else
-        {
-          begin = borders[iam]; //one part
-          end = borders[iam + 1];
+            __i = 0;
 
-          for (InputIterator iter = first + begin; iter < first + end; ++iter)
-            {
-              if (!binary_pred(*iter, *(iter - 1)))
-		++i;
-	    }
-        }
-      counter[iam] = i;
+            _OutputIterator __iter_out = __result + __begin_output;
 
-      // Last part still untouched.
-      difference_type begin_output;
+            __begin = __borders[__num_threads];
+            __end = __size;
 
-#     pragma omp barrier
+            for (_IIter __iter = __first + __begin; __iter < __first + __end;
+		 ++__iter)
+              {
+        	if (__iter == __first
+		    || !__binary_pred(*__iter, *(__iter - 1)))
+                  {
+                    ++__i;
+                    *__iter_out++ = *__iter;
+                  }
+              }
 
-      // Store result in output on calculated positions.
-      begin_output = 0;
+            __counter[__num_threads] = __i;
+          }
+	else
+          {
+            for (_ThreadIndex __t = 0; __t < __iam; __t++)
+              __begin_output += __counter[__t];
 
-      if (iam == 0)
-        {
-          for (int t = 0; t < num_threads; ++t)
-            begin_output += counter[t];
+            _OutputIterator __iter_out = __result + __begin_output;
+            for (_IIter __iter = __first + __begin; __iter < __first + __end;
+		 ++__iter)
+              {
+        	if (!__binary_pred(*__iter, *(__iter - 1)))
+                  *__iter_out++ = *__iter;
+              }
+          }
+      }
 
-          i = 0;
+      _DifferenceType __end_output = 0;
+      for (_ThreadIndex __t = 0; __t < __num_threads + 1; __t++)
+	__end_output += __counter[__t];
 
-          OutputIterator iter_out = result + begin_output;
+      delete[] __borders;
 
-          begin = borders[num_threads];
-          end = size;
-
-          for (InputIterator iter = first + begin; iter < first + end; ++iter)
-            {
-              if (iter == first || !binary_pred(*iter, *(iter - 1)))
-                {
-                  ++i;
-                  *iter_out++ = *iter;
-                }
-            }
-
-          counter[num_threads] = i;
-        }
-      else
-        {
-          for (int t = 0; t < iam; t++)
-            begin_output += counter[t];
-
-          OutputIterator iter_out = result + begin_output;
-          for (InputIterator iter = first + begin; iter < first + end; ++iter)
-            {
-              if (!binary_pred(*iter, *(iter-1)))
-		*iter_out++ = *iter;
-	    }
-        }
+      return __result + __end_output;
     }
 
-    difference_type end_output = 0;
-    for (int t = 0; t < num_threads + 1; t++)
-      end_output += counter[t];
-
-    delete[] borders;
-
-    return result + end_output;
-  }
-
-/** @brief Parallel std::unique_copy(), without explicit equality predicate
-  *  @param first Begin iterator of input sequence.
-  *  @param last End iterator of input sequence.
-  *  @param result Begin iterator of result sequence.
-  *  @return End iterator of result sequence. */
-template<typename InputIterator, class OutputIterator>
-  inline OutputIterator
-  parallel_unique_copy(InputIterator first, InputIterator last,
-                       OutputIterator result)
-  {
-    typedef typename std::iterator_traits<InputIterator>::value_type
-      value_type;
-    return parallel_unique_copy(first, last, result,
-				std::equal_to<value_type>());
-  }
+  /** @brief Parallel std::unique_copy(), without explicit equality predicate
+    *  @param __first Begin iterator of input sequence.
+    *  @param __last End iterator of input sequence.
+    *  @param __result Begin iterator of result __sequence.
+    *  @return End iterator of result __sequence. */
+  template<typename _IIter, class _OutputIterator>
+    inline _OutputIterator
+    __parallel_unique_copy(_IIter __first, _IIter __last,
+			   _OutputIterator __result)
+    {
+      typedef typename std::iterator_traits<_IIter>::value_type
+	_ValueType;
+      return __parallel_unique_copy(__first, __last, __result,
+				    std::equal_to<_ValueType>());
+    }
 
 }//namespace __gnu_parallel
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_UNIQUE_COPY_H */

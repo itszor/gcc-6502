@@ -1,5 +1,6 @@
 ! PR middle-end/27573
 ! { dg-do compile }
+! { dg-require-profiling "-fprofile-generate" }
 ! { dg-options "-O2 -fopenmp -fprofile-generate" }
 
 program pr27573
@@ -11,5 +12,3 @@ program pr27573
     end do
   !$omp end parallel
 end
-
-! { dg-final { cleanup-coverage-files } }

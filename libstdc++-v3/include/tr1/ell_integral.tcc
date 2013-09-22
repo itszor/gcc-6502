@@ -1,12 +1,11 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
-//
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file tr1/ell_integral.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -48,16 +42,16 @@
 #ifndef _GLIBCXX_TR1_ELL_INTEGRAL_TCC
 #define _GLIBCXX_TR1_ELL_INTEGRAL_TCC 1
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
-
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /**
      *   @brief Return the Carlson elliptic function @f$ R_F(x,y,z) @f$
@@ -76,7 +70,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_rf(const _Tp __x, const _Tp __y, const _Tp __z)
+    __ellint_rf(_Tp __x, _Tp __y, _Tp __z)
     {
       const _Tp __min = std::numeric_limits<_Tp>::min();
       const _Tp __max = std::numeric_limits<_Tp>::max();
@@ -155,7 +149,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __comp_ellint_1_series(const _Tp __k)
+    __comp_ellint_1_series(_Tp __k)
     {
 
       const _Tp __kk = __k * __k;
@@ -193,7 +187,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __comp_ellint_1(const _Tp __k)
+    __comp_ellint_1(_Tp __k)
     {
 
       if (__isnan(__k))
@@ -221,7 +215,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_1(const _Tp __k, const _Tp __phi)
+    __ellint_1(_Tp __k, _Tp __phi)
     {
 
       if (__isnan(__k) || __isnan(__phi))
@@ -268,7 +262,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __comp_ellint_2_series(const _Tp __k)
+    __comp_ellint_2_series(_Tp __k)
     {
 
       const _Tp __kk = __k * __k;
@@ -316,7 +310,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_rd(const _Tp __x, const _Tp __y, const _Tp __z)
+    __ellint_rd(_Tp __x, _Tp __y, _Tp __z)
     {
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
       const _Tp __errtol = std::pow(__eps / _Tp(8), _Tp(1) / _Tp(6));
@@ -371,17 +365,18 @@ namespace tr1
               __zn = __c0 * (__zn + __lambda);
             }
 
-          _Tp __ea = __xndev * __yndev;
+	  // Note: __ea is an SPU badname.
+          _Tp __eaa = __xndev * __yndev;
           _Tp __eb = __zndev * __zndev;
-          _Tp __ec = __ea - __eb;
-          _Tp __ed = __ea - _Tp(6) * __eb;
+          _Tp __ec = __eaa - __eb;
+          _Tp __ed = __eaa - _Tp(6) * __eb;
           _Tp __ef = __ed + __ec + __ec;
           _Tp __s1 = __ed * (-__c1 + __c3 * __ed
                                    / _Tp(3) - _Tp(3) * __c4 * __zndev * __ef
                                    / _Tp(2));
           _Tp __s2 = __zndev
                    * (__c2 * __ef
-                    + __zndev * (-__c3 * __ec - __zndev * __c4 - __ea));
+                    + __zndev * (-__c3 * __ec - __zndev * __c4 - __eaa));
 
           return _Tp(3) * __sigma + __power4 * (_Tp(1) + __s1 + __s2)
                                         / (__mu * std::sqrt(__mu));
@@ -403,7 +398,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __comp_ellint_2(const _Tp __k)
+    __comp_ellint_2(_Tp __k)
     {
 
       if (__isnan(__k))
@@ -437,7 +432,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_2(const _Tp __k, const _Tp __phi)
+    __ellint_2(_Tp __k, _Tp __phi)
     {
 
       if (__isnan(__k) || __isnan(__phi))
@@ -496,7 +491,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_rc(const _Tp __x, const _Tp __y)
+    __ellint_rc(_Tp __x, _Tp __y)
     {
       const _Tp __min = std::numeric_limits<_Tp>::min();
       const _Tp __max = std::numeric_limits<_Tp>::max();
@@ -567,7 +562,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_rj(const _Tp __x, const _Tp __y, const _Tp __z, const _Tp __p)
+    __ellint_rj(_Tp __x, _Tp __y, _Tp __z, _Tp __p)
     {
       const _Tp __min = std::numeric_limits<_Tp>::min();
       const _Tp __max = std::numeric_limits<_Tp>::max();
@@ -634,16 +629,17 @@ namespace tr1
               __pn = __c0 * (__pn + __lambda);
             }
 
-          _Tp __ea = __xndev * (__yndev + __zndev) + __yndev * __zndev;
+	  // Note: __ea is an SPU badname.
+          _Tp __eaa = __xndev * (__yndev + __zndev) + __yndev * __zndev;
           _Tp __eb = __xndev * __yndev * __zndev;
           _Tp __ec = __pndev * __pndev;
-          _Tp __e2 = __ea - _Tp(3) * __ec;
-          _Tp __e3 = __eb + _Tp(2) * __pndev * (__ea - __ec);
+          _Tp __e2 = __eaa - _Tp(3) * __ec;
+          _Tp __e3 = __eb + _Tp(2) * __pndev * (__eaa - __ec);
           _Tp __s1 = _Tp(1) + __e2 * (-__c1 + _Tp(3) * __c3 * __e2 / _Tp(4)
                             - _Tp(3) * __c4 * __e3 / _Tp(2));
           _Tp __s2 = __eb * (__c2 / _Tp(2)
                    + __pndev * (-__c3 - __c3 + __pndev * __c4));
-          _Tp __s3 = __pndev * __ea * (__c2 - __pndev * __c3)
+          _Tp __s3 = __pndev * __eaa * (__c2 - __pndev * __c3)
                    - __c2 * __pndev * __ec;
 
           return _Tp(3) * __sigma + __power4 * (__s1 + __s2 + __s3)
@@ -670,7 +666,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __comp_ellint_3(const _Tp __k, const _Tp __nu)
+    __comp_ellint_3(_Tp __k, _Tp __nu)
     {
 
       if (__isnan(__k) || __isnan(__nu))
@@ -710,7 +706,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __ellint_3(const _Tp __k, const _Tp __nu, const _Tp __phi)
+    __ellint_3(_Tp __k, _Tp __nu, _Tp __phi)
     {
 
       if (__isnan(__k) || __isnan(__nu) || __isnan(__phi))
@@ -745,6 +741,7 @@ namespace tr1
         }
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }

@@ -142,7 +142,7 @@ public class Registrator extends LocalObject implements ORBInitInfo
    * Create the interceptor collection from the given properties, using the
    * agreed naming convention.
    *
-   * @param orb the ORB being initialised.
+   * @param an_orb the ORB being initialised.
    * @param props the cumulated set of properties where the orb initializer
    * pattern is searched.
    * @param an_args the argument string array, passed to ORB.init.
@@ -184,7 +184,7 @@ public class Registrator extends LocalObject implements ORBInitInfo
                   {
                     String cn = sk.substring(m_prefix.length());
                     Class iClass = ObjectCreator.forName(cn);
-                    
+
                     ORBInitializer initializer =
                       (ORBInitializer) iClass.newInstance();
                     m_initializers.add(initializer);

@@ -1,4 +1,6 @@
 ! { dg-do run }
+! { dg-options "-std=legacy" }
+!
 ! Tests the fix for PR30236, which was due to alternate returns
 ! in generic interfaces causing a segfault.  They now work
 ! correctly.
@@ -40,4 +42,3 @@ program test
  20 continue
   if (i /= -1) call abort ()
 end
-! { dg-final { cleanup-modules "arswitch" } }

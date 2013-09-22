@@ -1,4 +1,4 @@
-/* IfNode.java -- 
+/* IfNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerException;
@@ -89,22 +91,22 @@ final class IfNode
                  context, pos, len,
                  parent, nextSibling);
   }
-  
+
   public boolean references(QName var)
   {
     if (test != null && test.references(var))
       return true;
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("if");
+    CPStringBuilder buf = new CPStringBuilder("if");
     buf.append('[');
     buf.append("test=");
     buf.append(test);
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

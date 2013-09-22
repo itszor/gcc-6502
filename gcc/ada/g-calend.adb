@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1999-2007, AdaCore                     --
+--                     Copyright (C) 1999-2012, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -182,18 +180,68 @@ package body GNAT.Calendar is
    begin
       Split (Date, Year, Month, Day, Day_Secs);
 
-      if Day_Secs = 0.0 then
-         Secs := 0;
-      else
-         Secs := Natural (Day_Secs - 0.5);
-      end if;
-
+      Secs       := (if Day_Secs = 0.0 then 0 else Natural (Day_Secs - 0.5));
       Sub_Second := Second_Duration (Day_Secs - Day_Duration (Secs));
       Hour       := Hour_Number (Secs / 3_600);
       Secs       := Secs mod 3_600;
       Minute     := Minute_Number (Secs / 60);
       Second     := Second_Number (Secs mod 60);
    end Split;
+
+   ---------------------
+   -- Split_At_Locale --
+   ---------------------
+
+   procedure Split_At_Locale
+     (Date       : Time;
+      Year       : out Year_Number;
+      Month      : out Month_Number;
+      Day        : out Day_Number;
+      Hour       : out Hour_Number;
+      Minute     : out Minute_Number;
+      Second     : out Second_Number;
+      Sub_Second : out Second_Duration)
+   is
+      procedure Ada_Calendar_Split
+        (Date        : Time;
+         Year        : out Year_Number;
+         Month       : out Month_Number;
+         Day         : out Day_Number;
+         Day_Secs    : out Day_Duration;
+         Hour        : out Integer;
+         Minute      : out Integer;
+         Second      : out Integer;
+         Sub_Sec     : out Duration;
+         Leap_Sec    : out Boolean;
+         Use_TZ      : Boolean;
+         Is_Historic : Boolean;
+         Time_Zone   : Long_Integer);
+      pragma Import (Ada, Ada_Calendar_Split, "__gnat_split");
+
+      Ds : Day_Duration;
+      Le : Boolean;
+
+      pragma Unreferenced (Ds, Le);
+
+   begin
+      --  Even though the input time zone is UTC (0), the flag Use_TZ will
+      --  ensure that Split picks up the local time zone.
+
+      Ada_Calendar_Split
+        (Date        => Date,
+         Year        => Year,
+         Month       => Month,
+         Day         => Day,
+         Day_Secs    => Ds,
+         Hour        => Hour,
+         Minute      => Minute,
+         Second      => Second,
+         Sub_Sec     => Sub_Second,
+         Leap_Sec    => Le,
+         Use_TZ      => False,
+         Is_Historic => False,
+         Time_Zone   => 0);
+   end Split_At_Locale;
 
    ----------------
    -- Sub_Second --
@@ -226,7 +274,6 @@ package body GNAT.Calendar is
       Second     : Second_Number;
       Sub_Second : Second_Duration := 0.0) return Time
    is
-
       Day_Secs : constant Day_Duration :=
                    Day_Duration (Hour   * 3_600) +
                    Day_Duration (Minute *    60) +
@@ -235,6 +282,56 @@ package body GNAT.Calendar is
    begin
       return Time_Of (Year, Month, Day, Day_Secs);
    end Time_Of;
+
+   -----------------------
+   -- Time_Of_At_Locale --
+   -----------------------
+
+   function Time_Of_At_Locale
+     (Year       : Year_Number;
+      Month      : Month_Number;
+      Day        : Day_Number;
+      Hour       : Hour_Number;
+      Minute     : Minute_Number;
+      Second     : Second_Number;
+      Sub_Second : Second_Duration := 0.0) return Time
+   is
+      function Ada_Calendar_Time_Of
+        (Year         : Year_Number;
+         Month        : Month_Number;
+         Day          : Day_Number;
+         Day_Secs     : Day_Duration;
+         Hour         : Integer;
+         Minute       : Integer;
+         Second       : Integer;
+         Sub_Sec      : Duration;
+         Leap_Sec     : Boolean;
+         Use_Day_Secs : Boolean;
+         Use_TZ       : Boolean;
+         Is_Historic  : Boolean;
+         Time_Zone    : Long_Integer) return Time;
+      pragma Import (Ada, Ada_Calendar_Time_Of, "__gnat_time_of");
+
+   begin
+      --  Even though the input time zone is UTC (0), the flag Use_TZ will
+      --  ensure that Split picks up the local time zone.
+
+      return
+        Ada_Calendar_Time_Of
+          (Year         => Year,
+           Month        => Month,
+           Day          => Day,
+           Day_Secs     => 0.0,
+           Hour         => Hour,
+           Minute       => Minute,
+           Second       => Second,
+           Sub_Sec      => Sub_Second,
+           Leap_Sec     => False,
+           Use_Day_Secs => False,
+           Use_TZ       => False,
+           Is_Historic  => False,
+           Time_Zone    => 0);
+   end Time_Of_At_Locale;
 
    -----------------
    -- To_Duration --
@@ -293,7 +390,23 @@ package body GNAT.Calendar is
    ------------------
 
    function Week_In_Year (Date : Time) return Week_In_Year_Number is
-      Year       : Year_Number;
+      Year : Year_Number;
+      Week : Week_In_Year_Number;
+      pragma Unreferenced (Year);
+   begin
+      Year_Week_In_Year (Date, Year, Week);
+      return Week;
+   end Week_In_Year;
+
+   -----------------------
+   -- Year_Week_In_Year --
+   -----------------------
+
+   procedure Year_Week_In_Year
+     (Date : Time;
+      Year : out Year_Number;
+      Week : out Week_In_Year_Number)
+   is
       Month      : Month_Number;
       Day        : Day_Number;
       Hour       : Hour_Number;
@@ -307,7 +420,7 @@ package body GNAT.Calendar is
       pragma Unreferenced (Hour, Minute, Second, Sub_Second);
 
       function Is_Leap (Year : Year_Number) return Boolean;
-      --  Return True if Year denotes a leap year. Leap centential years are
+      --  Return True if Year denotes a leap year. Leap centennial years are
       --  properly handled.
 
       function Jan_1_Day_Of_Week
@@ -354,18 +467,9 @@ package body GNAT.Calendar is
 
       begin
          if Last_Year then
-            if Is_Leap (Year - 1) then
-               Shift := -2;
-            else
-               Shift := -1;
-            end if;
-
+            Shift := (if Is_Leap (Year - 1) then -2 else -1);
          elsif Next_Year then
-            if Is_Leap (Year) then
-               Shift := 2;
-            else
-               Shift := 1;
-            end if;
+            Shift := (if Is_Leap (Year) then 2 else 1);
          end if;
 
          return Day_Name'Val ((Day_Name'Pos (Jan_1) + Shift) mod 7);
@@ -381,14 +485,13 @@ package body GNAT.Calendar is
       is
          Last_Jan_1 : constant Day_Name :=
                         Jan_1_Day_Of_Week (Jan_1, Year, Last_Year => True);
+
       begin
          --  These two cases are illustrated in the table below
 
          return
            Last_Jan_1 = Thursday
-             or else
-               (Last_Jan_1 = Wednesday
-                  and then Is_Leap (Year - 1));
+             or else (Last_Jan_1 = Wednesday and then Is_Leap (Year - 1));
       end Last_Year_Has_53_Weeks;
 
    --  Start of processing for Week_In_Year
@@ -437,13 +540,11 @@ package body GNAT.Calendar is
       --  when special casing the first week of January and the last week of
       --  December.
 
-      if Day = 1
-        and then Month = 1
-      then
-         Jan_1 := Day_Of_Week (Date);
-      else
-         Jan_1 := Day_Of_Week (Time_Of (Year, 1, 1, 0.0));
-      end if;
+      Jan_1 := Day_Of_Week (if Day = 1 and then Month = 1
+                            then Date
+                            else (Time_Of (Year, 1, 1, 0.0)));
+
+      --  Special cases for January
 
       if Month = 1 then
 
@@ -461,19 +562,19 @@ package body GNAT.Calendar is
          --    +-----+-----+-----+=====+-----+-----+-----+
 
          if (Day = 1 and then Jan_1 in Friday .. Sunday)
-           or else
+               or else
             (Day = 2 and then Jan_1 in Friday .. Saturday)
-           or else
+               or else
             (Day = 3 and then Jan_1 = Friday)
          then
-            if Last_Year_Has_53_Weeks (Jan_1, Year) then
-               return 53;
-            else
-               return 52;
-            end if;
+            Week := (if Last_Year_Has_53_Weeks (Jan_1, Year) then 53 else 52);
 
-         --  Special case 2: January 1, 2, 3, 4, 5 and 6 of the first week. In
-         --  this scenario January 1 does not fall on a Monday.
+            --  January 1, 2 and 3 belong to the previous year
+
+            Year := Year - 1;
+            return;
+
+         --  Special case 2: January 1, 2, 3, 4, 5, 6 and 7 of the first week
 
          --    +-----+-----+-----+=====+-----+-----+-----+
          --    | Mon | Tue | Wed # Thu # Fri | Sat | Sun |
@@ -484,15 +585,22 @@ package body GNAT.Calendar is
          --    +-----+-----+-----+-----+-----+-----+-----+
          --    | 31  |  1  |  2  #  3  #  4  |  5  |  6  |
          --    +-----+-----+-----+-----+-----+-----+-----+
+         --    |  1  |  2  |  3  #  4  #  5  |  6  |  7  |
+         --    +-----+-----+-----+=====+-----+-----+-----+
 
-         elsif (Day <= 4 and then Jan_1 in Tuesday .. Thursday)
-           or else
-               (Day = 5  and then Jan_1 in Tuesday .. Wednesday)
-           or else
-               (Day = 6  and then Jan_1 = Tuesday)
+         elsif (Day <= 4 and then Jan_1 in Monday .. Thursday)
+                  or else
+               (Day = 5  and then Jan_1 in Monday .. Wednesday)
+                  or else
+               (Day = 6  and then Jan_1 in Monday ..  Tuesday)
+                  or else
+               (Day = 7  and then Jan_1 = Monday)
          then
-            return 1;
+            Week := 1;
+            return;
          end if;
+
+      --  Month other than 1
 
       --  Special case 3: December 29, 30 and 31. These days may belong to
       --  next year's first week.
@@ -507,20 +615,20 @@ package body GNAT.Calendar is
       --    | 31  |  1  |  2  #  3  #  4  |  5  |  6  |
       --    +-----+-----+-----+=====+-----+-----+-----+
 
-      elsif Month = 12
-        and then Day > 28
-      then
+      elsif Month = 12 and then Day > 28 then
          declare
             Next_Jan_1 : constant Day_Name :=
                            Jan_1_Day_Of_Week (Jan_1, Year, Next_Year => True);
          begin
             if (Day = 29 and then Next_Jan_1 = Thursday)
-              or else
+                  or else
                (Day = 30 and then Next_Jan_1 in Wednesday .. Thursday)
-              or else
+                  or else
                (Day = 31 and then Next_Jan_1 in Tuesday .. Thursday)
             then
-               return 1;
+               Year := Year + 1;
+               Week := 1;
+               return;
             end if;
          end;
       end if;
@@ -529,11 +637,7 @@ package body GNAT.Calendar is
       --  not belong to the first week of the input year, then the next week
       --  is the first week.
 
-      if Jan_1 in Friday .. Sunday then
-         Start_Week := 1;
-      else
-         Start_Week := 2;
-      end if;
+      Start_Week := (if Jan_1 in Friday .. Sunday then 1 else 2);
 
       --  At this point all special combinations have been accounted for and
       --  the proper start week has been found. Since January 1 may not fall
@@ -541,7 +645,7 @@ package body GNAT.Calendar is
       --  origin which falls on Monday.
 
       Shift := 7 - Day_Name'Pos (Jan_1);
-      return Start_Week + (Day_In_Year (Date) - Shift - 1) / 7;
-   end Week_In_Year;
+      Week  := Start_Week + (Day_In_Year (Date) - Shift - 1) / 7;
+   end Year_Week_In_Year;
 
 end GNAT.Calendar;

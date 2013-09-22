@@ -37,10 +37,8 @@ exception statement from your version. */
 
 #include "jcl.h"
 #include "gtkpeer.h"
-#include <gdk/gdkx.h>
 #include <gdk/gdktypes.h>
 #include <gdk/gdkprivate.h>
-#include <gdk/gdkx.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk-pixbuf/gdk-pixdata.h>
 
@@ -112,7 +110,7 @@ Java_gnu_java_awt_peer_gtk_GtkVolatileImage_nativeGetPixels
   GdkPixmap *pixmap;
   GdkPixbuf *pixbuf;
   jintArray jpixels;
-  int width, height, depth, size;
+  int width, height, size;
   jclass cls;
   jfieldID field;
   guchar *pixels;
@@ -131,8 +129,6 @@ Java_gnu_java_awt_peer_gtk_GtkVolatileImage_nativeGetPixels
 
   gdk_threads_enter();
 
-  /* get depth in bytes */
-  depth = gdk_drawable_get_depth( pixmap ) >> 3;
   size = width * height;
   jpixels = (*env)->NewIntArray ( env, size );
   jpixdata = (*env)->GetIntArrayElements (env, jpixels, NULL);

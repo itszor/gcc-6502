@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,9 +35,9 @@ with Namet;    use Namet;
 with Nlists;   use Nlists;
 with Nmake;    use Nmake;
 with Opt;      use Opt;
-with Rtsfind;  use Rtsfind;
 with Restrict; use Restrict;
 with Rident;   use Rident;
+with Rtsfind;  use Rtsfind;
 with Sem;      use Sem;
 with Sem_Ch8;  use Sem_Ch8;
 with Sem_Res;  use Sem_Res;
@@ -101,9 +101,16 @@ package body Exp_Ch11 is
 
    procedure Expand_At_End_Handler (HSS : Node_Id; Block : Node_Id) is
       Clean   : constant Entity_Id  := Entity (At_End_Proc (HSS));
-      Loc     : constant Source_Ptr := Sloc (Clean);
       Ohandle : Node_Id;
       Stmnts  : List_Id;
+
+      Loc : constant Source_Ptr := No_Location;
+      --  Location used for expansion. We quite deliberately do not set a
+      --  specific source location for the expanded handler. This makes
+      --  sense since really the handler is not associated with specific
+      --  source. We used to set this to Sloc (Clean), but that caused
+      --  useless and annoying bouncing around of line numbers in the
+      --  debugger in some circumstances.
 
    begin
       pragma Assert (Present (Clean));
@@ -143,12 +150,21 @@ package body Exp_Ch11 is
         Make_Procedure_Call_Statement (Loc,
           Name => New_Occurrence_Of (Clean, Loc)));
 
-      --  Avoid generation of raise stmt if compiling with no exceptions
-      --  propagation
+      --  Generate reraise statement as last statement of AT-END handler,
+      --  unless we are under control of No_Exception_Propagation, in which
+      --  case no exception propagation is possible anyway, so we do not need
+      --  a reraise (the AT END handler in this case is only for normal exits
+      --  not for exceptional exits). Also, we flag the Reraise statement as
+      --  being part of an AT END handler to prevent signalling this reraise
+      --  as a violation of the restriction when it is not set.
 
       if not Restriction_Active (No_Exception_Propagation) then
-         Append_To (Stmnts,
-           Make_Raise_Statement (Loc));
+         declare
+            Rstm : constant Node_Id := Make_Raise_Statement (Loc);
+         begin
+            Set_From_At_End (Rstm);
+            Append_To (Stmnts, Rstm);
+         end;
       end if;
 
       Set_Exception_Handlers (HSS, New_List (
@@ -325,7 +341,7 @@ package body Exp_Ch11 is
       --  raise statements into gotos, e.g. all N_Raise_xxx_Error nodes are
       --  left unchanged and passed to the back end.
 
-      --  Instead, the front end generates two nodes
+      --  Instead, the front end generates three nodes
 
       --     N_Push_Constraint_Error_Label
       --     N_Push_Program_Error_Label
@@ -346,6 +362,10 @@ package body Exp_Ch11 is
       --  front end will still generate the Push and Pop nodes, but the label
       --  field in the Push node will be empty signifying that for this region
       --  of code, no optimization is possible.
+
+      --  These Push/Pop nodes are inhibited if No_Exception_Handlers is set
+      --  since they are useless in this case, and in CodePeer mode, where
+      --  they serve no purpose and can intefere with the analysis.
 
       --  The back end must maintain three stacks, one for each exception case,
       --  the Push node pushes an entry onto the corresponding stack, and Pop
@@ -460,9 +480,7 @@ package body Exp_Ch11 is
                Local_Expansion_Required := True;
 
                declare
-                  L : constant Entity_Id :=
-                        Make_Defining_Identifier (Sloc (H),
-                          Chars => New_Internal_Name ('L'));
+                  L : constant Entity_Id := Make_Temporary (Sloc (H), 'L');
                begin
                   Set_Exception_Label (H, L);
                   Add_Label_Declaration (L);
@@ -496,6 +514,12 @@ package body Exp_Ch11 is
 
          procedure Generate_Push_Pop (H : Node_Id) is
          begin
+            if Restriction_Active (No_Exception_Handlers)
+              or else CodePeer_Mode
+            then
+               return;
+            end if;
+
             if Exc_Locally_Handled then
                return;
             else
@@ -637,9 +661,7 @@ package body Exp_Ch11 is
          declare
             --  L3 is the label to exit the HSS
 
-            L3_Dent : constant Entity_Id :=
-                        Make_Defining_Identifier (Loc,
-                          Chars => New_Internal_Name ('L'));
+            L3_Dent : constant Entity_Id := Make_Temporary (Loc, 'L');
 
             Labl_L3 : constant Node_Id :=
                         Make_Label (Loc,
@@ -661,7 +683,8 @@ package body Exp_Ch11 is
 
             Rewrite (HSS,
               Make_Handled_Sequence_Of_Statements (Loc,
-                Statements => New_List (Blk_Stm)));
+                Statements => New_List (Blk_Stm),
+                End_Label  => Relocate_Node (End_Label (HSS))));
 
             --  Set block statement as analyzed, we don't want to actually call
             --  Analyze on this block, it would cause a recursion in exception
@@ -736,13 +759,12 @@ package body Exp_Ch11 is
                         Relmt := First_Elmt (Local_Raise_Statements (Handler));
                         while Present (Relmt) loop
                            declare
-                              Raise_S : constant Node_Id := Node (Relmt);
-
+                              Raise_S : constant Node_Id    := Node (Relmt);
+                              RLoc    : constant Source_Ptr := Sloc (Raise_S);
                               Name_L1 : constant Node_Id :=
                                           New_Occurrence_Of (L1_Dent, Loc);
-
                               Goto_L1 : constant Node_Id :=
-                                          Make_Goto_Statement (Loc,
+                                          Make_Goto_Statement (RLoc,
                                             Name => Name_L1);
 
                            begin
@@ -839,14 +861,16 @@ package body Exp_Ch11 is
          Ent : constant Entity_Id := RTE (Proc);
 
       begin
-         --  If we have no Entity, then we are probably in no run time mode
-         --  or some weird error has occured. In either case do do nothing!
+         --  If we have no Entity, then we are probably in no run time mode or
+         --  some weird error has occurred. In either case do nothing. Note use
+         --  of No_Location to hide this code from the debugger, so single
+         --  stepping doesn't jump back and forth.
 
          if Present (Ent) then
             declare
                Call : constant Node_Id :=
-                        Make_Procedure_Call_Statement (Loc,
-                          Name => New_Occurrence_Of (RTE (Proc), Loc),
+                        Make_Procedure_Call_Statement (No_Location,
+                          Name => New_Occurrence_Of (RTE (Proc), No_Location),
                           Parameter_Associations => Args);
 
             begin
@@ -961,9 +985,11 @@ package body Exp_Ch11 is
 
       Handler := First_Non_Pragma (Handlrs);
       Handler_Loop : while Present (Handler) loop
+         Process_Statements_For_Controlled_Objects (Handler);
+
          Next_Handler := Next_Non_Pragma (Handler);
 
-         --  Remove source handler if gnat debug flag N is set
+         --  Remove source handler if gnat debug flag .x is set
 
          if Debug_Flag_Dot_X and then Comes_From_Source (Handler) then
             Remove (Handler);
@@ -971,129 +997,153 @@ package body Exp_Ch11 is
          --  Remove handler if no exception propagation, generating a warning
          --  if a source generated handler was not the target of a local raise.
 
-         elsif Restriction_Active (No_Exception_Propagation) then
-            if not Has_Local_Raise (Handler)
+         else
+            if Restriction_Active (No_Exception_Propagation)
+              and then not Has_Local_Raise (Handler)
               and then Comes_From_Source (Handler)
               and then Warn_On_Non_Local_Exception
             then
                Warn_No_Exception_Propagation_Active (Handler);
                Error_Msg_N
-                 ("\?this handler can never be entered, and has been removed",
-                  Handler);
+                 ("\?X?this handler can never be entered, "
+                  & "and has been removed", Handler);
             end if;
 
-            Remove (Handler);
+            if No_Exception_Propagation_Active then
+               Remove (Handler);
 
-         --  Exception handler is active and retained and must be processed
+            --  Exception handler is active and retained and must be processed
 
-         else
-            --  If an exception occurrence is present, then we must declare it
-            --  and initialize it from the value stored in the TSD
+            else
+               --  If an exception occurrence is present, then we must declare
+               --  it and initialize it from the value stored in the TSD
 
-            --     declare
-            --        name : Exception_Occurrence;
-            --     begin
-            --        Save_Occurrence (name, Get_Current_Excep.all)
-            --        ...
-            --     end;
+               --     declare
+               --        name : Exception_Occurrence;
+               --     begin
+               --        Save_Occurrence (name, Get_Current_Excep.all)
+               --        ...
+               --     end;
 
-            if Present (Choice_Parameter (Handler)) then
-               declare
-                  Cparm : constant Entity_Id  := Choice_Parameter (Handler);
-                  Clc   : constant Source_Ptr := Sloc (Cparm);
-                  Save  : Node_Id;
+               if Present (Choice_Parameter (Handler)) then
+                  declare
+                     Cparm : constant Entity_Id  := Choice_Parameter (Handler);
+                     Cloc  : constant Source_Ptr := Sloc (Cparm);
+                     Hloc  : constant Source_Ptr := Sloc (Handler);
+                     Save  : Node_Id;
 
-               begin
-                  Save :=
-                    Make_Procedure_Call_Statement (Loc,
-                      Name =>
-                        New_Occurrence_Of (RTE (RE_Save_Occurrence), Loc),
-                      Parameter_Associations => New_List (
-                        New_Occurrence_Of (Cparm, Clc),
-                        Make_Explicit_Dereference (Loc,
-                          Make_Function_Call (Loc,
-                            Name => Make_Explicit_Dereference (Loc,
-                              New_Occurrence_Of
-                                (RTE (RE_Get_Current_Excep), Loc))))));
+                  begin
+                     --  Note use of No_Location to hide this code from the
+                     --  debugger, so single stepping doesn't jump back and
+                     --  forth.
 
-                  Mark_Rewrite_Insertion (Save);
-                  Prepend (Save, Statements (Handler));
+                     Save :=
+                       Make_Procedure_Call_Statement (No_Location,
+                         Name =>
+                           New_Occurrence_Of
+                             (RTE (RE_Save_Occurrence), No_Location),
+                         Parameter_Associations => New_List (
+                           New_Occurrence_Of (Cparm, No_Location),
+                           Make_Explicit_Dereference (No_Location,
+                             Make_Function_Call (No_Location,
+                               Name =>
+                                 Make_Explicit_Dereference (No_Location,
+                                   New_Occurrence_Of
+                                     (RTE (RE_Get_Current_Excep),
+                                      No_Location))))));
 
-                  Obj_Decl :=
-                    Make_Object_Declaration
-                      (Clc,
-                       Defining_Identifier => Cparm,
-                       Object_Definition   =>
-                         New_Occurrence_Of
-                           (RTE (RE_Exception_Occurrence), Clc));
-                  Set_No_Initialization (Obj_Decl, True);
+                     Mark_Rewrite_Insertion (Save);
+                     Prepend (Save, Statements (Handler));
 
-                  Rewrite (Handler,
-                    Make_Implicit_Exception_Handler (Loc,
-                      Exception_Choices => Exception_Choices (Handler),
+                     Obj_Decl :=
+                       Make_Object_Declaration
+                         (Cloc,
+                          Defining_Identifier => Cparm,
+                          Object_Definition   =>
+                            New_Occurrence_Of
+                              (RTE (RE_Exception_Occurrence), Cloc));
+                     Set_No_Initialization (Obj_Decl, True);
 
-                      Statements => New_List (
-                        Make_Block_Statement (Loc,
-                          Declarations => New_List (Obj_Decl),
-                          Handled_Statement_Sequence =>
-                            Make_Handled_Sequence_Of_Statements (Loc,
-                              Statements => Statements (Handler))))));
+                     Rewrite (Handler,
+                       Make_Exception_Handler (Hloc,
+                         Choice_Parameter  => Empty,
+                         Exception_Choices => Exception_Choices (Handler),
 
-                  Analyze_List (Statements (Handler), Suppress => All_Checks);
-               end;
-            end if;
+                         Statements => New_List (
+                           Make_Block_Statement (Hloc,
+                             Declarations => New_List (Obj_Decl),
+                             Handled_Statement_Sequence =>
+                               Make_Handled_Sequence_Of_Statements (Hloc,
+                                 Statements => Statements (Handler))))));
 
-            --  The processing at this point is rather different for the JVM
-            --  case, so we completely separate the processing.
+                     --  Local raise statements can't occur, since exception
+                     --  handlers with choice parameters are not allowed when
+                     --  No_Exception_Propagation applies, so set attributes
+                     --  accordingly.
 
-            --  For the JVM case, we unconditionally call Update_Exception,
-            --  passing a call to the intrinsic Current_Target_Exception (see
-            --  JVM version of Ada.Exceptions in 4jexcept.adb for details).
+                     Set_Local_Raise_Statements (Handler, No_Elist);
+                     Set_Local_Raise_Not_OK (Handler);
 
-            if VM_Target /= No_VM then
-               declare
-                  Arg : constant Node_Id :=
-                          Make_Function_Call (Loc,
-                            Name =>
-                              New_Occurrence_Of
-                                (RTE (RE_Current_Target_Exception), Loc));
-               begin
-                  Prepend_Call_To_Handler
-                    (RE_Update_Exception, New_List (Arg));
-               end;
+                     Analyze_List
+                       (Statements (Handler), Suppress => All_Checks);
+                  end;
+               end if;
 
-               --  For the normal case, we have to worry about the state of
-               --  abort deferral. Generally, we defer abort during runtime
-               --  handling of exceptions. When control is passed to the
-               --  handler, then in the normal case we undefer aborts. In any
-               --  case this entire handling is relevant only if aborts are
-               --  allowed!
+               --  The processing at this point is rather different for the JVM
+               --  case, so we completely separate the processing.
 
-            elsif Abort_Allowed then
+               --  For the VM case, we unconditionally call Update_Exception,
+               --  passing a call to the intrinsic Current_Target_Exception
+               --  (see JVM/.NET versions of Ada.Exceptions for details).
 
-               --  There are some special cases in which we do not do the
-               --  undefer. In particular a finalization (AT END) handler
-               --  wants to operate with aborts still deferred.
+               if VM_Target /= No_VM then
+                  declare
+                     Arg : constant Node_Id :=
+                             Make_Function_Call (Loc,
+                               Name =>
+                                 New_Occurrence_Of
+                                   (RTE (RE_Current_Target_Exception), Loc));
+                  begin
+                     Prepend_Call_To_Handler
+                       (RE_Update_Exception, New_List (Arg));
+                  end;
 
-               --  We also suppress the call if this is the special handler
-               --  for Abort_Signal, since if we are aborting, we want to keep
-               --  aborts deferred (one abort is enough).
+                  --  For the normal case, we have to worry about the state of
+                  --  abort deferral. Generally, we defer abort during runtime
+                  --  handling of exceptions. When control is passed to the
+                  --  handler, then in the normal case we undefer aborts. In
+                  --  any case this entire handling is relevant only if aborts
+                  --  are allowed!
 
-               --  If abort really needs to be deferred the expander must add
-               --  this call explicitly, see Expand_N_Asynchronous_Select.
-
-               Others_Choice :=
-                 Nkind (First (Exception_Choices (Handler))) = N_Others_Choice;
-
-               if (Others_Choice
-                   or else Entity (First (Exception_Choices (Handler))) /=
-                     Stand.Abort_Signal)
-                 and then not
-                   (Others_Choice
-                    and then All_Others (First (Exception_Choices (Handler))))
-                 and then Abort_Allowed
+               elsif Abort_Allowed
+                 and then Exception_Mechanism /= Back_End_Exceptions
                then
-                  Prepend_Call_To_Handler (RE_Abort_Undefer);
+                  --  There are some special cases in which we do not do the
+                  --  undefer. In particular a finalization (AT END) handler
+                  --  wants to operate with aborts still deferred.
+
+                  --  We also suppress the call if this is the special handler
+                  --  for Abort_Signal, since if we are aborting, we want to
+                  --  keep aborts deferred (one abort is enough).
+
+                  --  If abort really needs to be deferred the expander must
+                  --  add this call explicitly, see
+                  --  Expand_N_Asynchronous_Select.
+
+                  Others_Choice :=
+                    Nkind (First (Exception_Choices (Handler))) =
+                                                         N_Others_Choice;
+
+                  if (Others_Choice
+                       or else Entity (First (Exception_Choices (Handler))) /=
+                                                         Stand.Abort_Signal)
+                    and then not
+                      (Others_Choice
+                        and then
+                          All_Others (First (Exception_Choices (Handler))))
+                  then
+                     Prepend_Call_To_Handler (RE_Abort_Undefer);
+                  end if;
                end if;
             end if;
          end if;
@@ -1144,9 +1194,83 @@ package body Exp_Ch11 is
       Exname      : constant Node_Id :=
                       Make_Defining_Identifier (Loc, Name_Exname);
 
+      procedure Force_Static_Allocation_Of_Referenced_Objects
+        (Aggregate : Node_Id);
+      --  A specialized solution to one particular case of an ugly problem
+      --
+      --  The given aggregate includes an Unchecked_Conversion as one of the
+      --  component values. The call to Analyze_And_Resolve below ends up
+      --  calling Exp_Ch4.Expand_N_Unchecked_Type_Conversion, which may decide
+      --  to introduce a (constant) temporary and then obtain the component
+      --  value by evaluating the temporary.
+      --
+      --  In the case of an exception declared within a subprogram (or any
+      --  other dynamic scope), this is a bad transformation. The exception
+      --  object is marked as being Statically_Allocated but the temporary is
+      --  not. If the initial value of a Statically_Allocated declaration
+      --  references a dynamically allocated object, this prevents static
+      --  initialization of the object.
+      --
+      --  We cope with this here by marking the temporary Statically_Allocated.
+      --  It might seem cleaner to generalize this utility and then use it to
+      --  enforce a rule that the entities referenced in the declaration of any
+      --  "hoisted" (i.e., Is_Statically_Allocated and not Is_Library_Level)
+      --  entity must also be either Library_Level or hoisted. It turns out
+      --  that this would be incompatible with the current treatment of an
+      --  object which is local to a subprogram, subject to an Export pragma,
+      --  not subject to an address clause, and whose declaration contains
+      --  references to other local (non-hoisted) objects (e.g., in the initial
+      --  value expression).
+
+      ---------------------------------------------------
+      -- Force_Static_Allocation_Of_Referenced_Objects --
+      ---------------------------------------------------
+
+      procedure Force_Static_Allocation_Of_Referenced_Objects
+        (Aggregate : Node_Id)
+      is
+         function Fixup_Node (N : Node_Id) return Traverse_Result;
+         --  If the given node references a dynamically allocated object, then
+         --  correct the declaration of the object.
+
+         ----------------
+         -- Fixup_Node --
+         ----------------
+
+         function Fixup_Node (N : Node_Id) return Traverse_Result is
+         begin
+            if Nkind (N) in N_Has_Entity
+              and then Present (Entity (N))
+              and then not Is_Library_Level_Entity (Entity (N))
+
+              --  Note: the following test is not needed but it seems cleaner
+              --  to do this test (this would be more important if procedure
+              --  Force_Static_Allocation_Of_Referenced_Objects recursively
+              --  traversed the declaration of an entity after marking it as
+              --  statically allocated).
+
+              and then not Is_Statically_Allocated (Entity (N))
+            then
+               Set_Is_Statically_Allocated (Entity (N));
+            end if;
+
+            return OK;
+         end Fixup_Node;
+
+         procedure Fixup_Tree is new Traverse_Proc (Fixup_Node);
+
+      --  Start of processing for Force_Static_Allocation_Of_Referenced_Objects
+
+      begin
+         Fixup_Tree (Aggregate);
+      end Force_Static_Allocation_Of_Referenced_Objects;
+
+   --  Start of processing for Expand_N_Exception_Declaration
+
    begin
       --  There is no expansion needed when compiling for the JVM since the
-      --  JVM has a built-in exception mechanism. See 4jexcept.ads for details.
+      --  JVM has a built-in exception mechanism. See cil/gnatlib/a-except.ads
+      --  for details.
 
       if VM_Target /= No_VM then
          return;
@@ -1159,7 +1283,9 @@ package body Exp_Ch11 is
           Defining_Identifier => Exname,
           Constant_Present    => True,
           Object_Definition   => New_Occurrence_Of (Standard_String, Loc),
-          Expression => Make_String_Literal (Loc, Full_Qualified_Name (Id))));
+          Expression          =>
+            Make_String_Literal (Loc,
+              Strval => Fully_Qualified_Name_String (Id))));
 
       Set_Is_Statically_Allocated (Exname);
 
@@ -1203,6 +1329,8 @@ package body Exp_Ch11 is
 
       Set_Expression (N, Make_Aggregate (Loc, Expressions => L));
       Analyze_And_Resolve (Expression (N), Etype (Id));
+
+      Force_Static_Allocation_Of_Referenced_Objects (Expression (N));
 
       --  Register_Exception (except'Unchecked_Access);
 
@@ -1248,7 +1376,6 @@ package body Exp_Ch11 is
             Insert_List_After_And_Analyze (N, L);
          end if;
       end if;
-
    end Expand_N_Exception_Declaration;
 
    ---------------------------------------------
@@ -1332,10 +1459,9 @@ package body Exp_Ch11 is
       E     : Entity_Id;
       Str   : String_Id;
       H     : Node_Id;
+      Src   : Boolean;
 
    begin
-      --  Debug_Flag_Dot_G := True;
-
       --  Processing for locally handled exception (exclude reraise case)
 
       if Present (Name (N)) and then Nkind (Name (N)) = N_Identifier then
@@ -1370,39 +1496,47 @@ package body Exp_Ch11 is
 
       --  If a string expression is present, then the raise statement is
       --  converted to a call:
-
       --     Raise_Exception (exception-name'Identity, string);
-
-      --  and there is nothing else to do
+      --  and there is nothing else to do.
 
       if Present (Expression (N)) then
-         Rewrite (N,
-           Make_Procedure_Call_Statement (Loc,
-             Name => New_Occurrence_Of (RTE (RE_Raise_Exception), Loc),
-             Parameter_Associations => New_List (
-               Make_Attribute_Reference (Loc,
-                 Prefix => Name (N),
-                 Attribute_Name => Name_Identity),
-               Expression (N))));
+
+         --  Avoid passing exception-name'identity in runtimes in which this
+         --  argument is not used. This avoids generating undefined references
+         --  to these exceptions when compiling with no optimization
+
+         if Configurable_Run_Time_On_Target
+           and then (Restriction_Active (No_Exception_Handlers)
+                       or else
+                     Restriction_Active (No_Exception_Propagation))
+         then
+            Rewrite (N,
+              Make_Procedure_Call_Statement (Loc,
+                Name => New_Occurrence_Of (RTE (RE_Raise_Exception), Loc),
+                Parameter_Associations => New_List (
+                  New_Occurrence_Of (RTE (RE_Null_Id), Loc),
+                  Expression (N))));
+         else
+            Rewrite (N,
+              Make_Procedure_Call_Statement (Loc,
+                Name => New_Occurrence_Of (RTE (RE_Raise_Exception), Loc),
+                Parameter_Associations => New_List (
+                  Make_Attribute_Reference (Loc,
+                    Prefix         => Name (N),
+                    Attribute_Name => Name_Identity),
+                  Expression (N))));
+         end if;
+
          Analyze (N);
          return;
       end if;
 
-      --  Remaining processing is for the case where no string expression
-      --  is present.
+      --  Remaining processing is for the case where no string expression is
+      --  present.
 
-      --  There is no expansion needed for statement "raise <exception>;" when
-      --  compiling for the JVM since the JVM has a built-in exception
-      --  mechanism. However we need to keep the expansion for "raise;"
-      --  statements. See 4jexcept.ads for details.
-
-      if Present (Name (N)) and then VM_Target /= No_VM then
-         return;
-      end if;
-
-      --  Don't expand a raise statement that does not come from source
-      --  if we have already had configurable run-time violations, since
-      --  most likely it will be junk cascaded nonsense.
+      --  Don't expand a raise statement that does not come from source if we
+      --  have already had configurable run-time violations, since most likely
+      --  it will be junk cascaded nonsense.
 
       if Configurable_Run_Time_Violations > 0
         and then not Comes_From_Source (N)
@@ -1413,27 +1547,30 @@ package body Exp_Ch11 is
       --  Convert explicit raise of Program_Error, Constraint_Error, and
       --  Storage_Error into the corresponding raise (in High_Integrity_Mode
       --  all other raises will get normal expansion and be disallowed,
-      --  but this is also faster in all modes).
+      --  but this is also faster in all modes). Propagate Comes_From_Source
+      --  flag to the new node.
 
       if Present (Name (N)) and then Nkind (Name (N)) = N_Identifier then
+         Src := Comes_From_Source (N);
+
          if Entity (Name (N)) = Standard_Constraint_Error then
             Rewrite (N,
-              Make_Raise_Constraint_Error (Loc,
-                Reason => CE_Explicit_Raise));
+              Make_Raise_Constraint_Error (Loc, Reason => CE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
 
          elsif Entity (Name (N)) = Standard_Program_Error then
             Rewrite (N,
-              Make_Raise_Program_Error (Loc,
-                Reason => PE_Explicit_Raise));
+              Make_Raise_Program_Error (Loc, Reason => PE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
 
          elsif Entity (Name (N)) = Standard_Storage_Error then
             Rewrite (N,
-              Make_Raise_Storage_Error (Loc,
-                Reason => SE_Explicit_Raise));
+              Make_Raise_Storage_Error (Loc, Reason => SE_Explicit_Raise));
+            Set_Comes_From_Source (N, Src);
             Analyze (N);
             return;
          end if;
@@ -1450,6 +1587,7 @@ package body Exp_Ch11 is
             Id : Entity_Id := Entity (Name (N));
 
          begin
+            Name_Len := 0;
             Build_Location_String (Loc);
 
             --  If the exception is a renaming, use the exception that it
@@ -1545,6 +1683,19 @@ package body Exp_Ch11 is
       --  does not have a choice parameter specification, then we provide one.
 
       else
+         --  Bypass expansion to a run-time call when back-end exception
+         --  handling is active, unless the target is a VM, CodePeer or
+         --  GNATprove. In CodePeer, raising an exception is treated as an
+         --  error, while in GNATprove all code with exceptions falls outside
+         --  the subset of code which can be formally analyzed.
+
+         if VM_Target = No_VM
+           and then not CodePeer_Mode
+           and then Exception_Mechanism = Back_End_Exceptions
+         then
+            return;
+         end if;
+
          --  Find innermost enclosing exception handler (there must be one,
          --  since the semantics has already verified that this raise statement
          --  is valid, and a raise with no arguments is only permitted in the
@@ -1560,7 +1711,7 @@ package body Exp_Ch11 is
          --  be referencing this entity by normal visibility methods.
 
          if No (Choice_Parameter (Ehand)) then
-            E := Make_Defining_Identifier (Loc, New_Internal_Name ('E'));
+            E := Make_Temporary (Loc, 'E');
             Set_Choice_Parameter (Ehand, E);
             Set_Ekind (E, E_Variable);
             Set_Etype (E, RTE (RE_Exception_Occurrence));
@@ -1657,10 +1808,10 @@ package body Exp_Ch11 is
 
             if Configurable_Run_Time_Mode then
                Error_Msg_NE
-                 ("\?& may call Last_Chance_Handler", N, E);
+                 ("\?X?& may call Last_Chance_Handler", N, E);
             else
                Error_Msg_NE
-                 ("\?& may result in unhandled exception", N, E);
+                 ("\?X?& may result in unhandled exception", N, E);
             end if;
          end if;
       end;
@@ -1681,7 +1832,7 @@ package body Exp_Ch11 is
 
       Rewrite (N,
         Make_Attribute_Reference (Loc,
-          Prefix => Identifier (N),
+          Prefix         => Identifier (N),
           Attribute_Name => Name_Code_Address));
 
       Analyze_And_Resolve (N, RTE (RE_Code_Loc));
@@ -1758,64 +1909,78 @@ package body Exp_Ch11 is
             --  case it will end up in the block statements, even though it
             --  is not there now.
 
-            if Is_List_Member (N)
-              and then (List_Containing (N) = Statements (P)
-                          or else
-                        List_Containing (N) = SSE.Actions_To_Be_Wrapped_Before
-                          or else
-                        List_Containing (N) = SSE.Actions_To_Be_Wrapped_After)
-            then
-               --  Loop through exception handlers
+            if Is_List_Member (N) then
+               declare
+                  LCN : constant List_Id := List_Containing (N);
 
-               H := First (Exception_Handlers (P));
-               while Present (H) loop
+               begin
+                  if LCN = Statements (P)
+                       or else
+                     LCN = SSE.Actions_To_Be_Wrapped_Before
+                       or else
+                     LCN = SSE.Actions_To_Be_Wrapped_After
+                  then
+                     --  Loop through exception handlers
 
-                  --  Loop through choices in one handler
+                     H := First (Exception_Handlers (P));
+                     while Present (H) loop
 
-                  C := First (Exception_Choices (H));
-                  while Present (C) loop
+                        --  Guard against other constructs appearing in the
+                        --  list of exception handlers.
 
-                     --  Deal with others case
+                        if Nkind (H) = N_Exception_Handler then
 
-                     if Nkind (C) = N_Others_Choice then
+                           --  Loop through choices in one handler
 
-                        --  Matching others handler, but we need to ensure
-                        --  there is no choice parameter. If there is, then we
-                        --  don't have a local handler after all (since we do
-                        --  not allow choice parameters for local handlers).
+                           C := First (Exception_Choices (H));
+                           while Present (C) loop
 
-                        if No (Choice_Parameter (H)) then
-                           return H;
-                        else
-                           return Empty;
+                              --  Deal with others case
+
+                              if Nkind (C) = N_Others_Choice then
+
+                                 --  Matching others handler, but we need
+                                 --  to ensure there is no choice parameter.
+                                 --  If there is, then we don't have a local
+                                 --  handler after all (since we do not allow
+                                 --  choice parameters for local handlers).
+
+                                 if No (Choice_Parameter (H)) then
+                                    return H;
+                                 else
+                                    return Empty;
+                                 end if;
+
+                                 --  If not others must be entity name
+
+                              elsif Nkind (C) /= N_Others_Choice then
+                                 pragma Assert (Is_Entity_Name (C));
+                                 pragma Assert (Present (Entity (C)));
+
+                                 --  Get exception being handled, dealing with
+                                 --  renaming.
+
+                                 EHandle := Get_Renamed_Entity (Entity (C));
+
+                                 --  If match, then check choice parameter
+
+                                 if ERaise = EHandle then
+                                    if No (Choice_Parameter (H)) then
+                                       return H;
+                                    else
+                                       return Empty;
+                                    end if;
+                                 end if;
+                              end if;
+
+                              Next (C);
+                           end loop;
                         end if;
 
-                     --  If not others must be entity name
-
-                     elsif Nkind (C) /= N_Others_Choice then
-                        pragma Assert (Is_Entity_Name (C));
-                        pragma Assert (Present (Entity (C)));
-
-                        --  Get exception being handled, dealing with renaming
-
-                        EHandle := Get_Renamed_Entity (Entity (C));
-
-                        --  If match, then check choice parameter
-
-                        if ERaise = EHandle then
-                           if No (Choice_Parameter (H)) then
-                              return H;
-                           else
-                              return Empty;
-                           end if;
-                        end if;
-                     end if;
-
-                     Next (C);
-                  end loop;
-
-                  Next (H);
-               end loop;
+                        Next (H);
+                     end loop;
+                  end if;
+               end;
             end if;
          end if;
 
@@ -1864,6 +2029,88 @@ package body Exp_Ch11 is
       end case;
    end Get_RT_Exception_Entity;
 
+   ---------------------------
+   -- Get_RT_Exception_Name --
+   ---------------------------
+
+   procedure Get_RT_Exception_Name (Code : RT_Exception_Code) is
+   begin
+      case Code is
+         when CE_Access_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Access_Check");
+         when CE_Access_Parameter_Is_Null =>
+            Add_Str_To_Name_Buffer ("CE_Null_Access_Parameter");
+         when CE_Discriminant_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Discriminant_Check");
+         when CE_Divide_By_Zero =>
+            Add_Str_To_Name_Buffer ("CE_Divide_By_Zero");
+         when CE_Explicit_Raise =>
+            Add_Str_To_Name_Buffer ("CE_Explicit_Raise");
+         when CE_Index_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Index_Check");
+         when CE_Invalid_Data =>
+            Add_Str_To_Name_Buffer ("CE_Invalid_Data");
+         when CE_Length_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Length_Check");
+         when CE_Null_Exception_Id =>
+            Add_Str_To_Name_Buffer ("CE_Null_Exception_Id");
+         when CE_Null_Not_Allowed =>
+            Add_Str_To_Name_Buffer ("CE_Null_Not_Allowed");
+         when CE_Overflow_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Overflow_Check");
+         when CE_Partition_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Partition_Check");
+         when CE_Range_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Range_Check");
+         when CE_Tag_Check_Failed =>
+            Add_Str_To_Name_Buffer ("CE_Tag_Check");
+
+         when PE_Access_Before_Elaboration =>
+            Add_Str_To_Name_Buffer ("PE_Access_Before_Elaboration");
+         when PE_Accessibility_Check_Failed =>
+            Add_Str_To_Name_Buffer ("PE_Accessibility_Check");
+         when PE_Address_Of_Intrinsic =>
+            Add_Str_To_Name_Buffer ("PE_Address_Of_Intrinsic");
+         when PE_All_Guards_Closed =>
+            Add_Str_To_Name_Buffer ("PE_All_Guards_Closed");
+         when PE_Bad_Predicated_Generic_Type =>
+            Add_Str_To_Name_Buffer ("PE_Bad_Predicated_Generic_Type");
+         when PE_Current_Task_In_Entry_Body =>
+            Add_Str_To_Name_Buffer ("PE_Current_Task_In_Entry_Body");
+         when PE_Duplicated_Entry_Address =>
+            Add_Str_To_Name_Buffer ("PE_Duplicated_Entry_Address");
+         when PE_Explicit_Raise =>
+            Add_Str_To_Name_Buffer ("PE_Explicit_Raise");
+         when PE_Finalize_Raised_Exception =>
+            Add_Str_To_Name_Buffer ("PE_Finalize_Raised_Exception");
+         when PE_Implicit_Return =>
+            Add_Str_To_Name_Buffer ("PE_Implicit_Return");
+         when PE_Misaligned_Address_Value =>
+            Add_Str_To_Name_Buffer ("PE_Misaligned_Address_Value");
+         when PE_Missing_Return =>
+            Add_Str_To_Name_Buffer ("PE_Missing_Return");
+         when PE_Overlaid_Controlled_Object =>
+            Add_Str_To_Name_Buffer ("PE_Overlaid_Controlled_Object");
+         when PE_Potentially_Blocking_Operation =>
+            Add_Str_To_Name_Buffer ("PE_Potentially_Blocking_Operation");
+         when PE_Stubbed_Subprogram_Called =>
+            Add_Str_To_Name_Buffer ("PE_Stubbed_Subprogram_Called");
+         when PE_Unchecked_Union_Restriction =>
+            Add_Str_To_Name_Buffer ("PE_Unchecked_Union_Restriction");
+         when PE_Non_Transportable_Actual =>
+            Add_Str_To_Name_Buffer ("PE_Non_Transportable_Actual");
+
+         when SE_Empty_Storage_Pool =>
+            Add_Str_To_Name_Buffer ("SE_Empty_Storage_Pool");
+         when SE_Explicit_Raise =>
+            Add_Str_To_Name_Buffer ("SE_Explicit_Raise");
+         when SE_Infinite_Recursion =>
+            Add_Str_To_Name_Buffer ("SE_Infinite_Recursion");
+         when SE_Object_Too_Large =>
+            Add_Str_To_Name_Buffer ("SE_Object_Too_Large");
+      end case;
+   end Get_RT_Exception_Name;
+
    ----------------------
    -- Is_Non_Ada_Error --
    ----------------------
@@ -1893,17 +2140,17 @@ package body Exp_Ch11 is
 
    procedure Warn_If_No_Propagation (N : Node_Id) is
    begin
-      if Restriction_Active (No_Exception_Propagation)
+      if Restriction_Check_Required (No_Exception_Propagation)
         and then Warn_On_Non_Local_Exception
       then
          Warn_No_Exception_Propagation_Active (N);
 
          if Configurable_Run_Time_Mode then
             Error_Msg_N
-              ("\?Last_Chance_Handler will be called on exception", N);
+              ("\?X?Last_Chance_Handler will be called on exception", N);
          else
             Error_Msg_N
-              ("\?execution may raise unhandled exception", N);
+              ("\?X?execution may raise unhandled exception", N);
          end if;
       end if;
    end Warn_If_No_Propagation;
@@ -1915,7 +2162,7 @@ package body Exp_Ch11 is
    procedure Warn_No_Exception_Propagation_Active (N : Node_Id) is
    begin
       Error_Msg_N
-        ("?pragma Restrictions (No_Exception_Propagation) in effect", N);
+        ("?X?pragma Restrictions (No_Exception_Propagation) in effect", N);
    end Warn_No_Exception_Propagation_Active;
 
 end Exp_Ch11;

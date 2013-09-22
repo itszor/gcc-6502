@@ -11,7 +11,7 @@ module test
       function my_string(x)
          integer i
          real, intent(in) :: x(:)
-         character(0) h4(1:minval([(i,i=30,32)],15))
+         character(0) h4(1:minval([(i,i=30,32), 15]))
          character(0) sv1(size(x,1):size(h4))
          character(0) sv2(2*lbound(sv1,1):size(h4))
          character(lbound(sv2,1)-3) my_string
@@ -29,4 +29,3 @@ program len_test
 
    if (my_string(x) .ne. "01234567890") call abort ()
 end program len_test
-! { dg-final { cleanup-modules "test" } }

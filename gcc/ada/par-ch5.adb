@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,8 +24,10 @@
 ------------------------------------------------------------------------------
 
 pragma Style_Checks (All_Checks);
---  Turn off subprogram body ordering check. Subprograms are in order
---  by RM section rather than alphabetical
+--  Turn off subprogram body ordering check. Subprograms are in order by RM
+--  section rather than alphabetical.
+
+with Sinfo.CN; use Sinfo.CN;
 
 separate (Par)
 package body Ch5 is
@@ -34,12 +36,10 @@ package body Ch5 is
 
    function P_Case_Statement                     return Node_Id;
    function P_Case_Statement_Alternative         return Node_Id;
-   function P_Condition                          return Node_Id;
    function P_Exit_Statement                     return Node_Id;
    function P_Goto_Statement                     return Node_Id;
    function P_If_Statement                       return Node_Id;
    function P_Label                              return Node_Id;
-   function P_Loop_Parameter_Specification       return Node_Id;
    function P_Null_Statement                     return Node_Id;
 
    function P_Assignment_Statement (LHS : Node_Id)  return Node_Id;
@@ -61,6 +61,11 @@ package body Ch5 is
    --  Parse for statement. If Loop_Name is non-Empty on entry, it is
    --  the N_Identifier node for the label on the loop. If Loop_Name is
    --  Empty on entry (the default), then the for statement is unlabeled.
+
+   function P_Iterator_Specification (Def_Id : Node_Id) return Node_Id;
+   --  Parse an iterator specification. The defining identifier has already
+   --  been scanned, as it is the common prefix between loop and iterator
+   --  specification.
 
    function P_Loop_Statement (Loop_Name : Node_Id := Empty) return Node_Id;
    --  Parse loop statement. If Loop_Name is non-Empty on entry, it is
@@ -84,7 +89,8 @@ package body Ch5 is
    -- 5.1  Sequence of Statements --
    ---------------------------------
 
-   --  SEQUENCE_OF_STATEMENTS ::= STATEMENT {STATEMENT}
+   --  SEQUENCE_OF_STATEMENTS ::= STATEMENT {STATEMENT} {LABEL}
+   --  Note: the final label is an Ada 2012 addition.
 
    --  STATEMENT ::=
    --    {LABEL} SIMPLE_STATEMENT | {LABEL} COMPOUND_STATEMENT
@@ -150,6 +156,12 @@ package body Ch5 is
       --  is required. It is initialized from the Sreq flag, and modified as
       --  statements are scanned (a statement turns it off, and a label turns
       --  it back on again since a statement must follow a label).
+      --  Note : this final requirement is lifted in Ada 2012.
+
+      Statement_Seen : Boolean;
+      --  In Ada 2012, a label can end a sequence of statements, but the
+      --  sequence cannot contain only labels. This flag is set whenever a
+      --  label is encountered, to enforce this rule at the end of a sequence.
 
       Declaration_Found : Boolean := False;
       --  This flag is set True if a declaration is encountered, so that the
@@ -178,7 +190,8 @@ package body Ch5 is
       procedure Junk_Declaration is
       begin
          if (not Declaration_Found) or All_Errors_Mode then
-            Error_Msg_SC ("declarations must come before BEGIN");
+            Error_Msg_SC -- CODEFIX
+              ("declarations must come before BEGIN");
             Declaration_Found := True;
          end if;
 
@@ -190,9 +203,57 @@ package body Ch5 is
       -----------------------------
 
       procedure Test_Statement_Required is
+         function All_Pragmas return Boolean;
+         --  Return True if statement list is all pragmas
+
+         -----------------
+         -- All_Pragmas --
+         -----------------
+
+         function All_Pragmas return Boolean is
+            S : Node_Id;
+         begin
+            S := First (Statement_List);
+            while Present (S) loop
+               if Nkind (S) /= N_Pragma then
+                  return False;
+               else
+                  Next (S);
+               end if;
+            end loop;
+
+            return True;
+         end All_Pragmas;
+
+      --  Start of processing for Test_Statement_Required
+
       begin
          if Statement_Required then
-            Error_Msg_BC ("statement expected");
+
+            --  Check no statement required after label in Ada 2012, and that
+            --  it is OK to have nothing but pragmas in a statement sequence.
+
+            if Ada_Version >= Ada_2012
+              and then not Is_Empty_List (Statement_List)
+              and then
+                ((Nkind (Last (Statement_List)) = N_Label
+                   and then Statement_Seen)
+                or else All_Pragmas)
+            then
+               declare
+                  Null_Stm : constant Node_Id :=
+                               Make_Null_Statement (Token_Ptr);
+               begin
+                  Set_Comes_From_Source (Null_Stm, False);
+                  Append_To (Statement_List, Null_Stm);
+               end;
+
+            --  If not Ada 2012, or not special case above, give error message
+
+            else
+               Error_Msg_BC -- CODEFIX
+                 ("statement expected");
+            end if;
          end if;
       end Test_Statement_Required;
 
@@ -201,12 +262,10 @@ package body Ch5 is
    begin
       Statement_List := New_List;
       Statement_Required := SS_Flags.Sreq;
+      Statement_Seen     := False;
 
       loop
-         while Token = Tok_Semicolon loop
-            Error_Msg_SC ("unexpected semicolon ignored");
-            Scan; -- past junk semicolon
-         end loop;
+         Ignore (Tok_Semicolon);
 
          begin
             if Style_Check then
@@ -335,10 +394,10 @@ package body Ch5 is
                when Tok_Exception =>
                   Test_Statement_Required;
 
-                  --  If Extm not set and the exception is not to the left
-                  --  of the expected column of the end for this sequence, then
-                  --  we assume it belongs to the current sequence, even though
-                  --  it is not permitted.
+                  --  If Extm not set and the exception is not to the left of
+                  --  the expected column of the end for this sequence, then we
+                  --  assume it belongs to the current sequence, even though it
+                  --  is not permitted.
 
                   if not SS_Flags.Extm and then
                      Start_Column >= Scope.Table (Scope.Last).Ecol
@@ -351,7 +410,7 @@ package body Ch5 is
 
                   --  Always return, in the case where we scanned out handlers
                   --  that we did not expect, Parse_Exception_Handlers returned
-                  --  with Token being either end or EOF, so we are OK
+                  --  with Token being either end or EOF, so we are OK.
 
                   exit;
 
@@ -359,8 +418,8 @@ package body Ch5 is
 
                when Tok_Or =>
 
-                  --  Terminate if Ortm set or if the or is to the left
-                  --  of the expected column of the end for this sequence
+                  --  Terminate if Ortm set or if the or is to the left of the
+                  --  expected column of the end for this sequence.
 
                   if SS_Flags.Ortm
                      or else Start_Column < Scope.Table (Scope.Last).Ecol
@@ -386,9 +445,9 @@ package body Ch5 is
 
                   exit when SS_Flags.Tatm and then Token = Tok_Abort;
 
-                  --  Otherwise we treat THEN as some kind of mess where we
-                  --  did not see the associated IF, but we pick up assuming
-                  --  it had been there!
+                  --  Otherwise we treat THEN as some kind of mess where we did
+                  --  not see the associated IF, but we pick up assuming it had
+                  --  been there!
 
                   Restore_Scan_State (Scan_State); -- to THEN
                   Append_To (Statement_List, P_If_Statement);
@@ -398,8 +457,8 @@ package body Ch5 is
 
                when Tok_When | Tok_Others =>
 
-                  --  Terminate if Whtm set or if the WHEN is to the left
-                  --  of the expected column of the end for this sequence
+                  --  Terminate if Whtm set or if the WHEN is to the left of
+                  --  the expected column of the end for this sequence.
 
                   if SS_Flags.Whtm
                      or else Start_Column < Scope.Table (Scope.Last).Ecol
@@ -442,8 +501,8 @@ package body Ch5 is
                   --  we want to speed up as much as possible.
 
                   elsif Token = Tok_Semicolon then
-                     Append_To (Statement_List,
-                       P_Statement_Name (Id_Node));
+                     Change_Name_To_Procedure_Call_Statement (Id_Node);
+                     Append_To (Statement_List, Id_Node);
                      Scan; -- past semicolon
                      Statement_Required := False;
 
@@ -453,7 +512,8 @@ package body Ch5 is
                     and then Block_Label = Name_Go
                     and then Token_Name = Name_To
                   then
-                     Error_Msg_SP ("goto is one word");
+                     Error_Msg_SP -- CODEFIX
+                       ("goto is one word");
                      Append_To (Statement_List, P_Goto_Statement);
                      Statement_Required := False;
 
@@ -565,10 +625,7 @@ package body Ch5 is
 
                      --  Skip junk right parens in this context
 
-                     while Token = Tok_Right_Paren loop
-                        Error_Msg_SC ("extra right paren");
-                        Scan; -- past )
-                     end loop;
+                     Ignore (Tok_Right_Paren);
 
                      --  Check context following call
 
@@ -597,8 +654,8 @@ package body Ch5 is
                      --  means that the item we just scanned was a call.
 
                      elsif Token = Tok_Semicolon then
-                        Append_To (Statement_List,
-                          P_Statement_Name (Name_Node));
+                        Change_Name_To_Procedure_Call_Statement (Name_Node);
+                        Append_To (Statement_List, Name_Node);
                         Scan; -- past semicolon
                         Statement_Required := False;
 
@@ -611,7 +668,8 @@ package body Ch5 is
                                    or else
                                  Nkind (Name_Node) = N_Selected_Component)
                      then
-                        Error_Msg_SC ("""/"" should be "".""");
+                        Error_Msg_SC -- CODEFIX
+                          ("""/"" should be "".""");
                         Statement_Required := False;
                         raise Error_Resync;
 
@@ -671,8 +729,8 @@ package body Ch5 is
                         --  call with no parameters.
 
                         if Token_Is_At_Start_Of_Line then
-                           Append_To (Statement_List,
-                             P_Statement_Name (Id_Node));
+                           Change_Name_To_Procedure_Call_Statement (Id_Node);
+                           Append_To (Statement_List, Id_Node);
                            T_Semicolon; -- to give error message
                            Statement_Required := False;
 
@@ -713,16 +771,23 @@ package body Ch5 is
                      Append_To (Statement_List,
                        P_Assignment_Statement (Name_Node));
                   else
-                     Append_To (Statement_List,
-                       P_Statement_Name (Name_Node));
+                     Change_Name_To_Procedure_Call_Statement (Name_Node);
+                     Append_To (Statement_List, Name_Node);
                   end if;
 
                   TF_Semicolon;
                   Statement_Required := False;
 
                --  Label starting with << which must precede real statement
+               --  Note: in Ada 2012, the label may end the sequence.
 
                when Tok_Less_Less =>
+                  if Present (Last (Statement_List))
+                    and then Nkind (Last (Statement_List)) /= N_Label
+                  then
+                     Statement_Seen := True;
+                  end if;
+
                   Append_To (Statement_List, P_Label);
                   Statement_Required := True;
 
@@ -861,7 +926,8 @@ package body Ch5 is
                      Junk_Declaration;
 
                   else
-                     Error_Msg_BC ("statement expected");
+                     Error_Msg_BC -- CODEFIX
+                       ("statement expected");
                      raise Error_Resync;
                   end if;
             end case;
@@ -889,68 +955,6 @@ package body Ch5 is
    --------------------
    -- 5.1  Statement --
    --------------------
-
-   --  Parsed by P_Sequence_Of_Statements (5.1), except for the case
-   --  of a statement of the form of a name, which is handled here. The
-   --  argument passed in is the tree for the name which has been scanned
-   --  The returned value is the corresponding statement form.
-
-   --  This routine is also used by Par.Prag for processing the procedure
-   --  call that appears as the second argument of a pragma Assert.
-
-   --  Error recovery: cannot raise Error_Resync
-
-   function P_Statement_Name (Name_Node : Node_Id) return Node_Id is
-      Stmt_Node : Node_Id;
-
-   begin
-      --  Case of Indexed component, which is a procedure call with arguments
-
-      if Nkind (Name_Node) = N_Indexed_Component then
-         declare
-            Prefix_Node : constant Node_Id := Prefix (Name_Node);
-            Exprs_Node  : constant List_Id := Expressions (Name_Node);
-
-         begin
-            Change_Node (Name_Node, N_Procedure_Call_Statement);
-            Set_Name (Name_Node, Prefix_Node);
-            Set_Parameter_Associations (Name_Node, Exprs_Node);
-            return Name_Node;
-         end;
-
-      --  Case of function call node, which is a really a procedure call
-
-      elsif Nkind (Name_Node) = N_Function_Call then
-         declare
-            Fname_Node  : constant Node_Id := Name (Name_Node);
-            Params_List : constant List_Id :=
-                            Parameter_Associations (Name_Node);
-
-         begin
-            Change_Node (Name_Node, N_Procedure_Call_Statement);
-            Set_Name (Name_Node, Fname_Node);
-            Set_Parameter_Associations (Name_Node, Params_List);
-            return Name_Node;
-         end;
-
-      --  Case of call to attribute that denotes a procedure. Here we
-      --  just leave the attribute reference unchanged.
-
-      elsif Nkind (Name_Node) = N_Attribute_Reference
-        and then Is_Procedure_Attribute_Name (Attribute_Name (Name_Node))
-      then
-         return Name_Node;
-
-      --  All other cases of names are parameterless procedure calls
-
-      else
-         Stmt_Node :=
-           New_Node (N_Procedure_Call_Statement, Sloc (Name_Node));
-         Set_Name (Stmt_Node, Name_Node);
-         return Stmt_Node;
-      end if;
-
-   end P_Statement_Name;
 
    ---------------------------
    -- 5.1  Simple Statement --
@@ -990,7 +994,7 @@ package body Ch5 is
 
    --  LABEL ::= <<label_STATEMENT_IDENTIFIER>>
 
-   --  STATEMENT_INDENTIFIER ::= DIRECT_NAME
+   --  STATEMENT_IDENTIFIER ::= DIRECT_NAME
 
    --  The IDENTIFIER of a STATEMENT_IDENTIFIER shall be an identifier
    --  (not an OPERATOR_SYMBOL)
@@ -1073,7 +1077,7 @@ package body Ch5 is
       --  scanned out and is in Prev_Token.
 
       procedure Check_If_Column;
-      --  An internal procedure used to check that THEN, ELSE ELSE, or ELSIF
+      --  An internal procedure used to check that THEN, ELSE, or ELSIF
       --  appear in the right place if column checking is enabled (i.e. if
       --  they are the first token on the line, then they must appear in
       --  the same column as the opening IF).
@@ -1110,7 +1114,7 @@ package body Ch5 is
 
       procedure Check_If_Column is
       begin
-         if Style.RM_Column_Check and then Token_Is_At_Start_Of_Line
+         if RM_Column_Check and then Token_Is_At_Start_Of_Line
            and then Start_Column /= Scope.Table (Scope.Last).Ecol
          then
             Error_Msg_Col := Scope.Table (Scope.Last).Ecol;
@@ -1176,7 +1180,8 @@ package body Ch5 is
          --  of WHEN expression =>
 
          if Token = Tok_Arrow then
-            Error_Msg_SC ("THEN expected");
+            Error_Msg_SC -- CODEFIX
+              ("THEN expected");
             Scan; -- past the arrow
             Pop_Scope_Stack; -- remove unneeded entry
             raise Error_Resync;
@@ -1212,7 +1217,8 @@ package body Ch5 is
             Scan; -- past ELSE
 
             if Else_Should_Be_Elsif then
-               Error_Msg_SP ("ELSE should be ELSIF");
+               Error_Msg_SP -- CODEFIX
+                 ("ELSE should be ELSIF");
                Add_Elsif_Part;
 
             else
@@ -1262,20 +1268,29 @@ package body Ch5 is
 
       if Token = Tok_Colon_Equal then
          while Token = Tok_Colon_Equal loop
-            Error_Msg_SC (""":="" should be ""=""");
+            Error_Msg_SC -- CODEFIX
+              (""":="" should be ""=""");
             Scan; -- past junk :=
             Discard_Junk_Node (P_Expression_No_Right_Paren);
          end loop;
 
          return Cond;
 
-      --  Otherwise check for redundant parens
+      --  Otherwise check for redundant parentheses
+
+      --  If the  condition is a conditional or a quantified expression, it is
+      --  parenthesized in the context of a condition, because of a separate
+      --  syntax rule.
 
       else
-         if Style_Check
-           and then Paren_Count (Cond) > 0
-         then
-            Style.Check_Xtra_Parens (First_Sloc (Cond));
+         if Style_Check and then Paren_Count (Cond) > 0 then
+            if not Nkind_In (Cond, N_If_Expression,
+                                   N_Case_Expression,
+                                   N_Quantified_Expression)
+              or else Paren_Count (Cond) > 1
+            then
+               Style.Check_Xtra_Parens (First_Sloc (Cond));
+            end if;
          end if;
 
          --  And return the result
@@ -1457,8 +1472,7 @@ package body Ch5 is
 
       if No (Loop_Name) then
          Created_Name :=
-           Make_Identifier (Sloc (Loop_Node),
-             Chars => Set_Loop_Block_Name ('L'));
+           Make_Identifier (Sloc (Loop_Node), Set_Loop_Block_Name ('L'));
          Set_Comes_From_Source (Created_Name, False);
          Set_Has_Created_Identifier (Loop_Node, True);
          Set_Identifier (Loop_Node, Created_Name);
@@ -1490,6 +1504,7 @@ package body Ch5 is
       Iter_Scheme_Node : Node_Id;
       Loop_For_Flag    : Boolean;
       Created_Name     : Node_Id;
+      Spec             : Node_Id;
 
    begin
       Push_Scope_Stack;
@@ -1501,8 +1516,13 @@ package body Ch5 is
       Loop_For_Flag := (Prev_Token = Tok_Loop);
       Scan; -- past FOR
       Iter_Scheme_Node := New_Node (N_Iteration_Scheme, Token_Ptr);
-      Set_Loop_Parameter_Specification
-         (Iter_Scheme_Node, P_Loop_Parameter_Specification);
+      Spec := P_Loop_Parameter_Specification;
+
+      if Nkind (Spec) = N_Loop_Parameter_Specification then
+         Set_Loop_Parameter_Specification (Iter_Scheme_Node, Spec);
+      else
+         Set_Iterator_Specification (Iter_Scheme_Node, Spec);
+      end if;
 
       --  The following is a special test so that a miswritten for loop such
       --  as "loop for I in 1..10;" is handled nicely, without making an extra
@@ -1523,8 +1543,7 @@ package body Ch5 is
 
          if No (Loop_Name) then
             Created_Name :=
-              Make_Identifier (Sloc (Loop_Node),
-                Chars => Set_Loop_Block_Name ('L'));
+              Make_Identifier (Sloc (Loop_Node), Set_Loop_Block_Name ('L'));
             Set_Comes_From_Source (Created_Name, False);
             Set_Has_Created_Identifier (Loop_Node, True);
             Set_Identifier (Loop_Node, Created_Name);
@@ -1590,8 +1609,7 @@ package body Ch5 is
 
          if No (Loop_Name) then
             Created_Name :=
-              Make_Identifier (Sloc (Loop_Node),
-                Chars => Set_Loop_Block_Name ('L'));
+              Make_Identifier (Sloc (Loop_Node), Set_Loop_Block_Name ('L'));
             Set_Comes_From_Source (Created_Name, False);
             Set_Has_Created_Identifier (Loop_Node, True);
             Set_Identifier (Loop_Node, Created_Name);
@@ -1624,11 +1642,32 @@ package body Ch5 is
       Scan_State : Saved_Scan_State;
 
    begin
-      Loop_Param_Specification_Node :=
-        New_Node (N_Loop_Parameter_Specification, Token_Ptr);
 
       Save_Scan_State (Scan_State);
       ID_Node := P_Defining_Identifier (C_In);
+
+      --  If the next token is OF, it indicates an Ada 2012 iterator. If the
+      --  next token is a colon, this is also an Ada 2012 iterator, including
+      --  a subtype indication for the loop parameter. Otherwise we parse the
+      --  construct as a loop parameter specification. Note that the form
+      --  "for A in B" is ambiguous, and must be resolved semantically: if B
+      --  is a discrete subtype this is a loop specification, but if it is an
+      --  expression it is an iterator specification. Ambiguity is resolved
+      --  during analysis of the loop parameter specification.
+
+      if Token = Tok_Of or else Token = Tok_Colon then
+         if Ada_Version < Ada_2012 then
+            Error_Msg_SC ("iterator is an Ada 2012 feature");
+         end if;
+
+         return P_Iterator_Specification (ID_Node);
+      end if;
+
+      --  The span of the Loop_Parameter_Specification starts at the
+      --  defining identifier.
+
+      Loop_Param_Specification_Node :=
+        New_Node (N_Loop_Parameter_Specification, Sloc (ID_Node));
       Set_Defining_Identifier (Loop_Param_Specification_Node, ID_Node);
 
       if Token = Tok_Left_Paren then
@@ -1657,6 +1696,42 @@ package body Ch5 is
       when Error_Resync =>
          return Error;
    end P_Loop_Parameter_Specification;
+
+   ----------------------------------
+   -- 5.5.1 Iterator_Specification --
+   ----------------------------------
+
+   function P_Iterator_Specification (Def_Id : Node_Id) return Node_Id is
+      Node1 : Node_Id;
+
+   begin
+      Node1 :=  New_Node (N_Iterator_Specification, Sloc (Def_Id));
+      Set_Defining_Identifier (Node1, Def_Id);
+
+      if Token = Tok_Colon then
+         Scan;  --  past :
+         Set_Subtype_Indication (Node1, P_Subtype_Indication);
+      end if;
+
+      if Token = Tok_Of then
+         Set_Of_Present (Node1);
+         Scan;  --  past OF
+
+      elsif Token = Tok_In then
+         Scan;  --  past IN
+
+      else
+         return Error;
+      end if;
+
+      if Token = Tok_Reverse then
+         Scan; -- past REVERSE
+         Set_Reverse_Present (Node1, True);
+      end if;
+
+      Set_Name (Node1, P_Name);
+      return Node1;
+   end P_Iterator_Specification;
 
    --------------------------
    -- 5.6  Block Statement --
@@ -1703,8 +1778,7 @@ package body Ch5 is
 
       if No (Block_Name) then
          Created_Name :=
-           Make_Identifier (Sloc (Block_Node),
-             Chars => Set_Loop_Block_Name ('B'));
+           Make_Identifier (Sloc (Block_Node), Set_Loop_Block_Name ('B'));
          Set_Comes_From_Source (Created_Name, False);
          Set_Has_Created_Identifier (Block_Node, True);
          Set_Identifier (Block_Node, Created_Name);
@@ -1745,8 +1819,7 @@ package body Ch5 is
 
       if No (Block_Name) then
          Created_Name :=
-           Make_Identifier (Sloc (Block_Node),
-             Chars => Set_Loop_Block_Name ('B'));
+           Make_Identifier (Sloc (Block_Node), Set_Loop_Block_Name ('B'));
          Set_Comes_From_Source (Created_Name, False);
          Set_Has_Created_Identifier (Block_Node, True);
          Set_Identifier (Block_Node, Created_Name);
@@ -1924,9 +1997,7 @@ package body Ch5 is
 
    procedure Parse_Decls_Begin_End (Parent : Node_Id) is
       Body_Decl    : Node_Id;
-      Body_Sloc    : Source_Ptr;
       Decls        : List_Id;
-      Decl         : Node_Id;
       Parent_Nkind : Node_Kind;
       Spec_Node    : Node_Id;
       HSS          : Node_Id;
@@ -1985,42 +2056,8 @@ package body Ch5 is
    begin
       Decls := P_Declarative_Part;
 
-      --  Check for misplacement of later vs basic declarations in Ada 83
-
       if Ada_Version = Ada_83 then
-         Decl := First (Decls);
-
-         --  Loop through sequence of basic declarative items
-
-         Outer : while Present (Decl) loop
-            if Nkind (Decl) /= N_Subprogram_Body
-              and then Nkind (Decl) /= N_Package_Body
-              and then Nkind (Decl) /= N_Task_Body
-              and then Nkind (Decl) not in  N_Body_Stub
-            then
-               Next (Decl);
-
-            --  Once a body is encountered, we only allow later declarative
-            --  items. The inner loop checks the rest of the list.
-
-            else
-               Body_Sloc := Sloc (Decl);
-
-               Inner : while Present (Decl) loop
-                  if Nkind (Decl) not in N_Later_Decl_Item
-                    and then Nkind (Decl) /= N_Pragma
-                  then
-                     if Ada_Version = Ada_83 then
-                        Error_Msg_Sloc := Body_Sloc;
-                        Error_Msg_N
-                          ("(Ada 83) decl cannot appear after body#", Decl);
-                     end if;
-                  end if;
-
-                  Next (Decl);
-               end loop Inner;
-            end if;
-         end loop Outer;
+         Check_Later_Vs_Basic_Declarations (Decls, During_Parsing => True);
       end if;
 
       --  Here is where we deal with the case of IS used instead of semicolon.
@@ -2082,7 +2119,7 @@ package body Ch5 is
 
             Error_Msg_Col := Scope.Table (Scope.Last).Ecol;
 
-            if Style.RM_Column_Check
+            if RM_Column_Check
               and then Token_Is_At_Start_Of_Line
               and then Start_Column /= Error_Msg_Col
             then
@@ -2200,7 +2237,8 @@ package body Ch5 is
       --  What we are interested in is whether it was a case of a bad IS.
 
       if Scope.Table (Scope.Last + 1).Etyp = E_Bad_Is then
-         Error_Msg ("IS should be "";""", Scope.Table (Scope.Last + 1).S_Is);
+         Error_Msg -- CODEFIX
+           ("|IS should be "";""", Scope.Table (Scope.Last + 1).S_Is);
          Set_Bad_Is_Detected (Parent, True);
       end if;
 
@@ -2229,13 +2267,14 @@ package body Ch5 is
       TF_Then;
 
       while Token = Tok_Then loop
-         Error_Msg_SC ("redundant THEN");
+         Error_Msg_SC -- CODEFIX
+           ("redundant THEN");
          TF_Then;
       end loop;
 
       if Token = Tok_And or else Token = Tok_Or then
          Error_Msg_SC ("unexpected logical operator");
-         Scan;
+         Scan; -- past logical operator
 
          if (Prev_Token = Tok_And and then Token = Tok_Then)
               or else

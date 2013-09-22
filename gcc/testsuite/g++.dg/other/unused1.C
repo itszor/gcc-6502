@@ -1,6 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-g" } */
-/* { dg-skip-if "" { { hppa*-*-hpux* *-*-solaris2.[56]* } && { ! hppa*64*-*-* } } { "*" } { "" } } */
+/* { dg-skip-if "" { { hppa*-*-hpux* *-*-solaris2.[56]* powerpc-ibm-aix* } && { ! hppa*64*-*-* } } { "*" } { "" } } */
 
 /* Make sure we didn't eliminate casted types because we thought they were
    unused.  */
@@ -32,7 +32,7 @@ int bar4 (void)
   return const_cast<printer *>(dotmatrix)->i;
 }
 
-class class1 { virtual ~class1(); } *c1;
+class class1 { public: virtual ~class1(); } *c1;
 class class2 : class1 { char j; };
 int bar5 (void)
 {

@@ -1,9 +1,9 @@
-// Copyright (C) 2004 Free Software Foundation
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -12,9 +12,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 27.6.1.3 unformatted input functions
 
@@ -40,7 +39,7 @@ test02()
 
   std::wstringbuf sbuf_04(str01, std::ios_base::in);
 
-  std::wistream is_00(NULL);
+  std::wistream is_00(0);
   std::wistream is_04(&sbuf_04);
   std::ios_base::iostate state1, state2, statefail, stateeof;
   statefail = std::ios_base::failbit;
@@ -53,7 +52,7 @@ test02()
   is_00.getline(carray1, 20, L'*');
   state2 = is_00.rdstate();
   // make sure failbit was set, since we couldn't extract
-  // from the NULL streambuf...
+  // from the null streambuf...
   VERIFY( state1 != state2 );
   VERIFY( static_cast<bool>(state2 & statefail) );
   

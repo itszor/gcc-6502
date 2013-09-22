@@ -1,4 +1,4 @@
-/* TypeBuilder.java -- 
+/* TypeBuilder.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -39,7 +39,6 @@ package gnu.xml.validation.datatype;
 
 import java.util.LinkedHashSet;
 import java.util.regex.Pattern;
-import javax.xml.namespace.QName;
 import org.relaxng.datatype.Datatype;
 import org.relaxng.datatype.DatatypeBuilder;
 import org.relaxng.datatype.DatatypeException;
@@ -55,7 +54,7 @@ public class TypeBuilder
 {
 
   final SimpleType type;
-  
+
   TypeBuilder(SimpleType type)
   {
     this.type = type;
@@ -137,7 +136,7 @@ public class TypeBuilder
       }
     return new MaxLengthFacet(Integer.parseInt(value), fixed, null);
   }
-  
+
   PatternFacet parsePatternFacet(String value)
     throws DatatypeException
   {
@@ -186,7 +185,7 @@ public class TypeBuilder
       }
     return new MaxInclusiveFacet(type.createValue(value, context), fixed, null);
   }
-  
+
   MaxExclusiveFacet parseMaxExclusiveFacet(String value,
                                            ValidationContext context)
     throws DatatypeException
@@ -202,7 +201,7 @@ public class TypeBuilder
       }
     return new MaxExclusiveFacet(type.createValue(value, context), fixed, null);
   }
-  
+
   MinExclusiveFacet parseMinExclusiveFacet(String value,
                                            ValidationContext context)
     throws DatatypeException
@@ -218,7 +217,7 @@ public class TypeBuilder
       }
     return new MinExclusiveFacet(type.createValue(value, context), fixed, null);
   }
-  
+
   MinInclusiveFacet parseMinInclusiveFacet(String value,
                                            ValidationContext context)
     throws DatatypeException
@@ -234,7 +233,7 @@ public class TypeBuilder
       }
     return new MinInclusiveFacet(type.createValue(value, context), fixed, null);
   }
-  
+
   TotalDigitsFacet parseTotalDigitsFacet(String value)
     throws DatatypeException
   {
@@ -252,7 +251,7 @@ public class TypeBuilder
       throw new DatatypeException("value must be a positiveInteger");
     return new TotalDigitsFacet(val, fixed, null);
   }
-  
+
   FractionDigitsFacet parseFractionDigitsFacet(String value)
     throws DatatypeException
   {
@@ -270,10 +269,10 @@ public class TypeBuilder
       throw new DatatypeException("value must be a positiveInteger");
     return new FractionDigitsFacet(val, fixed, null);
   }
-  
+
   public Datatype createDatatype()
   {
     return type;
   }
-  
+
 }

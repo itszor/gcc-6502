@@ -1,12 +1,11 @@
 // Types used in iterator implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,9 +48,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_iterator_base_types.h
+/** @file bits/stl_iterator_base_types.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{iterator}
  *
  *  This file contains all of the general iterator-related utility types,
  *  such as iterator_traits and struct iterator.
@@ -68,11 +62,21 @@
 #pragma GCC system_header
 
 #include <bits/c++config.h>
-#include <cstddef>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+#if __cplusplus >= 201103L
+# include <type_traits>  // For _GLIBCXX_HAS_NESTED_TYPE, is_convertible
+#endif
 
-  //@{
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  /**
+   *  @defgroup iterators Iterators
+   *  Abstractions for uniform iterating through various underlying types.
+  */
+  //@{ 
+
   /**
    *  @defgroup iterator_tags Iterator Tags
    *  These are empty types, used to distinguish different iterators.  The
@@ -80,20 +84,24 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  are.  Different underlying algorithms can then be used based on the
    *  different operations supported by different iterator types.
   */
+  //@{ 
   ///  Marking input iterators.
-  struct input_iterator_tag {};
+  struct input_iterator_tag { };
+
   ///  Marking output iterators.
-  struct output_iterator_tag {};
+  struct output_iterator_tag { };
+
   /// Forward iterators support a superset of input iterator operations.
-  struct forward_iterator_tag : public input_iterator_tag {};
+  struct forward_iterator_tag : public input_iterator_tag { };
+
   /// Bidirectional iterators support a superset of forward iterator
   /// operations.
-  struct bidirectional_iterator_tag : public forward_iterator_tag {};
-  /// Random-access iterators support a superset of bidirectional iterator
-  /// operations.
-  struct random_access_iterator_tag : public bidirectional_iterator_tag {};
-  //@}
+  struct bidirectional_iterator_tag : public forward_iterator_tag { };
 
+  /// Random-access iterators support a superset of bidirectional
+  /// iterator operations.
+  struct random_access_iterator_tag : public bidirectional_iterator_tag { };
+  //@}
 
   /**
    *  @brief  Common %iterator class.
@@ -122,11 +130,35 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     };
 
   /**
+   *  @brief  Traits class for iterators.
+   *
    *  This class does nothing but define nested typedefs.  The general
-   *  version simply "forwards" the nested typedefs from the Iterator
+   *  version simply @a forwards the nested typedefs from the Iterator
    *  argument.  Specialized versions for pointers and pointers-to-const
    *  provide tighter, more correct semantics.
   */
+#if __cplusplus >= 201103L
+
+_GLIBCXX_HAS_NESTED_TYPE(iterator_category)
+
+  template<typename _Iterator,
+	   bool = __has_iterator_category<_Iterator>::value>
+    struct __iterator_traits { };
+
+  template<typename _Iterator>
+    struct __iterator_traits<_Iterator, true>
+    {
+      typedef typename _Iterator::iterator_category iterator_category;
+      typedef typename _Iterator::value_type        value_type;
+      typedef typename _Iterator::difference_type   difference_type;
+      typedef typename _Iterator::pointer           pointer;
+      typedef typename _Iterator::reference         reference;
+    };
+
+  template<typename _Iterator>
+    struct iterator_traits
+    : public __iterator_traits<_Iterator> { };
+#else
   template<typename _Iterator>
     struct iterator_traits
     {
@@ -136,7 +168,9 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       typedef typename _Iterator::pointer           pointer;
       typedef typename _Iterator::reference         reference;
     };
+#endif
 
+  /// Partial specialization for pointer types.
   template<typename _Tp>
     struct iterator_traits<_Tp*>
     {
@@ -147,6 +181,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       typedef _Tp&                        reference;
     };
 
+  /// Partial specialization for const pointer types.
   template<typename _Tp>
     struct iterator_traits<const _Tp*>
     {
@@ -166,7 +201,36 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     __iterator_category(const _Iter&)
     { return typename iterator_traits<_Iter>::iterator_category(); }
 
-_GLIBCXX_END_NAMESPACE
+  //@}
+
+  // If _Iterator has a base returns it otherwise _Iterator is returned
+  // untouched
+  template<typename _Iterator, bool _HasBase>
+    struct _Iter_base
+    {
+      typedef _Iterator iterator_type;
+      static iterator_type _S_base(_Iterator __it)
+      { return __it; }
+    };
+
+  template<typename _Iterator>
+    struct _Iter_base<_Iterator, true>
+    {
+      typedef typename _Iterator::iterator_type iterator_type;
+      static iterator_type _S_base(_Iterator __it)
+      { return __it.base(); }
+    };
+
+#if __cplusplus >= 201103L
+  template<typename _InIter>
+    using _RequireInputIter = typename
+      enable_if<is_convertible<typename
+		iterator_traits<_InIter>::iterator_category,
+			       input_iterator_tag>::value>::type;
+#endif
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_ITERATOR_BASE_TYPES_H */
 

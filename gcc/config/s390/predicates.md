@@ -1,5 +1,5 @@
 ;; Predicate definitions for S/390 and zSeries.
-;; Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2013 Free Software Foundation, Inc.
 ;; Contributed by Hartmut Penner (hpenner@de.ibm.com) and
 ;;                Ulrich Weigand (uweigand@de.ibm.com).
 ;;
@@ -101,6 +101,10 @@
   return true;
 })
 
+(define_predicate "nonzero_shift_count_operand"
+  (and (match_code "const_int")
+       (match_test "IN_RANGE (INTVAL (op), 1, GET_MODE_BITSIZE (mode) - 1)")))
+
 ;;  Return true if OP a valid operand for the LARL instruction.
 
 (define_predicate "larl_operand"
@@ -110,7 +114,7 @@
   if (GET_CODE (op) == LABEL_REF)
     return true;
   if (GET_CODE (op) == SYMBOL_REF)
-    return ((SYMBOL_REF_FLAGS (op) & SYMBOL_FLAG_ALIGN1) == 0
+    return (!SYMBOL_REF_ALIGN1_P (op)
 	    && SYMBOL_REF_TLS_MODEL (op) == 0
 	    && (!flag_pic || SYMBOL_REF_LOCAL_P (op)));
 
@@ -154,6 +158,12 @@
   return false;
 })
 
+(define_predicate "contiguous_bitmask_operand"
+  (match_code "const_int")
+{
+  return s390_contiguous_bitmask_p (INTVAL (op), GET_MODE_BITSIZE (mode), NULL, NULL);
+})
+
 ;; operators --------------------------------------------------------------
 
 ;; Return nonzero if OP is a valid comparison operator
@@ -171,6 +181,34 @@
 
   return (s390_branch_condition_mask (op) >= 0);
 })
+
+;; Return true if op is the cc register.
+(define_predicate "cc_reg_operand"
+  (and (match_code "reg")
+       (match_test "REGNO (op) == CC_REGNUM")))
+
+(define_predicate "s390_signed_integer_comparison"
+  (match_code "eq, ne, lt, gt, le, ge")
+{
+  return (s390_compare_and_branch_condition_mask (op) >= 0);
+})
+
+(define_predicate "s390_unsigned_integer_comparison"
+  (match_code "eq, ne, ltu, gtu, leu, geu")
+{
+  return (s390_compare_and_branch_condition_mask (op) >= 0);
+})
+
+;; Return nonzero if OP is a valid comparison operator for the
+;; cstore expanders -- respectively cstorecc4 and integer cstore.
+(define_predicate "s390_eqne_operator"
+  (match_code "eq, ne"))
+
+(define_predicate "s390_scond_operator"
+  (match_code "ltu, gtu, leu, geu"))
+
+(define_predicate "s390_brx_operator"
+  (match_code "le, gt"))
 
 ;; Return nonzero if OP is a valid comparison operator
 ;; for an ALC condition.
@@ -318,6 +356,52 @@
     }
 
   return true;
+})
+
+;; For an execute pattern the target instruction is embedded into the
+;; RTX but will not get checked for validity by recog automatically.
+;; The execute_operation predicate extracts the target RTX and invokes
+;; recog.
+(define_special_predicate "execute_operation"
+  (match_code "parallel")
+{
+  rtx pattern = op;
+  rtx insn;
+  int icode;
+
+  /* This is redundant but since this predicate is evaluated
+     first when recognizing the insn we can prevent the more
+     expensive code below from being executed for many cases.  */
+  if (GET_CODE (XVECEXP (pattern, 0, 0)) != UNSPEC
+      || XINT (XVECEXP (pattern, 0, 0), 1) != UNSPEC_EXECUTE)
+    return false;
+
+  /* Keep in sync with s390_execute_target.  */
+  if (XVECLEN (pattern, 0) == 2)
+    {
+      pattern = copy_rtx (XVECEXP (pattern, 0, 1));
+    }
+  else
+    {
+      rtvec vec = rtvec_alloc (XVECLEN (pattern, 0) - 1);
+      int i;
+
+      for (i = 0; i < XVECLEN (pattern, 0) - 1; i++)
+	RTVEC_ELT (vec, i) = copy_rtx (XVECEXP (pattern, 0, i + 1));
+
+      pattern = gen_rtx_PARALLEL (VOIDmode, vec);
+    }
+
+  /* Since we do not have the wrapping insn here we have to build one.  */
+  insn = make_insn_raw (pattern);
+  icode = recog_memoized (insn);
+  if (icode < 0)
+    return false;
+
+  extract_insn (insn);
+  constrain_operands (1);
+
+  return which_alternative >= 0;
 })
 
 ;; Return true if OP is a store multiple operation.  It is known to be a

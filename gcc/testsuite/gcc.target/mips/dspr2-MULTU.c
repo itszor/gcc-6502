@@ -1,21 +1,18 @@
-/* Test MIPS32 DSP REV 2 MULTU instruction */
+/* Test MIPS32 DSP REV 2 MULTU instruction.  Tune for a CPU that has
+   pipelined multu.  */
 /* { dg-do compile } */
-/* { dg-mips-options "-march=mips32r2 -mdspr2 -O2 -ffixed-hi -ffixed-lo" } */
+/* { dg-options "-mgp32 -mdspr2 -mtune=74kc" } */
+/* { dg-skip-if "code quality test" { *-*-* } { "-O0" } { "" } } */
 
+/* See PR target/51729 for the reason behind the XFAILs.  */
 /* { dg-final { scan-assembler "\tmultu\t" } } */
-/* { dg-final { scan-assembler "ac1" } } */
-/* { dg-final { scan-assembler "ac2" } } */
-/* { dg-final { scan-assembler "ac3" } } */
+/* { dg-final { scan-assembler "\\\$ac1" { xfail *-*-* } } } */
+/* { dg-final { scan-assembler "\\\$ac2" { xfail *-*-* } } } */
 
-typedef long long a64;
-a64 a[4];
-unsigned int b[4], c[4];
+typedef unsigned long long a64;
 
-NOMIPS16 void test ()
+NOMIPS16 a64 test (a64 *a, unsigned int *b, unsigned int *c)
 {
   a[0] = (a64) b[0] * c[0];
   a[1] = (a64) b[1] * c[1];
-  a[2] = (a64) b[2] * c[2];
-  a[3] = (a64) b[3] * c[3];
 }
-

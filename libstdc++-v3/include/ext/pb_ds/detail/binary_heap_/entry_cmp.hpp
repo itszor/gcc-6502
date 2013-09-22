@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,7 +34,7 @@
 // warranty.
 
 /**
- * @file entry_cmp.hpp
+ * @file binary_heap_/entry_cmp.hpp
  * Contains an implementation class for a binary_heap.
  */
 
@@ -51,48 +45,40 @@ namespace __gnu_pbds
 {
   namespace detail
   {
+    /// Entry compare, primary template.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc, bool No_Throw>
+      struct entry_cmp;
 
-    template<typename Value_Type,
-	     class Cmp_Fn,
-	     bool No_Throw,
-	     class Allocator>
-    struct entry_cmp
-    {
-      typedef Cmp_Fn type;
-    };
-
-    template<typename Value_Type, class Cmp_Fn, class Allocator>
-    struct entry_cmp<
-      Value_Type,
-      Cmp_Fn,
-      false,
-      Allocator>
-    {
-    public:
-      typedef
-      typename Allocator::template rebind<
-      Value_Type>::other::const_pointer
-      entry;
-
-      struct type : public Cmp_Fn
+    /// Specialization, true.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct entry_cmp<_VTp, Cmp_Fn, _Alloc, true>
       {
-      public:
-	inline
-	type()
-	{ }
-
-	inline
-	type(const Cmp_Fn& other) : Cmp_Fn(other)
-	{ }
-
-	inline bool
-	operator()(entry p_lhs,  entry p_rhs) const
-	{
-	  return Cmp_Fn::operator()(*p_lhs, * p_rhs);
-	}
+	/// Compare.
+	typedef Cmp_Fn 						type;
       };
-    };
 
+    /// Specialization, false.
+    template<typename _VTp, typename Cmp_Fn, typename _Alloc>
+      struct entry_cmp<_VTp, Cmp_Fn, _Alloc, false>
+      {
+      private:
+	typedef typename _Alloc::template rebind<_VTp>		__rebind_v;
+
+      public:
+	typedef typename __rebind_v::other::const_pointer	entry;
+
+	/// Compare plus entry.
+	struct type : public Cmp_Fn
+	{
+	  type() { }
+
+	  type(const Cmp_Fn& other) : Cmp_Fn(other) { }
+
+	  bool
+	  operator()(entry lhs, entry rhs) const
+	  { return Cmp_Fn::operator()(*lhs, *rhs); }
+	};
+      };
   } // namespace detail
 } // namespace __gnu_pbds
 

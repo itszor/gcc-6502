@@ -2,14 +2,16 @@
    (where component references get rewritten).  */
 /* Contributed by Ziemowit Laski <zlaski@apple.com>  */
 
-/* { dg-do compile { target *-*-darwin* } } */
+/* { dg-do compile } */
 /* { dg-options "-fobjc-gc" } */
+/* { dg-prune-output "cc1objplus: warning: '-fobjc-gc' is ignored for '-fgnu-runtime'" } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.h"
+#include "../objc-obj-c++-shared/runtime.h"
 
 @class MyWindow;
 
-@interface MyDocument : Object {
+@interface MyDocument : TestsuiteObject {
     MyWindow *_window;
 }
 @end
@@ -28,7 +30,7 @@
 @end
 
 @interface MyTextFileDocument : MyFileDocument {
-    Object *_textStorage;
+    TestsuiteObject *_textStorage;
     struct __tfdFlags {
         unsigned int immutable:1;
         unsigned int lineEnding:2;

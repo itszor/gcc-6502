@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for some generic XCOFF file format
-   Copyright (C) 2001, 2002, 2003, 2004, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -69,10 +69,9 @@
    or a CONST containing one of them.  If -mfp-in-toc (the default),
    we also do this for floating-point constants.  We actually can only
    do this if the FP formats of the target and host machines are the
-   same, but we can't check that since not every file that uses
-   GO_IF_LEGITIMATE_ADDRESS_P includes real.h.  We also do this when
-   we can write the entry into the TOC and the entry is not larger
-   than a TOC entry.  */
+   same, but we can't check that since not every file that uses these
+   target macros includes real.h.  We also do this when we can write the
+   entry into the TOC and the entry is not larger than a TOC entry.  */
 
 #define ASM_OUTPUT_SPECIAL_POOL_ENTRY_P(X, MODE)			\
   (TARGET_TOC								\
@@ -83,8 +82,7 @@
        || (GET_CODE (X) == CONST_INT 					\
 	   && GET_MODE_BITSIZE (MODE) <= GET_MODE_BITSIZE (Pmode))	\
        || (GET_CODE (X) == CONST_DOUBLE					\
-	   && (TARGET_POWERPC64						\
-	       || TARGET_MINIMAL_TOC					\
+	   && (TARGET_MINIMAL_TOC					\
 	       || (SCALAR_FLOAT_MODE_P (GET_MODE (X))			\
 		   && ! TARGET_NO_FP_IN_TOC)))))
 
@@ -99,6 +97,9 @@
 #define TARGET_ASM_FUNCTION_RODATA_SECTION default_no_function_rodata_section
 #define TARGET_STRIP_NAME_ENCODING  rs6000_xcoff_strip_name_encoding
 #define TARGET_SECTION_TYPE_FLAGS  rs6000_xcoff_section_type_flags
+#ifdef HAVE_AS_TLS
+#define TARGET_ENCODE_SECTION_INFO rs6000_xcoff_encode_section_info
+#endif
 
 /* FP save and restore routines.  */
 #define	SAVE_FP_PREFIX "._savef"
@@ -136,6 +137,7 @@
 /* This macro produces the initial definition of a function name.
    On the RS/6000, we need to place an extra '.' in the function name and
    output the function descriptor.
+   Dollar signs are converted to underscores.
 
    The csect for the function will have already been created when
    text_section was selected.  We do have to go back to that csect, however.
@@ -144,36 +146,54 @@
    are placeholders which no longer have any use.  */
 
 #define ASM_DECLARE_FUNCTION_NAME(FILE,NAME,DECL)		\
-{ if (TREE_PUBLIC (DECL))					\
+{ char *buffer = (char *) alloca (strlen (NAME) + 1);		\
+  char *p;							\
+  int dollar_inside = 0;					\
+  strcpy (buffer, NAME);					\
+  p = strchr (buffer, '$');					\
+  while (p) {							\
+    *p = '_';							\
+    dollar_inside++;						\
+    p = strchr (p + 1, '$');					\
+  }								\
+  if (TREE_PUBLIC (DECL))					\
     {								\
       if (!RS6000_WEAK || !DECL_WEAK (decl))			\
 	{							\
+          if (dollar_inside) {					\
+              fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
+              fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
+	    }							\
 	  fputs ("\t.globl .", FILE);				\
-	  RS6000_OUTPUT_BASENAME (FILE, NAME);			\
+	  RS6000_OUTPUT_BASENAME (FILE, buffer);		\
 	  putc ('\n', FILE);					\
 	}							\
     }								\
   else								\
     {								\
+      if (dollar_inside) {					\
+          fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);	\
+          fprintf(FILE, "\t.rename %s,\"%s\"\n", buffer, NAME);	\
+	}							\
       fputs ("\t.lglobl .", FILE);				\
-      RS6000_OUTPUT_BASENAME (FILE, NAME);			\
+      RS6000_OUTPUT_BASENAME (FILE, buffer);			\
       putc ('\n', FILE);					\
     }								\
   fputs ("\t.csect ", FILE);					\
-  RS6000_OUTPUT_BASENAME (FILE, NAME);				\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
   fputs (TARGET_32BIT ? "[DS]\n" : "[DS],3\n", FILE);		\
-  RS6000_OUTPUT_BASENAME (FILE, NAME);				\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
   fputs (":\n", FILE);						\
   fputs (TARGET_32BIT ? "\t.long ." : "\t.llong .", FILE);	\
-  RS6000_OUTPUT_BASENAME (FILE, NAME);				\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
   fputs (", TOC[tc0], 0\n", FILE);				\
   in_section = NULL;						\
   switch_to_section (function_section (DECL));			\
   putc ('.', FILE);						\
-  RS6000_OUTPUT_BASENAME (FILE, NAME);				\
+  RS6000_OUTPUT_BASENAME (FILE, buffer);			\
   fputs (":\n", FILE);						\
-  if (write_symbols != NO_DEBUG)				\
-    xcoffout_declare_function (FILE, DECL, NAME);		\
+  if (write_symbols != NO_DEBUG && !DECL_IGNORED_P (DECL))	\
+    xcoffout_declare_function (FILE, DECL, buffer);		\
 }
 
 /* Output a reference to SYM on FILE.  */
@@ -181,11 +201,28 @@
 #define ASM_OUTPUT_SYMBOL_REF(FILE, SYM) \
   rs6000_output_symbol_ref (FILE, SYM)
 
-/* This says how to output an external.  */
+/* This says how to output an external.
+   Dollar signs are converted to underscores.  */
 
 #undef  ASM_OUTPUT_EXTERNAL
 #define ASM_OUTPUT_EXTERNAL(FILE, DECL, NAME)				\
-{ rtx _symref = XEXP (DECL_RTL (DECL), 0);				\
+{ char *buffer = (char *) alloca (strlen (NAME) + 1);			\
+  char *p;								\
+  rtx _symref = XEXP (DECL_RTL (DECL), 0);				\
+  int dollar_inside = 0;						\
+  strcpy (buffer, NAME);						\
+  p = strchr (buffer, '$');						\
+  while (p) {								\
+    *p = '_';								\
+    dollar_inside++;							\
+    p = strchr (p + 1, '$');						\
+  }									\
+  if (dollar_inside) {							\
+      fputs ("\t.extern .", FILE);					\
+      RS6000_OUTPUT_BASENAME (FILE, buffer);				\
+      putc ('\n', FILE);						\
+      fprintf(FILE, "\t.rename .%s,\".%s\"\n", buffer, NAME);		\
+    }									\
   if ((TREE_CODE (DECL) == VAR_DECL					\
        || TREE_CODE (DECL) == FUNCTION_DECL)				\
       && (NAME)[strlen (NAME) - 1] != ']')				\
@@ -196,6 +233,12 @@
 				  NULL);				\
     }									\
 }
+
+/* This is how to output a reference to a user-level label named NAME.
+   `assemble_name' uses this.  */
+
+#define ASM_OUTPUT_LABELREF(FILE,NAME)	\
+  asm_fprintf ((FILE), "%U%s", rs6000_xcoff_strip_dollar (NAME));
 
 /* This is how to output an internal label prefix.  rs6000.c uses this
    when generating traceback tables.  */
@@ -216,7 +259,7 @@
    This is suitable for output with `assemble_name'.  */
 
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL,PREFIX,NUM)	\
-  sprintf (LABEL, "*%s..%u", (PREFIX), (unsigned) (NUM))
+  sprintf (LABEL, "*%s..%u", rs6000_xcoff_strip_dollar (PREFIX), (unsigned) (NUM))
 
 /* This is how to output an assembler line to define N characters starting
    at P to FILE.  */
@@ -240,7 +283,7 @@
        RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
        if ((ALIGN) > 32)				\
 	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE), \
-		  exact_log2 ((ALIGN) / BITS_PER_UNIT)); \
+		  floor_log2 ((ALIGN) / BITS_PER_UNIT)); \
        else if ((SIZE) > 4)				\
          fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",3\n", (SIZE)); \
        else						\
@@ -249,11 +292,29 @@
 
 /* This says how to output an assembler line
    to define a local common symbol.
-   Alignment cannot be specified, but we can try to maintain
+   The assembler in AIX 6.1 and later supports an alignment argument.
+   For earlier releases of AIX, we try to maintain
    alignment after preceding TOC section if it was aligned
    for 64-bit mode.  */
 
 #define LOCAL_COMMON_ASM_OP "\t.lcomm "
+
+#if TARGET_AIX_VERSION >= 61
+#define ASM_OUTPUT_ALIGNED_LOCAL(FILE, NAME, SIZE, ALIGN)	\
+  do { fputs (LOCAL_COMMON_ASM_OP, (FILE));			\
+       RS6000_OUTPUT_BASENAME ((FILE), (NAME));			\
+       if ((ALIGN) > 32)					\
+	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s,%u\n",	\
+		  (SIZE), xcoff_bss_section_name,			\
+		  floor_log2 ((ALIGN) / BITS_PER_UNIT));		\
+       else if ((SIZE) > 4)					\
+	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s,3\n",	\
+		  (SIZE), xcoff_bss_section_name);		\
+       else							\
+	 fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%s\n",	\
+		  (SIZE), xcoff_bss_section_name);		\
+     } while (0)
+#endif
 
 #define ASM_OUTPUT_LOCAL(FILE, NAME, SIZE, ROUNDED)	\
   do { fputs (LOCAL_COMMON_ASM_OP, (FILE));		\
@@ -262,6 +323,15 @@
 		(TARGET_32BIT ? (SIZE) : (ROUNDED)),	\
 		xcoff_bss_section_name);		\
      } while (0)
+
+#ifdef HAVE_AS_TLS
+#define ASM_OUTPUT_TLS_COMMON(FILE, DECL, NAME, SIZE)	\
+  do { fputs(COMMON_ASM_OP, (FILE));			\
+       RS6000_OUTPUT_BASENAME ((FILE), (NAME));		\
+       fprintf ((FILE), "[UL],"HOST_WIDE_INT_PRINT_UNSIGNED"\n", \
+       (SIZE));						\
+  } while (0)
+#endif
 
 /* This is how we tell the assembler that two symbols have the same value.  */
 #define SET_ASM_OP "\t.set "

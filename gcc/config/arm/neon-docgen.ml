@@ -1,6 +1,6 @@
 (* ARM NEON documentation generator.
 
-   Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2006-2013 Free Software Foundation, Inc.
    Contributed by CodeSourcery.
 
    This file is part of GCC.
@@ -103,6 +103,13 @@ let intrinsic_groups =
     "Multiplication", single_opcode Vmul;
     "Multiply-accumulate", single_opcode Vmla;
     "Multiply-subtract", single_opcode Vmls;
+    "Fused-multiply-accumulate", single_opcode Vfma;
+    "Fused-multiply-subtract", single_opcode Vfms;
+    "Round to integral (to nearest, ties to even)", single_opcode Vrintn;
+    "Round to integral (to nearest, ties away from zero)", single_opcode Vrinta;
+    "Round to integral (towards +Inf)", single_opcode Vrintp;
+    "Round to integral (towards -Inf)", single_opcode Vrintm;
+    "Round to integral (towards 0)", single_opcode Vrintz;
     "Subtraction", single_opcode Vsub;
     "Comparison (equal-to)", single_opcode Vceq;
     "Comparison (greater-than-or-equal-to)", single_opcode Vcge;
@@ -214,6 +221,7 @@ let rec analyze_shape shape =
     | Element_of_dreg -> (analyze_shape_elt reg_no Dreg) ^ "[@var{0}]"
     | Element_of_qreg -> (analyze_shape_elt reg_no Qreg) ^ "[@var{0}]"
     | All_elements_of_dreg -> (analyze_shape_elt reg_no Dreg) ^ "[]"
+    | Alternatives alts -> (analyze_shape_elt reg_no (List.hd alts))
   in
     match shape with
       All (n, elt) -> commas (analyze_shape_elt 0) (n_things n elt) ""
@@ -314,7 +322,7 @@ let document_group chan (group_title, group_extractor) =
 
 let gnu_header chan =
   List.iter (fun s -> Printf.fprintf chan "%s\n" s) [
-  "@c Copyright (C) 2006 Free Software Foundation, Inc.";
+  "@c Copyright (C) 2006-2013 Free Software Foundation, Inc.";
   "@c This is part of the GCC manual.";
   "@c For copying conditions, see the file gcc.texi.";
   "";

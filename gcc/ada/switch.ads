@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,7 +24,7 @@
 ------------------------------------------------------------------------------
 
 --  This package together with a child package appropriate to the client tool
---  scans switches. Note that the body of the appropraite Usage package must be
+--  scans switches. Note that the body of the appropriate Usage package must be
 --  coordinated with the switches that are recognized by this package. These
 --  Usage packages also act as the official documentation for the switches
 --  that are recognized. In addition, package Debug documents the otherwise
@@ -64,6 +64,9 @@ package Switch is
       Version_String : String := Gnatvsn.Gnat_Version_String);
    --  Display version of a tool when switch --version is used
 
+   procedure Display_Usage_Version_And_Help;
+   --  Output the two lines of usage for switches --version and --help
+
    function Is_Switch (Switch_Chars : String) return Boolean;
    --  Returns True iff Switch_Chars is at least two characters long, and the
    --  first character is an hyphen ('-').
@@ -72,14 +75,33 @@ package Switch is
    --  Returns True iff Switch_Chars represents a front-end switch, i.e. it
    --  starts with -I, -gnat or -?RTS.
 
-private
+   function Is_Internal_GCC_Switch (Switch_Chars : String) return Boolean;
+   --  Returns True iff Switch_Chars represents an internal GCC switch to be
+   --  followed by a single argument, such as -dumpbase, --param or -auxbase.
+   --  Even though passed by the "gcc" driver, these need not be stored in ALI
+   --  files and may safely be ignored by non GCC back-ends.
 
+   function Switch_Last (Switch_Chars : String) return Natural;
+   --  Index in Switch_Chars of the last relevant character for later string
+   --  comparison purposes. This is typically 'Last, minus one if there is a
+   --  terminating ASCII.NUL.
+
+private
    --  This section contains some common routines used by the tool dependent
-   --  child packages (there is one such child package for each tool that
-   --  uses Switches to scan switches - Compiler/gnatbind/gnatmake/.
+   --  child packages (there is one such child package for each tool that uses
+   --  Switches to scan switches - Compiler/gnatbind/gnatmake/.
 
    Switch_Max_Value : constant := 999_999;
    --  Maximum value permitted in switches that take a value
+
+   function Nat_Present
+     (Switch_Chars : String;
+      Max          : Integer;
+      Ptr          : Integer) return Boolean;
+   --  Returns True if an integer is at the current scan location or an equal
+   --  sign. This is used as a guard for calling Scan_Nat. Switch_Chars is the
+   --  string containing the switch, and Ptr points just past the switch
+   --  character. Max is the maximum allowed value of Ptr.
 
    procedure Scan_Nat
      (Switch_Chars : String;
@@ -89,7 +111,11 @@ private
       Switch       : Character);
    --  Scan natural integer parameter for switch. On entry, Ptr points just
    --  past the switch character, on exit it points past the last digit of the
-   --  integer value.
+   --  integer value. Max is the maximum allowed value of Ptr, so the scan is
+   --  restricted to Switch_Chars (Ptr .. Max). It is possible for Ptr to be
+   --  one greater than Max on return if the entire string is digits. Scan_Nat
+   --  will skip an optional equal sign if it is present. Nat_Present must be
+   --  True, or an error will be signalled.
 
    procedure Scan_Pos
      (Switch_Chars : String;
@@ -97,12 +123,12 @@ private
       Ptr          : in out Integer;
       Result       : out Pos;
       Switch       : Character);
-   --  Scan positive integer parameter for switch. On entry, Ptr points just
-   --  past the switch character, on exit it points past the last digit of the
-   --  integer value.
+   --  Scan positive integer parameter for switch. Identical to Scan_Nat with
+   --  same parameters except that zero is considered out of range.
 
    procedure Bad_Switch (Switch : Character);
    procedure Bad_Switch (Switch : String);
+   pragma No_Return (Bad_Switch);
    --  Fail with an appropriate message when a switch is not recognized
 
 end Switch;

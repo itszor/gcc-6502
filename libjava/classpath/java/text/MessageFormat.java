@@ -1,5 +1,5 @@
 /* MessageFormat.java - Localized message formatting.
-   Copyright (C) 1999, 2001, 2002, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 1999, 2001, 2002, 2004, 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -38,13 +38,17 @@ exception statement from your version. */
 
 package java.text;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.text.FormatCharacterIterator;
 
 import java.io.InvalidObjectException;
+
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
-import java.util.Vector;
 
 public class MessageFormat extends Format
 {
@@ -69,7 +73,7 @@ public class MessageFormat extends Format
 
     // Argument will be checked to make sure it is an instance of this
     // class.
-    Class formatClass;
+    Class<?> formatClass;
 
     // Formatter type.
     String type;
@@ -95,12 +99,7 @@ public class MessageFormat extends Format
               else if (style.equals("percent"))
                 format = NumberFormat.getPercentInstance(loc);
               else if (style.equals("integer"))
-                {
-                  NumberFormat nf = NumberFormat.getNumberInstance(loc);
-                  nf.setMaximumFractionDigits(0);
-                  nf.setGroupingUsed(false);
-                  format = nf;
-                }
+                format = NumberFormat.getIntegerInstance(loc);
               else
                 {
                   format = NumberFormat.getNumberInstance(loc);
@@ -127,7 +126,7 @@ public class MessageFormat extends Format
                   else
                     styleIsPattern = true;
                 }
-          
+
               if (type.equals("time"))
                 format = DateFormat.getTimeInstance(val, loc);
               else
@@ -169,7 +168,7 @@ public class MessageFormat extends Format
     {
       super("");
     }
-    
+
     protected Field(String s)
     {
       super(s);
@@ -184,7 +183,7 @@ public class MessageFormat extends Format
     protected Object readResolve() throws InvalidObjectException
     {
       if (getName().equals(ARGUMENT.getName()))
-	return ARGUMENT;
+        return ARGUMENT;
 
       throw new InvalidObjectException("no such MessageFormat field called " + getName());
     }
@@ -194,37 +193,37 @@ public class MessageFormat extends Format
   // Helper that returns the text up to the next format opener.  The
   // text is put into BUFFER.  Returns index of character after end of
   // string.  Throws IllegalArgumentException on error.
-  private static int scanString(String pat, int index, StringBuffer buffer)
+  private static int scanString(String pat, int index, CPStringBuilder buffer)
   {
     int max = pat.length();
     buffer.setLength(0);
     boolean quoted = false;
     for (; index < max; ++index)
       {
-	char c = pat.charAt(index);
-	if (quoted)
-	  {
-	    // In a quoted context, a single quote ends the quoting.
-	    if (c == '\'')
-	      quoted = false;
-	    else
-	      buffer.append(c);
-	  }
-	// Check for '', which is a single quote.
-	else if (c == '\'' && index + 1 < max && pat.charAt(index + 1) == '\'')
-	  {
-	    buffer.append(c);
-	    ++index;
-	  }
-	else if (c == '\'')
-	  {
-	    // Start quoting.
-	    quoted = true;
-	  }
-	else if (c == '{')
-	  break;
-	else
-	  buffer.append(c);
+        char c = pat.charAt(index);
+        if (quoted)
+          {
+            // In a quoted context, a single quote ends the quoting.
+            if (c == '\'')
+              quoted = false;
+            else
+              buffer.append(c);
+          }
+        // Check for '', which is a single quote.
+        else if (c == '\'' && index + 1 < max && pat.charAt(index + 1) == '\'')
+          {
+            buffer.append(c);
+            ++index;
+          }
+        else if (c == '\'')
+          {
+            // Start quoting.
+            quoted = true;
+          }
+        else if (c == '{')
+          break;
+        else
+          buffer.append(c);
       }
     // Note that we explicitly allow an unterminated quote.  This is
     // done for compatibility.
@@ -234,7 +233,7 @@ public class MessageFormat extends Format
   // This helper retrieves a single part of a format element.  Returns
   // the index of the terminating character.
   private static int scanFormatElement(String pat, int index,
-                                       StringBuffer buffer, char term)
+                                       CPStringBuilder buffer, char term)
   {
     int max = pat.length();
     buffer.setLength(0);
@@ -243,49 +242,49 @@ public class MessageFormat extends Format
 
     for (; index < max; ++index)
       {
-	char c = pat.charAt(index);
-	// First see if we should turn off quoting.
-	if (quoted)
-	  {
-	    if (c == '\'')
-	      quoted = false;
-	    // In both cases we fall through to inserting the
-	    // character here.
-	  }
-	// See if we have just a plain quote to insert.
-	else if (c == '\'' && index + 1 < max
-		 && pat.charAt(index + 1) == '\'')
-	  {
-	    buffer.append(c);
-	    ++index;
-	  }
-	// See if quoting should turn on.
-	else if (c == '\'')
-	  quoted = true;
-	else if (c == '{')
-	  ++brace_depth;
-	else if (c == '}')
-	  {
-	    if (--brace_depth == 0)
-	      break;
-	  }
-	// Check for TERM after braces, because TERM might be `}'.
-	else if (c == term)
-	  break;
-	// All characters, including opening and closing quotes, are
-	// inserted here.
-	buffer.append(c);
+        char c = pat.charAt(index);
+        // First see if we should turn off quoting.
+        if (quoted)
+          {
+            if (c == '\'')
+              quoted = false;
+            // In both cases we fall through to inserting the
+            // character here.
+          }
+        // See if we have just a plain quote to insert.
+        else if (c == '\'' && index + 1 < max
+                 && pat.charAt(index + 1) == '\'')
+          {
+            buffer.append(c);
+            ++index;
+          }
+        // See if quoting should turn on.
+        else if (c == '\'')
+          quoted = true;
+        else if (c == '{')
+          ++brace_depth;
+        else if (c == '}')
+          {
+            if (--brace_depth == 0)
+              break;
+          }
+        // Check for TERM after braces, because TERM might be `}'.
+        else if (c == term)
+          break;
+        // All characters, including opening and closing quotes, are
+        // inserted here.
+        buffer.append(c);
       }
     return index;
   }
 
   // This is used to parse a format element and whatever non-format
   // text might trail it.
-  private static int scanFormat(String pat, int index, StringBuffer buffer,
-                                Vector elts, Locale locale)
+  private static int scanFormat(String pat, int index, CPStringBuilder buffer,
+                                List<MessageFormatElement> elts, Locale locale)
   {
     MessageFormatElement mfe = new MessageFormatElement ();
-    elts.addElement(mfe);
+    elts.add(mfe);
 
     int max = pat.length();
 
@@ -296,27 +295,27 @@ public class MessageFormat extends Format
     index = scanFormatElement (pat, index, buffer, ',');
     try
       {
-	mfe.argNumber = Integer.parseInt(buffer.toString());
+        mfe.argNumber = Integer.parseInt(buffer.toString());
       }
     catch (NumberFormatException nfx)
       {
-	IllegalArgumentException iae = new IllegalArgumentException(pat);
-	iae.initCause(nfx);
-	throw iae;
+        IllegalArgumentException iae = new IllegalArgumentException(pat);
+        iae.initCause(nfx);
+        throw iae;
       }
 
     // Extract the element format.
     if (index < max && pat.charAt(index) == ',')
       {
-	index = scanFormatElement (pat, index + 1, buffer, ',');
-	mfe.type = buffer.toString();
+        index = scanFormatElement (pat, index + 1, buffer, ',');
+        mfe.type = buffer.toString();
 
-	// Extract the style.
-	if (index < max && pat.charAt(index) == ',')
-	  {
-	    index = scanFormatElement (pat, index + 1, buffer, '}');
-	    mfe.style = buffer.toString ();
-	  }
+        // Extract the style.
+        if (index < max && pat.charAt(index) == ',')
+          {
+            index = scanFormatElement (pat, index + 1, buffer, '}');
+            mfe.style = buffer.toString ();
+          }
       }
 
     // Advance past the last terminator.
@@ -342,17 +341,16 @@ public class MessageFormat extends Format
   {
     pattern = newPattern;
 
-    StringBuffer tempBuffer = new StringBuffer ();
+    CPStringBuilder tempBuffer = new CPStringBuilder ();
 
     int index = scanString (newPattern, 0, tempBuffer);
     leader = tempBuffer.toString();
 
-    Vector elts = new Vector ();
+    List<MessageFormatElement> elts = new ArrayList<MessageFormatElement>();
     while (index < newPattern.length())
       index = scanFormat (newPattern, index, tempBuffer, elts, locale);
 
-    elements = new MessageFormatElement[elts.size()];
-    elts.copyInto(elements);
+    elements = elts.toArray(new MessageFormatElement[elts.size()]);
   }
 
   /**
@@ -374,7 +372,7 @@ public class MessageFormat extends Format
       return false;
     MessageFormat mf = (MessageFormat) obj;
     return (pattern.equals(mf.pattern)
-	    && locale.equals(mf.locale));
+            && locale.equals(mf.locale));
   }
 
   /**
@@ -386,9 +384,9 @@ public class MessageFormat extends Format
   {
     Object[] arguments_array = (Object[])arguments;
     FormatCharacterIterator iterator = new FormatCharacterIterator();
-    
+
     formatInternal(arguments_array, new StringBuffer(), null, iterator);
-  
+
     return iterator;
   }
 
@@ -414,15 +412,15 @@ public class MessageFormat extends Format
    * @param fp A FieldPosition object (it is ignored).
    */
   public final StringBuffer format (Object arguments[], StringBuffer appendBuf,
-				    FieldPosition fp)
+                                    FieldPosition fp)
   {
     return formatInternal(arguments, appendBuf, fp, null);
   }
 
   private StringBuffer formatInternal (Object arguments[],
                                        StringBuffer appendBuf,
-				       FieldPosition fp,
-				       FormatCharacterIterator output_iterator)
+                                       FieldPosition fp,
+                                       FormatCharacterIterator output_iterator)
   {
     appendBuf.append(leader);
     if (output_iterator != null)
@@ -430,92 +428,93 @@ public class MessageFormat extends Format
 
     for (int i = 0; i < elements.length; ++i)
       {
-	Object thisArg = null;
-	boolean unavailable = false;
-	if (arguments == null || elements[i].argNumber >= arguments.length)
-	  unavailable = true;
-	else
-	  thisArg = arguments[elements[i].argNumber];
+        Object thisArg = null;
+        boolean unavailable = false;
+        if (arguments == null || elements[i].argNumber >= arguments.length)
+          unavailable = true;
+        else
+          thisArg = arguments[elements[i].argNumber];
 
-	AttributedCharacterIterator iterator = null;
+        AttributedCharacterIterator iterator = null;
 
-	Format formatter = null;
+        Format formatter = null;
 
-	if (fp != null && i == fp.getField() && fp.getFieldAttribute() == Field.ARGUMENT)
-	  fp.setBeginIndex(appendBuf.length());
+        if (fp != null && i == fp.getField() && fp.getFieldAttribute() == Field.ARGUMENT)
+          fp.setBeginIndex(appendBuf.length());
 
-	if (unavailable)
-	  appendBuf.append("{" + elements[i].argNumber + "}");
-	else
-	  {
-	    if (elements[i].setFormat != null)
-	      formatter = elements[i].setFormat;
-	    else if (elements[i].format != null)
-	      {
-	        if (elements[i].formatClass != null
-		    && ! elements[i].formatClass.isInstance(thisArg))
-	          throw new IllegalArgumentException("Wrong format class");
-	    
-	        formatter = elements[i].format;
-	      }
-	    else if (thisArg instanceof Number)
-	      formatter = NumberFormat.getInstance(locale);
-	    else if (thisArg instanceof Date)
-	      formatter = DateFormat.getTimeInstance(DateFormat.DEFAULT, locale);
-	    else
-	      appendBuf.append(thisArg);
-	  }
+        if (unavailable)
+          appendBuf.append("{" + elements[i].argNumber + "}");
+        else
+          {
+            if (elements[i].setFormat != null)
+              formatter = elements[i].setFormat;
+            else if (elements[i].format != null)
+              {
+                if (elements[i].formatClass != null
+                    && ! elements[i].formatClass.isInstance(thisArg))
+                  throw new IllegalArgumentException("Wrong format class");
 
-	if (fp != null && fp.getField() == i && fp.getFieldAttribute() == Field.ARGUMENT)
-	  fp.setEndIndex(appendBuf.length());
+                formatter = elements[i].format;
+              }
+            else if (thisArg instanceof Number)
+              formatter = NumberFormat.getInstance(locale);
+            else if (thisArg instanceof Date)
+              formatter = DateFormat.getTimeInstance(DateFormat.DEFAULT, locale);
+            else
+              appendBuf.append(thisArg);
+          }
 
-	if (formatter != null)
-	  {
-	    // Special-case ChoiceFormat.
-	    if (formatter instanceof ChoiceFormat)
-	      {
-		StringBuffer buf = new StringBuffer ();
-		formatter.format(thisArg, buf, fp);
-		MessageFormat mf = new MessageFormat ();
-		mf.setLocale(locale);
-		mf.applyPattern(buf.toString());
-		mf.format(arguments, appendBuf, fp);
-	      }
-	    else
-	      {
-		if (output_iterator != null)
-		  iterator = formatter.formatToCharacterIterator(thisArg);
-		else
-		  formatter.format(thisArg, appendBuf, fp);
-	      }
+        if (fp != null && fp.getField() == i && fp.getFieldAttribute() == Field.ARGUMENT)
+          fp.setEndIndex(appendBuf.length());
 
-	    elements[i].format = formatter;
-	  }
+        if (formatter != null)
+          {
+            // Special-case ChoiceFormat.
+            if (formatter instanceof ChoiceFormat)
+              {
+                StringBuffer buf = new StringBuffer ();
+                formatter.format(thisArg, buf, fp);
+                MessageFormat mf = new MessageFormat ();
+                mf.setLocale(locale);
+                mf.applyPattern(buf.toString());
+                mf.format(arguments, appendBuf, fp);
+              }
+            else
+              {
+                if (output_iterator != null)
+                  iterator = formatter.formatToCharacterIterator(thisArg);
+                else
+                  formatter.format(thisArg, appendBuf, fp);
+              }
 
-	if (output_iterator != null)
-	  {
-	    HashMap hash_argument = new HashMap();
-	    int position = output_iterator.getEndIndex();
-	    
-	    hash_argument.put (MessageFormat.Field.ARGUMENT,
-			       new Integer(elements[i].argNumber));
+            elements[i].format = formatter;
+          }
 
-	    
-	    if (iterator != null)
-	      {
-		output_iterator.append(iterator);
-		output_iterator.addAttributes(hash_argument, position, 
-					      output_iterator.getEndIndex());
-	      }	
-	    else
-	      output_iterator.append(thisArg.toString(), hash_argument);
-	    
-	    output_iterator.append(elements[i].trailer);
-	  }
-	
-	appendBuf.append(elements[i].trailer);
+        if (output_iterator != null)
+          {
+            HashMap<MessageFormat.Field, Integer> hash_argument =
+              new HashMap<MessageFormat.Field, Integer>();
+            int position = output_iterator.getEndIndex();
+
+            hash_argument.put (MessageFormat.Field.ARGUMENT,
+                               Integer.valueOf(elements[i].argNumber));
+
+
+            if (iterator != null)
+              {
+                output_iterator.append(iterator);
+                output_iterator.addAttributes(hash_argument, position,
+                                              output_iterator.getEndIndex());
+              }
+            else
+              output_iterator.append(thisArg.toString(), hash_argument);
+
+            output_iterator.append(elements[i].trailer);
+          }
+
+        appendBuf.append(elements[i].trailer);
       }
-    
+
     return appendBuf;
   }
 
@@ -529,7 +528,7 @@ public class MessageFormat extends Format
    * @param fpos A FieldPosition object (it is ignored).
    */
   public final StringBuffer format (Object objectArray, StringBuffer appendBuf,
-				    FieldPosition fpos)
+                                    FieldPosition fpos)
   {
     return format ((Object[])objectArray, appendBuf, fpos);
   }
@@ -601,95 +600,98 @@ public class MessageFormat extends Format
    * @param pos the current parse position (and eventually the error position).
    * @return the array of parsed objects sorted according to their argument number
    * in the pattern.
-   */ 
+   */
   public Object[] parse (String sourceStr, ParsePosition pos)
   {
     // Check initial text.
     int index = pos.getIndex();
     if (! sourceStr.startsWith(leader, index))
       {
-	pos.setErrorIndex(index);
-	return null;
+        pos.setErrorIndex(index);
+        return null;
       }
     index += leader.length();
 
-    Vector results = new Vector (elements.length, 1);
+    ArrayList<Object> results = new ArrayList<Object>(elements.length);
     // Now check each format.
     for (int i = 0; i < elements.length; ++i)
       {
-	Format formatter = null;
-	if (elements[i].setFormat != null)
-	  formatter = elements[i].setFormat;
-	else if (elements[i].format != null)
-	  formatter = elements[i].format;
+        Format formatter = null;
+        if (elements[i].setFormat != null)
+          formatter = elements[i].setFormat;
+        else if (elements[i].format != null)
+          formatter = elements[i].format;
 
-	Object value = null;
-	if (formatter instanceof ChoiceFormat)
-	  {
-	    // We must special-case a ChoiceFormat because it might
-	    // have recursive formatting.
-	    ChoiceFormat cf = (ChoiceFormat) formatter;
-	    String[] formats = (String[]) cf.getFormats();
-	    double[] limits = (double[]) cf.getLimits();
-	    MessageFormat subfmt = new MessageFormat ();
-	    subfmt.setLocale(locale);
-	    ParsePosition subpos = new ParsePosition (index);
+        Object value = null;
+        if (formatter instanceof ChoiceFormat)
+          {
+            // We must special-case a ChoiceFormat because it might
+            // have recursive formatting.
+            ChoiceFormat cf = (ChoiceFormat) formatter;
+            String[] formats = (String[]) cf.getFormats();
+            double[] limits = cf.getLimits();
+            MessageFormat subfmt = new MessageFormat ();
+            subfmt.setLocale(locale);
+            ParsePosition subpos = new ParsePosition (index);
 
-	    int j;
-	    for (j = 0; value == null && j < limits.length; ++j)
-	      {
-		subfmt.applyPattern(formats[j]);
-		subpos.setIndex(index);
-		value = subfmt.parse(sourceStr, subpos);
-	      }
-	    if (value != null)
-	      {
-		index = subpos.getIndex();
-		value = new Double (limits[j]);
-	      }
-	  }
-	else if (formatter != null)
-	  {
-	    pos.setIndex(index);
-	    value = formatter.parseObject(sourceStr, pos);
-	    if (value != null)
-	      index = pos.getIndex();
-	  }
-	else
-	  {
-	    // We have a String format.  This can lose in a number
-	    // of ways, but we give it a shot.
-	    int next_index;
-	    if (elements[i].trailer.length() > 0)
-	      next_index = sourceStr.indexOf(elements[i].trailer, index);
-	    else
-	      next_index = sourceStr.length();
-	    if (next_index == -1)
-	      {
-		pos.setErrorIndex(index);
-		return null;
-	      }
-	    value = sourceStr.substring(index, next_index);
-	    index = next_index;
-	  }
+            int j;
+            for (j = 0; value == null && j < limits.length; ++j)
+              {
+                subfmt.applyPattern(formats[j]);
+                subpos.setIndex(index);
+                value = subfmt.parse(sourceStr, subpos);
+              }
+            if (value != null)
+              {
+                index = subpos.getIndex();
+                value = new Double (limits[j]);
+              }
+          }
+        else if (formatter != null)
+          {
+            pos.setIndex(index);
+            value = formatter.parseObject(sourceStr, pos);
+            if (value != null)
+              index = pos.getIndex();
+          }
+        else
+          {
+            // We have a String format.  This can lose in a number
+            // of ways, but we give it a shot.
+            int next_index;
+            if (elements[i].trailer.length() > 0)
+              next_index = sourceStr.indexOf(elements[i].trailer, index);
+            else
+              next_index = sourceStr.length();
+            if (next_index == -1)
+              {
+                pos.setErrorIndex(index);
+                return null;
+              }
+            value = sourceStr.substring(index, next_index);
+            index = next_index;
+          }
 
-	if (value == null
-	    || ! sourceStr.startsWith(elements[i].trailer, index))
-	  {
-	    pos.setErrorIndex(index);
-	    return null;
-	  }
+        if (value == null
+            || ! sourceStr.startsWith(elements[i].trailer, index))
+          {
+            pos.setErrorIndex(index);
+            return null;
+          }
 
-	if (elements[i].argNumber >= results.size())
-	  results.setSize(elements[i].argNumber + 1);
-	results.setElementAt(value, elements[i].argNumber);
+        if (elements[i].argNumber >= results.size())
+          {
+            // Emulate padding behaviour of Vector.setSize() with ArrayList
+            results.ensureCapacity(elements[i].argNumber + 1);
+            for (int a = results.size(); a <= elements[i].argNumber; ++a)
+              results.add(a, null);
+          }
+        results.set(elements[i].argNumber, value);
 
-	index += elements[i].trailer.length();
+        index += elements[i].trailer.length();
       }
 
-    Object[] r = new Object[results.size()];
-    results.copyInto(r);
-    return r;
+    return results.toArray(new Object[results.size()]);
   }
 
   public Object[] parse (String sourceStr) throws ParseException
@@ -743,8 +745,8 @@ public class MessageFormat extends Format
     locale = loc;
     if (elements != null)
       {
-	for (int i = 0; i < elements.length; ++i)
-	  elements[i].setLocale(loc);
+        for (int i = 0; i < elements.length; ++i)
+          elements[i].setLocale(loc);
       }
   }
 
@@ -774,15 +776,15 @@ public class MessageFormat extends Format
     // First, find the greatest argument number.
     for (int i=0;i<elements.length;i++)
       if (elements[i].argNumber > argNumMax)
-	argNumMax = elements[i].argNumber;
+        argNumMax = elements[i].argNumber;
 
     Format[] formats = new Format[argNumMax];
     for (int i=0;i<elements.length;i++)
       {
-	if (elements[i].setFormat != null)
-	  formats[elements[i].argNumber] = elements[i].setFormat;
-	else if (elements[i].format != null)
-	  formats[elements[i].argNumber] = elements[i].format;
+        if (elements[i].setFormat != null)
+          formats[elements[i].argNumber] = elements[i].setFormat;
+        else if (elements[i].format != null)
+          formats[elements[i].argNumber] = elements[i].format;
       }
     return formats;
   }
@@ -794,12 +796,12 @@ public class MessageFormat extends Format
    * @param newFormat the format to use for this argument.
    */
   public void setFormatByArgumentIndex(int argumentIndex,
-				       Format newFormat)
+                                       Format newFormat)
   {
     for (int i=0;i<elements.length;i++)
       {
-	if (elements[i].argNumber == argumentIndex)
-	  elements[i].setFormat = newFormat;
+        if (elements[i].argNumber == argumentIndex)
+          elements[i].setFormat = newFormat;
       }
   }
 
@@ -817,8 +819,8 @@ public class MessageFormat extends Format
   {
     for (int i=0;i<newFormats.length;i++)
       {
-	// Nothing better than that can exist here.
-	setFormatByArgumentIndex(i, newFormats[i]);
+        // Nothing better than that can exist here.
+        setFormatByArgumentIndex(i, newFormats[i]);
       }
   }
 

@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package org.omg.CORBA.portable;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.omg.CORBA.BAD_PARAM;
 import org.omg.CORBA.Context;
 import org.omg.CORBA.ContextList;
@@ -374,6 +376,7 @@ public abstract class Delegate
    * @return the servant or null if the servant is not an expected type
    * of the method is not supported, for example, due security reasons.
    */
+  @SuppressWarnings("rawtypes") // Needed for API compatibility
   public ServantObject servant_preinvoke(org.omg.CORBA.Object self,
                                          String operation, Class expectedType
                                         )
@@ -417,7 +420,7 @@ public abstract class Delegate
     if (self instanceof ObjectImpl)
       {
         ObjectImpl x = (ObjectImpl) self;
-        StringBuffer b = new StringBuffer(x.getClass().getName());
+        CPStringBuilder b = new CPStringBuilder(x.getClass().getName());
         b.append(": [");
         for (int i = 0; i < x._ids().length; i++)
           {

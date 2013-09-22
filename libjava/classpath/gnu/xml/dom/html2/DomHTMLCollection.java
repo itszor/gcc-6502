@@ -1,4 +1,4 @@
-/* DomHTMLCollection.java -- 
+/* DomHTMLCollection.java --
    Copyright (C) 2005 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -38,7 +38,6 @@ exception statement from your version. */
 package gnu.xml.dom.html2;
 
 import gnu.xml.dom.DomDOMException;
-import gnu.xml.dom.DomElement;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -222,6 +221,5 @@ class DomHTMLCollection
       }
     return null;
   }
-  
-}
 
+}

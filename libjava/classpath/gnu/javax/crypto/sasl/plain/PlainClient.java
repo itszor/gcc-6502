@@ -1,4 +1,4 @@
-/* PlainClient.java -- 
+/* PlainClient.java --
    Copyright (C) 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version.  */
 
 
 package gnu.javax.crypto.sasl.plain;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Registry;
 import gnu.javax.crypto.sasl.ClientMechanism;
@@ -128,7 +130,7 @@ public class PlainClient
           }
         if (password == null)
           throw new SaslException("null password supplied");
-        final StringBuffer sb = new StringBuffer();
+        final CPStringBuilder sb = new CPStringBuilder();
         if (authorizationID != null)
           sb.append(authorizationID);
         sb.append('\0');

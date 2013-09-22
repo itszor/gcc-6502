@@ -1,6 +1,7 @@
 !{ dg-do run }
 !{ dg-options "-fno-range-check" }
-!{ dg-options "-fno-range-check -mieee" { target sh*-*-* } }
+!{ dg-add-options ieee }
+!{ dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 ! PR19310 and PR19904, allow disabling range check during compile.
 ! Contributed by Jerry DeLisle  <jvdelisle@gcc.gnu.org>
 program main
@@ -15,7 +16,7 @@ program main
   b = 1/exp(1000.0)
 
   write(str,*) a
-  if (trim(adjustl(str)) .ne. '+Infinity') call abort
+  if (trim(adjustl(str)) .ne. 'Infinity') call abort
 
   if (b .ne. 0.) call abort
 
@@ -35,21 +36,21 @@ program main
   if (trim(adjustl(str)) .ne. '-Infinity') call abort
 
   write(str,*) 3.0/0.
-  if (trim(adjustl(str)) .ne. '+Infinity') call abort
+  if (trim(adjustl(str)) .ne. 'Infinity') call abort
 
   write(str,*)  nan
   if (trim(adjustl(str)) .ne. 'NaN') call abort
 
   write(str,*) z
-  if (trim(adjustl(str)) .ne. '(            NaN,            NaN)') call abort
+  if (trim(adjustl(str)) .ne. '(             NaN,             NaN)') call abort
 
   write(str,*) z2
-  if (trim(adjustl(str)) .ne. '(            NaN,            NaN)') call abort
+  if (trim(adjustl(str)) .ne. '(             NaN,             NaN)') call abort
 
   write(str,*) z3
-  if (trim(adjustl(str)) .ne. '(      +Infinity,      -Infinity)') call abort
+  if (trim(adjustl(str)) .ne. '(        Infinity,       -Infinity)') call abort
 
   write(str,*) z4
-  if (trim(adjustl(str)) .ne. '(  0.0000000    , -0.0000000    )') call abort
+  if (trim(adjustl(str)) .ne. '(  0.00000000    , -0.00000000    )') call abort
 
 end program main

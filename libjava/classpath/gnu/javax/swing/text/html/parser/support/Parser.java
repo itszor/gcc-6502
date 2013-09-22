@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.javax.swing.text.html.parser.support;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.javax.swing.text.html.parser.htmlAttributeSet;
 import gnu.javax.swing.text.html.parser.htmlValidator;
 import gnu.javax.swing.text.html.parser.support.low.Constants;
@@ -132,12 +134,12 @@ public class Parser
   /**
   * The buffer to collect the incremental output like text or coment.
   */
-  private StringBuffer buffer = new StringBuffer();
+  private final StringBuffer buffer = new StringBuffer();
 
   /**
    * The buffer to store the document title.
    */
-  private StringBuffer title = new StringBuffer();
+  private final StringBuffer title = new StringBuffer();
 
   /**
    * The current token.
@@ -216,7 +218,7 @@ public class Parser
            * The tag validator closes all unclosed elements that are required
            * to have the end (closing) tag.
            *
-           * @param element The tag being fictionally (forcibly) closed.
+           * @param tElement The tag being fictionally (forcibly) closed.
            */
           protected void handleSupposedEndTag(Element tElement)
           {
@@ -234,7 +236,7 @@ public class Parser
            * assigned to the empty one, the previous value is
            * restored before return.
            *
-           * @param element The tag being fictionally (forcibly) closed.
+           * @param tElement The tag being fictionally (forcibly) closed.
            */
           protected void handleSupposedStartTag(Element tElement)
           {
@@ -398,7 +400,7 @@ public class Parser
     if (start.kind == EOF)
       return;
 
-    read: 
+    read:
     while (true)
       {
         t = getTokenAhead();
@@ -444,7 +446,7 @@ public class Parser
     Token t;
     Token last;
 
-    comment: 
+    comment:
     while (true)
       {
         t = getTokenAhead();
@@ -524,7 +526,6 @@ public class Parser
 
     buffer.setLength(0);
 
-    script: 
     while (!SCRIPT_CLOSE.matches(this))
       {
         append(getNextToken());
@@ -553,7 +554,7 @@ public class Parser
         mustBe(EXCLAMATION);
 
         buffer.setLength(0);
-        read: 
+        read:
         while (true)
           {
             t = getNextToken();
@@ -607,7 +608,6 @@ public class Parser
 
     buffer.setLength(0);
 
-    style: 
     while (!STYLE_CLOSE.matches(this))
       {
         append(getNextToken());
@@ -742,7 +742,7 @@ public class Parser
    * Handle the tag with no content, like &lt;br&gt;. The method is
    * called for the elements that, in accordance with the current DTD,
    * has an empty content.
-   * @param The tag being handled.
+   * @param tag The tag being handled.
    * @throws javax.swing.text.ChangedCharSetException
    */
   protected void handleEmptyTag(TagElement tag)
@@ -754,7 +754,7 @@ public class Parser
    * The method is called when the HTML closing tag ((like &lt;/table&gt;)
    * is found or if the parser concludes that the one should be present
    * in the current position.
-   * @param The tag
+   * @param tag The tag
    */
   protected void handleEndTag(TagElement tag)
   {
@@ -769,7 +769,7 @@ public class Parser
    * The method is called when the HTML opening tag ((like &lt;table&gt;)
    * is found or if the parser concludes that the one should be present
    * in the current position.
-   * @param The tag
+   * @param tag The tag
    */
   protected void handleStartTag(TagElement tag)
   {
@@ -798,7 +798,7 @@ public class Parser
    * both title starting and closing tags are already behind.
    * The passed argument contains the concatenation of all
    * title text sections.
-   * @param The title text.
+   * @param title The title text.
    */
   protected void handleTitle(char[] title)
   {
@@ -868,7 +868,7 @@ public class Parser
   {
     Object value = HTML.NULL_ATTRIBUTE_VALUE;
 
-    Element e = (Element) dtd.elementHash.get(element.toLowerCase());
+    Element e = dtd.elementHash.get(element.toLowerCase());
     if (e != null)
       {
         AttributeList attr = e.getAttribute(attribute);
@@ -944,7 +944,7 @@ public class Parser
 
     optional(WS);
 
-    attributeReading: 
+    attributeReading:
       while (getTokenAhead().kind == NUMTOKEN)
       {
         name = getNextToken();
@@ -996,7 +996,7 @@ public class Parser
                 // character, not as a token. The character may be part of
                 // the unquoted URL.
                   {
-                    StringBuffer image = new StringBuffer(value.getImage());
+                    CPStringBuilder image = new CPStringBuilder(value.getImage());
                     while (next.kind == NUMTOKEN || next.kind == SLASH
                            || next.kind == OTHER)
                       {
@@ -1012,7 +1012,7 @@ public class Parser
               case SLASH:
                 value = next;
                 optional(WS);
-                
+
                 // Check maybe the opening quote is missing.
                 next = getTokenAhead();
                 if (bQUOTING.get(next.kind))
@@ -1027,7 +1027,7 @@ public class Parser
                 // character, not as a token. The slash may be part of
                 // the unquoted URL.
                   {
-                    StringBuffer image = new StringBuffer(value.getImage());
+                    CPStringBuilder image = new CPStringBuilder(value.getImage());
                     while (next.kind == NUMTOKEN || next.kind == SLASH)
                       {
                         image.append(getNextToken().getImage());
@@ -1146,7 +1146,7 @@ public class Parser
    * is found or if the parser concludes that the one should be present
    * in the current position. The method is called immediately before
    * calling the handleStartTag.
-   * @param The tag
+   * @param tag The tag
    */
   protected void startTag(TagElement tag)
                    throws ChangedCharSetException
@@ -1182,7 +1182,7 @@ public class Parser
    * A hooks for operations, preceeding call to handleEmptyTag().
    * Handle the tag with no content, like &lt;br&gt;. As no any
    * nested tags are expected, the tag validator is not involved.
-   * @param The tag being handled.
+   * @param tag The tag being handled.
    */
   private void _handleEmptyTag(TagElement tag)
   {
@@ -1208,7 +1208,7 @@ public class Parser
    * A hooks for operations, preceeding call to handleEndTag().
    * The method is called when the HTML closing tag
    * is found. Calls handleTitle after closing the 'title' tag.
-   * @param The tag
+   * @param tag The tag
    */
   private void _handleEndTag(TagElement tag)
   {
@@ -1254,7 +1254,7 @@ public class Parser
    * The method is called when the HTML opening tag ((like &lt;table&gt;)
    * is found.
    * Package-private to avoid an accessor method.
-   * @param The tag
+   * @param tag The tag
    */
   void _handleStartTag(TagElement tag)
   {
@@ -1289,7 +1289,7 @@ public class Parser
     int closeAt = 0;
     buffer.setLength(0);
 
-    ahead: 
+    ahead:
     for (int i = 1; i < 100; i++)
       {
         t = getTokenAhead(i - 1);
@@ -1328,7 +1328,7 @@ public class Parser
 
   private TagElement makeTagElement(String name, boolean isSupposed)
   {
-    Element e = (Element) dtd.elementHash.get(name.toLowerCase());
+    Element e = dtd.elementHash.get(name.toLowerCase());
     if (e == null)
       {
         error("Unknown tag <" + name + ">");
@@ -1356,7 +1356,7 @@ public class Parser
                        throws ParseException
   {
     buffer.setLength(0);
-    read: 
+    read:
     while (true)
       {
         t = getNextToken();

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -58,6 +56,8 @@
 --                all the threads. SIGADAABORT is unmasked by
 --                default
 --      Reserved: the OS specific set of signals that are reserved.
+
+with System.Task_Primitives;
 
 package body System.Interrupt_Management is
 
@@ -117,7 +117,7 @@ package body System.Interrupt_Management is
 
    begin
       --  With the __builtin_longjmp, the signal mask is not restored, so we
-      --  need to restore it explicitely.
+      --  need to restore it explicitly.
 
       Result := pthread_sigmask (SIG_UNBLOCK, Signal_Mask'Access, null);
       pragma Assert (Result = 0);
@@ -155,6 +155,10 @@ package body System.Interrupt_Management is
       old_act : aliased struct_sigaction;
       Result  : System.OS_Interface.int;
 
+      Use_Alternate_Stack : constant Boolean :=
+                              System.Task_Primitives.Alternate_Stack_Size /= 0;
+      --  Whether to use an alternate signal stack for stack overflows
+
    begin
       if Initialized then
          return;
@@ -170,8 +174,6 @@ package body System.Interrupt_Management is
       Abort_Task_Interrupt := SIGADAABORT;
 
       act.sa_handler := Notify_Exception'Address;
-
-      act.sa_flags := SA_SIGINFO;
 
       --  Setting SA_SIGINFO asks the kernel to pass more than just the signal
       --  number argument to the handler when it is called. The set of extra
@@ -191,7 +193,7 @@ package body System.Interrupt_Management is
       --  fix should be made in sigsetjmp so that we save the Signal_Set and
       --  restore it after a longjmp.
 
-      --  Since SA_NODEFER is obsolete, instead we reset explicitely the mask
+      --  Since SA_NODEFER is obsolete, instead we reset explicitly the mask
       --  in the exception handler.
 
       Result := sigemptyset (Signal_Mask'Access);
@@ -220,10 +222,18 @@ package body System.Interrupt_Management is
             Reserve (Exception_Interrupts (J)) := True;
 
             if State (Exception_Interrupts (J)) /= Default then
+               act.sa_flags := SA_SIGINFO;
+
+               if Use_Alternate_Stack
+                 and then Exception_Interrupts (J) = SIGSEGV
+               then
+                  act.sa_flags := act.sa_flags + SA_ONSTACK;
+               end if;
+
                Result :=
                  sigaction
-                 (Signal (Exception_Interrupts (J)), act'Unchecked_Access,
-                  old_act'Unchecked_Access);
+                   (Signal (Exception_Interrupts (J)), act'Unchecked_Access,
+                    old_act'Unchecked_Access);
                pragma Assert (Result = 0);
             end if;
          end if;
@@ -235,7 +245,7 @@ package body System.Interrupt_Management is
       end if;
 
       --  Set SIGINT to unmasked state as long as it is not in "User" state.
-      --  Check for Unreserve_All_Interrupts last
+      --  Check for Unreserve_All_Interrupts last.
 
       if State (SIGINT) /= User then
          Keep_Unmasked (SIGINT) := True;
@@ -243,7 +253,7 @@ package body System.Interrupt_Management is
       end if;
 
       --  Check all signals for state that requires keeping them unmasked and
-      --  reserved
+      --  reserved.
 
       for J in Interrupt_ID'Range loop
          if State (J) = Default or else State (J) = Runtime then

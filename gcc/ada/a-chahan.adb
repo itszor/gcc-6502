@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -424,14 +422,12 @@ package body Ada.Characters.Handling is
    end To_Basic;
 
    function To_Basic (Item : String) return String is
-      Result : String (1 .. Item'Length);
-
    begin
-      for J in Item'Range loop
-         Result (J - (Item'First - 1)) := Value (Basic_Map, Item (J));
-      end loop;
-
-      return Result;
+      return Result : String (1 .. Item'Length) do
+         for J in Item'Range loop
+            Result (J - (Item'First - 1)) := Value (Basic_Map, Item (J));
+         end loop;
+      end return;
    end To_Basic;
 
    ------------------
@@ -459,11 +455,7 @@ package body Ada.Characters.Handling is
       Substitute : ISO_646 := ' ') return ISO_646
    is
    begin
-      if Item in ISO_646 then
-         return Item;
-      else
-         return Substitute;
-      end if;
+      return (if Item in ISO_646 then Item else Substitute);
    end To_ISO_646;
 
    function To_ISO_646
@@ -474,11 +466,8 @@ package body Ada.Characters.Handling is
 
    begin
       for J in Item'Range loop
-         if Item (J) in ISO_646 then
-            Result (J - (Item'First - 1)) := Item (J);
-         else
-            Result (J - (Item'First - 1)) := Substitute;
-         end if;
+         Result (J - (Item'First - 1)) :=
+           (if Item (J) in ISO_646 then Item (J) else Substitute);
       end loop;
 
       return Result;
@@ -494,14 +483,12 @@ package body Ada.Characters.Handling is
    end To_Lower;
 
    function To_Lower (Item : String) return String is
-      Result : String (1 .. Item'Length);
-
    begin
-      for J in Item'Range loop
-         Result (J - (Item'First - 1)) := Value (Lower_Case_Map, Item (J));
-      end loop;
-
-      return Result;
+      return Result : String (1 .. Item'Length) do
+         for J in Item'Range loop
+            Result (J - (Item'First - 1)) := Value (Lower_Case_Map, Item (J));
+         end loop;
+      end return;
    end To_Lower;
 
    ---------------
@@ -536,14 +523,12 @@ package body Ada.Characters.Handling is
    function To_Upper
      (Item : String) return String
    is
-      Result : String (1 .. Item'Length);
-
    begin
-      for J in Item'Range loop
-         Result (J - (Item'First - 1)) := Value (Upper_Case_Map, Item (J));
-      end loop;
-
-      return Result;
+      return Result : String (1 .. Item'Length) do
+         for J in Item'Range loop
+            Result (J - (Item'First - 1)) := Value (Upper_Case_Map, Item (J));
+         end loop;
+      end return;
    end To_Upper;
 
    -----------------------

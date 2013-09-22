@@ -2,30 +2,27 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---        A D A . C O N T A I N E R S . R E D _ B L A C K _ T R E E S .     --
---                          G E N E R I C _ K E Y S                         --
+--                ADA.CONTAINERS.RED_BLACK_TREES.GENERIC_KEYS               --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -124,44 +121,71 @@ package body Ada.Containers.Red_Black_Trees.Generic_Keys is
       X : Node_Access := Tree.Root;
 
    begin
+      --  This is a "conditional" insertion, meaning that the insertion request
+      --  can "fail" in the sense that no new node is created. If the Key is
+      --  equivalent to an existing node, then we return the existing node and
+      --  Inserted is set to False. Otherwise, we allocate a new node (via
+      --  Insert_Post) and Inserted is set to True.
+
+      --  Note that we are testing for equivalence here, not equality. Key must
+      --  be strictly less than its next neighbor, and strictly greater than
+      --  its previous neighbor, in order for the conditional insertion to
+      --  succeed.
+
+      --  We search the tree to find the nearest neighbor of Key, which is
+      --  either the smallest node greater than Key (Inserted is True), or the
+      --  largest node less or equivalent to Key (Inserted is False).
+
       Inserted := True;
       while X /= null loop
          Y := X;
          Inserted := Is_Less_Key_Node (Key, X);
-
-         if Inserted then
-            X := Ops.Left (X);
-         else
-            X := Ops.Right (X);
-         end if;
+         X := (if Inserted then Ops.Left (X) else Ops.Right (X));
       end loop;
 
-      --  If Inserted is True, then this means either that Tree is
-      --  empty, or there was a least one node (strictly) greater than
-      --  Key. Otherwise, it means that Key is equal to or greater than
-      --  every node.
-
       if Inserted then
+
+         --  Either Tree is empty, or Key is less than Y. If Y is the first
+         --  node in the tree, then there are no other nodes that we need to
+         --  search for, and we insert a new node into the tree.
+
          if Y = Tree.First then
             Insert_Post (Tree, Y, True, Node);
             return;
          end if;
 
+         --  Y is the next nearest-neighbor of Key. We know that Key is not
+         --  equivalent to Y (because Key is strictly less than Y), so we move
+         --  to the previous node, the nearest-neighbor just smaller or
+         --  equivalent to Key.
+
          Node := Ops.Previous (Y);
 
       else
+         --  Y is the previous nearest-neighbor of Key. We know that Key is not
+         --  less than Y, which means either that Key is equivalent to Y, or
+         --  greater than Y.
+
          Node := Y;
       end if;
 
-      --  Here Node has a value that is less than or equal to Key. We
-      --  now have to resolve whether Key is equal to or greater than
-      --  Node, which determines whether the insertion succeeds.
+      --  Key is equivalent to or greater than Node. We must resolve which is
+      --  the case, to determine whether the conditional insertion succeeds.
 
       if Is_Greater_Key_Node (Key, Node) then
+
+         --  Key is strictly greater than Node, which means that Key is not
+         --  equivalent to Node. In this case, the insertion succeeds, and we
+         --  insert a new node into the tree.
+
          Insert_Post (Tree, Y, Inserted, Node);
          Inserted := True;
          return;
       end if;
+
+      --  Key is equivalent to Node. This is a conditional insertion, so we do
+      --  not insert a new node in this case. We return the existing node and
+      --  report that no insertion has occurred.
 
       Inserted := False;
    end Generic_Conditional_Insert;
@@ -185,7 +209,7 @@ package body Ada.Containers.Red_Black_Trees.Generic_Keys is
       --  is not a search and the only comparisons that occur are with
       --  the hint and its neighbor.
 
-      --  If Position is null, this is intepreted to mean that Key is
+      --  If Position is null, this is interpreted to mean that Key is
       --  large relative to the nodes in the tree. If the tree is empty,
       --  or Key is greater than the last node in the tree, then we're
       --  done; otherwise the hint was "wrong" and we must search.
@@ -206,7 +230,7 @@ package body Ada.Containers.Red_Black_Trees.Generic_Keys is
       pragma Assert (Tree.Length > 0);
 
       --  A hint can either name the node that immediately follows Key,
-      --  or immediately precedes Key. We first test whether Key is is
+      --  or immediately precedes Key. We first test whether Key is
       --  less than the hint, and if so we compare Key to the node that
       --  precedes the hint. If Key is both less than the hint and
       --  greater than the hint's preceding neighbor, then we're done;
@@ -443,12 +467,7 @@ package body Ada.Containers.Red_Black_Trees.Generic_Keys is
       while X /= null loop
          Y := X;
          Before := Is_Less_Key_Node (Key, X);
-
-         if Before then
-            X := Ops.Left (X);
-         else
-            X := Ops.Right (X);
-         end if;
+         X := (if Before then Ops.Left (X) else Ops.Right (X));
       end loop;
 
       Insert_Post (Tree, Y, Before, Node);
@@ -507,7 +526,7 @@ package body Ada.Containers.Red_Black_Trees.Generic_Keys is
       --  equivalent node. That wouldn't break any container invariants,
       --  but our rule above says that new nodes always get inserted
       --  after equivalent nodes. So here we test whether Key is both
-      --  less than the hint and and equal to or greater than the hint's
+      --  less than the hint and equal to or greater than the hint's
       --  previous neighbor, and if so insert it before the hint.
 
       if Is_Less_Key_Node (Key, Hint) then

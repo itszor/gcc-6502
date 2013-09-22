@@ -1,6 +1,4 @@
 #include <objc/objc.h>
-#include <objc/objc-api.h>
-#include <objc/Object.h>
 
 struct A {
   int i;
@@ -23,4 +21,3 @@ struct A {
 @end
 
 #include "bf-common.h"
-

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -45,6 +43,12 @@ package body Ada.Numerics.Generic_Complex_Types is
    ---------
 
    function "*" (Left, Right : Complex) return Complex is
+
+      Scale : constant R := R (R'Machine_Radix) ** ((R'Machine_Emax - 1) / 2);
+      --  In case of overflow, scale the operands by the largest power of the
+      --  radix (to avoid rounding error), so that the square of the scale does
+      --  not overflow itself.
+
       X : R;
       Y : R;
 
@@ -55,14 +59,20 @@ package body Ada.Numerics.Generic_Complex_Types is
       --  If either component overflows, try to scale (skip in fast math mode)
 
       if not Standard'Fast_Math then
-         if abs (X) > R'Last then
-            X := R'(4.0) * (R'(Left.Re / 2.0)  * R'(Right.Re / 2.0)
-                            - R'(Left.Im / 2.0) * R'(Right.Im / 2.0));
+
+         --  Note that the test below is written as a negation. This is to
+         --  account for the fact that X and Y may be NaNs, because both of
+         --  their operands could overflow. Given that all operations on NaNs
+         --  return false, the test can only be written thus.
+
+         if not (abs (X) <= R'Last) then
+            X := Scale**2 * ((Left.Re / Scale) * (Right.Re / Scale) -
+                             (Left.Im / Scale) * (Right.Im / Scale));
          end if;
 
-         if abs (Y) > R'Last then
-            Y := R'(4.0) * (R'(Left.Re / 2.0)  * R'(Right.Im / 2.0)
-                            - R'(Left.Im / 2.0) * R'(Right.Re / 2.0));
+         if not (abs (Y) <= R'Last) then
+            Y := Scale**2 * ((Left.Re / Scale) * (Right.Im / Scale)
+                           + (Left.Im / Scale) * (Right.Re / Scale));
          end if;
       end if;
 
@@ -571,7 +581,8 @@ package body Ada.Numerics.Generic_Complex_Types is
          --  in order to prevent inaccuracies on machines where not all
          --  immediate expressions are rounded, such as PowerPC.
 
-         if Re2 > R'Last then
+         --  ??? same weird test, why not Re2 > R'Last ???
+         if not (Re2 <= R'Last) then
             raise Constraint_Error;
          end if;
 
@@ -584,7 +595,8 @@ package body Ada.Numerics.Generic_Complex_Types is
       begin
          Im2 := X.Im ** 2;
 
-         if Im2 > R'Last then
+         --  ??? same weird test
+         if not (Im2 <= R'Last) then
             raise Constraint_Error;
          end if;
 

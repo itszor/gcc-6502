@@ -1,4 +1,4 @@
-/* Copyright (C) 2003, 2004, 2005, 2006, 2007  Free Software Foundation
+/* Copyright (C) 2003, 2004, 2005, 2006, 2007, 2012  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -23,11 +23,6 @@ details.  */
 #include <netinet/tcp.h>
 #include <errno.h>
 #include <string.h>
-
-#if HAVE_BSTRING_H
-// Needed for bzero, implicitly used by FD_ZERO on IRIX 5.2 
-#include <bstring.h>
-#endif
 
 #include <gcj/cni.h>
 #include <gcj/javaprims.h>
@@ -99,12 +94,7 @@ gnu::java::net::PlainSocketImpl::bind (::java::net::InetAddress *host, jint lpor
   if (len == 4)
     {
       u.address.sin_family = AF_INET;
-
-      if (host != NULL)
-        memcpy (&u.address.sin_addr, bytes, len);
-      else
-        u.address.sin_addr.s_addr = htonl (INADDR_ANY);
-
+      memcpy (&u.address.sin_addr, bytes, len);
       len = sizeof (struct sockaddr_in);
       u.address.sin_port = htons (lport);
     }
@@ -282,7 +272,7 @@ gnu::java::net::PlainSocketImpl::accept (gnu::java::net::PlainSocketImpl *s)
 	                                  JvNewStringUTF("Accept timed out"));
     }
 
-  new_socket = _Jv_accept (native_fd, (sockaddr*) &u, &addrlen);
+  new_socket = ::accept (native_fd, (sockaddr*) &u, &addrlen);
 
   if (new_socket < 0)
     goto error;

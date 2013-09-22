@@ -1,4 +1,4 @@
-/* GnomeNode.java - 
+/* GnomeNode.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -143,7 +145,7 @@ class GnomeNode
     docNodes.put(node, nodeInstance);
     return nodeInstance;
   }
-  
+
   /**
    * Frees the specified document.
    * This removes all its nodes from the cache.
@@ -157,7 +159,7 @@ class GnomeNode
     instances.remove(doc);
     //System.out.println("Freed "+instances.remove(doc));
   }
-  
+
   /**
    * xmlNodePtr
    */
@@ -300,7 +302,7 @@ class GnomeNode
     notifyUserDataHandlers(UserDataHandler.NODE_CLONED, this, ret);
     return ret;
   }
-  
+
   private native Node xmljCloneNode(boolean deep);
 
   public native void normalize();
@@ -357,7 +359,7 @@ class GnomeNode
   }
 
   private native int xmljCompareTo(Object other);
-  
+
   public String getTextContent()
     throws DOMException
   {
@@ -368,7 +370,7 @@ class GnomeNode
       case ENTITY_NODE:
       case ENTITY_REFERENCE_NODE:
       case DOCUMENT_FRAGMENT_NODE:
-        StringBuffer buffer = new StringBuffer();
+        CPStringBuilder buffer = new CPStringBuilder();
         NodeList children = getChildNodes();
         int len = children.getLength();
         for (int i = 0; i < len; i++)
@@ -390,7 +392,7 @@ class GnomeNode
         return null;
       }
   }
-  
+
   public void setTextContent(String textContent)
     throws DOMException
   {
@@ -425,20 +427,20 @@ class GnomeNode
         break;
       }
   }
-  
+
   public boolean isSameNode(Node other)
   {
     return equals(other);
   }
-  
+
   public native String lookupPrefix(String namespaceURI);
-  
+
   public native boolean isDefaultNamespace(String namespaceURI);
-  
+
   public native String lookupNamespaceURI(String prefix);
-  
+
   public native boolean isEqualNode(Node arg);
-  
+
   public Object getFeature(String feature, String version)
   {
     return getOwnerDocument().getImplementation()
@@ -489,7 +491,7 @@ class GnomeNode
 
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(getClass().getName());
+    CPStringBuilder buffer = new CPStringBuilder(getClass().getName());
     buffer.append("[nodeName=");
     buffer.append(getNodeName());
     buffer.append("]");

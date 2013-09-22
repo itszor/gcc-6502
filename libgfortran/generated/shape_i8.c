@@ -1,32 +1,27 @@
 /* Implementation of the SHAPE intrinsic
-   Copyright 2002, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
@@ -46,16 +41,26 @@ shape_8 (gfc_array_i8 * const restrict ret,
   int n;
   index_type stride;
   index_type extent;
+  int rank;
 
-  stride = ret->dim[0].stride;
+  rank = GFC_DESCRIPTOR_RANK (array);
 
-  if (ret->dim[0].ubound < ret->dim[0].lbound)
+  if (ret->base_addr == NULL)
+    {
+      GFC_DIMENSION_SET(ret->dim[0], 0, rank - 1, 1);
+      ret->offset = 0;
+      ret->base_addr = xmalloc (sizeof (GFC_INTEGER_8) * rank);
+    }
+
+  stride = GFC_DESCRIPTOR_STRIDE(ret,0);
+
+  if (GFC_DESCRIPTOR_EXTENT(ret,0) < 1)
     return;
 
-  for (n = 0; n < GFC_DESCRIPTOR_RANK (array); n++)
+  for (n = 0; n < rank; n++)
     {
-      extent = array->dim[n].ubound + 1 - array->dim[n].lbound;
-      ret->data[n * stride] = extent > 0 ? extent : 0 ;
+      extent = GFC_DESCRIPTOR_EXTENT(array,n);
+      ret->base_addr[n * stride] = extent > 0 ? extent : 0 ;
     }
 }
 

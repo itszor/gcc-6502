@@ -6,7 +6,7 @@
 ! Contributed by Paul Thomas  pault@gcc.gnu.org
 !
 module global
-  character*4 :: aa
+  character(4) :: aa
   integer :: ii
   real    :: rr
   namelist /nml1/ aa, ii, rr
@@ -29,5 +29,3 @@ program namelist_use
 
   close (10)
 end program namelist_use
-
-! { dg-final { cleanup-modules "global" } }

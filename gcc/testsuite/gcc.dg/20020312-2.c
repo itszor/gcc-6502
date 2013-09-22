@@ -20,6 +20,8 @@ extern void abort (void);
 /* No pic register.  */
 #elif defined(__cris__)
 # define PIC_REG  "0"
+#elif defined(__epiphany__)
+#define PIC_REG "r28"
 #elif defined(__fr30__)
 /* No pic register.  */
 #elif defined(__H8300__) || defined(__H8300H__) || defined(__H8300S__)
@@ -30,6 +32,8 @@ extern void abort (void);
 # define PIC_REG  "ebx"
 #elif defined(__ia64__)
 /* PIC register is r1, but is used even without -fpic.  */
+#elif defined(__lm32__)
+/* No pic register.  */
 #elif defined(__M32R__)
 /* No pic register.  */
 #elif defined(__m68k__)
@@ -38,26 +42,36 @@ extern void abort (void);
 /* No pic register.  */
 #elif defined(__mcore__)
 /* No pic register.  */
+#elif defined(__MICROBLAZE__)
+# define PIC_REG "r20"
 #elif defined(__mips__)
 /* PIC register is $28, but is used even without -fpic.  */
 #elif defined(__MMIX__)
 /* No pic register.  */
 #elif defined(__mn10300__)
 /* No pic register.  */
+#elif defined(__moxie__)
+/* No pic register.  */
 #elif defined(__hppa__)
 /* PIC register is %r27 or %r19, but is used even without -fpic.  */
 #elif defined(__pdp11__)
 /* No pic register.  */
-#elif defined(__powerpc__) || defined(__PPC__) || defined(__POWERPC__)
+#elif defined(__powerpc__) || defined(__PPC__) || defined(__POWERPC__) || defined (__ppc)
 # ifdef __MACH__
 #  define PIC_REG  "31"
 # else
 #  define PIC_REG  "30"
 # endif
+#elif defined(__RX__)
+/* No pic register.  */
 #elif defined(__s390__)
 # define PIC_REG  "12"
 #elif defined(__sparc__)
 # define PIC_REG  "l7"
+#elif defined(__tile__)
+# define PIC_REG "r51"
+#elif defined(__TMS320C6X__)
+# define PIC_REG "B14"
 #elif defined(__v850)
 /* No pic register.  */
 #elif defined(__vax__)
@@ -80,6 +94,8 @@ extern void abort (void);
 # else
 #  define PIC_REG "gr17"
 #endif
+#elif defined (__aarch64__)
+/* No pic register -- yet.  */
 #else
 # error "Modify the test for your target."
 #endif

@@ -1,6 +1,6 @@
 dnl Support macro file for intrinsic functions.
 dnl Contains the generic sections of the array functions.
-dnl This file is part of the GNU Fortran 95 Runtime Library (libgfortran)
+dnl This file is part of the GNU Fortran Runtime Library (libgfortran)
 dnl Distributed under the GNU GPL with exception.  See COPYING for details.
 dnl
 dnl Pass the implementation for a single section as the parameter to
@@ -48,79 +48,78 @@ name`'rtype_qual`_'atype_code (rtype * const restrict retarray,
 
   src_kind = GFC_DESCRIPTOR_SIZE (array);
 
-  len = array->dim[dim].ubound + 1 - array->dim[dim].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(array,dim);
   if (len < 0)
     len = 0;
 
-  delta = array->dim[dim].stride * src_kind;
+  delta = GFC_DESCRIPTOR_STRIDE_BYTES(array,dim);
 
   for (n = 0; n < dim; n++)
     {
-      sstride[n] = array->dim[n].stride * src_kind;
-      extent[n] = array->dim[n].ubound + 1 - array->dim[n].lbound;
+      sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,n);
+      extent[n] = GFC_DESCRIPTOR_EXTENT(array,n);
 
       if (extent[n] < 0)
 	extent[n] = 0;
     }
   for (n = dim; n < rank; n++)
     {
-      sstride[n] = array->dim[n + 1].stride * src_kind;
-      extent[n] =
-        array->dim[n + 1].ubound + 1 - array->dim[n + 1].lbound;
+      sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,n + 1);
+      extent[n] = GFC_DESCRIPTOR_EXTENT(array,n + 1);
 
       if (extent[n] < 0)
 	extent[n] = 0;
     }
 
-  if (retarray->data == NULL)
+  if (retarray->base_addr == NULL)
     {
-      size_t alloc_size;
+      size_t alloc_size, str;
 
       for (n = 0; n < rank; n++)
         {
-          retarray->dim[n].lbound = 0;
-          retarray->dim[n].ubound = extent[n]-1;
           if (n == 0)
-            retarray->dim[n].stride = 1;
+            str = 1;
           else
-            retarray->dim[n].stride = retarray->dim[n-1].stride * extent[n-1];
+            str = GFC_DESCRIPTOR_STRIDE(retarray,n-1) * extent[n-1];
+
+	  GFC_DIMENSION_SET(retarray->dim[n], 0, extent[n] - 1, str);
+
         }
 
       retarray->offset = 0;
       retarray->dtype = (array->dtype & ~GFC_DTYPE_RANK_MASK) | rank;
 
-      alloc_size = sizeof (rtype_name) * retarray->dim[rank-1].stride
+      alloc_size = sizeof (rtype_name) * GFC_DESCRIPTOR_STRIDE(retarray,rank-1)
     		   * extent[rank-1];
 
       if (alloc_size == 0)
 	{
 	  /* Make sure we have a zero-sized array.  */
-	  retarray->dim[0].lbound = 0;
-	  retarray->dim[0].ubound = -1;
+	  GFC_DIMENSION_SET(retarray->dim[0], 0, -1, 1);
 	  return;
 	}
       else
-	retarray->data = internal_malloc_size (alloc_size);
+	retarray->base_addr = xmalloc (alloc_size);
     }
   else
     {
       if (rank != GFC_DESCRIPTOR_RANK (retarray))
 	runtime_error ("rank of return array incorrect in"
-		       " u_name intrinsic: is %d, should be %d",
-		       GFC_DESCRIPTOR_RANK (retarray), rank);
+		       " u_name intrinsic: is %ld, should be %ld",
+		       (long int) GFC_DESCRIPTOR_RANK (retarray),
+		       (long int) rank);
 
-      if (compile_options.bounds_check)
+      if (unlikely (compile_options.bounds_check))
 	{
 	  for (n=0; n < rank; n++)
 	    {
 	      index_type ret_extent;
 
-	      ret_extent = retarray->dim[n].ubound + 1
-		- retarray->dim[n].lbound;
+	      ret_extent = GFC_DESCRIPTOR_EXTENT(retarray,n);
 	      if (extent[n] != ret_extent)
 		runtime_error ("Incorrect extent in return value of"
 			       " u_name intrinsic in dimension %d:"
-			       " is %ld, should be %ld", n + 1,
+			       " is %ld, should be %ld", (int) n + 1,
 			       (long int) ret_extent, (long int) extent[n]);
 	    }
 	}
@@ -129,12 +128,12 @@ name`'rtype_qual`_'atype_code (rtype * const restrict retarray,
   for (n = 0; n < rank; n++)
     {
       count[n] = 0;
-      dstride[n] = retarray->dim[n].stride;
+      dstride[n] = GFC_DESCRIPTOR_STRIDE(retarray,n);
       if (extent[n] <= 0)
-        len = 0;
+	return;
     }
 
-  base = array->data;
+  base = array->base_addr;
 
   if (src_kind == 1 || src_kind == 2 || src_kind == 4 || src_kind == 8
 #ifdef HAVE_GFC_LOGICAL_16
@@ -148,7 +147,7 @@ name`'rtype_qual`_'atype_code (rtype * const restrict retarray,
   else
     internal_error (NULL, "Funny sized logical array in u_name intrinsic");
 
-  dest = retarray->data;
+  dest = retarray->base_addr;
 
   continue_loop = 1;
   while (continue_loop)

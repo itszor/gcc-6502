@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -59,64 +53,60 @@ namespace __gnu_pbds
 {
   namespace detail
   {
-
 #define PB_DS_CLASS_T_DEC \
-    template<typename Value_Type, class Cmp_Fn, class Allocator>
+    template<typename Value_Type, typename Cmp_Fn, typename _Alloc>
 
 #define PB_DS_CLASS_C_DEC \
-    binomial_heap_<Value_Type, Cmp_Fn, Allocator>
-
-#define PB_DS_BASE_C_DEC \
-    binomial_heap_base_<Value_Type, Cmp_Fn, Allocator>
+    binomial_heap<Value_Type, Cmp_Fn, _Alloc>
 
     /**
-     * class description = "8y|\|0|\/|i41 h34p 74813">
-     **/
-    template<typename Value_Type, class Cmp_Fn, class Allocator>
-    class binomial_heap_ : public PB_DS_BASE_C_DEC
+     *  Binomial heap.
+     *
+     *  @ingroup heap-detail
+     */
+    template<typename Value_Type, typename Cmp_Fn, typename _Alloc>
+    class binomial_heap
+    : public binomial_heap_base<Value_Type, Cmp_Fn, _Alloc>
     {
     private:
-      typedef PB_DS_BASE_C_DEC base_type;
-      typedef typename base_type::node_pointer node_pointer;
-      typedef typename base_type::const_node_pointer const_node_pointer;
+      typedef binomial_heap_base<Value_Type, Cmp_Fn, _Alloc> 	base_type;
+      typedef typename base_type::node_pointer 		node_pointer;
+      typedef typename base_type::node_const_pointer 	node_const_pointer;
 
     public:
-      typedef Value_Type value_type;
-      typedef typename Allocator::size_type size_type;
-      typedef typename Allocator::difference_type difference_type;
-      typedef typename base_type::pointer pointer;
-      typedef typename base_type::const_pointer const_pointer;
-      typedef typename base_type::reference reference;
-      typedef typename base_type::const_reference const_reference;
-      typedef typename base_type::const_point_iterator const_point_iterator;
-      typedef typename base_type::point_iterator point_iterator;
-      typedef typename base_type::const_iterator const_iterator;
-      typedef typename base_type::iterator iterator;
-      typedef typename base_type::cmp_fn cmp_fn;
-      typedef typename base_type::allocator allocator;
+      typedef Value_Type 				value_type;
+      typedef typename _Alloc::size_type 		size_type;
+      typedef typename _Alloc::difference_type 		difference_type;
+      typedef typename base_type::pointer 		pointer;
+      typedef typename base_type::const_pointer 	const_pointer;
+      typedef typename base_type::reference 		reference;
+      typedef typename base_type::const_reference 	const_reference;
+      typedef typename base_type::point_const_iterator 	point_const_iterator;
+      typedef typename base_type::point_iterator 	point_iterator;
+      typedef typename base_type::const_iterator 	const_iterator;
+      typedef typename base_type::iterator 		iterator;
+      typedef typename base_type::cmp_fn 		cmp_fn;
+      typedef typename base_type::allocator_type 	allocator_type;
 
-      binomial_heap_();
+      binomial_heap();
 
-      binomial_heap_(const Cmp_Fn& r_cmp_fn);
+      binomial_heap(const Cmp_Fn&);
 
-      binomial_heap_(const PB_DS_CLASS_C_DEC& other);
+      binomial_heap(const binomial_heap&);
 
-      ~binomial_heap_();
+      ~binomial_heap();
 
     protected:
 #ifdef _GLIBCXX_DEBUG
       void
-      assert_valid() const;
-#endif 
+      assert_valid(const char*, int) const;
+#endif
     };
 
 #include <ext/pb_ds/detail/binomial_heap_/constructors_destructor_fn_imps.hpp>
 #include <ext/pb_ds/detail/binomial_heap_/debug_fn_imps.hpp>
 
 #undef PB_DS_CLASS_C_DEC
-
 #undef PB_DS_CLASS_T_DEC
-
-#undef PB_DS_BASE_C_DEC
   } // namespace detail
 } // namespace __gnu_pbds

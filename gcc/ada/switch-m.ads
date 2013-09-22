@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,18 +29,27 @@
 --  switches that are recognized. In addition, package Debug documents
 --  the otherwise undocumented debug switches that are also recognized.
 
+pragma Warnings (Off);
+--  This package is used also by gnatcoll
 with System.OS_Lib; use System.OS_Lib;
+pragma Warnings (On);
+
+with Prj.Tree;
 
 package Switch.M is
 
    procedure Scan_Make_Switches
-     (Switch_Chars : String;
-      Success      : out Boolean);
+     (Env               : in out Prj.Tree.Environment;
+      Switch_Chars      : String;
+      Success           : out Boolean);
    --  Scan a gnatmake switch and act accordingly. For switches that are
    --  recognized, Success is set to True. A switch that is not recognized and
    --  consists of one small letter causes a fatal error exit and control does
    --  not return. For all other not recognized switches, Success is set to
    --  False, so that the switch may be passed to the compiler.
+   --
+   --  Project_Node_Tree is used to store tree-specific parameters like the
+   --  project path.
 
    procedure Normalize_Compiler_Switches
      (Switch_Chars : String;
@@ -62,8 +71,7 @@ package Switch.M is
    --  they are shallow copies of components in a table in the body.
 
    function Normalize_Compiler_Switches
-     (Switch_Chars : String)
-      return         Argument_List;
+     (Switch_Chars : String) return Argument_List;
    --  Similar to the previous procedure. The return value is the list of
    --  simple switches. It may be an empty array if it has been determined
    --  that Switch_Chars is ill-formed or does not contain any switch that

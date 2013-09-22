@@ -1,4 +1,6 @@
 ! { dg-do run }
+! { dg-options "-std=legacy" }
+!
 ! PR 17244
 ! verifies that functions returning derived type work
 module m
@@ -36,5 +38,3 @@ function f(i,x,c,arr)
 end function f
 
 end
-
-! { dg-final { cleanup-modules "m" } }

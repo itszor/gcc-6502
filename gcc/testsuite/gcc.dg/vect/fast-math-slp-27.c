@@ -1,7 +1,7 @@
 /* { dg-do compile } */
 /* { dg-require-effective-target vect_float } */
 
-float x[256];
+float x[2*256+1];
 
 void foo(void)
 {
@@ -13,5 +13,5 @@ void foo(void)
    }
 }
 
-/* { dg-final { scan-tree-dump "vectorized 1 loops" "vect" { target vect_strided } } } */
+/* { dg-final { scan-tree-dump "vectorized 1 loops" "vect" { target vect_strided2 } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

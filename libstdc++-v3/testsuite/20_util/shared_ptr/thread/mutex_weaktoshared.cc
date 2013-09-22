@@ -1,9 +1,9 @@
-// Copyright (C) 2006, 2007, 2008 Free Software Foundation
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -12,14 +12,13 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 20.6.6.2 Template class shared_ptr [util.smartptr.shared]
 
-// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* alpha*-*-osf* mips-sgi-irix6* } }
-// { dg-options " -std=gnu++0x -pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* alpha*-*-osf* mips-sgi-irix6* } }
+// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* } }
+// { dg-options " -std=gnu++0x -pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* } }
 // { dg-options " -std=gnu++0x -pthreads" { target *-*-solaris* } }
 // { dg-options " -std=gnu++0x " { target *-*-cygwin *-*-darwin* } }
 
@@ -87,12 +86,13 @@ void* thread_hammer_and_kill(void* opaque_pools)
 {
   shared_and_weak_pools& pools = *static_cast<shared_and_weak_pools*>(opaque_pools);
   // Using the same parameters as in the RNG test cases.
-  std::mersenne_twister<
+  std::mersenne_twister_engine<
     unsigned long, 32, 624, 397, 31,
-    0x9908b0dful, 11, 7,
+    0x9908b0dful, 11,
+    0xfffffffful, 7,
     0x9d2c5680ul, 15,
-    0xefc60000ul, 18> rng;
-  
+    0xefc60000ul, 18, 1812433253ul> rng;
+
   sp_vector_t::iterator cur_shared = pools.shared_pool.begin();
   wp_vector_t::iterator cur_weak = pools.weak_pool.begin();
   
@@ -122,11 +122,13 @@ void* thread_hammer(void* opaque_weak)
 {
   wp_vector_t& weak_pool = *static_cast<wp_vector_t*>(opaque_weak);
   // Using the same parameters as in the RNG test cases.
-  std::mersenne_twister<
+  std::mersenne_twister_engine<
     unsigned long, 32, 624, 397, 31,
-    0x9908b0dful, 11, 7,
+    0x9908b0dful, 11,
+    0xfffffffful, 7,
     0x9d2c5680ul, 15,
-    0xefc60000ul, 18> rng;
+    0xefc60000ul, 18, 1812433253ul> rng;
+
   wp_vector_t::iterator cur_weak = weak_pool.begin();
 
   for (unsigned int i = 0; i < HAMMER_REPEAT; ++i)

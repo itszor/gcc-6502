@@ -1,5 +1,5 @@
 /* VMPipe.java -- Reference implementation for VM hooks used by PipeImpl
-   Copyright (C) 2004 Free Software Foundation
+   Copyright (C) 2004, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -57,7 +57,9 @@ final class VMPipe
         System.loadLibrary ("javanio");
       }
   }
-  
+
+  private VMPipe() {} // Prohibits instantiation.
+
   /**
    * Create a pipe, consisting of a readable VMChannel and a writable
    * VMChannel. The readable channel is returned is the first element
@@ -75,6 +77,6 @@ final class VMPipe
     pipe[1] = new VMChannel(fds[1]);
     return pipe;
   }
-  
+
   private static native int[] pipe0() throws IOException;
 }

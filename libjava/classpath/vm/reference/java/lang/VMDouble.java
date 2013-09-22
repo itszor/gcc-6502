@@ -1,5 +1,5 @@
 /* VMDouble.java -- VM Specific Double methods
-   Copyright (C) 2003, 2005  Free Software Foundation
+   Copyright (C) 2003, 2005, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -46,7 +46,7 @@ import gnu.classpath.Configuration;
  */
 
 /**
- * Code relocated from java.lang.Double by 
+ * Code relocated from java.lang.Double by
  * @author Dave Grove (groved@us.ibm.com)
  */
 final class VMDouble
@@ -59,27 +59,13 @@ final class VMDouble
   {
     if (Configuration.INIT_LOAD_LIBRARY)
       {
-	System.loadLibrary("javalang");
+        System.loadLibrary("javalang");
       }
 
     initIDs();
   }
 
-  /**
-   * Convert the double to the IEEE 754 floating-point "double format" bit
-   * layout. Bit 63 (the most significant) is the sign bit, bits 62-52
-   * (masked by 0x7ff0000000000000L) represent the exponent, and bits 51-0
-   * (masked by 0x000fffffffffffffL) are the mantissa. This function
-   * collapses all versions of NaN to 0x7ff8000000000000L. The result of this
-   * function can be used as the argument to
-   * <code>Double.longBitsToDouble(long)</code> to obtain the original
-   * <code>double</code> value.
-   *
-   * @param value the <code>double</code> to convert
-   * @return the bits of the <code>double</code>
-   * @see #longBitsToDouble(long)
-   */
-  public static native long doubleToLongBits(double value);
+  private VMDouble() {} // Prohibits instantiation.
 
   /**
    * Convert the double to the IEEE 754 floating-point "double format" bit
@@ -95,7 +81,7 @@ final class VMDouble
    * @return the bits of the <code>double</code>
    * @see #longBitsToDouble(long)
    */
-  public static native long doubleToRawLongBits(double value);
+  static native long doubleToRawLongBits(double value);
 
   /**
    * Convert the argument in IEEE 754 floating-point "double format" bit
@@ -110,7 +96,7 @@ final class VMDouble
    * @see #doubleToLongBits(double)
    * @see #doubleToRawLongBits(double)
    */
-  public static native double longBitsToDouble(long bits);
+  static native double longBitsToDouble(long bits);
 
   /**
    * Helper method to convert to string.
@@ -119,13 +105,18 @@ final class VMDouble
    * @param isFloat true if the conversion is requested by Float (results in
    *        fewer digits)
    */
-  public static native String toString(double d, boolean isFloat);
+  static native String toString(double d, boolean isFloat);
 
   /**
    * Initialize JNI cache.  This method is called only by the
    * static initializer when using JNI.
    */
-  public static native void initIDs();
+  private static native void initIDs();
 
-  public static native double parseDouble(String str);
+  /**
+   * Parse the specified String as a double.
+   * @throws NumberFormatException if str cannot be parsed
+   * @throws NullPointerException if str is null
+   */
+  static native double parseDouble(String str);
 }

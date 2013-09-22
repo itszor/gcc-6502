@@ -2,21 +2,21 @@
    exceptions.  */
 /* Developed by Ziemowit Laski <zlaski@apple.com>.  */
 
-#include <objc/Object.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include "../../../objc-obj-c++-shared/TestsuiteObject.m"
 
 /* The following is not required in actual user code; we include it
    here to check that the compiler generates an internal definition of
    _setjmp that is consistent with what <setjmp.h> provides.  */
 #include <setjmp.h>
 
-extern void abort(void);
 #define CHECK_IF(expr) if(!(expr)) abort()
 
-@interface Frob: Object
+@interface Frob: TestsuiteObject
 @end
 
-@implementation Frob: Object
+@implementation Frob: TestsuiteObject
 @end
 
 static Frob* _connection = nil;
@@ -24,7 +24,7 @@ static Frob* _connection = nil;
 //--------------------------------------------------------------------
 
 
-void test (Object* sendPort)
+void test (TestsuiteObject* sendPort)
 {
 	int cleanupPorts = 1;
 	Frob* receivePort = nil;
@@ -51,7 +51,7 @@ void test (Object* sendPort)
 		printf ("cleanupPorts = %d\n", cleanupPorts);
 		printf ("---\n");		
 		
-		@throw [Object new];
+		@throw [TestsuiteObject new];
 	}
 	@catch(Frob *obj) {
 		printf ("Exception caught by incorrect handler!\n");
@@ -71,6 +71,7 @@ void test (Object* sendPort)
 
 int main (void) {
 
-	test((Object *)-1);
+	test((TestsuiteObject *)-1);
 	return 0;
 }
+

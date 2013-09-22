@@ -6,32 +6,28 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
-
-with System.OS_Lib; use System.OS_Lib;
 
 package body Output is
 
@@ -41,6 +37,18 @@ package body Output is
    Special_Output_Proc : Output_Proc := null;
    --  Record argument to last call to Set_Special_Output. If this is
    --  non-null, then we are in special output mode.
+
+   Indentation_Amount : constant Positive := 3;
+   --  Number of spaces to output for each indentation level
+
+   Indentation_Limit : constant Positive := 40;
+   --  Indentation beyond this number of spaces wraps around
+
+   pragma Assert (Indentation_Limit < Buffer_Max / 2);
+   --  Make sure this is substantially shorter than the line length
+
+   Cur_Indentation : Natural := 0;
+   --  Number of spaces to indent each line
 
    -----------------------
    -- Local_Subprograms --
@@ -72,42 +80,118 @@ package body Output is
    ------------------
 
    procedure Flush_Buffer is
-      Len : constant Natural := Next_Col - 1;
+      Write_Error : exception;
+      --  Raised if Write fails
 
-   begin
-      if Len /= 0 then
+      ------------------
+      -- Write_Buffer --
+      ------------------
 
+      procedure Write_Buffer (Buf : String);
+      --  Write out Buf, either using Special_Output_Proc, or the normal way
+      --  using Write. Raise Write_Error if Write fails (presumably due to disk
+      --  full). Write_Error is not used in the case of Special_Output_Proc.
+
+      procedure Write_Buffer (Buf : String) is
+      begin
          --  If Special_Output_Proc has been set, then use it
 
          if Special_Output_Proc /= null then
-            Special_Output_Proc.all (Buffer (1 .. Len));
+            Special_Output_Proc.all (Buf);
 
          --  If output is not set, then output to either standard output
          --  or standard error.
 
-         elsif Len /= Write (Current_FD, Buffer'Address, Len) then
+         elsif Write (Current_FD, Buf'Address, Buf'Length) /= Buf'Length then
+            raise Write_Error;
 
-            --  If there are errors with standard error, just quit
+         end if;
+      end Write_Buffer;
 
-            if Current_FD = Standerr then
-               OS_Exit (2);
+      Len : constant Natural := Next_Col - 1;
 
-            --  Otherwise, set the output to standard error before
-            --  reporting a failure and quitting.
+   --  Start of processing for Flush_Buffer
+
+   begin
+      if Len /= 0 then
+         begin
+            --  If there's no indentation, or if the line is too long with
+            --  indentation, or if it's a blank line, just write the buffer.
+
+            if Cur_Indentation = 0
+              or else Cur_Indentation + Len > Buffer_Max
+              or else Buffer (1 .. Len) = (1 => ASCII.LF)
+            then
+               Write_Buffer (Buffer (1 .. Len));
+
+            --  Otherwise, construct a new buffer with preceding spaces, and
+            --  write that.
 
             else
-               Current_FD := Standerr;
-               Next_Col := 1;
-               Write_Line ("fatal error: disk full");
-               OS_Exit (2);
+               declare
+                  Indented_Buffer : constant String :=
+                                      (1 .. Cur_Indentation => ' ') &
+                                                          Buffer (1 .. Len);
+               begin
+                  Write_Buffer (Indented_Buffer);
+               end;
             end if;
-         end if;
+
+         exception
+            when Write_Error =>
+
+               --  If there are errors with standard error just quit. Otherwise
+               --  set the output to standard error before reporting a failure
+               --  and quitting.
+
+               if Current_FD /= Standerr then
+                  Current_FD := Standerr;
+                  Next_Col := 1;
+                  Write_Line ("fatal error: disk full");
+               end if;
+
+               OS_Exit (2);
+         end;
 
          --  Buffer is now empty
 
          Next_Col := 1;
       end if;
    end Flush_Buffer;
+
+   -------------------
+   -- Ignore_Output --
+   -------------------
+
+   procedure Ignore_Output (S : String) is
+   begin
+      null;
+   end Ignore_Output;
+
+   ------------
+   -- Indent --
+   ------------
+
+   procedure Indent is
+   begin
+      --  The "mod" in the following assignment is to cause a wrap around in
+      --  the case where there is too much indentation.
+
+      Cur_Indentation :=
+        (Cur_Indentation + Indentation_Amount) mod Indentation_Limit;
+   end Indent;
+
+   -------------
+   -- Outdent --
+   -------------
+
+   procedure Outdent is
+   begin
+      --  The "mod" here undoes the wrap around from Indent above
+
+      Cur_Indentation :=
+        (Cur_Indentation - Indentation_Amount) mod Indentation_Limit;
+   end Outdent;
 
    ---------------------------
    -- Restore_Output_Buffer --
@@ -116,6 +200,7 @@ package body Output is
    procedure Restore_Output_Buffer (S : Saved_Output_Buffer) is
    begin
       Next_Col := S.Next_Col;
+      Cur_Indentation := S.Cur_Indentation;
       Buffer (1 .. Next_Col - 1) := S.Buffer (1 .. Next_Col - 1);
    end Restore_Output_Buffer;
 
@@ -128,7 +213,9 @@ package body Output is
    begin
       S.Buffer (1 .. Next_Col - 1) := Buffer (1 .. Next_Col - 1);
       S.Next_Col := Next_Col;
+      S.Cur_Indentation := Cur_Indentation;
       Next_Col := 1;
+      Cur_Indentation := 0;
       return S;
    end Save_Output_Buffer;
 
@@ -141,18 +228,26 @@ package body Output is
       Special_Output_Proc := P;
    end Set_Special_Output;
 
+   ----------------
+   -- Set_Output --
+   ----------------
+
+   procedure Set_Output (FD : File_Descriptor) is
+   begin
+      if Special_Output_Proc = null then
+         Flush_Buffer;
+      end if;
+
+      Current_FD := FD;
+   end Set_Output;
+
    ------------------------
    -- Set_Standard_Error --
    ------------------------
 
    procedure Set_Standard_Error is
    begin
-      if Special_Output_Proc = null then
-         Flush_Buffer;
-         Next_Col := 1;
-      end if;
-
-      Current_FD := Standerr;
+      Set_Output (Standerr);
    end Set_Standard_Error;
 
    -------------------------
@@ -161,12 +256,7 @@ package body Output is
 
    procedure Set_Standard_Output is
    begin
-      if Special_Output_Proc = null then
-         Flush_Buffer;
-         Next_Col := 1;
-      end if;
-
-      Current_FD := Standout;
+      Set_Output (Standout);
    end Set_Standard_Output;
 
    -------

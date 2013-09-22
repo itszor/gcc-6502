@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -14,19 +14,9 @@
 // General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// along with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -41,7 +31,7 @@
 
 /**
  * @file type_trait.hpp
- * Containsert traits for a random regression test
+ * Contains traits for a random regression test
  *    for a specific container type.
  */
 
@@ -61,11 +51,11 @@ namespace __gnu_pbds
       {
 	typedef Cntnr cntnr;
 	typedef typename cntnr::key_type key_type;
-	typedef typename cntnr::const_key_reference const_key_reference;
+	typedef typename cntnr::key_const_reference key_const_reference;
 	typedef typename cntnr::value_type value_type;
 	typedef typename cntnr::const_reference const_reference;
 	typedef typename cntnr::mapped_type mapped_type;
-	typedef typename cntnr::const_mapped_reference const_mapped_reference;
+	typedef typename cntnr::mapped_const_reference mapped_const_reference;
 
 	template<typename Gen>
 	static key_type
@@ -77,22 +67,22 @@ namespace __gnu_pbds
         generate_value(Gen& r_gen, size_t max)
 	{ return generate_value(r_gen, max, value_type()); }
 
-	static const_key_reference
+	static key_const_reference
         extract_key(const_reference r_val)
 	{ return extract_key_imp(r_val); }
 
       private:
-	typedef typename cntnr::allocator::template rebind<basic_type>::other
+	typedef typename cntnr::allocator_type::template rebind<basic_type>::other
 	basic_type_rebind;
 	
 	typedef typename basic_type_rebind::const_reference basic_type_const_reference;
 
-	typedef typename cntnr::allocator::template rebind<std::pair<basic_type, basic_type> >::other pair_type_rebind;
+	typedef typename cntnr::allocator_type::template rebind<std::pair<const basic_type, basic_type> >::other pair_type_rebind;
 	typedef typename pair_type_rebind::const_reference pair_type_const_reference;
 
 	template<typename Gen>
 	static value_type
-        generate_value(Gen& r_gen, size_t max, __gnu_pbds::null_mapped_type)
+        generate_value(Gen& r_gen, size_t max, __gnu_pbds::null_type)
 	{ return basic_type(r_gen, max); }
 
 	template<typename Gen>
@@ -106,11 +96,11 @@ namespace __gnu_pbds
 		       std::pair<const basic_type, basic_type>)
 	{ return std::make_pair(basic_type(gen, max), basic_type(gen, max)); }
 
-	static const_key_reference
+	static key_const_reference
         extract_key_imp(basic_type_const_reference r_val)
 	{ return r_val; }
 
-	static const_key_reference
+	static key_const_reference
         extract_key_imp(pair_type_const_reference r_val)
 	{ return r_val.first; }
       };

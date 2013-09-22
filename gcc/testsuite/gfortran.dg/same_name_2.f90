@@ -1,4 +1,4 @@
-! ( dg-do compile }
+! { dg-do compile }
 ! Tests the fix for PR27701, in which two same name procedures
 ! were not diagnosed if they had no arguments.
 !
@@ -13,4 +13,3 @@ subroutine aa ! { dg-error "is already defined" }
    write(*,*) 'BB'
 end subroutine aa
 end module
-! { dg-final { cleanup-modules "aha" } }

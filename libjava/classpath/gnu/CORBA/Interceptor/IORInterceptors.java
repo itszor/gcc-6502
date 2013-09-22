@@ -42,7 +42,6 @@ import org.omg.CORBA.OBJ_ADAPTER;
 import org.omg.CORBA.OMGVMCID;
 import org.omg.PortableInterceptor.IORInfo;
 import org.omg.PortableInterceptor.IORInterceptor;
-import org.omg.PortableInterceptor.IORInterceptorOperations;
 import org.omg.PortableInterceptor.IORInterceptor_3_0Operations;
 import org.omg.PortableInterceptor.ObjectReferenceTemplate;
 
@@ -163,7 +162,7 @@ public class IORInterceptors implements IORInterceptor_3_0Operations
 
   /**
    * Call this method for all registered CORBA 3.0 interceptors.
-   * 
+   *
    * @throws OBJ_ADAPTER minor 6 on any failure (as defined by OMG specs).
    */
   public void components_established(IORInfo info)

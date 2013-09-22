@@ -1,29 +1,26 @@
-/* Copyright (C) 2005 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU OpenMP Library (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version.
+   under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
    Libgomp is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-   FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+   FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
    more details.
 
-   You should have received a copy of the GNU Lesser General Public License 
-   along with libgomp; see the file COPYING.LIB.  If not, write to the
-   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files, some
-   of which are compiled with GCC, to produce an executable, this library
-   does not by itself cause the resulting executable to be covered by the
-   GNU General Public License.  This exception does not however invalidate
-   any other reasons why the executable file might be covered by the GNU
-   General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This file handles the ORDERED construct.  */
 
@@ -210,8 +207,13 @@ gomp_ordered_sync (void)
      post to our release semaphore.  So the two cases are that we will
      either win the race an momentarily block on the semaphore, or lose
      the race and find the semaphore already unlocked and so not block.
-     Either way we get correct results.  */
+     Either way we get correct results.
+     However, there is an implicit flush on entry to an ordered region,
+     so we do need to have a barrier here.  If we were taking a lock
+     this could be MEMMODEL_RELEASE since the acquire would be coverd
+     by the lock.  */
 
+  __atomic_thread_fence (MEMMODEL_ACQ_REL);
   if (ws->ordered_owner != thr->ts.team_id)
     {
       gomp_sem_wait (team->ordered_release[thr->ts.team_id]);

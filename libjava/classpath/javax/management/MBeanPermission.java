@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package javax.management;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.security.Permission;
 
 import java.io.IOException;
@@ -111,7 +113,7 @@ import java.util.TreeSet;
  * represent <code>null</code>.  When this occurs in a
  * required permission, anything may match it.  When this
  * forms part of a permission held by the user, it only
- * matches another <code>null</code> value. 
+ * matches another <code>null</code> value.
  * </p>
  * <p>The list of valid actions is as follows:</p>
  * <ul>
@@ -150,23 +152,23 @@ public class MBeanPermission
    * The list of actions associated with this permission.
    */
   private String actions;
-  
+
   /**
    * The list of actions as an ordered set.
    */
-  private transient Set actionSet;
+  private transient Set<String> actionSet;
 
   /**
    * The set of valid actions.
    */
-  private static final Set validSet;
+  private static final Set<String> validSet;
 
   /**
    * Initialise the set of valid actions.
    */
-  static 
+  static
   {
-    validSet = new HashSet();
+    validSet = new HashSet<String>();
     validSet.add("addNotificationListener");
     validSet.add("getAttribute");
     validSet.add("getClassLoader");
@@ -224,17 +226,17 @@ public class MBeanPermission
    *               or either <code>null</code> or <code>"-"</code> for a
    *               value which may be implied by any member, but not
    *               imply any member itself.
-   * @param objectName the {@link ObjectName} to which this permission applies,
+   * @param name the {@link ObjectName} to which this permission applies,
    *                  or <code>null</code> for a value which may be implied by
    *                  any object name, but not imply any object name itself.
    * @param actions the actions associated with this permission.
    */
   public MBeanPermission(String className, String member,
-			 ObjectName name, String actions)
+                         ObjectName name, String actions)
   {
-    this((className == null ? "-" : className) + "#" 
-	 + (member == null ? "-" : member) + "[" 
-	 + (name == null ? "-" : name.toString()) + "]", actions);
+    this((className == null ? "-" : className) + "#"
+         + (member == null ? "-" : member) + "["
+         + (name == null ? "-" : name.toString()) + "]", actions);
   }
 
   /**
@@ -249,9 +251,9 @@ public class MBeanPermission
   {
     if (obj instanceof MBeanPermission)
       {
-	MBeanPermission p = (MBeanPermission) obj;
-	return (p.getName().equals(getName()) &&
-		p.getActions().equals(actions));
+        MBeanPermission p = (MBeanPermission) obj;
+        return (p.getName().equals(getName()) &&
+                p.getActions().equals(actions));
       }
     return false;
   }
@@ -263,13 +265,13 @@ public class MBeanPermission
    */
   public String getActions()
   {
-    Iterator it = actionSet.iterator();
-    StringBuilder builder = new StringBuilder();
+    Iterator<String> it = actionSet.iterator();
+    CPStringBuilder builder = new CPStringBuilder();
     while (it.hasNext())
       {
-	builder.append(it.next());
-	if (it.hasNext())
-	  builder.append(",");
+        builder.append(it.next());
+        if (it.hasNext())
+          builder.append(",");
       }
     return builder.toString();
   }
@@ -310,7 +312,7 @@ public class MBeanPermission
    * of this permission.  If the <code>queryMBeans</code> action is presented,
    * the <code>queryNames</code> action is implied.</li>
    * </ul>
-   * 
+   *
    * @param p the permission to check that this permission implies.
    * @return true if this permission implies <code>p</code>.
    */
@@ -318,23 +320,21 @@ public class MBeanPermission
   {
     if (p instanceof MBeanPermission)
       {
-	MBeanPermission mp = (MBeanPermission) p;
-	NameHolder pName = new NameHolder(mp.getName());
-	NameHolder name = new NameHolder(getName());
-	if (!(name.equals(pName)))
-	  return false;
-	Iterator i = mp.getActionSet().iterator();
-	while (i.hasNext())
-	  {
-	    String nextAction = (String) i.next();
-	    boolean found = actions.contains(nextAction);
-	    if (!found)
-	      if (nextAction.equals("queryNames"))
-		found = actions.contains("queryMBeans");
-	    if (!found)
-	      return false;
-	  }
-	return true;
+        MBeanPermission mp = (MBeanPermission) p;
+        NameHolder pName = new NameHolder(mp.getName());
+        NameHolder name = new NameHolder(getName());
+        if (!(name.equals(pName)))
+          return false;
+        for (String nextAction : mp.actionSet)
+          {
+            boolean found = actions.contains(nextAction);
+            if (!found)
+              if (nextAction.equals("queryNames"))
+                found = actions.contains("queryMBeans");
+            if (!found)
+              return false;
+          }
+        return true;
       }
     return false;
   }
@@ -373,47 +373,47 @@ public class MBeanPermission
       int memberIndex = name.indexOf("#");
       int onIndex = name.indexOf("[");
       if (onIndex == -1)
-	{
-	  if (memberIndex == -1)
-	    className = name;
-	  else
-	    {
-	      className = name.substring(0, memberIndex);
-	      member = name.substring(memberIndex + 1);
-	    }
-	}
+        {
+          if (memberIndex == -1)
+            className = name;
+          else
+            {
+              className = name.substring(0, memberIndex);
+              member = name.substring(memberIndex + 1);
+            }
+        }
       else
-	{
-	  if (memberIndex == -1)
-	    {
-	      className = name.substring(0, onIndex);
-	      objectName = name.substring(onIndex + 1,
-					  name.length() - 1);
-	    }
-	  else
-	    {
-	      className = name.substring(0, memberIndex);
-	      member = name.substring(memberIndex + 1, onIndex);
-	      objectName = name.substring(onIndex + 1,
-					  name.length() - 1);
-	    }
-	}      
+        {
+          if (memberIndex == -1)
+            {
+              className = name.substring(0, onIndex);
+              objectName = name.substring(onIndex + 1,
+                                          name.length() - 1);
+            }
+          else
+            {
+              className = name.substring(0, memberIndex);
+              member = name.substring(memberIndex + 1, onIndex);
+              objectName = name.substring(onIndex + 1,
+                                          name.length() - 1);
+            }
+        }
       if (className.equals("-"))
-	className = null;
+        className = null;
       if (member.equals("-"))
-	member = null;
+        member = null;
       if (objectName == null || objectName.equals("-"))
-	this.objectName = null;
+        this.objectName = null;
       else
-	try
-	  {
-	    this.objectName = new ObjectName(objectName);
-	  }
-	catch (MalformedObjectNameException e)
-	  {
-	    throw (Error) 
-	      (new InternalError("Invalid object name.").initCause(e));
-	  }
+        try
+          {
+            this.objectName = new ObjectName(objectName);
+          }
+        catch (MalformedObjectNameException e)
+          {
+            throw (Error)
+              (new InternalError("Invalid object name.").initCause(e));
+          }
     }
 
     /**
@@ -436,46 +436,46 @@ public class MBeanPermission
      * object name of this name holder is a pattern,
      * {@link ObjectName#apply(ObjectName)} may be used as well.</li>
      * </ul>
-     * 
+     *
      * @param obj the object to compare with this.
      * @return true if the above holds.
      */
     public boolean equals(Object obj)
     {
       if (obj instanceof NameHolder)
-	{
-	  NameHolder nh = (NameHolder) obj;
-	  boolean cn = false;
-	  String ocn = nh.getClassName();
-	  if (ocn == null || className.equals("*"))
-	    cn = true;
-	  else
-	    {
-	      int wcIndex = className.indexOf("*");
-	      if (wcIndex != -1)
-		cn = ocn.startsWith(className.substring(0, wcIndex));
-	      else
-		cn = ocn.equals(className);
-	    }
-	  boolean m = false;
-	  String om = nh.getMember();
-	  if (om == null || member.equals("*")) 
-	    m = true;
-	  else
-	    m = om.equals(member);
-	  boolean on = false;
-	  ObjectName oon = nh.getObjectName();
-	  if (oon == null)
-	    on = true;
-	  else if (objectName.isPattern())
-	    on = objectName.apply(oon);
-	  else
-	    on = oon.equals(objectName);
-	  return (cn && m && on);    
-	}
+        {
+          NameHolder nh = (NameHolder) obj;
+          boolean cn = false;
+          String ocn = nh.getClassName();
+          if (ocn == null || className.equals("*"))
+            cn = true;
+          else
+            {
+              int wcIndex = className.indexOf("*");
+              if (wcIndex != -1)
+                cn = ocn.startsWith(className.substring(0, wcIndex));
+              else
+                cn = ocn.equals(className);
+            }
+          boolean m = false;
+          String om = nh.getMember();
+          if (om == null || member.equals("*"))
+            m = true;
+          else
+            m = om.equals(member);
+          boolean on = false;
+          ObjectName oon = nh.getObjectName();
+          if (oon == null)
+            on = true;
+          else if (objectName.isPattern())
+            on = objectName.apply(oon);
+          else
+            on = oon.equals(objectName);
+          return (cn && m && on);
+        }
       return false;
     }
-    
+
     /**
      * Returns the class name.
      */
@@ -502,23 +502,13 @@ public class MBeanPermission
   }
 
   /**
-   * Returns the set of actions.
-   *
-   * @return the actions as an ordered set.
-   */
-  Set getActionSet()
-  {
-    return actionSet;
-  }
-
-  /**
    * Updates the action set from the current value of
    * the actions string.
    */
   private void updateActionSet()
   {
     String[] actionsArray = actions.split(",");
-    actionSet = new TreeSet();
+    actionSet = new TreeSet<String>();
     for (int a = 0; a < actionsArray.length; ++a)
       actionSet.add(actionsArray[a].trim());
   }
@@ -548,15 +538,12 @@ public class MBeanPermission
    */
   private void checkActions()
   {
-    Iterator it = actionSet.iterator();
-    while (it.hasNext())
+    for (String action : actionSet)
       {
-	String action = (String) it.next();
-	if (!(validSet.contains(action)))
-	  throw new IllegalArgumentException("Invalid action " 
-					     + action + " found.");
+        if (!(validSet.contains(action)))
+          throw new IllegalArgumentException("Invalid action "
+                                             + action + " found.");
       }
   }
 
 }
-

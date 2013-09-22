@@ -1,5 +1,5 @@
 /* Calendar.java --
-   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006,  
+   Copyright (C) 1998, 1999, 2000, 2001, 2002, 2004, 2005, 2006,
    Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -38,6 +38,8 @@ exception statement from your version. */
 
 
 package java.util;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -485,6 +487,28 @@ public abstract class Calendar
   }
 
   /**
+   * The set of properties for obtaining the minimum number of days in
+   * the first week.
+   */
+  private static transient final Properties properties;
+
+  /**
+   * Reads in the properties.
+   */
+  static
+  {
+    properties = new Properties();
+    try
+      {
+        properties.load(Calendar.class.getResourceAsStream("weeks.properties"));
+      }
+    catch (IOException exception)
+      {
+        System.out.println("Failed to load weeks resource: " + exception);
+      }
+  }
+
+  /**
    * Constructs a new Calendar with the default time zone and the default
    * locale.
    */
@@ -505,24 +529,28 @@ public abstract class Calendar
     lenient = true;
     String[] days = { "", "sun", "mon", "tue", "wed", "thu", "fri", "sat" };
 
-    ResourceBundle rb = getBundle(locale);
-    String min = (String) rb.getObject("minNumberOfDaysInFirstWeek");
-    String first = (String) rb.getObject("firstDayOfWeek");
+    String country = locale.getCountry();
+    String min = properties.getProperty("minDays." + country);
+    if (min == null)
+      min = properties.getProperty("minDays.DEFAULT");
+    String first = properties.getProperty("firstDay." + country);
+    if (first == null)
+      first = properties.getProperty("firstDay.DEFAULT");
     try
       {
-	if (min != null)
-	  minimalDaysInFirstWeek = Integer.parseInt(min);
+        if (min != null)
+          minimalDaysInFirstWeek = Integer.parseInt(min);
       }
     catch (NumberFormatException ex)
       {
-	minimalDaysInFirstWeek = 1;
+        minimalDaysInFirstWeek = 1;
       }
 
     firstDayOfWeek = 1;
     if (first != null)
       for (int i = 0; i < 8; i++)
-	if (days[i].equals(first))
-	  firstDayOfWeek = i;
+        if (days[i].equals(first))
+          firstDayOfWeek = i;
 
     clear();
   }
@@ -530,7 +558,7 @@ public abstract class Calendar
   /**
    * Creates a calendar representing the actual time, using the default
    * time zone and locale.
-   * 
+   *
    * @return The new calendar.
    */
   public static synchronized Calendar getInstance()
@@ -541,11 +569,11 @@ public abstract class Calendar
   /**
    * Creates a calendar representing the actual time, using the given
    * time zone and the default locale.
-   * 
+   *
    * @param zone a time zone (<code>null</code> not permitted).
-   * 
+   *
    * @return The new calendar.
-   * 
+   *
    * @throws NullPointerException if <code>zone</code> is <code>null</code>.
    */
   public static synchronized Calendar getInstance(TimeZone zone)
@@ -556,11 +584,11 @@ public abstract class Calendar
   /**
    * Creates a calendar representing the actual time, using the default
    * time zone and the given locale.
-   * 
+   *
    * @param locale a locale (<code>null</code> not permitted).
-   * 
+   *
    * @return The new calendar.
-   * 
+   *
    * @throws NullPointerException if <code>locale</code> is <code>null</code>.
    */
   public static synchronized Calendar getInstance(Locale locale)
@@ -572,7 +600,7 @@ public abstract class Calendar
    * Cache of locale->calendar-class mappings. This avoids having to do a ResourceBundle
    * lookup for every getInstance call.
    */
-  private static HashMap<Locale,Class> cache = new HashMap<Locale,Class>();
+  private static final HashMap<Locale,Class> cache = new HashMap<Locale,Class>();
 
   /** Preset argument types for calendar-class constructor lookup.  */
   private static Class[] ctorArgTypes = new Class[]
@@ -583,12 +611,12 @@ public abstract class Calendar
   /**
    * Creates a calendar representing the actual time, using the given
    * time zone and locale.
-   * 
+   *
    * @param zone a time zone (<code>null</code> not permitted).
    * @param locale a locale (<code>null</code> not permitted).
-   * 
+   *
    * @return The new calendar.
-   * 
+   *
    * @throws NullPointerException if <code>zone</code> or <code>locale</code>
    *     is <code>null</code>.
    */
@@ -599,43 +627,43 @@ public abstract class Calendar
 
     try
       {
-	if (calendarClass == null)
-	  {
-	    calendarClass = Class.forName(calendarClassName);
-	    if (Calendar.class.isAssignableFrom(calendarClass))
-	      cache.put(locale, calendarClass);
-	  }
+        if (calendarClass == null)
+          {
+            calendarClass = Class.forName(calendarClassName);
+            if (Calendar.class.isAssignableFrom(calendarClass))
+              cache.put(locale, calendarClass);
+          }
 
-	// GregorianCalendar is by far the most common case. Optimize by 
-	// avoiding reflection.
-	if (calendarClass == GregorianCalendar.class)
-	  return new GregorianCalendar(zone, locale);
+        // GregorianCalendar is by far the most common case. Optimize by
+        // avoiding reflection.
+        if (calendarClass == GregorianCalendar.class)
+          return new GregorianCalendar(zone, locale);
 
-	if (Calendar.class.isAssignableFrom(calendarClass))
-	  {
-	    Constructor ctor = calendarClass.getConstructor(ctorArgTypes);
-	    return (Calendar) ctor.newInstance(new Object[] { zone, locale });
-	  }
+        if (Calendar.class.isAssignableFrom(calendarClass))
+          {
+            Constructor ctor = calendarClass.getConstructor(ctorArgTypes);
+            return (Calendar) ctor.newInstance(new Object[] { zone, locale });
+          }
       }
     catch (ClassNotFoundException ex)
       {
-	exception = ex;
+        exception = ex;
       }
     catch (IllegalAccessException ex)
       {
-	exception = ex;
+        exception = ex;
       }
     catch (NoSuchMethodException ex)
       {
-	exception = ex;
+        exception = ex;
       }
     catch (InstantiationException ex)
       {
-	exception = ex;
+        exception = ex;
       }
     catch (InvocationTargetException ex)
       {
-	exception = ex;
+        exception = ex;
       }
 
     throw new RuntimeException("Error instantiating calendar for locale "
@@ -682,9 +710,9 @@ public abstract class Calendar
   /**
    * Sets this Calendar's time to the given Date.  All time fields
    * are invalidated by this method.
-   * 
+   *
    * @param date  the date (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>date</code> is <code>null</code>.
    */
   public final void setTime(Date date)
@@ -766,7 +794,7 @@ public abstract class Calendar
   {
     if (isTimeSet)
       for (int i = 0; i < FIELD_COUNT; i++)
-	isSet[i] = false;
+        isSet[i] = false;
     isTimeSet = false;
     fields[field] = value;
     isSet[field] = true;
@@ -780,74 +808,74 @@ public abstract class Calendar
     switch (field)
       {
       case MONTH: // pattern 1,2 or 3
-	isSet[DAY_OF_YEAR] = false;
-	isSet[WEEK_OF_YEAR] = false;
-	break;
+        isSet[DAY_OF_YEAR] = false;
+        isSet[WEEK_OF_YEAR] = false;
+        break;
       case DAY_OF_MONTH: // pattern 1
-	isSet[YEAR] = true;
-	isSet[MONTH] = true;
-	isSet[WEEK_OF_MONTH] = true;
-	isSet[DAY_OF_WEEK] = false;
-	isSet[DAY_OF_WEEK_IN_MONTH] = false;
-	isSet[DAY_OF_YEAR] = false;
-	isSet[WEEK_OF_YEAR] = false;
-	break;
+        isSet[YEAR] = true;
+        isSet[MONTH] = true;
+        isSet[WEEK_OF_MONTH] = true;
+        isSet[DAY_OF_WEEK] = false;
+        isSet[DAY_OF_WEEK_IN_MONTH] = false;
+        isSet[DAY_OF_YEAR] = false;
+        isSet[WEEK_OF_YEAR] = false;
+        break;
       case WEEK_OF_MONTH: // pattern 2
-	if (! isSet[DAY_OF_WEEK])
-	  fields[DAY_OF_WEEK] = getFirstDayOfWeek();
-	isSet[YEAR] = true;
-	isSet[MONTH] = true;
-	isSet[DAY_OF_WEEK] = true;
-	isSet[DAY_OF_MONTH] = false;
-	isSet[DAY_OF_WEEK_IN_MONTH] = false;
-	isSet[DAY_OF_YEAR] = false;
-	isSet[WEEK_OF_YEAR] = false;
-	break;
+        if (! isSet[DAY_OF_WEEK])
+          fields[DAY_OF_WEEK] = getFirstDayOfWeek();
+        isSet[YEAR] = true;
+        isSet[MONTH] = true;
+        isSet[DAY_OF_WEEK] = true;
+        isSet[DAY_OF_MONTH] = false;
+        isSet[DAY_OF_WEEK_IN_MONTH] = false;
+        isSet[DAY_OF_YEAR] = false;
+        isSet[WEEK_OF_YEAR] = false;
+        break;
       case DAY_OF_WEEK_IN_MONTH: // pattern 3
-	if (! isSet[DAY_OF_WEEK])
-	  fields[DAY_OF_WEEK] = getFirstDayOfWeek();
-	isSet[YEAR] = true;
-	isSet[MONTH] = true;
-	isSet[DAY_OF_WEEK] = true;
-	isSet[DAY_OF_YEAR] = false;
-	isSet[DAY_OF_MONTH] = false;
-	isSet[WEEK_OF_MONTH] = false;
-	isSet[WEEK_OF_YEAR] = false;
-	break;
+        if (! isSet[DAY_OF_WEEK])
+          fields[DAY_OF_WEEK] = getFirstDayOfWeek();
+        isSet[YEAR] = true;
+        isSet[MONTH] = true;
+        isSet[DAY_OF_WEEK] = true;
+        isSet[DAY_OF_YEAR] = false;
+        isSet[DAY_OF_MONTH] = false;
+        isSet[WEEK_OF_MONTH] = false;
+        isSet[WEEK_OF_YEAR] = false;
+        break;
       case DAY_OF_YEAR: // pattern 4
-	isSet[YEAR] = true;
-	isSet[MONTH] = false;
-	isSet[WEEK_OF_MONTH] = false;
-	isSet[DAY_OF_MONTH] = false;
-	isSet[DAY_OF_WEEK] = false;
-	isSet[WEEK_OF_YEAR] = false;
-	isSet[DAY_OF_WEEK_IN_MONTH] = false;
-	break;
+        isSet[YEAR] = true;
+        isSet[MONTH] = false;
+        isSet[WEEK_OF_MONTH] = false;
+        isSet[DAY_OF_MONTH] = false;
+        isSet[DAY_OF_WEEK] = false;
+        isSet[WEEK_OF_YEAR] = false;
+        isSet[DAY_OF_WEEK_IN_MONTH] = false;
+        break;
       case WEEK_OF_YEAR: // pattern 5
-	if (! isSet[DAY_OF_WEEK])
-	  fields[DAY_OF_WEEK] = getFirstDayOfWeek();
-	isSet[YEAR] = true;
-	isSet[DAY_OF_WEEK] = true;
-	isSet[MONTH] = false;
-	isSet[DAY_OF_MONTH] = false;
-	isSet[WEEK_OF_MONTH] = false;
-	isSet[DAY_OF_YEAR] = false;
-	isSet[DAY_OF_WEEK_IN_MONTH] = false;
-	break;
+        if (! isSet[DAY_OF_WEEK])
+          fields[DAY_OF_WEEK] = getFirstDayOfWeek();
+        isSet[YEAR] = true;
+        isSet[DAY_OF_WEEK] = true;
+        isSet[MONTH] = false;
+        isSet[DAY_OF_MONTH] = false;
+        isSet[WEEK_OF_MONTH] = false;
+        isSet[DAY_OF_YEAR] = false;
+        isSet[DAY_OF_WEEK_IN_MONTH] = false;
+        break;
       case AM_PM:
-	isSet[HOUR] = true;
-	isSet[HOUR_OF_DAY] = false;
-	break;
+        isSet[HOUR] = true;
+        isSet[HOUR_OF_DAY] = false;
+        break;
       case HOUR_OF_DAY:
-	isSet[AM_PM] = false;
-	isSet[HOUR] = false;
-	break;
+        isSet[AM_PM] = false;
+        isSet[HOUR] = false;
+        break;
       case HOUR:
-	isSet[AM_PM] = true;
-	isSet[HOUR_OF_DAY] = false;
-	break;
+        isSet[AM_PM] = true;
+        isSet[HOUR_OF_DAY] = false;
+        break;
       case DST_OFFSET:
-	explicitDSTOffset = true;
+        explicitDSTOffset = true;
       }
 
     // May have crossed over a DST boundary.
@@ -922,7 +950,7 @@ public abstract class Calendar
     isTimeSet = false;
     areFieldsSet = false;
     int zoneOffs = zone.getRawOffset();
-    int[] tempFields = 
+    int[] tempFields =
                        {
                          1, 1970, JANUARY, 1, 1, 1, 1, THURSDAY, 1, AM, 0, 0, 0,
                          0, 0, zoneOffs, 0
@@ -941,7 +969,7 @@ public abstract class Calendar
    */
   public final void clear(int field)
   {
-    int[] tempFields = 
+    int[] tempFields =
                        {
                          1, 1970, JANUARY, 1, 1, 1, 1, THURSDAY, 1, AM, 0, 0, 0,
                          0, 0, zone.getRawOffset(), 0
@@ -1090,13 +1118,13 @@ public abstract class Calendar
   {
     while (amount > 0)
       {
-	roll(field, true);
-	amount--;
+        roll(field, true);
+        amount--;
       }
     while (amount < 0)
       {
-	roll(field, false);
-	amount++;
+        roll(field, false);
+        amount++;
       }
   }
 
@@ -1232,9 +1260,9 @@ public abstract class Calendar
     tmp.set(field, min);
     for (; min > end; min--)
       {
-	tmp.add(field, -1); // Try to get smaller
-	if (tmp.get(field) != min - 1)
-	  break; // Done if not successful
+        tmp.add(field, -1); // Try to get smaller
+        if (tmp.get(field) != min - 1)
+          break; // Done if not successful
       }
     return min;
   }
@@ -1257,24 +1285,24 @@ public abstract class Calendar
     tmp.set(field, max);
     for (; max < end; max++)
       {
-	tmp.add(field, 1);
-	if (tmp.get(field) != max + 1)
-	  break;
+        tmp.add(field, 1);
+        if (tmp.get(field) != max + 1)
+          break;
       }
     return max;
   }
 
   /**
    * Compares the time of two calendar instances.
-   * @param calendar the calendar to which the time should be compared.
-   * @return 0 if the two calendars are set to the same time, 
-   * less than 0 if the time of this calendar is before that of 
+   * @param cal the calendar to which the time should be compared.
+   * @return 0 if the two calendars are set to the same time,
+   * less than 0 if the time of this calendar is before that of
    * <code>cal</code>, or more than 0 if the time of this calendar is after
    * that of <code>cal</code>.
    *
    * @param cal the calendar to compare this instance with.
    * @throws NullPointerException if <code>cal</code> is null.
-   * @throws IllegalArgumentException if either calendar has fields set to 
+   * @throws IllegalArgumentException if either calendar has fields set to
    * invalid values.
    * @since 1.5
    */
@@ -1296,18 +1324,18 @@ public abstract class Calendar
   {
     try
       {
-	Calendar cal = (Calendar) super.clone();
-	cal.fields = (int[]) fields.clone();
-	cal.isSet = (boolean[]) isSet.clone();
-	return cal;
+        Calendar cal = (Calendar) super.clone();
+        cal.fields = (int[]) fields.clone();
+        cal.isSet = (boolean[]) isSet.clone();
+        return cal;
       }
     catch (CloneNotSupportedException ex)
       {
-	return null;
+        return null;
       }
   }
 
-  private static final String[] fieldNames = 
+  private static final String[] fieldNames =
                                              {
                                                ",ERA=", ",YEAR=", ",MONTH=",
                                                ",WEEK_OF_YEAR=",
@@ -1328,8 +1356,8 @@ public abstract class Calendar
    */
   public String toString()
   {
-    StringBuffer sb = new StringBuffer();
-    sb.append(getClass().getName()).append('[');
+    CPStringBuilder sb = new CPStringBuilder(getClass().getName());
+    sb.append('[');
     sb.append("time=");
     if (isTimeSet)
       sb.append(time);
@@ -1339,11 +1367,11 @@ public abstract class Calendar
     sb.append(",areFieldsSet=" + areFieldsSet);
     for (int i = 0; i < FIELD_COUNT; i++)
       {
-	sb.append(fieldNames[i]);
-	if (isSet[i])
-	  sb.append(fields[i]);
-	else
-	  sb.append("?");
+        sb.append(fieldNames[i]);
+        if (isSet[i])
+          sb.append(fields[i]);
+        else
+          sb.append("?");
       }
     sb.append(",lenient=").append(lenient);
     sb.append(",firstDayOfWeek=").append(firstDayOfWeek);
@@ -1379,13 +1407,13 @@ public abstract class Calendar
 
     if (serialVersionOnStream > 1)
       {
-	// This is my interpretation of the serial number:
-	// Sun wants to remove all fields from the stream someday
-	// and will then increase the serialVersion number again.
-	// We prepare to be compatible.
-	fields = new int[FIELD_COUNT];
-	isSet = new boolean[FIELD_COUNT];
-	areFieldsSet = false;
+        // This is my interpretation of the serial number:
+        // Sun wants to remove all fields from the stream someday
+        // and will then increase the serialVersion number again.
+        // We prepare to be compatible.
+        fields = new int[FIELD_COUNT];
+        isSet = new boolean[FIELD_COUNT];
+        areFieldsSet = false;
       }
   }
 
@@ -1421,15 +1449,15 @@ public abstract class Calendar
   {
     if (field < 0 || field >= FIELD_COUNT)
       throw new IllegalArgumentException("The field value, " + field +
-					 ", is invalid.");
+                                         ", is invalid.");
     if (style != SHORT && style != LONG)
       throw new IllegalArgumentException("The style must be either " +
-					 "short or long.");
+                                         "short or long.");
     if (field == YEAR || field == WEEK_OF_YEAR ||
-	field == WEEK_OF_MONTH || field == DAY_OF_MONTH ||
-	field == DAY_OF_YEAR || field == DAY_OF_WEEK_IN_MONTH ||
-	field == HOUR || field == HOUR_OF_DAY || field == MINUTE ||
-	field == SECOND || field == MILLISECOND)
+        field == WEEK_OF_MONTH || field == DAY_OF_MONTH ||
+        field == DAY_OF_YEAR || field == DAY_OF_WEEK_IN_MONTH ||
+        field == HOUR || field == HOUR_OF_DAY || field == MINUTE ||
+        field == SECOND || field == MILLISECOND)
       return null;
 
     int value = get(field);
@@ -1438,30 +1466,30 @@ public abstract class Calendar
       return syms.getEras()[value];
     if (field == MONTH)
       if (style == LONG)
-	return syms.getMonths()[value];
-      else 
-	return syms.getShortMonths()[value];
+        return syms.getMonths()[value];
+      else
+        return syms.getShortMonths()[value];
     if (field == DAY_OF_WEEK)
       if (style == LONG)
-	return syms.getWeekdays()[value];
+        return syms.getWeekdays()[value];
       else
-	return syms.getShortWeekdays()[value];
+        return syms.getShortWeekdays()[value];
     if (field == AM_PM)
       return syms.getAmPmStrings()[value];
     if (field == ZONE_OFFSET)
       if (style == LONG)
-	return syms.getZoneStrings()[value][1];
+        return syms.getZoneStrings()[value][1];
       else
-	return syms.getZoneStrings()[value][2];
+        return syms.getZoneStrings()[value][2];
     if (field == DST_OFFSET)
       if (style == LONG)
-	return syms.getZoneStrings()[value][3];
+        return syms.getZoneStrings()[value][3];
       else
-	return syms.getZoneStrings()[value][4];
+        return syms.getZoneStrings()[value][4];
 
     throw new InternalError("Failed to resolve field " + field +
-			    " with style " + style + " for locale " +
-			    locale);
+                            " with style " + style + " for locale " +
+                            locale);
   }
 
   /**
@@ -1500,93 +1528,93 @@ public abstract class Calendar
   {
     if (field < 0 || field >= FIELD_COUNT)
       throw new IllegalArgumentException("The field value, " + field +
-					 ", is invalid.");
+                                         ", is invalid.");
     if (style != SHORT && style != LONG && style != ALL_STYLES)
       throw new IllegalArgumentException("The style must be either " +
-					 "short, long or all styles.");
+                                         "short, long or all styles.");
     if (field == YEAR || field == WEEK_OF_YEAR ||
-	field == WEEK_OF_MONTH || field == DAY_OF_MONTH ||
-	field == DAY_OF_YEAR || field == DAY_OF_WEEK_IN_MONTH ||
-	field == HOUR || field == HOUR_OF_DAY || field == MINUTE ||
-	field == SECOND || field == MILLISECOND)
+        field == WEEK_OF_MONTH || field == DAY_OF_MONTH ||
+        field == DAY_OF_YEAR || field == DAY_OF_WEEK_IN_MONTH ||
+        field == HOUR || field == HOUR_OF_DAY || field == MINUTE ||
+        field == SECOND || field == MILLISECOND)
       return null;
 
     DateFormatSymbols syms = DateFormatSymbols.getInstance(locale);
     Map<String,Integer> map = new HashMap<String,Integer>();
     if (field == ERA)
       {
-	String[] eras = syms.getEras();
-	for (int a = 0; a < eras.length; ++a)
-	  map.put(eras[a], a);
-	return map;
+        String[] eras = syms.getEras();
+        for (int a = 0; a < eras.length; ++a)
+          map.put(eras[a], a);
+        return map;
       }
     if (field == MONTH)
       {
-	if (style == LONG || style == ALL_STYLES)
-	  {
-	    String[] months = syms.getMonths();
-	    for (int a = 0; a < months.length; ++a)
-	      map.put(months[a], a);
-	  }
-	if (style == SHORT || style == ALL_STYLES)
-	  {
-	    String[] months = syms.getShortMonths();
-	    for (int a = 0; a < months.length; ++a)
-	      map.put(months[a], a);
-	  }
-	return map;
+        if (style == LONG || style == ALL_STYLES)
+          {
+            String[] months = syms.getMonths();
+            for (int a = 0; a < months.length; ++a)
+              map.put(months[a], a);
+          }
+        if (style == SHORT || style == ALL_STYLES)
+          {
+            String[] months = syms.getShortMonths();
+            for (int a = 0; a < months.length; ++a)
+              map.put(months[a], a);
+          }
+        return map;
       }
     if (field == DAY_OF_WEEK)
       {
-	if (style == LONG || style == ALL_STYLES)
-	  {
-	    String[] weekdays = syms.getWeekdays();
-	    for (int a = SUNDAY; a < weekdays.length; ++a)
-	      map.put(weekdays[a], a);
-	  }
-	if (style == SHORT || style == ALL_STYLES)
-	  {
-	    String[] weekdays = syms.getShortWeekdays();
-	    for (int a = SUNDAY; a < weekdays.length; ++a)
-	      map.put(weekdays[a], a);
-	  }
-	return map;
+        if (style == LONG || style == ALL_STYLES)
+          {
+            String[] weekdays = syms.getWeekdays();
+            for (int a = SUNDAY; a < weekdays.length; ++a)
+              map.put(weekdays[a], a);
+          }
+        if (style == SHORT || style == ALL_STYLES)
+          {
+            String[] weekdays = syms.getShortWeekdays();
+            for (int a = SUNDAY; a < weekdays.length; ++a)
+              map.put(weekdays[a], a);
+          }
+        return map;
       }
     if (field == AM_PM)
       {
-	String[] ampms = syms.getAmPmStrings();
-	for (int a = 0; a < ampms.length; ++a)
-	  map.put(ampms[a], a);
-	return map;
+        String[] ampms = syms.getAmPmStrings();
+        for (int a = 0; a < ampms.length; ++a)
+          map.put(ampms[a], a);
+        return map;
       }
     if (field == ZONE_OFFSET)
       {
-	String[][] zones = syms.getZoneStrings();
-	for (int a = 0; a < zones.length; ++a)
-	  {
-	    if (style == LONG || style == ALL_STYLES) 
-	      map.put(zones[a][1], a);
-	    if (style == SHORT || style == ALL_STYLES)
-	      map.put(zones[a][2], a);
-	  }
-	return map;
+        String[][] zones = syms.getZoneStrings();
+        for (int a = 0; a < zones.length; ++a)
+          {
+            if (style == LONG || style == ALL_STYLES)
+              map.put(zones[a][1], a);
+            if (style == SHORT || style == ALL_STYLES)
+              map.put(zones[a][2], a);
+          }
+        return map;
       }
     if (field == DST_OFFSET)
       {
-	String[][] zones = syms.getZoneStrings();
-	for (int a = 0; a < zones.length; ++a)
-	  {
-	    if (style == LONG || style == ALL_STYLES) 
-	      map.put(zones[a][3], a);
-	    if (style == SHORT || style == ALL_STYLES)
-	      map.put(zones[a][4], a);
-	  }
-	return map;
+        String[][] zones = syms.getZoneStrings();
+        for (int a = 0; a < zones.length; ++a)
+          {
+            if (style == LONG || style == ALL_STYLES)
+              map.put(zones[a][3], a);
+            if (style == SHORT || style == ALL_STYLES)
+              map.put(zones[a][4], a);
+          }
+        return map;
       }
-    
+
     throw new InternalError("Failed to resolve field " + field +
-			    " with style " + style + " for locale " +
-			    locale);
+                            " with style " + style + " for locale " +
+                            locale);
   }
 
 }

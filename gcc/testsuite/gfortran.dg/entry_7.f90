@@ -1,4 +1,6 @@
 ! { dg-do compile }
+! { dg-options "-std=legacy" }
+!
 ! Check that PR20877 and PR25047 are fixed by the patch for
 ! PR24558. Both modules would emit the error:
 ! insert_bbt(): Duplicate key found!
@@ -9,7 +11,7 @@
 MODULE TT
 CONTAINS
   FUNCTION K(I) RESULT(J)
-    ENTRY J() ! { dg-error "conflicts with PROCEDURE attribute" }
+    ENTRY J() ! { dg-error "conflicts with RESULT attribute" }
   END FUNCTION K
 
   integer function foo ()
@@ -20,6 +22,3 @@ CONTAINS
     bar = "abcd"
   end function
 END MODULE TT
-
-
-! { dg-final { cleanup-modules "TT" } }

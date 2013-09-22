@@ -6,25 +6,17 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
---                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- Public License  distributed with GNAT; see file COPYING3.  If not, go to --
+-- http://www.gnu.org/licenses for a complete copy of the license.          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -33,8 +25,6 @@
 
 --  This package obtains parameters from the target runtime version of System,
 --  to indicate parameters relevant to the target environment.
-
---  Is it right for this to be modified GPL???
 
 --  Conceptually, these parameters could be obtained using rtsfind, but
 --  we do not do this for four reasons:
@@ -72,10 +62,10 @@
 
 --     3. Identification information. This is an optional string constant
 --        that gives the name of the run-time library configuration. This
---        line may be ommitted for a version of system.ads to be used with
+--        line may be omitted for a version of system.ads to be used with
 --        the full Ada 95 run time.
 
---     4. Other characterisitics of package System. At the current time the
+--     4. Other characteristics of package System. At the current time the
 --        only item in this category is whether type Address is private.
 
 with Rident; use Rident;
@@ -159,7 +149,7 @@ package Targparm is
    Run_Time_Name_On_Target : Name_Id := No_Name;
    --  Set to appropriate names table entry Id value if a Run_Time_Name
    --  string constant is defined in system.ads. This name is used only
-   --  for the configurable run-time case, and is used to parametrize
+   --  for the configurable run-time case, and is used to parameterize
    --  messages that complain about non-supported run-time features.
    --  The name should contain only letters A-Z, digits 1-9, spaces,
    --  and underscores.
@@ -216,9 +206,15 @@ package Targparm is
    OpenVMS_On_Target : Boolean := False;
    --  Set to True if target is OpenVMS
 
+   RTX_RTSS_Kernel_Module_On_Target : Boolean := False;
+   --  Set to True if target is RTSS module for RTX
+
    type Virtual_Machine_Kind is (No_VM, JVM_Target, CLI_Target);
    VM_Target : Virtual_Machine_Kind := No_VM;
    --  Kind of virtual machine targetted
+   --  No_VM: no virtual machine, default case of a standard processor
+   --  JVM_Target: Java Virtual Machine
+   --  CLI_Target: CLI/.NET Virtual Machine
 
    -------------------------------
    -- Backend Arithmetic Checks --
@@ -257,7 +253,7 @@ package Targparm is
    --      The generation of the setjmp and longjmp calls is handled by
    --      the front end of the compiler (this includes gigi in the case
    --      of the standard GCC back end). It does not use any back end
-   --      suport (such as the GCC3 exception handling mechanism). When
+   --      support (such as the GCC3 exception handling mechanism). When
    --      this approach is used, the compiler generates special exception
    --      handlers for handling cleanups when an exception is raised.
 
@@ -311,9 +307,6 @@ package Targparm is
    --  variable is False, then the only possible exception method is the
    --  front-end setjmp/longjmp approach, and this is the default. If
    --  this variable is True, then GCC ZCX is used.
-
-   GCC_ZCX_Support_On_Target  : Boolean := False;
-   --  Indicates that the target supports GCC Exceptions
 
    ------------------------------------
    -- Run-Time Library Configuration --
@@ -395,13 +388,18 @@ package Targparm is
    --  used at the source level, and the corresponding flag is false, then an
    --  error message will be issued saying the feature is not supported.
 
-   Support_64_Bit_Divides_On_Target : Boolean := True;
-   --  If True, the back end supports 64-bit divide operations. If False, then
-   --  the source program may not contain 64-bit divide operations. This is
-   --  specifically useful in the zero foot-print case, where the issue is
-   --  whether there is a hardware divide instruction for 64-bits so that
-   --  no run-time support is required. It should always be set True if the
-   --  necessary run-time support is present.
+   Atomic_Sync_Default_On_Target : Boolean := True;
+   --  Access to atomic variables requires memory barrier synchronization in
+   --  the general case to ensure proper behavior when such accesses are used
+   --  on a multi-processor to synchronize tasks (e.g. by using spin locks).
+   --  The setting of this flag determines the default behavior. Normally this
+   --  is True, which will mean that appropriate synchronization instructions
+   --  are generated by default. If it is False, then the default will be that
+   --  these synchronization instructions are not generated. This may be a more
+   --  appropriate default in some cases, e.g. on embedded targets which do not
+   --  allow the possibility of multi-processors. The default can be overridden
+   --  using pragmas Enable/Disable_Atomic_Synchronization and also by use of
+   --  the debug flags gnat.d and gnatd.e.
 
    Support_Aggregates_On_Target : Boolean := True;
    --  In the general case, the use of aggregates may generate calls
@@ -409,6 +407,14 @@ package Targparm is
    --  memmove, and bcopy. This flag is set to True if these routines
    --  are available. If any of these routines is not available, then
    --  this flag is False, and the use of aggregates is not permitted.
+
+   Support_Atomic_Primitives_On_Target : Boolean := False;
+   --  If this flag is True, then the back-end support GCC built-in atomic
+   --  operations for memory model such as atomic load or atomic compare
+   --  exchange (see the GCC manual for more information). If the flag is
+   --  False, then the back-end doesn't provide this support. Note this flag is
+   --  set to True only if the target supports all atomic primitives up to 64
+   --  bits. ??? To be modified.
 
    Support_Composite_Assign_On_Target : Boolean := True;
    --  The assignment of composite objects other than small records and
@@ -430,6 +436,11 @@ package Targparm is
    --  the source program may not contain explicit 64-bit shifts. In addition,
    --  the code generated for packed arrays will avoid the use of long shifts.
 
+   Support_Nondefault_SSO_On_Target : Boolean := False;
+   --  If True, the back end supports the non-default Scalar_Storage_Order
+   --  (i.e. allows non-confirming Scalar_Storage_Order attribute definition
+   --  clauses).
+
    --------------------
    -- Indirect Calls --
    --------------------
@@ -444,7 +455,7 @@ package Targparm is
    -- Control of Stack Checking --
    -------------------------------
 
-   --  GNAT provides two methods of implementing exceptions:
+   --  GNAT provides three methods of implementing exceptions:
 
    --    GCC Probing Mechanism
 

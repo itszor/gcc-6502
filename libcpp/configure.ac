@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 AC_INIT(cpplib, [ ], gcc-bugs@gcc.gnu.org, cpplib)
 AC_CONFIG_SRCDIR(ucnid.h)
 AC_CONFIG_MACRO_DIR(../config)
@@ -11,7 +11,11 @@ AC_CANONICAL_SYSTEM
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_RANLIB
+
+AC_USE_SYSTEM_EXTENSIONS
+AC_SYS_LARGEFILE
 
 MISSING=`cd $ac_aux_dir && ${PWDCMD-pwd}`/missing
 AC_CHECK_PROGS([ACLOCAL], [aclocal], [$MISSING aclocal])
@@ -21,10 +25,15 @@ AC_CHECK_PROGS([AUTOHEADER], [autoheader], [$MISSING autoheader])
 # Figure out what compiler warnings we can enable.
 # See config/warnings.m4 for details.
 
-ACX_PROG_CC_WARNING_OPTS([-W -Wall -Wwrite-strings -Wstrict-prototypes \
-			  -Wmissing-prototypes -Wold-style-definition \
-			  -Wmissing-format-attribute])
+ACX_PROG_CC_WARNING_OPTS([-W -Wall -Wno-narrowing -Wwrite-strings \
+			  -Wmissing-format-attribute], [warn])
+ACX_PROG_CC_WARNING_OPTS([-Wstrict-prototypes -Wmissing-prototypes \
+			  -Wold-style-definition -Wc++-compat], [c_warn])
 ACX_PROG_CC_WARNING_ALMOST_PEDANTIC([-Wno-long-long])
+
+# Disable exceptions and RTTI if building with g++
+ACX_PROG_CC_WARNING_OPTS(
+       m4_quote(m4_do([-fno-exceptions -fno-rtti])), [noexception_flags])
 
 # Only enable with --enable-werror-always until existing warnings are
 # corrected.
@@ -32,21 +41,29 @@ ACX_PROG_CC_WARNINGS_ARE_ERRORS([manual])
 
 # Dependency checking.
 ZW_CREATE_DEPDIR
-ZW_PROG_COMPILER_DEPENDENCIES([CC])
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE([[int i;]], [],
+		  [AC_MSG_ERROR([C++ compiler missing or inoperational])])
+AC_LANG_POP([C++])
+ZW_PROG_COMPILER_DEPENDENCIES([CXX])
 
 # Checks for header files.
 AC_HEADER_TIME
 ACX_HEADER_STRING
-AC_CHECK_HEADERS(iconv.h locale.h fcntl.h limits.h stddef.h \
+
+AC_CHECK_HEADERS(locale.h fcntl.h limits.h stddef.h \
 	stdlib.h strings.h string.h sys/file.h unistd.h)
 
 # Checks for typedefs, structures, and compiler characteristics.
+AC_C_BIGENDIAN
 AC_C_CONST
 AC_C_INLINE
 AC_FUNC_OBSTACK
 AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
-AC_CHECK_TYPE(ssize_t, int)
+AC_TYPE_SSIZE_T
+AC_TYPE_UINTPTR_T
+AC_CHECK_TYPE(ptrdiff_t, int)
 AC_STRUCT_TM
 AC_CHECK_SIZEOF(int)
 AC_CHECK_SIZEOF(long)
@@ -56,8 +73,8 @@ define(libcpp_UNLOCKED_FUNCS, clearerr_unlocked feof_unlocked dnl
   fread_unlocked fwrite_unlocked getchar_unlocked getc_unlocked dnl
   putchar_unlocked putc_unlocked)
 AC_CHECK_FUNCS(libcpp_UNLOCKED_FUNCS)
-AC_CHECK_DECLS(m4_split(m4_normalize(abort asprintf basename errno getopt \
-  libcpp_UNLOCKED_FUNCS vasprintf)))
+AC_CHECK_DECLS([abort, asprintf, basename(char *), errno, getopt, vasprintf])
+AC_CHECK_DECLS(m4_split(m4_normalize(libcpp_UNLOCKED_FUNCS)))
 
 # Checks for library functions.
 AC_FUNC_ALLOCA
@@ -77,7 +94,11 @@ if test $ac_cv_type_uchar = yes; then
   [Define if <sys/types.h> defines \`uchar'.])
 fi
 
+# g++ on Solaris 10+ defines _XOPEN_SOURCE=600, which exposes a different
+# iconv() prototype.
+AC_LANG_PUSH([C++])
 AM_ICONV
+AC_LANG_POP([C++])
 
 # More defines and substitutions.
 PACKAGE="$PACKAGE_TARNAME"
@@ -102,43 +123,84 @@ else
 fi
 AC_SUBST(MAINT)
 
-AC_ARG_ENABLE(checking,
-[  --enable-checking      enable expensive run-time checks],,
-enable_checking=no)
+# Enable expensive internal checks
+is_release=
+if test -f $srcdir/../gcc/DEV-PHASE \
+   && test x"`cat $srcdir/../gcc/DEV-PHASE`" != xexperimental; then
+  is_release=yes
+fi
 
-if test $enable_checking != no ; then
+AC_ARG_ENABLE(checking,
+[AS_HELP_STRING([[--enable-checking[=LIST]]],
+		[enable expensive run-time checks.  With LIST,
+		 enable only specific categories of checks.
+		 Categories are: yes,no,all,none,release.
+		 Flags are: misc,valgrind or other strings])],
+[ac_checking_flags="${enableval}"],[
+# Determine the default checks.
+if test x$is_release = x ; then
+  ac_checking_flags=yes
+else
+  ac_checking_flags=release
+fi])
+IFS="${IFS= 	}"; ac_save_IFS="$IFS"; IFS="$IFS,"
+for check in release $ac_checking_flags
+do
+	case $check in
+	# these set all the flags to specific states
+	yes|all) ac_checking=1 ; ac_valgrind_checking= ;;
+	no|none|release) ac_checking= ; ac_valgrind_checking= ;;
+	# these enable particular checks
+	misc) ac_checking=1 ;;
+	valgrind) ac_valgrind_checking=1 ;;
+	# accept
+	*) ;;
+	esac
+done
+IFS="$ac_save_IFS"
+                
+if test x$ac_checking != x ; then
   AC_DEFINE(ENABLE_CHECKING, 1,
 [Define if you want more run-time sanity checks.])
 fi
 
+if test x$ac_valgrind_checking != x ; then
+  AC_DEFINE(ENABLE_VALGRIND_CHECKING, 1,
+[Define if you want to workaround valgrind (a memory checker) warnings about
+ possible memory leaks because of libcpp use of interior pointers.])
+fi
+
+AC_ARG_ENABLE(canonical-system-headers,
+[  --enable-canonical-system-headers
+                          enable or disable system headers canonicalization],
+[],
+enable_canonical_system_headers=yes)
+if test $enable_canonical_system_headers != no; then
+  AC_DEFINE(ENABLE_CANONICAL_SYSTEM_HEADERS,
+            1, [Define to enable system headers canonicalization.])
+fi
+
 m4_changequote(,)
 case $target in
+	aarch64*-*-* | \
 	alpha*-*-* | \
 	arm*-*-*eabi* | \
+	arm*-*-rtems* | \
 	arm*-*-symbianelf* | \
 	x86_64-*-* | \
 	ia64-*-* | \
-	hppa*64*-*-* | parisc*64*-*-* | \
-	i[34567]86-*-darwin* | \
-	i[34567]86-*-solaris2.1[0-9]* | \
+	hppa*64*-*-* | \
+	i[34567]86-*-* | x86_64-*-solaris2.1[0-9]* | \
 	mips*-*-* | \
 	mmix-*-* | \
 	powerpc*-*-* | \
 	rs6000*-*-* | \
 	s390*-*-* | \
-	sparc64*-*-* | ultrasparc-*-freebsd* | \
-	sparcv9-*-solaris2* | \
-	sparc-*-solaris2.[789] | sparc-*-solaris2.1[0-9]* | \
+	sparc*-*-* | \
 	spu-*-* | \
-	sh[123456789l]*-*-*)
+	sh[123456789lbe]*-*-* | sh-*-* | \
+	tilegx-*-* | tilepro-*-* )
 		need_64bit_hwint=yes ;;
-	i[34567]86-*-linux*)
-		if test "x$enable_targets" = xall; then
-			need_64bit_hwint=yes
-		else
-			need_64bit_hwint=no
-		fi
-		;;
 	*)
 		need_64bit_hwint=no ;;
 esac
@@ -152,6 +214,13 @@ m4_changequote([,])
 AC_DEFINE_UNQUOTED(HOST_WIDE_INT, $host_wide_int,
 [Define to the widest efficient host integer type at least
    as wide as the target's size_t type.])
+
+case $target in
+  i?86-* | x86_64-*)
+    AC_TRY_COMPILE([], [asm ("pcmpestri %0, %%xmm0, %%xmm1" : : "i"(0))],
+      [AC_DEFINE([HAVE_SSE4], [1],
+		 [Define to 1 if you can assemble SSE4 insns.])])
+esac
 
 # Output.
 

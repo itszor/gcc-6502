@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,7 +47,7 @@ package Sem_Cat is
    --  True when there is a attribute definition clause specifying attribute
    --  Nam for Typ. In Ada 2005 mode, returns True only when the attribute
    --  definition clause is visible, unless At_Any_Place is True (in which case
-   --  no visiblity test is made, and True is returned as long as an attribute
+   --  no visibility test is made, and True is returned as long as an attribute
    --  is visible at any place). Note that attribute definition clauses
    --  inherited from parent types are taken into account by this predicate
    --  (to test for presence of an attribute definition clause for one
@@ -113,9 +113,8 @@ package Sem_Cat is
    --  Apply semantic checks given in  E2.3(10-14)
 
    procedure Validate_RCI_Subprogram_Declaration (N : Node_Id);
-   --  Check for RCI unit subprogram declarations with respect to
-   --  in-lined subprogram and subprogram with access parameter or
-   --  limited type parameter without Read and Write.
+   --  Check RCI subprogram declarations for illegal inlining and formals not
+   --  supporting external streaming.
 
    procedure Validate_Remote_Access_To_Class_Wide_Type (N : Node_Id);
    --  Checks that Storage_Pool and Storage_Size attribute references are
@@ -144,10 +143,10 @@ package Sem_Cat is
    --  T is the entity of the declared type.
 
    procedure Validate_Static_Object_Name (N : Node_Id);
-   --  In the elaboration code of a preelaborated library unit, check
-   --  that we do not have the evaluation of a primary that is a name of
-   --  an object, unless the name is a static expression (RM 10.2.1(8)).
-   --  Non-static constant and variable are the targets, generic parameters
+   --  In the elaboration code of a preelaborated library unit, check that we
+   --  do not have the evaluation of a primary that is a name of an object,
+   --  unless the name is a static expression (RM 10.2.1(8)). Non-static
+   --  constant and variable are the targets, generic parameters are not
    --  are not included because the generic declaration and body are
    --  preelaborable.
 

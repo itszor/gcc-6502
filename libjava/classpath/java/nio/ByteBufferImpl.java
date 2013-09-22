@@ -1,4 +1,4 @@
-/* ByteBufferImpl.java -- 
+/* ByteBufferImpl.java --
    Copyright (C) 2002, 2003, 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -43,16 +43,15 @@ package java.nio;
  */
 final class ByteBufferImpl extends ByteBuffer
 {
-  private boolean readOnly;
+  private final boolean readOnly;
 
-  ByteBufferImpl (byte[] buffer, int offset, int capacity, int limit, int position, int mark, boolean readOnly)
+  ByteBufferImpl (byte[] buffer, int offset, int capacity, int limit,
+                  int position, int mark, boolean readOnly)
   {
-    super (capacity, limit, position, mark);
-    this.backing_buffer = buffer;
-    this.array_offset = offset;
+    super (capacity, limit, position, mark, null, buffer, offset);
     this.readOnly = readOnly;
   }
-  
+
   public CharBuffer asCharBuffer ()
   {
     return new CharViewBufferImpl (this, remaining() >> 1);
@@ -87,27 +86,30 @@ final class ByteBufferImpl extends ByteBuffer
   {
     return readOnly;
   }
-  
+
   public ByteBuffer slice ()
   {
-    return new ByteBufferImpl (backing_buffer, array_offset + position (), remaining (), remaining (), 0, -1, isReadOnly ());
+    return new ByteBufferImpl (backing_buffer, array_offset + position (),
+                               remaining (), remaining (), 0, -1, isReadOnly ());
   }
-  
+
   public ByteBuffer duplicate ()
   {
-    return new ByteBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, isReadOnly ());
+    return new ByteBufferImpl (backing_buffer, array_offset, capacity (),
+                               limit (), position (), mark, isReadOnly ());
   }
-  
+
   public ByteBuffer asReadOnlyBuffer ()
   {
-    return new ByteBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, true);
+    return new ByteBufferImpl (backing_buffer, array_offset, capacity (),
+                               limit (), position (), mark, true);
   }
-  
+
   void shiftDown (int dst_offset, int src_offset, int count)
   {
     System.arraycopy(backing_buffer, array_offset + src_offset,
-		     backing_buffer, array_offset + dst_offset,
-		     count);
+                     backing_buffer, array_offset + dst_offset,
+                     count);
   }
 
   public ByteBuffer compact ()
@@ -122,7 +124,7 @@ final class ByteBufferImpl extends ByteBuffer
     limit(capacity());
     return this;
   }
-  
+
   public boolean isDirect ()
   {
     return false;
@@ -152,8 +154,8 @@ final class ByteBufferImpl extends ByteBuffer
     if ( (limit - pos) < length) // check for overflow
       throw new BufferUnderflowException();
 
-    System.arraycopy(backing_buffer, pos + array_offset, 
-		     dst, offset, length);
+    System.arraycopy(backing_buffer, pos + array_offset,
+                     dst, offset, length);
     pos += length;
 
     return this;
@@ -192,7 +194,7 @@ final class ByteBufferImpl extends ByteBuffer
     backing_buffer [(pos++) + array_offset] = value;
     return this;
   }
-  
+
   /**
    * Absolute get method. Reads the <code>byte</code> at position
    * <code>index</code>.
@@ -206,7 +208,7 @@ final class ByteBufferImpl extends ByteBuffer
 
     return backing_buffer [index + array_offset];
   }
-  
+
   /**
    * Absolute put method. Writes <code>value</code> to position
    * <code>index</code> in the buffer.
@@ -223,12 +225,12 @@ final class ByteBufferImpl extends ByteBuffer
     backing_buffer [index + array_offset] = value;
     return this;
   }
-  
+
   public char getChar ()
   {
     return ByteBufferHelper.getChar(this, order());
   }
-  
+
   public ByteBuffer putChar (char value)
   {
     if (readOnly)
@@ -248,12 +250,12 @@ final class ByteBufferImpl extends ByteBuffer
       }
     return this;
   }
-  
+
   public char getChar (int index)
   {
     return ByteBufferHelper.getChar(this, index, order());
   }
-  
+
   public ByteBuffer putChar (int index, char value)
   {
     ByteBufferHelper.putChar(this, index, value, order());
@@ -264,18 +266,18 @@ final class ByteBufferImpl extends ByteBuffer
   {
     return ByteBufferHelper.getShort(this, order());
   }
-  
+
   public ByteBuffer putShort (short value)
   {
     ByteBufferHelper.putShort(this, value, order());
     return this;
   }
-  
+
   public short getShort (int index)
   {
     return ByteBufferHelper.getShort(this, index, order());
   }
-  
+
   public ByteBuffer putShort (int index, short value)
   {
     ByteBufferHelper.putShort(this, index, value, order());
@@ -286,18 +288,18 @@ final class ByteBufferImpl extends ByteBuffer
   {
     return ByteBufferHelper.getInt(this, order());
   }
-  
+
   public ByteBuffer putInt (int value)
   {
     ByteBufferHelper.putInt(this, value, order());
     return this;
   }
-  
+
   public int getInt (int index)
   {
     return ByteBufferHelper.getInt(this, index, order());
   }
-  
+
   public ByteBuffer putInt (int index, int value)
   {
     ByteBufferHelper.putInt(this, index, value, order());
@@ -308,18 +310,18 @@ final class ByteBufferImpl extends ByteBuffer
   {
     return ByteBufferHelper.getLong(this, order());
   }
-  
+
   public ByteBuffer putLong (long value)
   {
     ByteBufferHelper.putLong (this, value, order());
     return this;
   }
-  
+
   public long getLong (int index)
   {
     return ByteBufferHelper.getLong (this, index, order());
   }
-  
+
   public ByteBuffer putLong (int index, long value)
   {
     ByteBufferHelper.putLong (this, index, value, order());
@@ -330,13 +332,13 @@ final class ByteBufferImpl extends ByteBuffer
   {
     return ByteBufferHelper.getFloat (this, order());
   }
-  
+
   public ByteBuffer putFloat (float value)
   {
     ByteBufferHelper.putFloat (this, value, order());
     return this;
   }
-  
+
   public float getFloat (int index)
   {
     return ByteBufferHelper.getFloat (this, index, order());
@@ -358,12 +360,12 @@ final class ByteBufferImpl extends ByteBuffer
     ByteBufferHelper.putDouble (this, value, order());
     return this;
   }
-  
+
   public double getDouble (int index)
   {
     return ByteBufferHelper.getDouble (this, index, order());
   }
-  
+
   public ByteBuffer putDouble (int index, double value)
   {
     ByteBufferHelper.putDouble (this, index, value, order());

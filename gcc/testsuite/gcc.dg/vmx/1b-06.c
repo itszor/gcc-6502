@@ -3,7 +3,6 @@
 vector char bool _4 ;
 vector char unsigned _31 ;
 vector char signed _59 ;
-bool _84 ;
 vector pixel _89 ;
 vector int bool _95 ;
 vector short bool _102 ;

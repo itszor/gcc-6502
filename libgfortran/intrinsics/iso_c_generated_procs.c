@@ -1,5 +1,5 @@
 /* Implementation of the ISO_C_BINDING library helper generated functions.
-   Copyright (C) 2007 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
    Contributed by Christopher Rickett.
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
@@ -7,26 +7,21 @@ This file is part of the GNU Fortran 95 runtime library (libgfortran).
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 
 #include "libgfortran.h"
@@ -144,7 +139,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_i1) (void *c_ptr_in,
 {
   /* Here we have an integer(kind=1).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_INTEGER,
+				      (int) BT_INTEGER,
 				      (int) sizeof (GFC_INTEGER_1));
 }
 #endif
@@ -167,7 +162,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_i2) (void *c_ptr_in,
 {
   /* Here we have an integer(kind=2).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_INTEGER,
+				      (int) BT_INTEGER,
 				      (int) sizeof (GFC_INTEGER_2));
 }
 #endif
@@ -186,7 +181,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_i4) (void *c_ptr_in,
 {
   /* Here we have an integer(kind=4).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_INTEGER,
+				      (int) BT_INTEGER,
 				      (int) sizeof (GFC_INTEGER_4));
 }
 #endif
@@ -205,7 +200,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_i8) (void *c_ptr_in,
 {
   /* Here we have an integer(kind=8).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_INTEGER,
+				      (int) BT_INTEGER,
 				      (int) sizeof (GFC_INTEGER_8));
 }
 #endif
@@ -228,7 +223,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_i16) (void *c_ptr_in,
 {
   /* Here we have an integer(kind=16).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_INTEGER,
+				      (int) BT_INTEGER,
 				      (int) sizeof (GFC_INTEGER_16));
 }
 #endif
@@ -247,7 +242,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_r4) (void *c_ptr_in,
 {
   /* Here we have an real(kind=4).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_REAL,
+				      (int) BT_REAL,
 				      (int) sizeof (GFC_REAL_4));
 }
 #endif
@@ -266,7 +261,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_r8) (void *c_ptr_in,
 {
   /* Here we have an real(kind=8).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_REAL,
+				      (int) BT_REAL,
 				      (int) sizeof (GFC_REAL_8));
 }
 #endif
@@ -285,7 +280,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_r10) (void *c_ptr_in,
 {
   /* Here we have an real(kind=10).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_REAL,
+				      (int) BT_REAL,
 				      (int) sizeof (GFC_REAL_10));
 }
 #endif
@@ -304,7 +299,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_r16) (void *c_ptr_in,
 {
   /* Here we have an real(kind=16).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_REAL,
+				      (int) BT_REAL,
 				      (int) sizeof (GFC_REAL_16));
 }
 #endif
@@ -323,7 +318,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_c4) (void *c_ptr_in,
 {
   /* Here we have an complex(kind=4).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_COMPLEX,
+				      (int) BT_COMPLEX,
 				      (int) sizeof (GFC_COMPLEX_4));
 }
 #endif
@@ -342,7 +337,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_c8) (void *c_ptr_in,
 {
   /* Here we have an complex(kind=8).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_COMPLEX,
+				      (int) BT_COMPLEX,
 				      (int) sizeof (GFC_COMPLEX_8));
 }
 #endif
@@ -361,7 +356,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_c10) (void *c_ptr_in,
 {
   /* Here we have an complex(kind=10).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_COMPLEX,
+				      (int) BT_COMPLEX,
 				      (int) sizeof (GFC_COMPLEX_10));
 }
 #endif
@@ -380,7 +375,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_c16) (void *c_ptr_in,
 {
   /* Here we have an complex(kind=16).  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_COMPLEX,
+				      (int) BT_COMPLEX,
 				      (int) sizeof (GFC_COMPLEX_16));
 }
 #endif
@@ -397,7 +392,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_s0) (void *c_ptr_in,
 {
   /* Here we have a character string of len=1.  */
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_CHARACTER,
+				      (int) BT_CHARACTER,
 				      (int) sizeof (char));
 }
 #endif
@@ -414,7 +409,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_l1) (void *c_ptr_in,
 {
   /* Here we have a logical of kind=1.	*/
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_LOGICAL,
+				      (int) BT_LOGICAL,
 				      (int) sizeof (GFC_LOGICAL_1));
 }
 #endif
@@ -431,7 +426,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_l2) (void *c_ptr_in,
 {
   /* Here we have a logical of kind=2.	*/
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_LOGICAL,
+				      (int) BT_LOGICAL,
 				      (int) sizeof (GFC_LOGICAL_2));
 }
 #endif
@@ -448,7 +443,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_l4) (void *c_ptr_in,
 {
   /* Here we have a logical of kind=4.	*/
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_LOGICAL,
+				      (int) BT_LOGICAL,
 				      (int) sizeof (GFC_LOGICAL_4));
 }
 #endif
@@ -465,7 +460,7 @@ ISO_C_BINDING_PREFIX (c_f_pointer_l8) (void *c_ptr_in,
 {
   /* Here we have a logical of kind=8.	*/
   ISO_C_BINDING_PREFIX (c_f_pointer) (c_ptr_in, f_ptr_out, shape,
-				      (int) GFC_DTYPE_LOGICAL,
+				      (int) BT_LOGICAL,
 				      (int) sizeof (GFC_LOGICAL_8));
 }
 #endif

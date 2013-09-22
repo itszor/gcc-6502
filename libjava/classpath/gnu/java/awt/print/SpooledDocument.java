@@ -41,7 +41,6 @@ import javax.print.Doc;
 import javax.print.DocFlavor;
 import javax.print.attribute.DocAttributeSet;
 import java.io.File;
-import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.Reader;
@@ -54,13 +53,13 @@ public class SpooledDocument implements Doc
 
   public SpooledDocument(File file)
   {
-    try 
+    try
       {
-	fis = new FileInputStream(file);
+        fis = new FileInputStream(file);
       }
-    catch (FileNotFoundException ffne) 
+    catch (FileNotFoundException ffne)
       {
-	// Shouldn't happen.
+        // Shouldn't happen.
       }
   }
 
@@ -78,7 +77,7 @@ public class SpooledDocument implements Doc
   {
     return fis;
   }
-  
+
   public Reader getReaderForText()
   {
     return new InputStreamReader(fis);

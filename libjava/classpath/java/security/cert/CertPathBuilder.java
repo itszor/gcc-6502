@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package java.security.cert;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Engine;
 
@@ -114,7 +116,7 @@ public class CertPathBuilder
   /**
    * Returns an instance of a named <code>CertPathBuilder</code> from the
    * first provider that implements it.
-   * 
+   *
    * @param algorithm The name of the <code>CertPathBuilder</code> to create.
    * @return The new instance.
    * @throws NoSuchAlgorithmException If no installed provider implements the
@@ -144,7 +146,7 @@ public class CertPathBuilder
   /**
    * Returns an instance of a named <code>CertPathBuilder</code> from a named
    * provider.
-   * 
+   *
    * @param algorithm The name of the <code>CertPathBuilder</code> to create.
    * @param provider The name of the provider to use.
    * @return The new instance.
@@ -169,7 +171,7 @@ public class CertPathBuilder
   /**
    * Returns an instance of a named <code>CertPathBuilder</code> from the
    * specified provider.
-   * 
+   *
    * @param algorithm The name of the <code>CertPathBuilder</code> to create.
    * @param provider The provider to use.
    * @return The new instance.
@@ -182,7 +184,7 @@ public class CertPathBuilder
   public static CertPathBuilder getInstance(String algorithm, Provider provider)
       throws NoSuchAlgorithmException
   {
-    StringBuilder sb = new StringBuilder("CertPathBuilder for algorithm [")
+    CPStringBuilder sb = new CPStringBuilder("CertPathBuilder for algorithm [")
         .append(algorithm).append("] from provider[")
         .append(provider).append("] could not be created");
     Throwable cause;

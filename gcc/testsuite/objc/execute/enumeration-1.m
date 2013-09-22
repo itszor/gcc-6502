@@ -1,6 +1,6 @@
 /* Contributed by Nicola Pero -  Wed Dec  5 17:12:40 GMT 2001 */
-#include <objc/objc.h>
-#include <objc/Object.h>
+#include <stdlib.h>
+#import "../../objc-obj-c++-shared/TestsuiteObject.m"
 
 /* Test using a bitfield enumeration ivar.  */
 
@@ -10,7 +10,7 @@ typedef enum
   white
 } color;
 
-@interface TestClass: Object
+@interface TestClass: TestsuiteObject
 {
   color c:2;
 }
@@ -47,3 +47,4 @@ int main (void)
 
   return 0;
 }
+

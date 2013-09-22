@@ -1,4 +1,4 @@
-/* GnomeEntity.java - 
+/* GnomeEntity.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.Entity;
 
 /**
@@ -61,29 +63,29 @@ implements Entity
   public native String getNotationName ();
 
   // DOM Level 3 methods
-  
+
   public String getInputEncoding ()
   {
     // TODO
-    return null;    
+    return null;
   }
-  
+
   public String getXmlEncoding ()
   {
     // TODO
     return null;
   }
-  
+
   public String getXmlVersion ()
   {
     // TODO
     return null;
   }
-  
+
   public String toString ()
   {
     String publicId = getPublicId ();
-    StringBuffer buffer = new StringBuffer (getClass ().getName ());
+    CPStringBuilder buffer = new CPStringBuilder (getClass ().getName ());
     buffer.append ("[");
     if (publicId != null)
       {

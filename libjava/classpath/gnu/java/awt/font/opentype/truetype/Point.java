@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.java.awt.font.opentype.truetype;
 
+import gnu.java.lang.CPStringBuilder;
+
 /**
  * Encapsulates information regarding one point on a glyph outline.
  */
@@ -51,7 +53,7 @@ public class Point
   public static final short FLAG_INFLECTION = 32;
   public static final short FLAG_DONE_X = 64;
   public static final short FLAG_DONE_Y = 128;
-  
+
   /**
    * Right direction.
    */
@@ -234,7 +236,7 @@ public class Point
 
   public String toString()
   {
-    StringBuilder s = new StringBuilder();
+    CPStringBuilder s = new CPStringBuilder();
     s.append("[Point] origX: ");
     s.append(origX);
     s.append(", origY: ");

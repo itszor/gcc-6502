@@ -1,4 +1,4 @@
-/* AttributeImpl.java -- 
+/* AttributeImpl.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -56,11 +56,11 @@ public class AttributeImpl
 
   protected final QName name;
   protected final String value;
-  protected final QName type;
+  protected final String type;
   protected final boolean specified;
 
   protected AttributeImpl(Location location,
-                          QName name, String value, QName type,
+                          QName name, String value, String type,
                           boolean specified)
   {
     super(location);
@@ -85,7 +85,7 @@ public class AttributeImpl
     return value;
   }
 
-  public QName getDTDType()
+  public String getDTDType()
   {
     return type;
   }
@@ -94,7 +94,7 @@ public class AttributeImpl
   {
     return specified;
   }
-  
+
   public void writeAsEncodedUnicode(Writer writer)
     throws XMLStreamException
   {
@@ -119,6 +119,5 @@ public class AttributeImpl
         throw e2;
       }
   }
-  
-}
 
+}

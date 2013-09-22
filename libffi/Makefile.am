@@ -3,33 +3,83 @@
 AUTOMAKE_OPTIONS = foreign subdir-objects
 ACLOCAL_AMFLAGS = -I .. -I ../config
 
-SUBDIRS = include testsuite
+SUBDIRS = include testsuite man
 
-EXTRA_DIST = LICENSE ChangeLog.v1 ChangeLog.libgcj configure.host \
-	src/alpha/ffi.c src/alpha/osf.S src/alpha/ffitarget.h \
-	src/arm/ffi.c src/arm/sysv.S src/arm/ffitarget.h \
-	src/cris/ffi.c src/cris/sysv.S src/cris/ffitarget.h \
-	src/ia64/ffi.c src/ia64/ffitarget.h src/ia64/ia64_flags.h \
-	src/ia64/unix.S \
-	src/mips/ffi.c src/mips/n32.S src/mips/o32.S \
-	src/mips/ffitarget.h \
-	src/m32r/ffi.c src/m32r/sysv.S src/m32r/ffitarget.h \
-	src/m68k/ffi.c src/m68k/sysv.S src/m68k/ffitarget.h \
-	src/powerpc/ffi.c src/powerpc/sysv.S \
-	src/powerpc/linux64.S src/powerpc/linux64_closure.S \
-	src/powerpc/ppc_closure.S src/powerpc/asm.h \
-	src/powerpc/aix.S src/powerpc/darwin.S \
-	src/powerpc/aix_closure.S src/powerpc/darwin_closure.S \
-	src/powerpc/ffi_darwin.c src/powerpc/ffitarget.h \
-	src/s390/ffi.c src/s390/sysv.S src/s390/ffitarget.h \
-	src/sh/ffi.c src/sh/sysv.S src/sh/ffitarget.h \
-	src/sh64/ffi.c src/sh64/sysv.S src/sh64/ffitarget.h \
-	src/sparc/v8.S src/sparc/v9.S src/sparc/ffitarget.h \
-	src/sparc/ffi.c \
-	src/x86/ffi.c src/x86/sysv.S src/x86/win32.S src/x86/darwin.S \
-	src/x86/ffi64.c src/x86/unix64.S src/x86/ffitarget.h \
-	src/pa/ffitarget.h src/pa/ffi.c src/pa/linux.S src/pa/hpux32.S \
-	src/frv/ffi.c src/frv/eabi.S src/frv/ffitarget.h
+EXTRA_DIST = LICENSE ChangeLog.v1 ChangeLog.libgcj configure.host	\
+	 src/aarch64/ffi.c src/aarch64/ffitarget.h			\
+	 src/alpha/ffi.c src/alpha/osf.S src/alpha/ffitarget.h		\
+	 src/arm/ffi.c src/arm/sysv.S src/arm/ffitarget.h		\
+	 src/avr32/ffi.c src/avr32/sysv.S src/avr32/ffitarget.h		\
+	 src/cris/ffi.c src/cris/sysv.S src/cris/ffitarget.h		\
+	 src/ia64/ffi.c src/ia64/ffitarget.h src/ia64/ia64_flags.h	\
+	 src/ia64/unix.S src/mips/ffi.c src/mips/n32.S src/mips/o32.S	\
+	 src/mips/ffitarget.h src/m32r/ffi.c src/m32r/sysv.S		\
+	 src/m32r/ffitarget.h src/m68k/ffi.c src/m68k/sysv.S		\
+	 src/m68k/ffitarget.h src/powerpc/ffi.c src/powerpc/sysv.S	\
+	 src/powerpc/linux64.S src/powerpc/linux64_closure.S		\
+	 src/powerpc/ppc_closure.S src/powerpc/asm.h			\
+	src/powerpc/aix.S src/powerpc/darwin.S				\
+	src/powerpc/aix_closure.S src/powerpc/darwin_closure.S		\
+	src/powerpc/ffi_darwin.c src/powerpc/ffitarget.h		\
+	src/s390/ffi.c src/s390/sysv.S src/s390/ffitarget.h		\
+	src/sh/ffi.c src/sh/sysv.S src/sh/ffitarget.h src/sh64/ffi.c	\
+	src/sh64/sysv.S src/sh64/ffitarget.h src/sparc/v8.S		\
+	src/sparc/v9.S src/sparc/ffitarget.h src/sparc/ffi.c		\
+	src/x86/darwin64.S src/x86/ffi.c src/x86/sysv.S			\
+	src/x86/win32.S src/x86/darwin.S src/x86/win64.S		\
+	src/x86/freebsd.S src/x86/ffi64.c src/x86/unix64.S		\
+	src/x86/ffitarget.h src/pa/ffitarget.h src/pa/ffi.c		\
+	src/pa/linux.S src/pa/hpux32.S src/frv/ffi.c src/bfin/ffi.c	\
+	src/bfin/ffitarget.h src/bfin/sysv.S src/frv/eabi.S		\
+	src/frv/ffitarget.h src/dlmalloc.c src/tile/ffi.c		\
+	src/tile/ffitarget.h src/tile/tile.S libtool-version		\
+	 ChangeLog.libffi m4/libtool.m4 m4/lt~obsolete.m4		\
+	 m4/ltoptions.m4 m4/ltsugar.m4 m4/ltversion.m4			\
+	 m4/ltversion.m4 src/arm/gentramp.sh src/debug.c msvcc.sh	\
+	generate-ios-source-and-headers.py				\
+	 generate-osx-source-and-headers.py				\
+	 libffi.xcodeproj/project.pbxproj src/arm/trampoline.S
+
+# Automake Documentation:
+# If your package has Texinfo files in many directories, you can use the
+# variable TEXINFO_TEX to tell Automake where to find the canonical
+# `texinfo.tex' for your package. The value of this variable should be
+# the relative path from the current `Makefile.am' to `texinfo.tex'.
+TEXINFO_TEX   = ../gcc/doc/include/texinfo.tex
+
+# Defines info, dvi, pdf and html targets
+MAKEINFOFLAGS = -I $(srcdir)/../gcc/doc/include
+info_TEXINFOS = doc/libffi.texi
+
+# AM_CONDITIONAL on configure option --generated-files-in-srcdir
+if GENINSRC
+STAMP_GENINSRC = stamp-geninsrc
+else
+STAMP_GENINSRC =
+endif
+
+# AM_CONDITIONAL on configure check ACX_CHECK_PROG_VER([MAKEINFO])
+if BUILD_INFO
+STAMP_BUILD_INFO = stamp-build-info
+else
+STAMP_BUILD_INFO =
+endif
+
+all-local: $(STAMP_GENINSRC)
+
+stamp-geninsrc: doc/libffi.info
+	cp -p $(top_builddir)/doc/libffi.info $(srcdir)/doc/libffi.info
+	@touch $@
+
+doc/libffi.info: $(STAMP_BUILD_INFO)
+
+stamp-build-info: doc/libffi.texi $(srcdir)/doc/version.texi doc/$(am__dirstamp)
+	$(MAKEINFO) $(AM_MAKEINFOFLAGS) $(MAKEINFOFLAGS) -I $(srcdir)/doc -o doc/libffi.info $(srcdir)/doc/libffi.texi
+	@touch $@
+
+
+CLEANFILES = $(STAMP_GENINSRC) $(STAMP_BUILD_INFO) doc/libffi.info
+MAINTAINERCLEANFILES = $(srcdir)/doc/libffi.info
 
 ## ################################################################
 
@@ -64,6 +114,7 @@ AM_MAKEFLAGS = \
 	"exec_prefix=$(exec_prefix)" \
 	"infodir=$(infodir)" \
 	"libdir=$(libdir)" \
+	"mandir=$(mandir)" \
 	"prefix=$(prefix)" \
 	"AR=$(AR)" \
 	"AS=$(AS)" \
@@ -74,24 +125,40 @@ AM_MAKEFLAGS = \
 	"RANLIB=$(RANLIB)" \
 	"DESTDIR=$(DESTDIR)"
 
+# Subdir rules rely on $(FLAGS_TO_PASS)
+FLAGS_TO_PASS = $(AM_MAKEFLAGS)
+
 MAKEOVERRIDES=
 
 toolexeclib_LTLIBRARIES = libffi.la
 noinst_LTLIBRARIES = libffi_convenience.la
 
-libffi_la_SOURCES = src/debug.c src/prep_cif.c src/types.c \
+libffi_la_SOURCES = src/prep_cif.c src/types.c \
 		src/raw_api.c src/java_raw_api.c src/closures.c
 
 nodist_libffi_la_SOURCES =
 
+if FFI_DEBUG
+nodist_libffi_la_SOURCES += src/debug.c
+endif
+
 if MIPS
 nodist_libffi_la_SOURCES += src/mips/ffi.c src/mips/o32.S src/mips/n32.S
+endif
+if BFIN
+nodist_libffi_la_SOURCES += src/bfin/ffi.c src/bfin/sysv.S
 endif
 if X86
 nodist_libffi_la_SOURCES += src/x86/ffi.c src/x86/sysv.S
 endif
+if X86_FREEBSD
+nodist_libffi_la_SOURCES += src/x86/ffi.c src/x86/freebsd.S
+endif
 if X86_WIN32
 nodist_libffi_la_SOURCES += src/x86/ffi.c src/x86/win32.S
+endif
+if X86_WIN64
+nodist_libffi_la_SOURCES += src/x86/ffi.c src/x86/win64.S
 endif
 if X86_DARWIN
 nodist_libffi_la_SOURCES += src/x86/ffi.c src/x86/darwin.S src/x86/ffi64.c src/x86/darwin64.S
@@ -123,8 +190,17 @@ endif
 if POWERPC_FREEBSD
 nodist_libffi_la_SOURCES += src/powerpc/ffi.c src/powerpc/sysv.S src/powerpc/ppc_closure.S
 endif
+if AARCH64
+nodist_libffi_la_SOURCES += src/aarch64/sysv.S src/aarch64/ffi.c
+endif
 if ARM
 nodist_libffi_la_SOURCES += src/arm/sysv.S src/arm/ffi.c
+if FFI_EXEC_TRAMPOLINE_TABLE
+nodist_libffi_la_SOURCES += src/arm/trampoline.S
+endif
+endif
+if AVR32
+nodist_libffi_la_SOURCES += src/avr32/sysv.S src/avr32/ffi.c
 endif
 if LIBFFI_CRIS
 nodist_libffi_la_SOURCES += src/cris/sysv.S src/cris/ffi.c
@@ -150,21 +226,21 @@ endif
 if PA_HPUX
 nodist_libffi_la_SOURCES += src/pa/hpux32.S src/pa/ffi.c
 endif
+if TILE
+nodist_libffi_la_SOURCES += src/tile/tile.S src/tile/ffi.c
+endif
 
 libffi_convenience_la_SOURCES = $(libffi_la_SOURCES)
 nodist_libffi_convenience_la_SOURCES = $(nodist_libffi_la_SOURCES)
 
 AM_CFLAGS = -Wall -g -fexceptions
 
-libffi_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version`
+LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+
+libffi_la_LDFLAGS = -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(LTLDFLAGS) $(AM_LTLDFLAGS)
 
 AM_CPPFLAGS = -I. -I$(top_srcdir)/include -Iinclude -I$(top_srcdir)/src
 AM_CCASFLAGS = $(AM_CPPFLAGS)
-
-# No install-html or install-pdf support in automake yet
-.PHONY: install-html install-pdf
-install-html:
-install-pdf:
 
 # Multilib support.  Automake should provide these on its own.
 all-recursive: all-multi

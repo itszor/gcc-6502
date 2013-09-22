@@ -1,13 +1,14 @@
 /* Test that the correct version number (6) is set in the module descriptor
-   when compiling for the NeXT runtime.  */
-/* Author: Ziemowit Laski <zlaski@apple.com>  */
+   when compiling for the NeXT runtime ABI=0 - and that the MODULE descriptor
+   is not emitted at all for ABI 2.  */
+/* modified from a testcase added by: Ziemowit Laski <zlaski@apple.com>  */
 
 /* { dg-do compile { target *-*-darwin* } } */
-/* { dg-options "-fnext-runtime" } */
+/* { dg-skip-if "" { *-*-* } { "-fgnu-runtime" } { "" } } */
+/* { dg-skip-if "" { *-*-* } { "-fobjc-abi-version=1" } { "" } } */
+/* { dg-options "-fobjc-abi-version=0" { target { *-*-darwin* && { ! lp64 } } } } */
 
-#include <objc/Object.h>
-
-@interface FooBar: Object
+@interface FooBar
 - (void)boo;
 @end
 
@@ -15,4 +16,5 @@
 - (void)boo { }
 @end
 
-/* { dg-final { scan-assembler "L_OBJC_MODULES:\n\[ \t\]*\.long\t6\n" } } */
+/* { dg-final { scan-assembler "L_OBJC_Module:\n\[ \t\]*\.long\t6\n" { target { *-*-darwin* && { ! lp64 } } } } } */
+/* { dg-final { scan-assembler-not "L_OBJC_Module" { target { *-*-darwin* && {  lp64 } } } } } */

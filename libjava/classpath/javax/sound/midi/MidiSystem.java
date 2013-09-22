@@ -1,5 +1,5 @@
 /* MidiSystem.java -- Access system MIDI resources
-   Copyright (C) 2005 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -55,9 +55,9 @@ import javax.sound.midi.spi.MidiFileWriter;
 import javax.sound.midi.spi.SoundbankReader;
 
 /**
- * MidiSystem provides access to the computer system's MIDI resources, 
+ * MidiSystem provides access to the computer system's MIDI resources,
  * as well as utility routines for reading MIDI files and more.
- * 
+ *
  * @author Anthony Green (green@redhat.com)
  * @since 1.3
  *
@@ -71,15 +71,15 @@ public class MidiSystem
 
   /**
    * Get an array of all available MIDI devices.
-   * 
+   *
    * @return a possibly empty array of all available MIDI devices
    */
   public static MidiDevice.Info[] getMidiDeviceInfo()
   {
-    Iterator deviceProviders = 
-	ServiceFactory.lookupProviders(MidiDeviceProvider.class);
-    List infoList = new ArrayList();
-    
+    Iterator<MidiDeviceProvider> deviceProviders =
+        ServiceFactory.lookupProviders(MidiDeviceProvider.class);
+    List<MidiDevice.Info> infoList = new ArrayList<MidiDevice.Info>();
+
     while (deviceProviders.hasNext())
     {
       MidiDeviceProvider provider = (MidiDeviceProvider) deviceProviders.next();
@@ -87,44 +87,43 @@ public class MidiSystem
       for (int i = infos.length; i > 0; )
         infoList.add(infos[--i]);
     }
-    
-    return (MidiDevice.Info[]) 
-	infoList.toArray(new MidiDevice.Info[infoList.size()]);
+
+    return infoList.toArray(new MidiDevice.Info[infoList.size()]);
   }
-  
+
   /**
    * Get the specified MIDI device.
-   * 
+   *
    * @param info a description of the device we're looking for
    * @return the requested MIDI device
    * @throws MidiUnavailableException if no MIDI devices are configured or found
    * @throws IllegalArgumentException if the device described by info is not found
    */
-  public static MidiDevice getMidiDevice(MidiDevice.Info info) 
+  public static MidiDevice getMidiDevice(MidiDevice.Info info)
     throws MidiUnavailableException
   {
-    Iterator deviceProviders = 
-	ServiceFactory.lookupProviders(MidiDeviceProvider.class);
-    
+    Iterator<MidiDeviceProvider> deviceProviders =
+        ServiceFactory.lookupProviders(MidiDeviceProvider.class);
+
     if (! deviceProviders.hasNext())
       throw new MidiUnavailableException("No MIDI device providers available.");
-    
+
     do
     {
-      MidiDeviceProvider provider = 
+      MidiDeviceProvider provider =
         (MidiDeviceProvider) deviceProviders.next();
       if (provider.isDeviceSupported(info))
         return provider.getDevice(info);
     } while (deviceProviders.hasNext());
-    
-    throw new IllegalArgumentException("MIDI device " 
-				       + info + " not available.");
+
+    throw new IllegalArgumentException("MIDI device "
+                                       + info + " not available.");
   }
-  
+
   /**
    * Get the default Receiver instance.  This just picks the first one
    * it finds for now.
-   * 
+   *
    * @return the default Receiver instance
    * @throws MidiUnavailableException if no Receiver is found
    */
@@ -145,7 +144,7 @@ public class MidiSystem
   /**
    * Get the default Transmitter instance.  This just picks the first one
    * it finds for now.
-   * 
+   *
    * @return the default Transmitter instance
    * @throws MidiUnavailableException if no Transmitter is found
    */
@@ -166,7 +165,7 @@ public class MidiSystem
   /**
    * Get the default Synthesizer instance.  This just picks the first one
    * it finds for now.
-   * 
+   *
    * @return the default Synthesizer instance
    * @throws MidiUnavailableException if no Synthesizer is found
    */
@@ -183,11 +182,11 @@ public class MidiSystem
     }
     throw new MidiUnavailableException("No Synthesizer device available");
   }
-  
+
   /**
    * Get the default Sequencer instance.  This just picks the first one
    * it finds for now.
-   * 
+   *
    * @return the default Sequencer instance
    * @throws MidiUnavailableException if no Sequencer is found
    */
@@ -203,11 +202,11 @@ public class MidiSystem
         return (Sequencer) device;
     }
     throw new MidiUnavailableException("No Sequencer device available");
-  }  
-  
+  }
+
   /**
    * Read a Soundbank object from the given stream.
-   * 
+   *
    * @param stream the stream from which to read the Soundbank
    * @return the Soundbank object
    * @throws InvalidMidiDataException if we were unable to read the soundbank
@@ -216,10 +215,11 @@ public class MidiSystem
   public static Soundbank getSoundbank(InputStream stream)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(SoundbankReader.class);
+    Iterator<SoundbankReader> readers =
+      ServiceFactory.lookupProviders(SoundbankReader.class);
     while (readers.hasNext())
     {
-      SoundbankReader sr = (SoundbankReader) readers.next();
+      SoundbankReader sr = readers.next();
       Soundbank sb = sr.getSoundbank(stream);
       if (sb != null)
         return sb;
@@ -229,7 +229,7 @@ public class MidiSystem
 
   /**
    * Read a Soundbank object from the given url.
-   * 
+   *
    * @param url the url from which to read the Soundbank
    * @return the Soundbank object
    * @throws InvalidMidiDataException if we were unable to read the soundbank
@@ -238,10 +238,11 @@ public class MidiSystem
   public static Soundbank getSoundbank(URL url)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(SoundbankReader.class);
+    Iterator<SoundbankReader> readers =
+      ServiceFactory.lookupProviders(SoundbankReader.class);
     while (readers.hasNext())
     {
-      SoundbankReader sr = (SoundbankReader) readers.next();
+      SoundbankReader sr = readers.next();
       Soundbank sb = sr.getSoundbank(url);
       if (sb != null)
         return sb;
@@ -251,7 +252,7 @@ public class MidiSystem
 
   /**
    * Read a Soundbank object from the given file.
-   * 
+   *
    * @param file the file from which to read the Soundbank
    * @return the Soundbank object
    * @throws InvalidMidiDataException if we were unable to read the soundbank
@@ -260,7 +261,8 @@ public class MidiSystem
   public static Soundbank getSoundbank(File file)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(SoundbankReader.class);
+    Iterator<SoundbankReader> readers =
+      ServiceFactory.lookupProviders(SoundbankReader.class);
     while (readers.hasNext())
     {
       SoundbankReader sr = (SoundbankReader) readers.next();
@@ -268,13 +270,13 @@ public class MidiSystem
       if (sb != null)
         return sb;
     }
-    throw new InvalidMidiDataException("Cannot read soundbank from file " 
-				       + file);
-  } 
+    throw new InvalidMidiDataException("Cannot read soundbank from file "
+                                       + file);
+  }
 
   /**
    * Read a MidiFileFormat object from the given stream.
-   * 
+   *
    * @param stream the stream from which to read the MidiFileFormat
    * @return the MidiFileFormat object
    * @throws InvalidMidiDataException if we were unable to read the MidiFileFormat
@@ -283,10 +285,11 @@ public class MidiSystem
   public static MidiFileFormat getMidiFileFormat(InputStream stream)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       MidiFileFormat sb = sr.getMidiFileFormat(stream);
       if (sb != null)
         return sb;
@@ -296,7 +299,7 @@ public class MidiSystem
 
   /**
    * Read a MidiFileFormat object from the given url.
-   * 
+   *
    * @param url the url from which to read the MidiFileFormat
    * @return the MidiFileFormat object
    * @throws InvalidMidiDataException if we were unable to read the MidiFileFormat
@@ -305,10 +308,11 @@ public class MidiSystem
   public static MidiFileFormat getMidiFileFormat(URL url)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       MidiFileFormat sb = sr.getMidiFileFormat(url);
       if (sb != null)
         return sb;
@@ -318,7 +322,7 @@ public class MidiSystem
 
   /**
    * Read a MidiFileFormat object from the given file.
-   * 
+   *
    * @param file the file from which to read the MidiFileFormat
    * @return the MidiFileFormat object
    * @throws InvalidMidiDataException if we were unable to read the MidiFileFormat
@@ -327,21 +331,22 @@ public class MidiSystem
   public static MidiFileFormat getMidiFileFormat(File file)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       MidiFileFormat sb = sr.getMidiFileFormat(file);
       if (sb != null)
         return sb;
     }
-    throw new InvalidMidiDataException("Can't read MidiFileFormat from file " 
+    throw new InvalidMidiDataException("Can't read MidiFileFormat from file "
                                        + file);
-  } 
-  
+  }
+
   /**
    * Read a Sequence object from the given stream.
-   * 
+   *
    * @param stream the stream from which to read the Sequence
    * @return the Sequence object
    * @throws InvalidMidiDataException if we were unable to read the Sequence
@@ -350,10 +355,11 @@ public class MidiSystem
   public static Sequence getSequence(InputStream stream)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       Sequence sq = sr.getSequence(stream);
       if (sq != null)
         return sq;
@@ -363,7 +369,7 @@ public class MidiSystem
 
   /**
    * Read a Sequence object from the given url.
-   * 
+   *
    * @param url the url from which to read the Sequence
    * @return the Sequence object
    * @throws InvalidMidiDataException if we were unable to read the Sequence
@@ -372,10 +378,11 @@ public class MidiSystem
   public static Sequence getSequence(URL url)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       Sequence sq = sr.getSequence(url);
       if (sq != null)
         return sq;
@@ -385,7 +392,7 @@ public class MidiSystem
 
   /**
    * Read a Sequence object from the given file.
-   * 
+   *
    * @param file the file from which to read the Sequence
    * @return the Sequence object
    * @throws InvalidMidiDataException if we were unable to read the Sequence
@@ -394,21 +401,22 @@ public class MidiSystem
   public static Sequence getSequence(File file)
     throws InvalidMidiDataException, IOException
   {
-    Iterator readers = ServiceFactory.lookupProviders(MidiFileReader.class);
+    Iterator<MidiFileReader> readers =
+      ServiceFactory.lookupProviders(MidiFileReader.class);
     while (readers.hasNext())
     {
-      MidiFileReader sr = (MidiFileReader) readers.next();
+      MidiFileReader sr = readers.next();
       Sequence sq = sr.getSequence(file);
       if (sq != null)
         return sq;
     }
-    throw new InvalidMidiDataException("Can't read Sequence from file " 
+    throw new InvalidMidiDataException("Can't read Sequence from file "
                                        + file);
-  } 
-  
+  }
+
   /**
    * Return an array of supported MIDI file types on this system.
-   * 
+   *
    * @return the array of supported MIDI file types
    */
   public static int[] getMidiFileTypes()
@@ -417,10 +425,11 @@ public class MidiSystem
     boolean supported[] = new boolean[3];
     // The number of supported formats.
     int count = 0;
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers =
+      ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
-      MidiFileWriter fw = (MidiFileWriter) writers.next();
+      MidiFileWriter fw = writers.next();
       int types[] = fw.getMidiFileTypes();
       for (int i = types.length; i > 0;)
       {
@@ -443,27 +452,27 @@ public class MidiSystem
 
   /**
    * Return true if the system supports writing files of type fileType.
-   * 
+   *
    * @param fileType the MIDI file type we want to write
    * @return true if we can write fileType files, false otherwise
    */
   public static boolean isFileTypeSupported(int fileType)
   {
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
-      MidiFileWriter fw = (MidiFileWriter) writers.next();
-      
+      MidiFileWriter fw = writers.next();
+
       if (fw.isFileTypeSupported(fileType))
         return true;
     }
     return false;
   }
-  
+
   /**
    * Return an array of supported MIDI file types on this system
    * for the given sequnce.
-   * 
+   *
    * @param sequence the sequnce to write
    * @return the array of supported MIDI file types
    */
@@ -473,7 +482,7 @@ public class MidiSystem
     boolean supported[] = new boolean[3];
     // The number of supported formats.
     int count = 0;
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
       MidiFileWriter fw = (MidiFileWriter) writers.next();
@@ -496,22 +505,22 @@ public class MidiSystem
     }
     return result;
   }
-  
+
   /**
    * Return true if the system supports writing files of type fileType
    * for the given sequence.
-   * 
+   *
    * @param fileType the MIDI file type we want to write
    * @param sequence the Sequence we want to write
    * @return true if we can write fileType files for sequence, false otherwise
    */
   public static boolean isFileTypeSupported(int fileType, Sequence sequence)
   {
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
       MidiFileWriter fw = (MidiFileWriter) writers.next();
-      
+
       if (fw.isFileTypeSupported(fileType, sequence))
         return true;
     }
@@ -520,7 +529,7 @@ public class MidiSystem
 
   /**
    * Write a sequence to an output stream using a specific MIDI file format.
-   * 
+   *
    * @param in the sequence to write
    * @param fileType the MIDI file format to use
    * @param out the output stream to write to
@@ -531,21 +540,21 @@ public class MidiSystem
   public static int write(Sequence in, int fileType, OutputStream out)
     throws IOException
   {
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
       MidiFileWriter fw = (MidiFileWriter) writers.next();
-    
+
       if (fw.isFileTypeSupported(fileType, in))
         return fw.write(in, fileType, out);
     }
-    throw new IllegalArgumentException("File type " 
-				       + fileType + " is not supported");
+    throw new IllegalArgumentException("File type "
+                                       + fileType + " is not supported");
   }
 
   /**
    * Write a sequence to a file using a specific MIDI file format.
-   * 
+   *
    * @param in the sequence to write
    * @param fileType the MIDI file format to use
    * @param out the file to write to
@@ -556,16 +565,15 @@ public class MidiSystem
   public static int write(Sequence in, int fileType, File out)
     throws IOException
   {
-    Iterator writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
+    Iterator<MidiFileWriter> writers = ServiceFactory.lookupProviders(MidiFileWriter.class);
     while (writers.hasNext())
     {
       MidiFileWriter fw = (MidiFileWriter) writers.next();
-    
+
       if (fw.isFileTypeSupported(fileType, in))
         return fw.write(in, fileType, out);
     }
-    throw new IllegalArgumentException("File type " 
-				       + fileType + " is not supported");
+    throw new IllegalArgumentException("File type "
+                                       + fileType + " is not supported");
   }
 }
-

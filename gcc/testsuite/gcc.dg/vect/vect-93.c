@@ -41,8 +41,8 @@ main1 (float *pa)
 int main (void)
 {
   int i;
-  float a[N] __attribute__ ((__aligned__(16)));
-  float b[N] __attribute__ ((__aligned__(16)));
+  float a[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+  float b[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 
   check_vect ();
 
@@ -72,7 +72,7 @@ int main (void)
 /* main && main1 together: */
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 2 "vect" { target powerpc*-*-* i?86-*-* x86_64-*-* } } } */
 /* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 2 "vect" { target { vect_no_align && {! vector_alignment_reachable} } } } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 3 "vect" { xfail { vect_no_align || {! vector_alignment_reachable} } } } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 3 "vect" { xfail { { vect_no_align } || { { ! vector_alignment_reachable} || vect_element_align } } } } } */
 
 /* in main1: */
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect" { target !powerpc*-*-* !i?86-*-* !x86_64-*-* } } } */
@@ -80,6 +80,6 @@ int main (void)
 
 /* in main: */
 /* { dg-final { scan-tree-dump-times "vectorized 0 loops" 1 "vect" { target vect_no_align } } } */
-/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 1 "vect" { xfail vect_no_align } } } */
+/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 1 "vect" { xfail { vect_no_align } } } } */
 
 /* { dg-final { cleanup-tree-dump "vect" } } */

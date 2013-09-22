@@ -7,25 +7,23 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2011, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,12 +33,13 @@
 --  This is a Solaris (native) version of this package
 
 --  This package includes all direct interfaces to OS services
---  that are needed by children of System.
+--  that are needed by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Preelaborate. This package is designed to be a bottom-level (leaf) package.
 
 with Interfaces.C;
+
 with Ada.Unchecked_Conversion;
 
 package System.OS_Interface is
@@ -167,15 +166,6 @@ package System.OS_Interface is
    --  More analysis is needed, after which these declarations may need to
    --  be changed.
 
-   FPE_INTDIV  : constant := 1; --  integer divide by zero
-   FPE_INTOVF  : constant := 2; --  integer overflow
-   FPE_FLTDIV  : constant := 3; --  floating point divide by zero
-   FPE_FLTOVF  : constant := 4; --  floating point overflow
-   FPE_FLTUND  : constant := 5; --  floating point underflow
-   FPE_FLTRES  : constant := 6; --  floating point inexact result
-   FPE_FLTINV  : constant := 7; --  invalid floating point operation
-   FPE_FLTSUB  : constant := 8; --  subscript out of range
-
    type greg_t is new int;
 
    type gregset_t is array (0 .. 18) of greg_t;
@@ -253,9 +243,7 @@ package System.OS_Interface is
 
    type timespec is private;
 
-   type clockid_t is private;
-
-   CLOCK_REALTIME : constant clockid_t;
+   type clockid_t is new int;
 
    function clock_gettime
      (clock_id : clockid_t; tp : access timespec) return int;
@@ -270,16 +258,6 @@ package System.OS_Interface is
 
    function To_Timespec (D : Duration) return timespec;
    pragma Inline (To_Timespec);
-
-   type struct_timeval is private;
-   --  This is needed on systems that do not have clock_gettime()
-   --  but do have gettimeofday().
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
 
    -------------
    -- Process --
@@ -512,6 +490,24 @@ package System.OS_Interface is
       obind   : processorid_t_ptr) return int;
    pragma Import (C, processor_bind, "processor_bind");
 
+   type psetid_t is new int;
+
+   function pset_create (pset : access psetid_t) return int;
+   pragma Import (C, pset_create, "pset_create");
+
+   function pset_assign
+     (pset    : psetid_t;
+      proc_id : processorid_t;
+      opset   : access psetid_t) return int;
+   pragma Import (C, pset_assign, "pset_assign");
+
+   function pset_bind
+     (pset    : psetid_t;
+      id_type : int;
+      id      : id_t;
+      opset   : access psetid_t) return int;
+   pragma Import (C, pset_bind, "pset_bind");
+
    procedure pthread_init;
    --  Dummy procedure to share s-intman.adb with other Solaris targets
 
@@ -532,15 +528,6 @@ private
       tv_nsec : long;
    end record;
    pragma Convention (C, timespec);
-
-   type clockid_t is new int;
-   CLOCK_REALTIME : constant clockid_t := 0;
-
-   type struct_timeval is record
-      tv_sec  : long;
-      tv_usec : long;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    type array_type_9 is array (0 .. 3) of unsigned_char;
    type record_type_3 is record

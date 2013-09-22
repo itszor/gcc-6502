@@ -1,12 +1,11 @@
 // 981208 bkoz test functionality of basic_stringbuf for char_type == char
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 #include <sstream>
 #include <testsuite_hooks.h>
@@ -37,7 +35,7 @@ void test04()
   typedef std::stringbuf::off_type off_type;
 
   int_type c1 = strb_01.sbumpc();
-  int_type c2, c3;
+  int_type c2;
 
   // BUFFER MANAGEMENT & POSITIONING
 
@@ -85,7 +83,7 @@ void test04()
   c1 = strb_01.sgetc(); 
   c2 = strb_01.sungetc();
   strmsz_2 = strb_01.in_avail(); // 1
-  c3 = strb_01.sgetc();
+  strb_01.sgetc();
   VERIFY( c1 != c2 );
   VERIFY( strmsz_2 != strmsz_1 );
   VERIFY( strmsz_2 == 1 );

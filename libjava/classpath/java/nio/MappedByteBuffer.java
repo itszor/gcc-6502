@@ -1,4 +1,4 @@
-/* MappedByteBuffer.java -- 
+/* MappedByteBuffer.java --
    Copyright (C) 2002, 2004  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -38,17 +38,21 @@ exception statement from your version. */
 
 package java.nio;
 
+// GCJ LOCAL: Use RawData instead of gnu.classpath.Pointer
+import gnu.gcj.RawData;
+
 /**
  * @author Michael Koch (konqueror@gmx.de)
  * @since 1.4
  */
 public abstract class MappedByteBuffer extends ByteBuffer
 {
-  MappedByteBuffer (int capacity, int limit, int position, int mark)
+  MappedByteBuffer (int capacity, int limit, int position, int mark,
+                    RawData address)
   {
-    super (capacity, limit, position, mark);
+    super (capacity, limit, position, mark, address, null, 0);
   }
-  
+
   void forceImpl()
   {
   }
@@ -58,7 +62,7 @@ public abstract class MappedByteBuffer extends ByteBuffer
     forceImpl();
     return this;
   }
-    
+
   boolean isLoadedImpl()
   {
     load();
@@ -69,7 +73,7 @@ public abstract class MappedByteBuffer extends ByteBuffer
   {
     return isLoadedImpl();
   }
-    
+
   void loadImpl()
   {
   }

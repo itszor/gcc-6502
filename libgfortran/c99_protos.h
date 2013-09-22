@@ -1,30 +1,26 @@
 /* Declarations of various C99 functions 
-   Copyright (C) 2004, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 This file is part of the GNU Fortran 95 runtime library (libgfortran).
 
-Libgfortran is free software; you can redistribute it and/or
-modify it under the terms of the GNU Lesser General Public
-License as published by the Free Software Foundation; either
-version 2.1 of the License, or (at your option) any later version.
+Libgfortran is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Lesser General Public License for more details.
+GNU General Public License for more details.
 
-You should have received a copy of the GNU Lesser General Public
-License along with libgfortran; see the file COPYING.LIB.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files,
-   some of which are compiled with GCC, to produce an executable,
-   this library does not by itself cause the resulting executable
-   to be covered by the GNU General Public License.
-   This exception does not however invalidate any other reasons why
-   the executable file might be covered by the GNU General Public License.  */
-
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #ifndef C99_PROTOS_H
 #define C99_PROTOS_H 1
@@ -499,6 +495,115 @@ extern double complex ctan (double complex);
 #if !defined(HAVE_CTANL) && defined(HAVE_TANL) && defined(HAVE_TANHL)
 #define HAVE_CTANL 1
 extern long double complex ctanl (long double complex);
+#endif
+
+
+/* Complex ACOS.  */
+
+#if !defined(HAVE_CACOSF) && defined(HAVE_CLOGF) && defined(HAVE_CSQRTF)
+#define HAVE_CACOSF 1
+extern complex float cacosf (complex float z);
+#endif
+
+#if !defined(HAVE_CACOS) && defined(HAVE_CLOG) && defined(HAVE_CSQRT)
+#define HAVE_CACOS 1
+extern complex double cacos (complex double z);
+#endif
+
+#if !defined(HAVE_CACOSL) && defined(HAVE_CLOGL) && defined(HAVE_CSQRTL)
+#define HAVE_CACOSL 1
+extern complex long double cacosl (complex long double z);
+#endif
+
+
+/* Complex ASIN.  */
+
+#if !defined(HAVE_CASINF) && defined(HAVE_CLOGF) && defined(HAVE_CSQRTF)
+#define HAVE_CASINF 1
+extern complex float casinf (complex float z);
+#endif
+
+#if !defined(HAVE_CASIN) && defined(HAVE_CLOG) && defined(HAVE_CSQRT)
+#define HAVE_CASIN 1
+extern complex double casin (complex double z);
+#endif
+
+#if !defined(HAVE_CASINL) && defined(HAVE_CLOGL) && defined(HAVE_CSQRTL)
+#define HAVE_CASINL 1
+extern complex long double casinl (complex long double z);
+#endif
+
+
+/* Complex ATAN.  */
+
+#if !defined(HAVE_CATANF) && defined(HAVE_CLOGF)
+#define HAVE_CATANF 1
+extern complex float catanf (complex float z);
+#endif
+
+#if !defined(HAVE_CATAN) && defined(HAVE_CLOG)
+#define HAVE_CATAN 1
+extern complex double catan (complex double z);
+#endif
+
+#if !defined(HAVE_CATANL) && defined(HAVE_CLOGL)
+#define HAVE_CATANL 1
+extern complex long double catanl (complex long double z);
+#endif
+
+
+/* Complex ASINH.  */
+
+#if !defined(HAVE_CASINHF) && defined(HAVE_CLOGF) && defined(HAVE_CSQRTF)
+#define HAVE_CASINHF 1
+extern complex float casinhf (complex float z);
+#endif
+
+
+#if !defined(HAVE_CASINH) && defined(HAVE_CLOG) && defined(HAVE_CSQRT)
+#define HAVE_CASINH 1
+extern complex double casinh (complex double z);
+#endif
+
+#if !defined(HAVE_CASINHL) && defined(HAVE_CLOGL) && defined(HAVE_CSQRTL)
+#define HAVE_CASINHL 1
+extern complex long double casinhl (complex long double z);
+#endif
+
+
+/* Complex ACOSH.  */
+
+#if !defined(HAVE_CACOSHF) && defined(HAVE_CLOGF) && defined(HAVE_CSQRTF)
+#define HAVE_CACOSHF 1
+extern complex float cacoshf (complex float z);
+#endif
+
+#if !defined(HAVE_CACOSH) && defined(HAVE_CLOG) && defined(HAVE_CSQRT)
+#define HAVE_CACOSH 1
+extern complex double cacosh (complex double z);
+#endif
+
+#if !defined(HAVE_CACOSHL) && defined(HAVE_CLOGL) && defined(HAVE_CSQRTL)
+#define HAVE_CACOSHL 1
+extern complex long double cacoshl (complex long double z);
+#endif
+
+
+/* Complex ATANH.  */
+
+#if !defined(HAVE_CATANHF) && defined(HAVE_CLOGF)
+#define HAVE_CATANHF 1
+extern complex float catanhf (complex float z);
+#endif
+
+#if !defined(HAVE_CATANH) && defined(HAVE_CLOG)
+#define HAVE_CATANH 1
+extern complex double catanh (complex double z);
+#endif
+
+#if !defined(HAVE_CATANHL) && defined(HAVE_CLOGL)
+#define HAVE_CATANHL 1
+extern complex long double catanhl (complex long double z);
 #endif
 
 

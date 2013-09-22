@@ -1,4 +1,6 @@
 ! { dg-do run }
+! { dg-options "-std=legacy" }
+!
 ! Another case of fallout from the original patch for PR14771
 ! Testcase by Erik Zeek
 module para
@@ -17,5 +19,3 @@ program test
    c = bobo(5)
    if (c .ne. "12345") call abort
 end program test
-
-! { dg-final { cleanup-modules "para" } }

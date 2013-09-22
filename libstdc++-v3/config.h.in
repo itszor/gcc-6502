@@ -12,6 +12,9 @@
 /* Define to 1 if you have the `asinl' function. */
 #undef HAVE_ASINL
 
+/* Define to 1 if the target assembler supports .symver directive. */
+#undef HAVE_AS_SYMVER_DIRECTIVE
+
 /* Define to 1 if you have the `atan2f' function. */
 #undef HAVE_ATAN2F
 
@@ -24,6 +27,9 @@
 /* Define to 1 if you have the `atanl' function. */
 #undef HAVE_ATANL
 
+/* Define to 1 if you have the `at_quick_exit' function. */
+#undef HAVE_AT_QUICK_EXIT
+
 /* Define to 1 if the target assembler supports thread-local storage. */
 #undef HAVE_CC_TLS
 
@@ -35,15 +41,6 @@
 
 /* Define to 1 if you have the <complex.h> header file. */
 #undef HAVE_COMPLEX_H
-
-/* Define to 1 if you have the `copysign' function. */
-#undef HAVE_COPYSIGN
-
-/* Define to 1 if you have the `copysignf' function. */
-#undef HAVE_COPYSIGNF
-
-/* Define to 1 if you have the `copysignl' function. */
-#undef HAVE_COPYSIGNL
 
 /* Define to 1 if you have the `cosf' function. */
 #undef HAVE_COSF
@@ -60,8 +57,68 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* Define if EBADMSG exists. */
+#undef HAVE_EBADMSG
+
+/* Define if ECANCELED exists. */
+#undef HAVE_ECANCELED
+
+/* Define if ECHILD exists. */
+#undef HAVE_ECHILD
+
+/* Define if EIDRM exists. */
+#undef HAVE_EIDRM
+
 /* Define to 1 if you have the <endian.h> header file. */
 #undef HAVE_ENDIAN_H
+
+/* Define if ENODATA exists. */
+#undef HAVE_ENODATA
+
+/* Define if ENOLINK exists. */
+#undef HAVE_ENOLINK
+
+/* Define if ENOSPC exists. */
+#undef HAVE_ENOSPC
+
+/* Define if ENOSR exists. */
+#undef HAVE_ENOSR
+
+/* Define if ENOSTR exists. */
+#undef HAVE_ENOSTR
+
+/* Define if ENOTRECOVERABLE exists. */
+#undef HAVE_ENOTRECOVERABLE
+
+/* Define if ENOTSUP exists. */
+#undef HAVE_ENOTSUP
+
+/* Define if EOVERFLOW exists. */
+#undef HAVE_EOVERFLOW
+
+/* Define if EOWNERDEAD exists. */
+#undef HAVE_EOWNERDEAD
+
+/* Define if EPERM exists. */
+#undef HAVE_EPERM
+
+/* Define if EPROTO exists. */
+#undef HAVE_EPROTO
+
+/* Define if ETIME exists. */
+#undef HAVE_ETIME
+
+/* Define if ETIMEDOUT exists. */
+#undef HAVE_ETIMEDOUT
+
+/* Define if ETXTBSY exists. */
+#undef HAVE_ETXTBSY
+
+/* Define if EWOULDBLOCK exists. */
+#undef HAVE_EWOULDBLOCK
+
+/* Define to 1 if you have the <execinfo.h> header file. */
+#undef HAVE_EXECINFO_H
 
 /* Define to 1 if you have the `expf' function. */
 #undef HAVE_EXPF
@@ -114,21 +171,11 @@
 /* Define to 1 if you have the `frexpl' function. */
 #undef HAVE_FREXPL
 
-/* Define to 1 if you have the <gconf.h> header file. */
-#undef HAVE_GCONF_H
-
-/* Define to 1 if you have the <gconv.h> header file. */
-#undef HAVE_GCONV_H
-
 /* Define if _Unwind_GetIPInfo is available. */
 #undef HAVE_GETIPINFO
 
-/* Define to 1 if you have the `getpagesize' function. */
-#undef HAVE_GETPAGESIZE
-
-/* Define if gthr-default.h exists (meaning that threading support is
-   enabled). */
-#undef HAVE_GTHR_DEFAULT
+/* Define if gets is available in <stdio.h>. */
+#undef HAVE_GETS
 
 /* Define to 1 if you have the `hypot' function. */
 #undef HAVE_HYPOT
@@ -147,6 +194,12 @@
 
 /* Define if int64_t is available in <stdint.h>. */
 #undef HAVE_INT64_T
+
+/* Define if int64_t is a long. */
+#undef HAVE_INT64_T_LONG
+
+/* Define if int64_t is a long long. */
+#undef HAVE_INT64_T_LONG_LONG
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
@@ -183,9 +236,6 @@
 
 /* Define to 1 if you have the <libintl.h> header file. */
 #undef HAVE_LIBINTL_H
-
-/* Define to 1 if you have the `m' library (-lm). */
-#undef HAVE_LIBM
 
 /* Only used in build directory testsuite_hooks.h. */
 #undef HAVE_LIMIT_AS
@@ -232,9 +282,6 @@
 /* Define to 1 if you have the <memory.h> header file. */
 #undef HAVE_MEMORY_H
 
-/* Define to 1 if you have a working `mmap' system call. */
-#undef HAVE_MMAP
-
 /* Define to 1 if you have the `modf' function. */
 #undef HAVE_MODF
 
@@ -259,11 +306,11 @@
 /* Define to 1 if you have the `qfpclass' function. */
 #undef HAVE_QFPCLASS
 
+/* Define to 1 if you have the `quick_exit' function. */
+#undef HAVE_QUICK_EXIT
+
 /* Define to 1 if you have the `setenv' function. */
 #undef HAVE_SETENV
-
-/* Define if sigsetjmp is available. */
-#undef HAVE_SIGSETJMP
 
 /* Define to 1 if you have the `sincos' function. */
 #undef HAVE_SINCOS
@@ -286,11 +333,17 @@
 /* Define to 1 if you have the `sinl' function. */
 #undef HAVE_SINL
 
+/* Defined if sleep exists. */
+#undef HAVE_SLEEP
+
 /* Define to 1 if you have the `sqrtf' function. */
 #undef HAVE_SQRTF
 
 /* Define to 1 if you have the `sqrtl' function. */
 #undef HAVE_SQRTL
+
+/* Define to 1 if you have the <stdalign.h> header file. */
+#undef HAVE_STDALIGN_H
 
 /* Define to 1 if you have the <stdbool.h> header file. */
 #undef HAVE_STDBOOL_H
@@ -322,6 +375,10 @@
 /* Define if strxfrm_l is available in <string.h>. */
 #undef HAVE_STRXFRM_L
 
+/* Define to 1 if the target runtime linker supports binding the same symbol
+   to different versions. */
+#undef HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT
+
 /* Define to 1 if you have the <sys/filio.h> header file. */
 #undef HAVE_SYS_FILIO_H
 
@@ -343,11 +400,17 @@
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #undef HAVE_SYS_RESOURCE_H
 
+/* Define to 1 if you have a suitable <sys/sdt.h> header file */
+#undef HAVE_SYS_SDT_H
+
 /* Define to 1 if you have the <sys/sem.h> header file. */
 #undef HAVE_SYS_SEM_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/sysinfo.h> header file. */
+#undef HAVE_SYS_SYSINFO_H
 
 /* Define to 1 if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
@@ -385,6 +448,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Defined if usleep exists. */
+#undef HAVE_USLEEP
+
 /* Defined if vfwscanf exists. */
 #undef HAVE_VFWSCANF
 
@@ -402,6 +468,9 @@
 
 /* Define to 1 if you have the <wctype.h> header file. */
 #undef HAVE_WCTYPE_H
+
+/* Defined if Sleep exists. */
+#undef HAVE_WIN32_SLEEP
 
 /* Define if writev is available in <sys/uio.h>. */
 #undef HAVE_WRITEV
@@ -435,12 +504,6 @@
 
 /* Define to 1 if you have the `_ceill' function. */
 #undef HAVE__CEILL
-
-/* Define to 1 if you have the `_copysign' function. */
-#undef HAVE__COPYSIGN
-
-/* Define to 1 if you have the `_copysignl' function. */
-#undef HAVE__COPYSIGNL
 
 /* Define to 1 if you have the `_cosf' function. */
 #undef HAVE__COSF
@@ -598,56 +661,8 @@
 /* Define to 1 if you have the `_tanl' function. */
 #undef HAVE__TANL
 
-/* Define if the compiler/host combination has __builtin_abs. */
-#undef HAVE___BUILTIN_ABS
-
-/* Define if the compiler/host combination has __builtin_cos. */
-#undef HAVE___BUILTIN_COS
-
-/* Define if the compiler/host combination has __builtin_cosf. */
-#undef HAVE___BUILTIN_COSF
-
-/* Define if the compiler/host combination has __builtin_cosl. */
-#undef HAVE___BUILTIN_COSL
-
-/* Define if the compiler/host combination has __builtin_fabs. */
-#undef HAVE___BUILTIN_FABS
-
-/* Define if the compiler/host combination has __builtin_fabsf. */
-#undef HAVE___BUILTIN_FABSF
-
-/* Define if the compiler/host combination has __builtin_fabsl. */
-#undef HAVE___BUILTIN_FABSL
-
-/* Define if the compiler/host combination has __builtin_labs. */
-#undef HAVE___BUILTIN_LABS
-
-/* Define if the compiler/host combination has __builtin_sin. */
-#undef HAVE___BUILTIN_SIN
-
-/* Define if the compiler/host combination has __builtin_sinf. */
-#undef HAVE___BUILTIN_SINF
-
-/* Define if the compiler/host combination has __builtin_sinl. */
-#undef HAVE___BUILTIN_SINL
-
-/* Define if the compiler/host combination has __builtin_sqrt. */
-#undef HAVE___BUILTIN_SQRT
-
-/* Define if the compiler/host combination has __builtin_sqrtf. */
-#undef HAVE___BUILTIN_SQRTF
-
-/* Define if the compiler/host combination has __builtin_sqrtl. */
-#undef HAVE___BUILTIN_SQRTL
-
-/* Define to 1 if you have the `__signbit' function. */
-#undef HAVE___SIGNBIT
-
-/* Define to 1 if you have the `__signbitf' function. */
-#undef HAVE___SIGNBITF
-
-/* Define to 1 if you have the `__signbitl' function. */
-#undef HAVE___SIGNBITL
+/* Define to 1 if you have the `__cxa_thread_atexit_impl' function. */
+#undef HAVE___CXA_THREAD_ATEXIT_IMPL
 
 /* Define as const if the declaration of iconv() needs const. */
 #undef ICONV_CONST
@@ -671,8 +686,26 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* The size of `char', as computed by sizeof. */
+#undef SIZEOF_CHAR
+
+/* The size of `int', as computed by sizeof. */
+#undef SIZEOF_INT
+
+/* The size of `long', as computed by sizeof. */
+#undef SIZEOF_LONG
+
+/* The size of `short', as computed by sizeof. */
+#undef SIZEOF_SHORT
+
+/* The size of `void *', as computed by sizeof. */
+#undef SIZEOF_VOID_P
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
@@ -680,14 +713,18 @@
 /* Version number of package */
 #undef VERSION
 
-/* Define if builtin atomic operations are supported on this host. */
+/* Define if the compiler supports C++11 atomics. */
 #undef _GLIBCXX_ATOMIC_BUILTINS
 
 /* Define to use concept checking code from the boost libraries. */
 #undef _GLIBCXX_CONCEPT_CHECKS
 
-/* Define if a fully dynamic basic_string is wanted. */
+/* Define to 1 if a fully dynamic basic_string is wanted, 0 to disable,
+   undefined for platform defaults */
 #undef _GLIBCXX_FULLY_DYNAMIC_STRING
+
+/* Define if gthreads library is available. */
+#undef _GLIBCXX_HAS_GTHREADS
 
 /* Define to 1 if a full hosted library is built, or 0 if freestanding. */
 #undef _GLIBCXX_HOSTED
@@ -707,6 +744,15 @@
 /* Define if the compiler is configured for setjmp/longjmp exceptions. */
 #undef _GLIBCXX_SJLJ_EXCEPTIONS
 
+/* Define to the value of the EOF integer constant. */
+#undef _GLIBCXX_STDIO_EOF
+
+/* Define to the value of the SEEK_CUR integer constant. */
+#undef _GLIBCXX_STDIO_SEEK_CUR
+
+/* Define to the value of the SEEK_END integer constant. */
+#undef _GLIBCXX_STDIO_SEEK_END
+
 /* Define to use symbol versioning in the shared library. */
 #undef _GLIBCXX_SYMVER
 
@@ -718,6 +764,9 @@
 
 /* Define to use GNU namespace versioning in the shared library. */
 #undef _GLIBCXX_SYMVER_GNU_NAMESPACE
+
+/* Define to use Sun versioning in the shared library. */
+#undef _GLIBCXX_SYMVER_SUN
 
 /* Define if C99 functions or macros from <wchar.h>, <math.h>, <complex.h>,
    <stdio.h>, and <stdlib.h> can be used or exposed. */
@@ -745,6 +794,10 @@
    <tr1/cinttypes> in namespace std::tr1. */
 #undef _GLIBCXX_USE_C99_INTTYPES_TR1
 
+/* Define if wchar_t C99 functions in <inttypes.h> should be imported in
+   <tr1/cinttypes> in namespace std::tr1. */
+#undef _GLIBCXX_USE_C99_INTTYPES_WCHAR_T_TR1
+
 /* Define if C99 functions or macros in <math.h> should be imported in <cmath>
    in namespace std. */
 #undef _GLIBCXX_USE_C99_MATH
@@ -757,21 +810,73 @@
    namespace std::tr1. */
 #undef _GLIBCXX_USE_C99_STDINT_TR1
 
+/* Defined if clock_gettime has monotonic clock support. */
+#undef _GLIBCXX_USE_CLOCK_MONOTONIC
+
+/* Defined if clock_gettime syscall has monotonic and realtime clock support. */
+#undef _GLIBCXX_USE_CLOCK_GETTIME_SYSCALL
+
+/* Defined if clock_gettime has realtime clock support. */
+#undef _GLIBCXX_USE_CLOCK_REALTIME
+
+/* Define if ISO/IEC TR 24733 decimal floating point types are supported on
+   this host. */
+#undef _GLIBCXX_USE_DECIMAL_FLOAT
+
+/* Define if __float128 is supported on this host. */
+#undef _GLIBCXX_USE_FLOAT128
+
+/* Defined if gettimeofday is available. */
+#undef _GLIBCXX_USE_GETTIMEOFDAY
+
+/* Define if get_nprocs is available in <sys/sysinfo.h>. */
+#undef _GLIBCXX_USE_GET_NPROCS
+
+/* Define if __int128 is supported on this host. */
+#undef _GLIBCXX_USE_INT128
+
 /* Define if LFS support is available. */
 #undef _GLIBCXX_USE_LFS
 
 /* Define if code specialized for long long should be used. */
 #undef _GLIBCXX_USE_LONG_LONG
 
+/* Defined if nanosleep is available. */
+#undef _GLIBCXX_USE_NANOSLEEP
+
 /* Define if NLS translations are to be used. */
 #undef _GLIBCXX_USE_NLS
 
-/* Define if dev/random and dev/urandom are available for the random_device of
-   TR1 (Chapter 5.1). */
+/* Define if pthreads_num_processors_np is available in <pthread.h>. */
+#undef _GLIBCXX_USE_PTHREADS_NUM_PROCESSORS_NP
+
+/* Define if /dev/random and /dev/urandom are available for the random_device
+   of TR1 (Chapter 5.1). */
 #undef _GLIBCXX_USE_RANDOM_TR1
+
+/* Defined if sched_yield is available. */
+#undef _GLIBCXX_USE_SCHED_YIELD
+
+/* Define if _SC_NPROCESSORS_ONLN is available in <unistd.h>. */
+#undef _GLIBCXX_USE_SC_NPROCESSORS_ONLN
+
+/* Define if _SC_NPROC_ONLN is available in <unistd.h>. */
+#undef _GLIBCXX_USE_SC_NPROC_ONLN
+
+/* Define if sysctl(), CTL_HW and HW_NCPU are available in <sys/sysctl.h>. */
+#undef _GLIBCXX_USE_SYSCTL_HW_NCPU
 
 /* Define if code specialized for wchar_t should be used. */
 #undef _GLIBCXX_USE_WCHAR_T
+
+/* Define to 1 if a verbose library is built, or 0 otherwise. */
+#undef _GLIBCXX_VERBOSE
+
+/* Defined if as can handle rdrand. */
+#undef _GLIBCXX_X86_RDRAND
+
+/* Define to 1 if mutex_timedlock is available. */
+#undef _GTHREAD_USE_MUTEX_TIMEDLOCK
 
 #if defined (HAVE__ACOSF) && ! defined (HAVE_ACOSF)
 # define HAVE_ACOSF 1
@@ -821,16 +926,6 @@
 #if defined (HAVE__CEILL) && ! defined (HAVE_CEILL)
 # define HAVE_CEILL 1
 # define ceill _ceill
-#endif
-
-#if defined (HAVE__COPYSIGN) && ! defined (HAVE_COPYSIGN)
-# define HAVE_COPYSIGN 1
-# define copysign _copysign
-#endif
-
-#if defined (HAVE__COPYSIGNL) && ! defined (HAVE_COPYSIGNL)
-# define HAVE_COPYSIGNL 1
-# define copysignl _copysignl
 #endif
 
 #if defined (HAVE__COSF) && ! defined (HAVE_COSF)

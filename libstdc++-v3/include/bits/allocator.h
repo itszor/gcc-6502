@@ -1,12 +1,11 @@
 // Allocators -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  * Copyright (c) 1996-1997
@@ -41,21 +35,28 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file allocator.h
+/** @file bits/allocator.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{memory}
  */
 
 #ifndef _ALLOCATOR_H
 #define _ALLOCATOR_H 1
 
-// Define the base class to std::allocator.
-#include <bits/c++allocator.h>
+#include <bits/c++allocator.h> // Define the base class to std::allocator.
+#include <bits/memoryfwd.h>
+#if __cplusplus >= 201103L
+#include <type_traits>
+#endif
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-  template<typename _Tp>
-    class allocator;
+  /**
+   *  @addtogroup allocators
+   *  @{
+   */
 
   /// allocator<void> specialization.
   template<>
@@ -71,16 +72,24 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       template<typename _Tp1>
         struct rebind
         { typedef allocator<_Tp1> other; };
+
+#if __cplusplus >= 201103L
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 2103. std::allocator propagate_on_container_move_assignment
+      typedef true_type propagate_on_container_move_assignment;
+#endif
     };
 
   /**
-   * @brief  The "standard" allocator, as per [20.4].
+   * @brief  The @a standard allocator, as per [20.4].
    *
-   *  Further details:
-   *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt04ch11.html
+   *  See http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt04ch11.html
+   *  for further details.
+   *
+   *  @tparam  _Tp  Type of allocated object.
    */
   template<typename _Tp>
-    class allocator: public __glibcxx_base_allocator<_Tp>
+    class allocator: public __allocator_base<_Tp>
     {
    public:
       typedef size_t     size_type;
@@ -95,10 +104,16 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
         struct rebind
         { typedef allocator<_Tp1> other; };
 
+#if __cplusplus >= 201103L
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 2103. std::allocator propagate_on_container_move_assignment
+      typedef true_type propagate_on_container_move_assignment;
+#endif
+
       allocator() throw() { }
 
       allocator(const allocator& __a) throw()
-      : __glibcxx_base_allocator<_Tp>(__a) { }
+      : __allocator_base<_Tp>(__a) { }
 
       template<typename _Tp1>
         allocator(const allocator<_Tp1>&) throw() { }
@@ -128,16 +143,17 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     operator!=(const allocator<_Tp>&, const allocator<_Tp>&)
     { return false; }
 
+  /// @} group allocator
+
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
-  // NB: This syntax is a GNU extension.
 #if _GLIBCXX_EXTERN_TEMPLATE
   extern template class allocator<char>;
   extern template class allocator<wchar_t>;
 #endif
 
   // Undefine.
-#undef __glibcxx_base_allocator
+#undef __allocator_base
 
   // To implement Option 3 of DR 431.
   template<typename _Alloc, bool = __is_empty(_Alloc)>
@@ -173,6 +189,33 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       { return __one != __two; }
     };
 
-_GLIBCXX_END_NAMESPACE
+#if __cplusplus >= 201103L
+  template<typename _Tp, bool
+    = __or_<is_copy_constructible<typename _Tp::value_type>,
+            is_nothrow_move_constructible<typename _Tp::value_type>>::value>
+    struct __shrink_to_fit_aux
+    { static bool _S_do_it(_Tp&) { return false; } };
+
+  template<typename _Tp>
+    struct __shrink_to_fit_aux<_Tp, true>
+    {
+      static bool
+      _S_do_it(_Tp& __c)
+      {
+	__try
+	  {
+	    _Tp(__make_move_if_noexcept_iterator(__c.begin()),
+		__make_move_if_noexcept_iterator(__c.end()),
+		__c.get_allocator()).swap(__c);
+	    return true;
+	  }
+	__catch(...)
+	  { return false; }
+      }
+    };
+#endif
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif

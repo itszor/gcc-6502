@@ -77,9 +77,9 @@ public class JniStubPrinter
     if (! klass.hasNativeMethod())
       return;
     String xname = JniHelper.mangle(klass.name);
-    JniPrintStream out 
-      = (JniPrintStream) getPrintStream(klass.name.replace('/', '_') + ".c", 
-					klass);
+    JniPrintStream out
+      = (JniPrintStream) getPrintStream(klass.name.replace('/', '_') + ".c",
+                                        klass);
     if (out == null)
       return;
     out.println();
@@ -87,7 +87,7 @@ public class JniStubPrinter
     out.print(klass.name.replace('/', '_'));
     out.println(".h>");
 
-    Iterator i = klass.methods.iterator();
+    Iterator<?> i = klass.methods.iterator();
     while (i.hasNext())
       {
         MethodNode method = (MethodNode) i.next();

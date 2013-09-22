@@ -1,5 +1,4 @@
-@c Copyright (c) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-@c Free Software Foundation, Inc.
+@c Copyright (C) 1999-2013 Free Software Foundation, Inc.
 @c This is part of the CPP and GCC manuals.
 @c For copying conditions, see the file gcc.texi.
 
@@ -115,10 +114,6 @@ equivalent, and problematic constructs which should be avoided.
 @xref{Traditional Mode}.
 @end ifset
 
-@item -Wimport
-@opindex Wimport
-Warn the first time @samp{#import} is used.
-
 @item -Wundef
 @opindex Wundef
 Warn whenever an identifier which is not a macro is encountered in an
@@ -192,8 +187,8 @@ without @samp{-pedantic} but treats as warnings.
 
 @item -M
 @opindex M
-@cindex make
-@cindex dependencies, make
+@cindex @command{make}
+@cindex dependencies, @command{make}
 Instead of outputting the result of preprocessing, output a rule
 suitable for @command{make} describing the dependencies of the main
 source file.  The preprocessor outputs one @command{make} rule containing
@@ -334,10 +329,10 @@ header is used.
 @opindex fpch-preprocess
 This option allows use of a precompiled header (@pxref{Precompiled
 Headers}) together with @option{-E}.  It inserts a special @code{#pragma},
-@code{#pragma GCC pch_preprocess "<filename>"} in the output to mark
-the place where the precompiled header was found, and its filename.  When
-@option{-fpreprocessed} is in use, GCC recognizes this @code{#pragma} and
-loads the PCH@.
+@code{#pragma GCC pch_preprocess "@var{filename}"} in the output to mark
+the place where the precompiled header was found, and its @var{filename}.
+When @option{-fpreprocessed} is in use, GCC recognizes this @code{#pragma}
+and loads the PCH@.
 
 This option is off by default, because the resulting preprocessed output
 is only really suitable as input to GCC@.  It is switched on by
@@ -378,12 +373,13 @@ knows about C and C++ standards; others may be added in the future.
 @var{standard}
 may be one of:
 @table @code
-@item iso9899:1990
+@item c90
 @itemx c89
-The ISO C standard from 1990.  @samp{c89} is the customary shorthand for
+@itemx iso9899:1990
+The ISO C standard from 1990.  @samp{c90} is the customary shorthand for
 this version of the standard.
 
-The @option{-ansi} option is equivalent to @option{-std=c89}.
+The @option{-ansi} option is equivalent to @option{-std=c90}.
 
 @item iso9899:199409
 The 1990 C standard, as amended in 1994.
@@ -395,12 +391,23 @@ The 1990 C standard, as amended in 1994.
 The revised ISO C standard, published in December 1999.  Before
 publication, this was known as C9X@.
 
-@item gnu89
+@item iso9899:2011
+@itemx c11
+@itemx c1x
+The revised ISO C standard, published in December 2011.  Before
+publication, this was known as C1X@.
+
+@item gnu90
+@itemx gnu89
 The 1990 C standard plus GNU extensions.  This is the default.
 
 @item gnu99
 @itemx gnu9x
 The 1999 C standard plus GNU extensions.
+
+@item gnu11
+@itemx gnu1x
+The 2011 C standard plus GNU extensions.
 
 @item c++98
 The 1998 ISO C++ standard plus amendments.
@@ -487,7 +494,9 @@ would; @option{-iwithprefix} puts it where @option{-idirafter} would.
 @item -isysroot @var{dir}
 @opindex isysroot
 This option is like the @option{--sysroot} option, but applies only to
-header files.  See the @option{--sysroot} option for more information.
+header files (except for Darwin targets, where it applies to both header
+files and libraries).  See the @option{--sysroot} option for more
+information.
 
 @item -imultilib @var{dir}
 @opindex imultilib
@@ -545,7 +554,7 @@ files previously preprocessed with @code{-E -fdirectives-only}.
 @anchor{fdollars-in-identifiers}
 Accept @samp{$} in identifiers.
 @ifset cppmanual
-  @xref{Identifier characters}.
+@xref{Identifier characters}.
 @end ifset
 
 @item -fextended-identifiers
@@ -553,6 +562,10 @@ Accept @samp{$} in identifiers.
 Accept universal character names in identifiers.  This option is
 experimental; in a future version of GCC, it will be enabled by
 default for C99 and C++.
+
+@item -fno-canonical-system-headers
+@opindex fno-canonical-system-headers
+When preprocessing, do not shorten system header paths with canonicalization.
 
 @item -fpreprocessed
 @opindex fpreprocessed
@@ -575,6 +588,39 @@ Set the distance between tab stops.  This helps the preprocessor report
 correct column numbers in warnings or errors, even if tabs appear on the
 line.  If the value is less than 1 or greater than 100, the option is
 ignored.  The default is 8.
+
+@item -fdebug-cpp
+@opindex fdebug-cpp
+This option is only useful for debugging GCC.  When used with
+@option{-E}, dumps debugging information about location maps.  Every
+token in the output is preceded by the dump of the map its location
+belongs to.  The dump of the map holding the location of a token would
+be:
+@smallexample
+@{@samp{P}:@file{/file/path};@samp{F}:@file{/includer/path};@samp{L}:@var{line_num};@samp{C}:@var{col_num};@samp{S}:@var{system_header_p};@samp{M}:@var{map_address};@samp{E}:@var{macro_expansion_p},@samp{loc}:@var{location}@}
+@end smallexample
+
+When used without @option{-E}, this option has no effect.
+
+@item -ftrack-macro-expansion@r{[}=@var{level}@r{]}
+@opindex ftrack-macro-expansion
+Track locations of tokens across macro expansions. This allows the
+compiler to emit diagnostic about the current macro expansion stack
+when a compilation error occurs in a macro expansion. Using this
+option makes the preprocessor and the compiler consume more
+memory. The @var{level} parameter can be used to choose the level of
+precision of token location tracking thus decreasing the memory
+consumption if necessary. Value @samp{0} of @var{level} de-activates
+this option just as if no @option{-ftrack-macro-expansion} was present
+on the command line. Value @samp{1} tracks tokens locations in a
+degraded mode for the sake of minimal memory overhead. In this mode
+all tokens resulting from the expansion of an argument of a
+function-like macro have the same location. Value @samp{2} tracks
+tokens locations completely. This value is the most memory hungry.
+When this option is given no argument, the default parameter value is
+@samp{2}.
+
+Note that -ftrack-macro-expansion=2 is activated by default.
 
 @item -fexec-charset=@var{charset}
 @opindex fexec-charset
@@ -633,7 +679,7 @@ Make an assertion with the predicate @var{predicate} and answer
 @var{predicate}(@var{answer})}, which is still supported, because
 it does not use shell special characters.
 @ifset cppmanual
-@xref{Assertions}.
+@xref{Obsolete Features}.
 @end ifset
 
 @item -A -@var{predicate}=@var{answer}
@@ -682,6 +728,14 @@ Like @samp{D}, but emit only the macro names, not their expansions.
 @opindex dI
 Output @samp{#include} directives in addition to the result of
 preprocessing.
+
+@item U
+@opindex dU
+Like @samp{D} except that only macros that are expanded, or whose
+definedness is tested in preprocessor directives, are output; the
+output is delayed until the use or test of the macro; and
+@samp{#undef} directives are also output for macros tested but
+undefined at the time.
 @end table
 
 @item -P
@@ -754,7 +808,7 @@ Replacement:      [    ]    @{    @}    #    \    ^    |    ~
 Enable special code to work around file systems which only permit very
 short file names, such as MS-DOS@.
 
-@itemx --help
+@item --help
 @itemx --target-help
 @opindex help
 @opindex target-help

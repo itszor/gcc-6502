@@ -1,4 +1,4 @@
-/* DomText.java -- 
+/* DomText.java --
    Copyright (C) 1999, 2000, 2001, 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,30 +37,32 @@ exception statement from your version. */
 
 package gnu.xml.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Text;
 
 /**
  * <p> "Text" implementation.  </p>
  *
- * @author David Brownell 
+ * @author David Brownell
  * @author <a href='mailto:dog@gnu.org'>Chris Burdess</a>
  */
 public class DomText
   extends DomCharacterData
   implements Text
 {
-  
+
   // NOTE:  deleted unused per-instance "isIgnorable"
   // support to reclaim its space.
-  
+
   /**
    * Constructs a text node associated with the specified
    * document and holding the specified data.
    *
    * <p>This constructor should only be invoked by a Document object
    * as part of its createTextNode functionality, or through a subclass
-   * which is similarly used in a "Sub-DOM" style layer. 
+   * which is similarly used in a "Sub-DOM" style layer.
    */
   protected DomText(DomDocument owner, String value)
   {
@@ -110,7 +112,7 @@ public class DomText
         String before = text.substring(0, offset);
         String after = text.substring(offset);
         Text next;
-        
+
         if (getNodeType() == TEXT_NODE)
           {
             next = owner.createTextNode(after);
@@ -119,7 +121,7 @@ public class DomText
           {
             next = owner.createCDATASection(after);
           }
-        
+
         if (this.next != null)
           {
             parent.insertBefore(next, this.next);
@@ -130,16 +132,16 @@ public class DomText
           }
         setNodeValue(before);
         return next;
-        
+
       }
     catch (IndexOutOfBoundsException x)
       {
         throw new DomDOMException(DOMException.INDEX_SIZE_ERR);
       }
   }
-    
+
   // DOM Level 3
-  
+
   public boolean isElementContentWhitespace()
   {
     if (parent != null)
@@ -172,7 +174,7 @@ public class DomText
       {
         ref = ctx;
       }
-    StringBuffer buf = new StringBuffer(ref.getNodeValue());
+    CPStringBuilder buf = new CPStringBuilder(ref.getNodeValue());
     for (ctx = ref.next; ctx != null &&
          (ctx.nodeType == TEXT_NODE || ctx.nodeType == CDATA_SECTION_NODE);
          ctx = ctx.next)
@@ -190,7 +192,7 @@ public class DomText
       {
         setNodeValue(content);
       }
-    
+
     DomNode ref = this;
     DomNode ctx;
     for (ctx = previous; ctx != null &&
@@ -216,5 +218,5 @@ public class DomText
       }
     return (isEmpty) ? null : this;
   }
-    
+
 }

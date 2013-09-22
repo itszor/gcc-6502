@@ -1,5 +1,5 @@
 /* VMMemoryManagerMXBeanImpl.java - VM interface for a memory manager bean
-   Copyright (C) 2006 Free Software Foundation
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -56,10 +56,12 @@ import java.util.List;
 final class VMMemoryManagerMXBeanImpl
 {
 
-  /** 
+  private VMMemoryManagerMXBeanImpl() {} // Prohibits instantiation.
+
+  /**
    * Returns an array containing the names of the memory pools
    * this memory manager manages.
-   * 
+   *
    * @param name the name of the memory manager.
    * @return an array containing the name of each memory pool
    *         this manager is responsible for.
@@ -70,14 +72,14 @@ final class VMMemoryManagerMXBeanImpl
     Iterator beans = ManagementFactory.getMemoryPoolMXBeans().iterator();
     while (beans.hasNext())
       {
-	MemoryPoolMXBean bean = (MemoryPoolMXBean) beans.next();
-	String[] managers = bean.getMemoryManagerNames();
-	for (int a = 0; a < managers.length; ++a)
-	  if (managers[a].equals(name))
-	    {
-	      managedPools.add(bean.getName());
-	      break;
-	    }
+        MemoryPoolMXBean bean = (MemoryPoolMXBean) beans.next();
+        String[] managers = bean.getMemoryManagerNames();
+        for (int a = 0; a < managers.length; ++a)
+          if (managers[a].equals(name))
+            {
+              managedPools.add(bean.getName());
+              break;
+            }
       }
     return (String[]) managedPools.toArray(new String[managedPools.size()]);
   }

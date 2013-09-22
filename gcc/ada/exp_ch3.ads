@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -46,15 +46,6 @@ package Exp_Ch3 is
    procedure Expand_Record_Extension (T : Entity_Id; Def : Node_Id);
    --  Add a field _parent in the extension part of the record
 
-   procedure Build_Class_Wide_Master (T : Entity_Id);
-   --  For access to class-wide limited types we must build a task master
-   --  because some subsequent extension may add a task component. To avoid
-   --  bringing in the tasking run-time whenever an access-to-class-wide
-   --  limited type is used, we use the soft-link mechanism and add a level of
-   --  indirection to calls to routines that manipulate Master_Ids. This must
-   --  also be used for anonymous access types whose designated type is a task
-   --  or synchronized interface.
-
    procedure Build_Discr_Checking_Funcs (N : Node_Id);
    --  Builds function which checks whether the component name is consistent
    --  with the current discriminants. N is the full type declaration node,
@@ -67,7 +58,8 @@ package Exp_Ch3 is
       In_Init_Proc      : Boolean := False;
       Enclos_Type       : Entity_Id := Empty;
       Discr_Map         : Elist_Id := New_Elmt_List;
-      With_Default_Init : Boolean := False) return List_Id;
+      With_Default_Init : Boolean := False;
+      Constructor_Ref   : Node_Id := Empty) return List_Id;
    --  Builds a call to the initialization procedure for the base type of Typ,
    --  passing it the object denoted by Id_Ref, plus additional parameters as
    --  appropriate for the type (the _Master, for task types, for example).
@@ -76,7 +68,7 @@ package Exp_Ch3 is
    --  enable the use of discriminals. Enclos_Type is the enclosing type when
    --  initializing a component in an outer init proc, and it is used for
    --  various expansion cases including the case where Typ is a task type
-   --  which is an array component, the indices of the enclosing type are
+   --  which is an array component, the indexes of the enclosing type are
    --  used to build the string that identifies each task at runtime.
    --
    --  Discr_Map is used to replace discriminants by their discriminals in
@@ -88,19 +80,9 @@ package Exp_Ch3 is
    --  Ada 2005 (AI-287): With_Default_Init is used to indicate that the
    --  initialization call corresponds to a default initialized component
    --  of an aggregate.
-
-   procedure Build_Master_Renaming (N : Node_Id; T : Entity_Id);
-   --  If the designated type of an access type is a task type or contains
-   --  tasks, we make sure that a _Master variable is declared in the current
-   --  scope, and then declare a renaming for it:
    --
-   --    atypeM : Master_Id renames _Master;
-   --
-   --  where atyp is the name of the access type. This declaration is
-   --  used when an allocator for the access type is expanded. The node N
-   --  is the full declaration of the designated type that contains tasks.
-   --  The renaming declaration is inserted before N, and after the Master
-   --  declaration.
+   --  Constructor_Ref is a call to a constructor subprogram. It is currently
+   --  used only to support C++ constructors.
 
    function Freeze_Type (N : Node_Id) return Boolean;
    --  This function executes the freezing actions associated with the given
@@ -122,27 +104,33 @@ package Exp_Ch3 is
    --  then tags components located at variable positions of Target are
    --  initialized.
 
-   function Needs_Simple_Initialization (T : Entity_Id) return Boolean;
+   function Needs_Simple_Initialization
+     (T           : Entity_Id;
+      Consider_IS : Boolean := True) return Boolean;
    --  Certain types need initialization even though there is no specific
-   --  initialization routine. In this category are access types (which need
-   --  initializing to null), packed array types whose implementation is a
-   --  modular type, and all scalar types if Normalize_Scalars is set, as well
-   --  as private types whose underlying type is present and meets any of these
-   --  criteria. Finally, descendants of String and Wide_String also need
-   --  initialization in Initialize/Normalize_Scalars mode.
+   --  initialization routine:
+   --    Access types (which need initializing to null)
+   --    All scalar types if Normalize_Scalars mode set
+   --    Descendents of standard string types if Normalize_Scalars mode set
+   --    Scalar types having a Default_Value attribute
+   --  Regarding Initialize_Scalars mode, this is ignored if Consider_IS is
+   --  set to False, but if Consider_IS is set to True, then the cases above
+   --  mentioning Normalize_Scalars also apply for Initialize_Scalars mode.
 
    function Get_Simple_Init_Val
      (T    : Entity_Id;
-      Loc  : Source_Ptr;
+      N    : Node_Id;
       Size : Uint := No_Uint) return Node_Id;
    --  For a type which Needs_Simple_Initialization (see above), prepares the
-   --  tree for an expression representing the required initial value. Loc is
-   --  the source location used in constructing this tree which is returned as
-   --  the result of the call. The Size parameter indicates the target size of
-   --  the object if it is known (indicated by a value that is not No_Uint and
-   --  is greater than zero). If Size is not given (Size set to No_Uint, or
-   --  non-positive), then the Esize of T is used as an estimate of the Size.
-   --  The object size is needed to prepare a known invalid value for use by
-   --  Normalize_Scalars.
+   --  tree for an expression representing the required initial value. N is a
+   --  node whose source location used in constructing this tree which is
+   --  returned as the result of the call. The Size parameter indicates the
+   --  target size of the object if it is known (indicated by a value that is
+   --  not No_Uint and is greater than zero). If Size is not given (Size set to
+   --  No_Uint, or non-positive), then the Esize of T is used as an estimate of
+   --  the Size. The object size is needed to prepare a known invalid value for
+   --  use by Normalize_Scalars. A call to this routine where T is a scalar
+   --  type is only valid if we are in Normalize_Scalars or Initialize_Scalars
+   --  mode, or if N is the node for a 'Invalid_Value attribute node.
 
 end Exp_Ch3;

@@ -1,6 +1,8 @@
 /* -----------------------------------------------------------------------
-   ffi.c - Copyright (c) 2002, 2007  Bo Thorsen <bo@suse.de>
-   
+   ffi64.c - Copyright (c) 20011  Anthony Green
+             Copyright (c) 2008, 2010  Red Hat, Inc.
+             Copyright (c) 2002, 2007  Bo Thorsen <bo@suse.de>
+             
    x86-64 Foreign Function Interface 
 
    Permission is hereby granted, free of charge, to any person obtaining
@@ -14,13 +16,14 @@
    The above copyright notice and this permission notice shall be included
    in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-   IN NO EVENT SHALL CYGNUS SOLUTIONS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-   OTHER DEALINGS IN THE SOFTWARE.
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
    ----------------------------------------------------------------------- */
 
 #include <ffi.h>
@@ -34,23 +37,30 @@
 #define MAX_GPR_REGS 6
 #define MAX_SSE_REGS 8
 
+#ifdef __INTEL_COMPILER
+#define UINT128 __m128
+#else
+#define UINT128 __int128_t
+#endif
+
 struct register_args
 {
   /* Registers for argument passing.  */
   UINT64 gpr[MAX_GPR_REGS];
-  __int128_t sse[MAX_SSE_REGS];
+  UINT128 sse[MAX_SSE_REGS];
 };
 
 extern void ffi_call_unix64 (void *args, unsigned long bytes, unsigned flags,
-			     void *raddr, void (*fnaddr)(), unsigned ssecount);
+			     void *raddr, void (*fnaddr)(void), unsigned ssecount);
 
 /* All reference to register classes here is identical to the code in
    gcc/config/i386/i386.c. Do *not* change one without the other.  */
 
 /* Register class used for passing given 64bit part of the argument.
-   These represent classes as documented by the PS ABI, with the exception
-   of SSESF, SSEDF classes, that are basically SSE class, just gcc will
-   use SF or DFmode move instead of DImode to avoid reformating penalties.
+   These represent classes as documented by the PS ABI, with the
+   exception of SSESF, SSEDF classes, that are basically SSE class,
+   just gcc will use SF or DFmode move instead of DImode to avoid
+   reformatting penalties.
 
    Similary we play games with INTEGERSI_CLASS to use cheaper SImode moves
    whenever possible (upper half does contain padding).  */
@@ -143,13 +153,35 @@ classify_argument (ffi_type *type, enum x86_64_reg_class classes[],
     case FFI_TYPE_UINT64:
     case FFI_TYPE_SINT64:
     case FFI_TYPE_POINTER:
-      if (byte_offset + type->size <= 4)
-	classes[0] = X86_64_INTEGERSI_CLASS;
-      else
-	classes[0] = X86_64_INTEGER_CLASS;
-      return 1;
+      {
+	int size = byte_offset + type->size;
+
+	if (size <= 4)
+	  {
+	    classes[0] = X86_64_INTEGERSI_CLASS;
+	    return 1;
+	  }
+	else if (size <= 8)
+	  {
+	    classes[0] = X86_64_INTEGER_CLASS;
+	    return 1;
+	  }
+	else if (size <= 12)
+	  {
+	    classes[0] = X86_64_INTEGER_CLASS;
+	    classes[1] = X86_64_INTEGERSI_CLASS;
+	    return 2;
+	  }
+	else if (size <= 16)
+	  {
+	    classes[0] = classes[1] = X86_64_INTEGERSI_CLASS;
+	    return 2;
+	  }
+	else
+	  FFI_ASSERT (0);
+      }
     case FFI_TYPE_FLOAT:
-      if (byte_offset == 0)
+      if (!(byte_offset % 8))
 	classes[0] = X86_64_SSESF_CLASS;
       else
 	classes[0] = X86_64_SSE_CLASS;
@@ -169,12 +201,20 @@ classify_argument (ffi_type *type, enum x86_64_reg_class classes[],
 	int i;
 	enum x86_64_reg_class subclasses[MAX_CLASSES];
 
-	/* If the struct is larger than 16 bytes, pass it on the stack.  */
-	if (type->size > 16)
+	/* If the struct is larger than 32 bytes, pass it on the stack.  */
+	if (type->size > 32)
 	  return 0;
 
 	for (i = 0; i < words; i++)
 	  classes[i] = X86_64_NO_CLASS;
+
+	/* Zero sized arrays or structures are NO_CLASS.  We return 0 to
+	   signalize memory class, so handle it as special case.  */
+	if (!words)
+	  {
+	    classes[0] = X86_64_NO_CLASS;
+	    return 1;
+	  }
 
 	/* Merge the fields of structure.  */
 	for (ptr = type->elements; *ptr != NULL; ptr++)
@@ -196,6 +236,20 @@ classify_argument (ffi_type *type, enum x86_64_reg_class classes[],
 	    byte_offset += (*ptr)->size;
 	  }
 
+	if (words > 2)
+	  {
+	    /* When size > 16 bytes, if the first one isn't
+	       X86_64_SSE_CLASS or any other ones aren't
+	       X86_64_SSEUP_CLASS, everything should be passed in
+	       memory.  */
+	    if (classes[0] != X86_64_SSE_CLASS)
+	      return 0;
+
+	    for (i = 1; i < words; i++)
+	      if (classes[i] != X86_64_SSEUP_CLASS)
+		return 0;
+	  }
+
 	/* Final merger cleanup.  */
 	for (i = 0; i < words; i++)
 	  {
@@ -205,15 +259,25 @@ classify_argument (ffi_type *type, enum x86_64_reg_class classes[],
 	      return 0;
 
 	    /* The X86_64_SSEUP_CLASS should be always preceded by
-	       X86_64_SSE_CLASS.  */
+	       X86_64_SSE_CLASS or X86_64_SSEUP_CLASS.  */
 	    if (classes[i] == X86_64_SSEUP_CLASS
-		&& (i == 0 || classes[i - 1] != X86_64_SSE_CLASS))
-	      classes[i] = X86_64_SSE_CLASS;
+		&& classes[i - 1] != X86_64_SSE_CLASS
+		&& classes[i - 1] != X86_64_SSEUP_CLASS)
+	      {
+		/* The first one should never be X86_64_SSEUP_CLASS.  */
+		FFI_ASSERT (i != 0);
+		classes[i] = X86_64_SSE_CLASS;
+	      }
 
-	    /*  X86_64_X87UP_CLASS should be preceded by X86_64_X87_CLASS.  */
+	    /*  If X86_64_X87UP_CLASS isn't preceded by X86_64_X87_CLASS,
+		everything should be passed in memory.  */
 	    if (classes[i] == X86_64_X87UP_CLASS
-		&& (i == 0 || classes[i - 1] != X86_64_X87_CLASS))
-	      classes[i] = X86_64_SSE_CLASS;
+		&& (classes[i - 1] != X86_64_X87_CLASS))
+	      {
+		/* The first one should never be X86_64_X87UP_CLASS.  */
+		FFI_ASSERT (i != 0);
+		return 0;
+	      }
 	  }
 	return words;
       }
@@ -321,7 +385,7 @@ ffi_prep_cif_machdep (ffi_cif *cif)
 	  if (align < 8)
 	    align = 8;
 
-	  bytes = ALIGN(bytes, align);
+	  bytes = ALIGN (bytes, align);
 	  bytes += cif->arg_types[i]->size;
 	}
       else
@@ -333,13 +397,13 @@ ffi_prep_cif_machdep (ffi_cif *cif)
   if (ssecount)
     flags |= 1 << 11;
   cif->flags = flags;
-  cif->bytes = bytes;
+  cif->bytes = ALIGN (bytes, 8);
 
   return FFI_OK;
 }
 
 void
-ffi_call (ffi_cif *cif, void (*fn)(), void *rvalue, void **avalue)
+ffi_call (ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
 {
   enum x86_64_reg_class classes[MAX_CLASSES];
   char *stack, *argp;
@@ -369,7 +433,7 @@ ffi_call (ffi_cif *cif, void (*fn)(), void *rvalue, void **avalue)
   /* If the return value is passed in memory, add the pointer as the
      first integer argument.  */
   if (ret_in_memory)
-    reg_args->gpr[gprcount++] = (long) rvalue;
+    reg_args->gpr[gprcount++] = (unsigned long) rvalue;
 
   avn = cif->nargs;
   arg_types = cif->arg_types;
@@ -441,12 +505,21 @@ ffi_prep_closure_loc (ffi_closure* closure,
 {
   volatile unsigned short *tramp;
 
+  /* Sanity check on the cif ABI.  */
+  {
+    int abi = cif->abi;
+    if (UNLIKELY (! (abi > FFI_FIRST_ABI && abi < FFI_LAST_ABI)))
+      return FFI_BAD_ABI;
+  }
+
   tramp = (volatile unsigned short *) &closure->tramp[0];
 
   tramp[0] = 0xbb49;		/* mov <code>, %r11	*/
-  *(void * volatile *) &tramp[1] = ffi_closure_unix64;
+  *((unsigned long long * volatile) &tramp[1])
+    = (unsigned long) ffi_closure_unix64;
   tramp[5] = 0xba49;		/* mov <data>, %r10	*/
-  *(void * volatile *) &tramp[6] = codeloc;
+  *((unsigned long long * volatile) &tramp[6])
+    = (unsigned long) codeloc;
 
   /* Set the carry bit iff the function uses any sse registers.
      This is clc or stc, together with the first byte of the jmp.  */
@@ -485,7 +558,7 @@ ffi_closure_unix64_inner(ffi_closure *closure, void *rvalue,
 	{
 	  /* The return value goes in memory.  Arrange for the closure
 	     return value to go directly back to the original caller.  */
-	  rvalue = (void *) reg_args->gpr[gprcount++];
+	  rvalue = (void *) (unsigned long) reg_args->gpr[gprcount++];
 	  /* We don't have to do anything in asm for the return.  */
 	  ret = FFI_TYPE_VOID;
 	}
@@ -526,10 +599,10 @@ ffi_closure_unix64_inner(ffi_closure *closure, void *rvalue,
 	  argp += arg_types[i]->size;
 	}
       /* If the argument is in a single register, or two consecutive
-	 registers, then we can use that address directly.  */
+	 integer registers, then we can use that address directly.  */
       else if (n == 1
-	       || (n == 2
-		   && SSE_CLASS_P (classes[0]) == SSE_CLASS_P (classes[1])))
+	       || (n == 2 && !(SSE_CLASS_P (classes[0])
+			       || SSE_CLASS_P (classes[1]))))
 	{
 	  /* The argument is in a single register.  */
 	  if (SSE_CLASS_P (classes[0]))

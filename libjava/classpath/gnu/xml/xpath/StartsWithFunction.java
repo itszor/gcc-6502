@@ -1,4 +1,4 @@
-/* StartsWithFunction.java -- 
+/* StartsWithFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -54,9 +54,9 @@ final class StartsWithFunction
   final Expr arg1;
   final Expr arg2;
 
-  StartsWithFunction(List args)
+  StartsWithFunction(List<Expr> args)
   {
-    this((Expr) args.get(0), (Expr) args.get(1));
+    this(args.get(0), args.get(1));
   }
 
   StartsWithFunction(Expr arg1, Expr arg2)
@@ -88,5 +88,5 @@ final class StartsWithFunction
   {
     return "starts-with(" + arg1 + "," + arg2 + ")";
   }
-  
+
 }

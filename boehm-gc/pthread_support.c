@@ -884,7 +884,7 @@ void GC_thr_init()
 	  GC_nprocs = pthread_num_processors_np();
 #       endif
 #	if defined(GC_OSF1_THREADS) || defined(GC_AIX_THREADS) \
-	   || defined(GC_SOLARIS_PTHREADS)
+	   || defined(GC_SOLARIS_PTHREADS) || defined(GC_GNU_THREADS)
 	  GC_nprocs = sysconf(_SC_NPROCESSORS_ONLN);
 	  if (GC_nprocs <= 0) GC_nprocs = 1;
 #	endif
@@ -1139,7 +1139,7 @@ GC_PTR GC_get_thread_stack_base()
   if (pthread_getattr_np (my_pthread, &attr) != 0)
     {
 #   ifdef DEBUG_THREADS
-      GC_printf1("Can not determine stack base for attached thread");
+      GC_printf0("Can not determine stack base for attached thread");
 #   endif
       return 0;
     }
@@ -1158,7 +1158,7 @@ GC_PTR GC_get_thread_stack_base()
 
 # else
 #   ifdef DEBUG_THREADS
-	GC_printf1("Can not determine stack base for attached thread");
+	GC_printf0("Can not determine stack base for attached thread");
 #   endif
   return 0;
 # endif

@@ -1,5 +1,5 @@
 /* JniIncludePrinter.java - Generate a JNI header file
- Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+ Copyright (C) 2006, 2007, 2011 Free Software Foundation, Inc.
 
  This file is part of GNU Classpath.
 
@@ -59,11 +59,14 @@ public class JniIncludePrinter
   }
 
   private void writeFields(ClassWrapper klass, JniPrintStream out)
+    throws IOException
   {
+    klass.linkSupers();
     boolean wroteAny = false;
+    ClassWrapper headerClass = klass;
     for (; klass != null; klass = klass.superClass)
       {
-        Iterator i = klass.fields.iterator();
+        Iterator<?> i = klass.fields.iterator();
         while (i.hasNext())
           {
             FieldNode field = (FieldNode) i.next();
@@ -73,9 +76,9 @@ public class JniIncludePrinter
             if (! (field.value instanceof Integer)
                 && ! (field.value instanceof Long))
               continue;
-            
+
             // Note that we don't want to mangle the field name.
-            String name = (JniHelper.mangle(klass.name) + "_" + field.name);
+            String name = (JniHelper.mangle(headerClass.name) + "_" + field.name);
             out.print("#undef ");
             out.println(name);
             out.print("#define ");
@@ -107,15 +110,23 @@ public class JniIncludePrinter
     return new JniPrintStream(classpath, fos, klass);
   }
 
-  public void printClass(File filename, ClassWrapper klass) throws IOException
+  public void printClass(File file, ClassWrapper klass) throws IOException
   {
     // Note that we ignore the filename here.
     String xname = JniHelper.mangle(klass.name);
-    JniPrintStream out 
-      = (JniPrintStream) getPrintStream(klass.name.replace('/', '_') + ".h", 
-					klass);
+
+    // mangle the filename a bit
+    String filename = klass.name;
+
+    filename = filename.replace('/', '_');
+    filename = filename.replace('$', '_');
+    filename = filename + ".h";
+
+    JniPrintStream out = (JniPrintStream) getPrintStream(filename, klass);
+
     if (out == null)
       return;
+
     out.println();
     out.print("#ifndef __");
     out.print(xname);
@@ -130,7 +141,7 @@ public class JniIncludePrinter
     out.println("#endif");
     out.println();
 
-    Iterator i = klass.methods.iterator();
+    Iterator<?> i = klass.methods.iterator();
     while (i.hasNext())
       {
         MethodNode method = (MethodNode) i.next();

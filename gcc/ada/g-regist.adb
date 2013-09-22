@@ -6,38 +6,34 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2001-2007, Free Software Foundation, Inc.        --
+--           Copyright (C) 2001-2009, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Exceptions;
 with Interfaces.C;
 with System;
 with GNAT.Directory_Operations;
 
 package body GNAT.Registry is
 
-   use Ada;
    use System;
 
    ------------------------------
@@ -126,6 +122,13 @@ package body GNAT.Registry is
       cbData      : DWORD) return LONG;
    pragma Import (Stdcall, RegSetValueEx, "RegSetValueExA");
 
+   function RegEnumKey
+     (Key         : HKEY;
+      dwIndex     : DWORD;
+      lpName      : Address;
+      cchName     : DWORD) return LONG;
+   pragma Import (Stdcall, RegEnumKey, "RegEnumKeyA");
+
    ---------------------
    -- Local Constants --
    ---------------------
@@ -156,9 +159,8 @@ package body GNAT.Registry is
       use type LONG;
    begin
       if Result /= ERROR_SUCCESS then
-         Exceptions.Raise_Exception
-           (Registry_Error'Identity,
-            Message & " (" & LONG'Image (Result) & ')');
+         raise Registry_Error with
+           Message & " (" & LONG'Image (Result) & ')';
       end if;
    end Check_Result;
 
@@ -187,8 +189,8 @@ package body GNAT.Registry is
 
       REG_OPTION_NON_VOLATILE : constant := 16#0#;
 
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
-      C_Class   : constant String := "" & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
+      C_Class   : constant String := "" & ASCII.NUL;
       C_Mode    : constant REGSAM := To_C_Mode (Mode);
 
       New_Key : aliased HKEY;
@@ -217,7 +219,7 @@ package body GNAT.Registry is
    ----------------
 
    procedure Delete_Key (From_Key : HKEY; Sub_Key : String) is
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
       Result    : LONG;
    begin
       Result := RegDeleteKey (From_Key, C_Sub_Key (C_Sub_Key'First)'Address);
@@ -229,12 +231,95 @@ package body GNAT.Registry is
    ------------------
 
    procedure Delete_Value (From_Key : HKEY; Sub_Key : String) is
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
       Result    : LONG;
    begin
       Result := RegDeleteValue (From_Key, C_Sub_Key (C_Sub_Key'First)'Address);
       Check_Result (Result, "Delete_Value " & Sub_Key);
    end Delete_Value;
+
+   -------------------
+   -- For_Every_Key --
+   -------------------
+
+   procedure For_Every_Key
+     (From_Key  : HKEY;
+      Recursive : Boolean := False)
+   is
+      procedure Recursive_For_Every_Key
+        (From_Key  : HKEY;
+         Recursive : Boolean := False;
+         Quit      : in out Boolean);
+
+      -----------------------------
+      -- Recursive_For_Every_Key --
+      -----------------------------
+
+      procedure Recursive_For_Every_Key
+        (From_Key : HKEY;
+         Recursive : Boolean := False;
+         Quit      : in out Boolean)
+      is
+         use type LONG;
+         use type ULONG;
+
+         Index  : ULONG := 0;
+         Result : LONG;
+
+         Sub_Key : Interfaces.C.char_array (1 .. Max_Key_Size);
+         pragma Warnings (Off, Sub_Key);
+
+         Size_Sub_Key : aliased ULONG;
+         Sub_Hkey     : HKEY;
+
+         function Current_Name return String;
+
+         ------------------
+         -- Current_Name --
+         ------------------
+
+         function Current_Name return String is
+         begin
+            return Interfaces.C.To_Ada (Sub_Key);
+         end Current_Name;
+
+      --  Start of processing for Recursive_For_Every_Key
+
+      begin
+         loop
+            Size_Sub_Key := Sub_Key'Length;
+
+            Result :=
+              RegEnumKey
+                (From_Key, Index, Sub_Key (1)'Address, Size_Sub_Key);
+
+            exit when not (Result = ERROR_SUCCESS);
+
+            Sub_Hkey := Open_Key (From_Key, Interfaces.C.To_Ada (Sub_Key));
+
+            Action (Natural (Index) + 1, Sub_Hkey, Current_Name, Quit);
+
+            if not Quit and then Recursive then
+               Recursive_For_Every_Key (Sub_Hkey, True, Quit);
+            end if;
+
+            Close_Key (Sub_Hkey);
+
+            exit when Quit;
+
+            Index := Index + 1;
+         end loop;
+      end Recursive_For_Every_Key;
+
+      --  Local Variables
+
+      Quit : Boolean := False;
+
+   --  Start of processing for For_Every_Key
+
+   begin
+      Recursive_For_Every_Key (From_Key, Recursive, Quit);
+   end For_Every_Key;
 
    -------------------------
    -- For_Every_Key_Value --
@@ -342,7 +427,7 @@ package body GNAT.Registry is
    is
       use type REGSAM;
 
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
       C_Mode    : constant REGSAM := To_C_Mode (Mode);
 
       New_Key : aliased HKEY;
@@ -380,7 +465,7 @@ package body GNAT.Registry is
       Size_Value : aliased ULONG;
       Type_Value : aliased DWORD;
 
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
       Result    : LONG;
 
    begin
@@ -399,7 +484,8 @@ package body GNAT.Registry is
 
       if Type_Value = REG_EXPAND_SZ and then Expand then
          return Directory_Operations.Expand_Path
-           (Value (1 .. Integer (Size_Value - 1)), Directory_Operations.DOS);
+           (Value (1 .. Integer (Size_Value - 1)),
+            Directory_Operations.DOS);
       else
          return Value (1 .. Integer (Size_Value - 1));
       end if;
@@ -415,18 +501,14 @@ package body GNAT.Registry is
        Value    : String;
        Expand   : Boolean := False)
    is
-      C_Sub_Key : constant String := Sub_Key & ASCII.Nul;
-      C_Value   : constant String := Value & ASCII.Nul;
+      C_Sub_Key : constant String := Sub_Key & ASCII.NUL;
+      C_Value   : constant String := Value & ASCII.NUL;
 
       Value_Type : DWORD;
       Result     : LONG;
 
    begin
-      if Expand then
-         Value_Type := REG_EXPAND_SZ;
-      else
-         Value_Type := REG_SZ;
-      end if;
+      Value_Type := (if Expand then REG_EXPAND_SZ else REG_SZ);
 
       Result :=
         RegSetValueEx

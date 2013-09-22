@@ -1,7 +1,6 @@
 /* Generate from machine description:
    - some #define configuration flags.
-   Copyright (C) 1987, 1991, 1997, 1998, 1999, 2000, 2003, 2004, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1987-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -57,7 +56,7 @@ static void gen_peephole (rtx);
 static void gen_peephole2 (rtx);
 
 /* RECOG_P will be nonzero if this pattern was seen in a context where it will
-   be used to recognize, rather than just generate an insn. 
+   be used to recognize, rather than just generate an insn.
 
    NON_PC_SET_SRC will be nonzero if this pattern was seen in a SET_SRC
    of a SET whose destination is not (pc).  */
@@ -264,7 +263,7 @@ main (int argc, char **argv)
 
   progname = "genconfig";
 
-  if (init_md_reader_args (argc, argv) != SUCCESS_EXIT_CODE)
+  if (!init_rtx_reader_args (argc, argv))
     return (FATAL_EXIT_CODE);
 
   puts ("/* Generated automatically by the program `genconfig'");
@@ -287,13 +286,13 @@ main (int argc, char **argv)
       desc = read_md_rtx (&line_no, &insn_code_number);
       if (desc == NULL)
 	break;
-	
-      switch (GET_CODE (desc)) 
+
+      switch (GET_CODE (desc))
 	{
   	  case DEFINE_INSN:
 	    gen_insn (desc);
 	    break;
-	  
+
 	  case DEFINE_EXPAND:
 	    gen_expand (desc);
 	    break;

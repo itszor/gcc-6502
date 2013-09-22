@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.javax.swing.text.html.parser;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.javax.swing.text.html.parser.models.node;
 import gnu.javax.swing.text.html.parser.models.transformer;
 
@@ -176,7 +178,7 @@ public abstract class htmlValidator
 
                 // If the tag has a content model defined, forcibly close all
                 // tags that were opened after the tag being currently closed.
-                closing: 
+                closing:
                 if (x.element.content != null)
                   {
                     iter = stack.listIterator(stack.size());
@@ -270,7 +272,7 @@ public abstract class htmlValidator
           {
             if (!stack.isEmpty())
               {
-                closing: 
+                closing:
                 do
                   {
                     hTag last = (hTag) stack.getLast();
@@ -309,7 +311,7 @@ public abstract class htmlValidator
    * content model recommends to insert making the situation ok. If Boolean.True
    * is returned, the content model current position is moved forward. Otherwise
    * this position remains the same.
-   * 
+   *
    * @param tElement
    * @return
    */
@@ -499,11 +501,11 @@ public abstract class htmlValidator
     dtdAttribute = tag.getElement().getAttribute(foundAttribute.toString());
     if (dtdAttribute == null)
       {
-        StringBuffer valid =
-          new StringBuffer("The tag <" + tag.getHTMLTag() +
-                           "> cannot contain the attribute '" + foundAttribute +
-                           "'. The valid attributes for this tag are: "
-                          );
+        CPStringBuilder valid =
+          new CPStringBuilder("The tag <" + tag.getHTMLTag() +
+                              "> cannot contain the attribute '" + foundAttribute +
+                              "'. The valid attributes for this tag are: "
+                              );
 
         AttributeList a = tag.getElement().getAttributes();
 
@@ -545,22 +547,22 @@ public abstract class htmlValidator
         !dtdAttribute.values.contains(value.toUpperCase())
        )
       {
-        StringBuffer valid;
+        CPStringBuilder valid;
         if (dtdAttribute.values.size() == 1)
           valid =
-            new StringBuffer("The attribute '" + foundAttribute +
-                             "' of the tag <" + tag.getHTMLTag() +
-                             "> cannot have the value '" + value +
-                             "'. The only valid value is "
-                            );
+            new CPStringBuilder("The attribute '" + foundAttribute +
+                                "' of the tag <" + tag.getHTMLTag() +
+                                "> cannot have the value '" + value +
+                                "'. The only valid value is "
+                                );
         else
           valid =
-            new StringBuffer("The attribute '" + foundAttribute +
-                             "' of the tag <" + tag.getHTMLTag() +
-                             "> cannot have the value '" + value + "'. The " +
-                             dtdAttribute.values.size() +
-                             " valid values are: "
-                            );
+            new CPStringBuilder("The attribute '" + foundAttribute +
+                                "' of the tag <" + tag.getHTMLTag() +
+                                "> cannot have the value '" + value + "'. The " +
+                                dtdAttribute.values.size() +
+                                " valid values are: "
+                                );
 
         Enumeration vv = dtdAttribute.values.elements();
         while (vv.hasMoreElements())

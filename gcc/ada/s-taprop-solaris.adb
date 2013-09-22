@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2007, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2011, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -33,49 +31,35 @@
 
 --  This is a Solaris (native) version of this package
 
---  This package contains all the GNULL primitives that interface directly
---  with the underlying OS.
+--  This package contains all the GNULL primitives that interface directly with
+--  the underlying OS.
 
 pragma Polling (Off);
---  Turn off polling, we do not want ATC polling to take place during
---  tasking operations. It causes infinite loops and other problems.
+--  Turn off polling, we do not want ATC polling to take place during tasking
+--  operations. It causes infinite loops and other problems.
 
+with Interfaces.C;
+
+with System.Multiprocessors;
 with System.Tasking.Debug;
---  used for Known_Tasks
-
 with System.Interrupt_Management;
---  used for Keep_Unmasked
---           Abort_Task_Interrupt
---           Interrupt_ID
-
+with System.OS_Constants;
 with System.OS_Primitives;
---  used for Delay_Modes
+with System.Task_Info;
 
 pragma Warnings (Off);
 with System.OS_Lib;
---  used for String_Access, Getenv
-
 pragma Warnings (On);
 
-with Interfaces.C;
---  used for int
---           size_t
-
-with System.Task_Info;
---  to initialize Task_Info for a C thread, in function Self
-
 with System.Soft_Links;
---  used for Defer/Undefer_Abort
-
 --  We use System.Soft_Links instead of System.Tasking.Initialization
 --  because the later is a higher level package that we shouldn't depend on.
 --  For example when using the restricted run time, it is replaced by
 --  System.Tasking.Restricted.Stages.
 
-with Ada.Unchecked_Deallocation;
-
 package body System.Task_Primitives.Operations is
 
+   package OSC renames System.OS_Constants;
    package SSL renames System.Soft_Links;
 
    use System.Tasking.Debug;
@@ -114,6 +98,13 @@ package body System.Task_Primitives.Operations is
    --  using in error checking.
    --  The following are internal configuration constants needed.
 
+   Abort_Handler_Installed : Boolean := False;
+   --  True if a handler for the abort signal is installed
+
+   Null_Thread_Id : constant Thread_Id := Thread_Id'Last;
+   --  Constant to indicate that the thread identifier has not yet been
+   --  initialized.
+
    ----------------------
    -- Priority Support --
    ----------------------
@@ -122,16 +113,16 @@ package body System.Task_Primitives.Operations is
    --  controls whether we emulate priority ceiling locking
 
    --  To get a scheduling close to annex D requirements, we use the real-time
-   --  class provided for LWP's and map each task/thread to a specific and
+   --  class provided for LWPs and map each task/thread to a specific and
    --  unique LWP (there is 1 thread per LWP, and 1 LWP per thread).
 
    --  The real time class can only be set when the process has root
-   --  priviledges, so in the other cases, we use the normal thread scheduling
+   --  privileges, so in the other cases, we use the normal thread scheduling
    --  and priority handling.
 
    Using_Real_Time_Class : Boolean := False;
-   --  indicates wether the real time class is being used (i.e the process
-   --  has root priviledges).
+   --  indicates whether the real time class is being used (i.e. the process
+   --  has root privileges).
 
    Prio_Param : aliased struct_pcparms;
    --  Hold priority info (Real_Time) initialized during the package
@@ -235,6 +226,13 @@ package body System.Task_Primitives.Operations is
    package body Specific is separate;
    --  The body of this package is target specific
 
+   ----------------------------------
+   -- ATCB allocation/deallocation --
+   ----------------------------------
+
+   package body ATCB_Allocation is separate;
+   --  The body of this package is shared across several targets
+
    ---------------------------------
    -- Support for foreign threads --
    ---------------------------------
@@ -273,10 +271,12 @@ package body System.Task_Primitives.Operations is
       pragma Warnings (Off, Result);
 
    begin
-      --  It is not safe to raise an exception when using ZCX and the GCC
-      --  exception handling mechanism.
+      --  It's not safe to raise an exception when using GCC ZCX mechanism.
+      --  Note that we still need to install a signal handler, since in some
+      --  cases (e.g. shutdown of the Server_Task in System.Interrupts) we
+      --  need to send the Abort signal to a task.
 
-      if ZCX_By_Default and then GCC_ZCX_Support then
+      if ZCX_By_Default then
          return;
       end if;
 
@@ -496,9 +496,15 @@ package body System.Task_Primitives.Operations is
 
       Initialize_Lock (Single_RTS_Lock'Access, RTS_Lock_Level);
 
+      --  Make environment task known here because it doesn't go through
+      --  Activate_Tasks, which does it for all other tasks.
+
+      Known_Tasks (Known_Tasks'First) := Environment_Task;
+      Environment_Task.Known_Tasks_Index := Known_Tasks'First;
+
       Enter_Task (Environment_Task);
 
-      --  Install the abort-signal handler
+      Configure_Processors;
 
       if State
           (System.Interrupt_Management.Abort_Task_Interrupt) /= Default
@@ -524,9 +530,8 @@ package body System.Task_Primitives.Operations is
               act'Unchecked_Access,
               old_act'Unchecked_Access);
          pragma Assert (Result = 0);
+         Abort_Handler_Installed := True;
       end if;
-
-      Configure_Processors;
    end Initialize;
 
    ---------------------
@@ -536,7 +541,7 @@ package body System.Task_Primitives.Operations is
    --  Note: mutexes and cond_variables needed per-task basis are initialized
    --  in Initialize_TCB and the Storage_Error is handled. Other mutexes (such
    --  as RTS_Lock, Memory_Lock...) used in RTS is initialized before any
-   --  status change of RTS. Therefore rasing Storage_Error in the following
+   --  status change of RTS. Therefore raising Storage_Error in the following
    --  routines should be able to be handled safely.
 
    procedure Initialize_Lock
@@ -770,7 +775,7 @@ package body System.Task_Primitives.Operations is
       TS     : aliased timespec;
       Result : Interfaces.C.int;
    begin
-      Result := clock_gettime (CLOCK_REALTIME, TS'Unchecked_Access);
+      Result := clock_gettime (OSC.CLOCK_RT_Ada, TS'Unchecked_Access);
       pragma Assert (Result = 0);
       return To_Duration (TS);
    end Monotonic_Clock;
@@ -868,77 +873,16 @@ package body System.Task_Primitives.Operations is
    ----------------
 
    procedure Enter_Task (Self_ID : Task_Id) is
-      Result    : Interfaces.C.int;
-      Proc      : processorid_t;  --  User processor #
-      Last_Proc : processorid_t;  --  Last processor #
-
-      use System.Task_Info;
    begin
       Self_ID.Common.LL.Thread := thr_self;
+      Self_ID.Common.LL.LWP    := lwp_self;
 
-      Self_ID.Common.LL.LWP := lwp_self;
-
-      if Self_ID.Common.Task_Info /= null then
-         if Self_ID.Common.Task_Info.New_LWP
-           and then Self_ID.Common.Task_Info.CPU /= CPU_UNCHANGED
-         then
-            Last_Proc := Num_Procs - 1;
-
-            if Self_ID.Common.Task_Info.CPU = ANY_CPU then
-               Result := 0;
-               Proc := 0;
-               while Proc < Last_Proc loop
-                  Result := p_online (Proc, PR_STATUS);
-                  exit when Result = PR_ONLINE;
-                  Proc := Proc + 1;
-               end loop;
-
-               Result := processor_bind (P_LWPID, P_MYID, Proc, null);
-               pragma Assert (Result = 0);
-
-            else
-               --  Use specified processor
-
-               if Self_ID.Common.Task_Info.CPU < 0
-                 or else Self_ID.Common.Task_Info.CPU > Last_Proc
-               then
-                  raise Invalid_CPU_Number;
-               end if;
-
-               Result :=
-                 processor_bind
-                   (P_LWPID, P_MYID, Self_ID.Common.Task_Info.CPU, null);
-               pragma Assert (Result = 0);
-            end if;
-         end if;
-      end if;
-
+      Set_Task_Affinity (Self_ID);
       Specific.Set (Self_ID);
 
       --  We need the above code even if we do direct fetch of Task_Id in Self
       --  for the main task on Sun, x86 Solaris and for gcc 2.7.2.
-
-      Lock_RTS;
-
-      for J in Known_Tasks'Range loop
-         if Known_Tasks (J) = null then
-            Known_Tasks (J) := Self_ID;
-            Self_ID.Known_Tasks_Index := J;
-            exit;
-         end if;
-      end loop;
-
-      Unlock_RTS;
    end Enter_Task;
-
-   --------------
-   -- New_ATCB --
-   --------------
-
-   function New_ATCB (Entry_Num : Task_Entry_Index) return Task_Id is
-   begin
-      return new Ada_Task_Control_Block (Entry_Num);
-   end New_ATCB;
 
    -------------------
    -- Is_Valid_Task --
@@ -973,7 +917,7 @@ package body System.Task_Primitives.Operations is
       Next_Serial_Number := Next_Serial_Number + 1;
       pragma Assert (Next_Serial_Number /= 0);
 
-      Self_ID.Common.LL.Thread := To_thread_t (-1);
+      Self_ID.Common.LL.Thread := Null_Thread_Id;
 
       if not Single_Lock then
          Result :=
@@ -1026,8 +970,23 @@ package body System.Task_Primitives.Operations is
       --  actual use.
 
       use System.Task_Info;
+      use type System.Multiprocessors.CPU_Range;
 
    begin
+      --  Check whether both Dispatching_Domain and CPU are specified for the
+      --  task, and the CPU value is not contained within the range of
+      --  processors for the domain.
+
+      if T.Common.Domain /= null
+        and then T.Common.Base_CPU /= System.Multiprocessors.Not_A_Specific_CPU
+        and then
+          (T.Common.Base_CPU not in T.Common.Domain'Range
+            or else not T.Common.Domain (T.Common.Base_CPU))
+      then
+         Succeeded := False;
+         return;
+      end if;
+
       Adjusted_Stack_Size := Interfaces.C.size_t (Stack_Size + Page_Size);
 
       --  Since the initial signal mask of a thread is inherited from the
@@ -1048,6 +1007,12 @@ package body System.Task_Primitives.Operations is
          Opts := THR_DETACHED + THR_BOUND;
       end if;
 
+      --  Note: the use of Unrestricted_Access in the following call is needed
+      --  because otherwise we have an error of getting a access-to-volatile
+      --  value which points to a non-volatile object. But in this case it is
+      --  safe to do this, since we know we have no problems with aliasing and
+      --  Unrestricted_Access bypasses this check.
+
       Result :=
         thr_create
           (System.Null_Address,
@@ -1055,7 +1020,7 @@ package body System.Task_Primitives.Operations is
            Thread_Body_Access (Wrapper),
            To_Address (T),
            Opts,
-           T.Common.LL.Thread'Access);
+           T.Common.LL.Thread'Unrestricted_Access);
 
       Succeeded := Result = 0;
       pragma Assert
@@ -1069,15 +1034,10 @@ package body System.Task_Primitives.Operations is
    ------------------
 
    procedure Finalize_TCB (T : Task_Id) is
-      Result  : Interfaces.C.int;
-      Tmp     : Task_Id := T;
-      Is_Self : constant Boolean := T = Self;
-
-      procedure Free is new
-        Ada.Unchecked_Deallocation (Ada_Task_Control_Block, Task_Id);
+      Result : Interfaces.C.int;
 
    begin
-      T.Common.LL.Thread := To_thread_t (0);
+      T.Common.LL.Thread := Null_Thread_Id;
 
       if not Single_Lock then
          Result := mutex_destroy (T.Common.LL.L.L'Access);
@@ -1091,11 +1051,7 @@ package body System.Task_Primitives.Operations is
          Known_Tasks (T.Known_Tasks_Index) := null;
       end if;
 
-      Free (Tmp);
-
-      if Is_Self then
-         Specific.Set (null);
-      end if;
+      ATCB_Allocation.Free_ATCB (T);
    end Finalize_TCB;
 
    ---------------
@@ -1118,12 +1074,14 @@ package body System.Task_Primitives.Operations is
    procedure Abort_Task (T : Task_Id) is
       Result : Interfaces.C.int;
    begin
-      pragma Assert (T /= Self);
-      Result :=
-        thr_kill
-          (T.Common.LL.Thread,
-           Signal (System.Interrupt_Management.Abort_Task_Interrupt));
-      pragma Assert (Result = 0);
+      if Abort_Handler_Installed then
+         pragma Assert (T /= Self);
+         Result :=
+           thr_kill
+             (T.Common.LL.Thread,
+              Signal (System.Interrupt_Management.Abort_Task_Interrupt));
+         pragma Assert (Result = 0);
+      end if;
    end Abort_Task;
 
    -----------
@@ -1154,9 +1112,10 @@ package body System.Task_Primitives.Operations is
       pragma Assert (Result = 0 or else Result = EINTR);
    end Sleep;
 
-   --  Note that we are relying heaviliy here on GNAT represting Calendar.Time,
-   --  System.Real_Time.Time, Duration, System.Real_Time.Time_Span in the same
-   --  way, i.e., as a 64-bit count of nanoseconds.
+   --  Note that we are relying heavily here on GNAT representing
+   --  Calendar.Time, System.Real_Time.Time, Duration,
+   --  System.Real_Time.Time_Span in the same way, i.e., as a 64-bit count of
+   --  nanoseconds.
 
    --  This allows us to always pass the timeout value as a Duration
 
@@ -1242,15 +1201,13 @@ package body System.Task_Primitives.Operations is
       Timedout := True;
       Yielded := False;
 
-      if Mode = Relative then
-         Abs_Time := Duration'Min (Time, Max_Sensible_Delay) + Check_Time;
-      else
-         Abs_Time := Duration'Min (Check_Time + Max_Sensible_Delay, Time);
-      end if;
+      Abs_Time :=
+        (if Mode = Relative
+         then Duration'Min (Time, Max_Sensible_Delay) + Check_Time
+         else Duration'Min (Check_Time + Max_Sensible_Delay, Time));
 
       if Abs_Time > Check_Time then
          Request := To_Timespec (Abs_Time);
-
          loop
             exit when Self_ID.Pending_ATC_Level < Self_ID.ATC_Nesting_Level;
 
@@ -1310,11 +1267,10 @@ package body System.Task_Primitives.Operations is
 
       Write_Lock (Self_ID);
 
-      if Mode = Relative then
-         Abs_Time := Time + Check_Time;
-      else
-         Abs_Time := Duration'Min (Check_Time + Max_Sensible_Delay, Time);
-      end if;
+      Abs_Time :=
+        (if Mode = Relative
+         then Time + Check_Time
+         else Duration'Min (Check_Time + Max_Sensible_Delay, Time));
 
       if Abs_Time > Check_Time then
          Request := To_Timespec (Abs_Time);
@@ -1840,7 +1796,16 @@ package body System.Task_Primitives.Operations is
             S.State := False;
          else
             S.Waiting := True;
-            Result := cond_wait (S.CV'Access, S.L'Access);
+
+            loop
+               --  Loop in case pthread_cond_wait returns earlier than expected
+               --  (e.g. in case of EINTR caused by a signal).
+
+               Result := cond_wait (S.CV'Access, S.L'Access);
+               pragma Assert (Result = 0 or else Result = EINTR);
+
+               exit when not S.Waiting;
+            end loop;
          end if;
 
          Result := mutex_unlock (S.L'Access);
@@ -1977,5 +1942,117 @@ package body System.Task_Primitives.Operations is
    begin
       return False;
    end Continue_Task;
+
+   -----------------------
+   -- Set_Task_Affinity --
+   -----------------------
+
+   procedure Set_Task_Affinity (T : ST.Task_Id) is
+      Result    : Interfaces.C.int;
+      Proc      : processorid_t;  --  User processor #
+      Last_Proc : processorid_t;  --  Last processor #
+
+      use System.Task_Info;
+      use type System.Multiprocessors.CPU_Range;
+
+   begin
+      --  Do nothing if the underlying thread has not yet been created. If the
+      --  thread has not yet been created then the proper affinity will be set
+      --  during its creation.
+
+      if T.Common.LL.Thread = Null_Thread_Id then
+         null;
+
+      --  pragma CPU
+
+      elsif T.Common.Base_CPU /=
+           System.Multiprocessors.Not_A_Specific_CPU
+      then
+         --  The CPU numbering in pragma CPU starts at 1 while the subprogram
+         --  to set the affinity starts at 0, therefore we must substract 1.
+
+         Result :=
+           processor_bind
+             (P_LWPID, id_t (T.Common.LL.LWP),
+              processorid_t (T.Common.Base_CPU) - 1, null);
+         pragma Assert (Result = 0);
+
+      --  Task_Info
+
+      elsif T.Common.Task_Info /= null then
+         if T.Common.Task_Info.New_LWP
+           and then T.Common.Task_Info.CPU /= CPU_UNCHANGED
+         then
+            Last_Proc := Num_Procs - 1;
+
+            if T.Common.Task_Info.CPU = ANY_CPU then
+               Result := 0;
+
+               Proc := 0;
+               while Proc < Last_Proc loop
+                  Result := p_online (Proc, PR_STATUS);
+                  exit when Result = PR_ONLINE;
+                  Proc := Proc + 1;
+               end loop;
+
+               Result :=
+                 processor_bind
+                   (P_LWPID, id_t (T.Common.LL.LWP), Proc, null);
+               pragma Assert (Result = 0);
+
+            else
+               --  Use specified processor
+
+               if T.Common.Task_Info.CPU < 0
+                 or else T.Common.Task_Info.CPU > Last_Proc
+               then
+                  raise Invalid_CPU_Number;
+               end if;
+
+               Result :=
+                 processor_bind
+                   (P_LWPID, id_t (T.Common.LL.LWP),
+                    T.Common.Task_Info.CPU, null);
+               pragma Assert (Result = 0);
+            end if;
+         end if;
+
+      --  Handle dispatching domains
+
+      elsif T.Common.Domain /= null
+        and then (T.Common.Domain /= ST.System_Domain
+                   or else T.Common.Domain.all /=
+                             (Multiprocessors.CPU'First ..
+                              Multiprocessors.Number_Of_CPUs => True))
+      then
+         declare
+            CPU_Set : aliased psetid_t;
+            Result  : int;
+
+         begin
+            Result := pset_create (CPU_Set'Access);
+            pragma Assert (Result = 0);
+
+            --  Set the affinity to all the processors belonging to the
+            --  dispatching domain.
+
+            for Proc in T.Common.Domain'Range loop
+
+               --  The Ada CPU numbering starts at 1 while the subprogram to
+               --  set the affinity starts at 0, therefore we must substract 1.
+
+               if T.Common.Domain (Proc) then
+                  Result :=
+                    pset_assign (CPU_Set, processorid_t (Proc) - 1, null);
+                  pragma Assert (Result = 0);
+               end if;
+            end loop;
+
+            Result :=
+              pset_bind (CPU_Set, P_LWPID, id_t (T.Common.LL.LWP), null);
+            pragma Assert (Result = 0);
+         end;
+      end if;
+   end Set_Task_Affinity;
 
 end System.Task_Primitives.Operations;

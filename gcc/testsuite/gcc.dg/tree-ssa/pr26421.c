@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-salias-vops" } */
+/* { dg-options "-O2 -fdump-tree-optimized" } */
 
 typedef struct {
   int i;
@@ -16,5 +16,7 @@ int foo(void)
   return a.i;
 }
 
-/* { dg-final { scan-tree-dump-times "VDEF" 4 "salias" } } */
-/* { dg-final { cleanup-tree-dump "salias" } } */
+/* Verify the call clobbers all of a.  */
+
+/* { dg-final { scan-tree-dump-not "return 1;" "optimized" } } */
+/* { dg-final { cleanup-tree-dump "optimized" } } */

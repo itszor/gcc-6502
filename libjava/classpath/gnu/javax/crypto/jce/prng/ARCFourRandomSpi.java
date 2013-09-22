@@ -1,4 +1,4 @@
-/* ARCFourRandomSpi.java -- 
+/* ARCFourRandomSpi.java --
    Copyright (C) 2002, 2003, 2006  Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -39,12 +39,17 @@ exception statement from your version.  */
 package gnu.javax.crypto.jce.prng;
 
 import gnu.java.security.Registry;
-import gnu.javax.crypto.prng.ARCFour;
+
+import gnu.java.security.jce.prng.SecureRandomAdapter;
+
 import gnu.java.security.prng.IRandom;
 import gnu.java.security.prng.LimitReachedException;
+
+import gnu.javax.crypto.prng.ARCFour;
 import gnu.javax.crypto.prng.PRNGFactory;
 
 import java.security.SecureRandomSpi;
+
 import java.util.HashMap;
 
 /**
@@ -71,17 +76,13 @@ public class ARCFourRandomSpi
 
   public byte[] engineGenerateSeed(int numBytes)
   {
-    if (numBytes < 1)
-      return new byte[0];
-    byte[] result = new byte[numBytes];
-    this.engineNextBytes(result);
-    return result;
+    return SecureRandomAdapter.getSeed(numBytes);
   }
 
   public void engineNextBytes(byte[] bytes)
   {
     if (virgin)
-      this.engineSetSeed(new byte[0]);
+      this.engineSetSeed(engineGenerateSeed(32));
     try
       {
         adaptee.nextBytes(bytes, 0, bytes.length);

@@ -43,29 +43,21 @@ cls_struct_2byte_gn(ffi_cif* cif __UNUSED__, void* resp, void** args,
 int main (void)
 {
   ffi_cif cif;
-#ifndef USING_MMAP
-  static ffi_closure cl;
-#endif
-  ffi_closure *pcl;
+  void *code;
+  ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
   void* args_dbl[5];
   ffi_type* cls_struct_fields[4];
   ffi_type cls_struct_type;
   ffi_type* dbl_arg_types[5];
 
-#ifdef USING_MMAP
-  pcl = allocate_mmap (sizeof(ffi_closure));
-#else
-  pcl = &cl;
-#endif
+  struct cls_struct_2byte g_dbl = { 12, 127 };
+  struct cls_struct_2byte f_dbl = { 1, 13 };
+  struct cls_struct_2byte res_dbl;
 
   cls_struct_type.size = 0;
   cls_struct_type.alignment = 0;
   cls_struct_type.type = FFI_TYPE_STRUCT;
   cls_struct_type.elements = cls_struct_fields;
-
-  struct cls_struct_2byte g_dbl = { 12, 127 };
-  struct cls_struct_2byte f_dbl = { 1, 13 };
-  struct cls_struct_2byte res_dbl;
 
   cls_struct_fields[0] = &ffi_type_uchar;
   cls_struct_fields[1] = &ffi_type_uchar;
@@ -87,9 +79,9 @@ int main (void)
   printf("res: %d %d\n", res_dbl.a, res_dbl.b);
   /* { dg-output "\nres: 13 140" } */
 
-  CHECK(ffi_prep_closure(pcl, &cif, cls_struct_2byte_gn, NULL) == FFI_OK);
+  CHECK(ffi_prep_closure_loc(pcl, &cif, cls_struct_2byte_gn, NULL, code) == FFI_OK);
 
-  res_dbl = ((cls_struct_2byte(*)(cls_struct_2byte, cls_struct_2byte))(pcl))(g_dbl, f_dbl);
+  res_dbl = ((cls_struct_2byte(*)(cls_struct_2byte, cls_struct_2byte))(code))(g_dbl, f_dbl);
   /* { dg-output "\n12 127 1 13: 13 140" } */
   printf("res: %d %d\n", res_dbl.a, res_dbl.b);
   /* { dg-output "\nres: 13 140" } */

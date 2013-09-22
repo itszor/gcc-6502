@@ -1,7 +1,7 @@
 [= autogen5 template sh=check.sh =]
 [=
 #
-#  This file contanes the shell template to run tests on the fixes
+#  This file contains the shell template to run tests on the fixes
 #
 =]#!/bin/sh
 
@@ -85,11 +85,8 @@ FOR fix  =][=
                         (get "hackname") )) )
          =][=
   ELSE   =]
-cat >> [=
-    IF (exist? "files") =][=
-      files[0] =][=
-    ELSE =]testing.h[=
-    ENDIF =] <<_HACK_EOF_
+cat >> [= (raw-shell-str (if (exist? "files") (get "files[0]") "testing.h"))
+         =] <<_HACK_EOF_
 
 
 #if defined( [=(. HACK)=]_CHECK )
@@ -102,6 +99,7 @@ ENDFOR  fix
 
 =]
 
+export TEST_MODE=true
 find . -type f | sed 's;^\./;;' | sort | ../../fixincl
 cd ${DESTDIR}
 

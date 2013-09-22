@@ -1,4 +1,4 @@
-/* XMLSchemaAttributeTypeInfo.java -- 
+/* XMLSchemaAttributeTypeInfo.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,7 +37,6 @@ exception statement from your version. */
 
 package gnu.xml.validation.xmlschema;
 
-import org.w3c.dom.TypeInfo;
 import gnu.xml.validation.datatype.SimpleType;
 
 /**
@@ -95,6 +94,5 @@ final class XMLSchemaAttributeTypeInfo
                                        derivationMethod);
       }
   }
-  
-}
 
+}

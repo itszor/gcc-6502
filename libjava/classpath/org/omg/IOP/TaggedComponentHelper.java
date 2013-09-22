@@ -43,15 +43,12 @@ import gnu.CORBA.OrbRestricted;
 
 import org.omg.CORBA.Any;
 import org.omg.CORBA.BAD_OPERATION;
-import org.omg.CORBA.MARSHAL;
 import org.omg.CORBA.ORB;
 import org.omg.CORBA.StructMember;
 import org.omg.CORBA.TCKind;
 import org.omg.CORBA.TypeCode;
 import org.omg.CORBA.portable.InputStream;
 import org.omg.CORBA.portable.OutputStream;
-
-import java.io.IOException;
 
 /**
  * A helper operations for the {@link TaggedComponent}.
@@ -69,14 +66,14 @@ public abstract class TaggedComponentHelper
   {
     ORB orb = OrbRestricted.Singleton;
     StructMember[] members = new StructMember[2];
-    
+
     TypeCode field;
-    
+
     field = orb.create_alias_tc("IDL:omg.org/IOP/ComponentId:1.0",
                                 "ComponentId",
                                 orb.get_primitive_tc(TCKind.tk_ulong));
     members[0] = new StructMember("tag", field, null);
-    
+
     field = orb.create_sequence_tc(0, orb.get_primitive_tc(TCKind.tk_octet));
     members[1] = new StructMember("component_data", field, null);
     return orb.create_struct_tc(id(), "TaggedComponent", members);
@@ -109,7 +106,7 @@ public abstract class TaggedComponentHelper
     catch (ClassCastException cex)
       {
         BAD_OPERATION bad = new BAD_OPERATION("TaggedComponent expected");
-        bad.minor = Minor.Any;        
+        bad.minor = Minor.Any;
         bad.initCause(cex);
         throw bad;
       }

@@ -1,13 +1,13 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "is_IS" }
 
 // 2001-01-19 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2001, 2003, 2005 Free Software Foundation
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -16,9 +16,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.1.1 - Class locale [lib.locale]
 
@@ -37,9 +36,9 @@ test02()
 
   // construct a locale object with the specialized facet.
   locale		loc_c = locale::classic();
-  locale		loc_fr = locale("fr_FR");
+  locale		loc_is = locale("is_IS");
   locale 		loc_1(locale::classic(), 
-			      new numpunct_byname<char>("fr_FR"));
+			      new numpunct_byname<char>("is_IS"));
 
   // check names
   VERIFY( loc_c.name() == name_c );
@@ -58,7 +57,7 @@ test02()
   const numpunct<char>&	nump_1 = use_facet<numpunct<char> >(loc_1); 
   const numpunct<char>&	nump_2 = use_facet<numpunct<char> >(loc_2); 
   const numpunct<char>&	nump_c = use_facet<numpunct<char> >(loc_c); 
-  const numpunct<char>&	nump_fr = use_facet<numpunct<char> >(loc_fr); 
+  const numpunct<char>&	nump_is = use_facet<numpunct<char> >(loc_is); 
 
   // sanity check the data is correct.
   char dp1 = nump_c.decimal_point();
@@ -79,11 +78,11 @@ test02()
   string t3 = nump_2.truename();
   string f3 = nump_2.falsename();
 
-  char dp4 = nump_fr.decimal_point();
-  char th4 = nump_fr.thousands_sep();
-  string g4 = nump_fr.grouping();
-  string t4 = nump_fr.truename();
-  string f4 = nump_fr.falsename();
+  char dp4 = nump_is.decimal_point();
+  char th4 = nump_is.thousands_sep();
+  string g4 = nump_is.grouping();
+  string t4 = nump_is.truename();
+  string f4 = nump_is.falsename();
   VERIFY( dp1 != dp2 );
   VERIFY( th1 != th2 );
 

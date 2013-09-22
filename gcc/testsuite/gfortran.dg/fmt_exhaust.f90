@@ -5,7 +5,8 @@
       implicit none
       integer :: n
       n = 1
+      open(10, status="scratch")
       write(10,"(i7,(' abcd'))", err=10) n, n
       call abort()
- 10   close(10, status="delete")
+ 10   close(10)
       end program test

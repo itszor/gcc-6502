@@ -1,12 +1,12 @@
 /* Thread and mutex controls for Objective C.
-   Copyright (C) 1996, 1997, 2002, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
    Contributed by Galen C. Hunt (gchunt@cs.rochester.edu)
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -14,26 +14,14 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-GCC is free software; you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation; either version 2, or (at your option) any later version.
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
 
-GCC is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-details.
-
-You should have received a copy of the GNU General Public License along with
-GCC; see the file COPYING.  If not, write to the Free Software
-Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
-
-/* As a special exception, if you link this library with files
-   compiled with GCC to produce an executable, this does not cause
-   the resulting executable to be covered by the GNU General Public License.
-   This exception does not however invalidate any other reasons why
-   the executable file might be covered by the GNU General Public License.  */
-
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #ifndef __thread_INCLUDE_GNU
 #define __thread_INCLUDE_GNU
@@ -120,31 +108,6 @@ objc_thread_callback objc_set_thread_callback (objc_thread_callback func);
 
 /* Backend initialization functions */
 int __objc_init_thread_system (void);
-int __objc_fini_thread_system (void);
-
-/* Backend mutex functions */
-int __objc_mutex_allocate (objc_mutex_t mutex);
-int __objc_mutex_deallocate (objc_mutex_t mutex);
-int __objc_mutex_lock (objc_mutex_t mutex);
-int __objc_mutex_trylock (objc_mutex_t mutex);
-int __objc_mutex_unlock (objc_mutex_t mutex);
-
-/* Backend condition mutex functions */
-int __objc_condition_allocate (objc_condition_t condition);
-int __objc_condition_deallocate (objc_condition_t condition);
-int __objc_condition_wait (objc_condition_t condition, objc_mutex_t mutex);
-int __objc_condition_broadcast (objc_condition_t condition);
-int __objc_condition_signal (objc_condition_t condition);
-
-/* Backend thread functions */
-objc_thread_t __objc_thread_detach (void (*func) (void *arg), void *arg);
-int __objc_thread_set_priority (int priority);
-int __objc_thread_get_priority (void);
-void __objc_thread_yield (void);
-int __objc_thread_exit (void);
-objc_thread_t __objc_thread_id (void);
-int __objc_thread_set_data (void *value);
-void * __objc_thread_get_data (void);
 
 #ifdef __cplusplus
 }

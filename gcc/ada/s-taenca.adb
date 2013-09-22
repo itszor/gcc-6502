@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1992-2007, Free Software Foundation, Inc.          --
+--         Copyright (C) 1992-2011, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -32,36 +30,13 @@
 ------------------------------------------------------------------------------
 
 with System.Task_Primitives.Operations;
---  used for STPO.Write_Lock
---           Unlock
---           STPO.Get_Priority
---           Sleep
---           Timed_Sleep
-
 with System.Tasking.Initialization;
---  used for Change_Base_Priority
---           Defer_Abort/Undefer_Abort
-
 with System.Tasking.Protected_Objects.Entries;
---  used for To_Protection
-
 with System.Tasking.Protected_Objects.Operations;
---  used for PO_Service_Entries
-
 with System.Tasking.Queuing;
---  used for Requeue_Call_With_New_Prio
---           Onqueue
---           Dequeue_Call
-
 with System.Tasking.Utilities;
---  used for Exit_One_ATC_Level
-
 with System.Parameters;
---  used for Single_Lock
---           Runtime_Traces
-
 with System.Traces;
---  used for Send_Trace_Info
 
 package body System.Tasking.Entry_Calls is
 
@@ -136,7 +111,7 @@ package body System.Tasking.Entry_Calls is
    pragma Inline (Poll_Base_Priority_Change_At_Entry_Call);
    --  A specialized version of Poll_Base_Priority_Change, that does the
    --  optional entry queue reordering. Has to be called with the Self_ID's
-   --  ATCB write-locked. May temporariliy release the lock.
+   --  ATCB write-locked. May temporarily release the lock.
 
    ---------------------
    -- Check_Exception --
@@ -190,13 +165,8 @@ package body System.Tasking.Entry_Calls is
            and then Entry_Call.State = Now_Abortable
          then
             Queuing.Dequeue_Call (Entry_Call);
-
-            if Entry_Call.Cancellation_Attempted then
-               Entry_Call.State := Cancelled;
-            else
-               Entry_Call.State := Done;
-            end if;
-
+            Entry_Call.State :=
+              (if Entry_Call.Cancellation_Attempted then Cancelled else Done);
             Unlock_And_Update_Server (Self_ID, Entry_Call);
 
          else
@@ -246,7 +216,7 @@ package body System.Tasking.Entry_Calls is
                   STPO.Unlock_RTS;
                end if;
 
-               Lock_Entries (Test_PO, Ceiling_Violation);
+               Lock_Entries_With_Status (Test_PO, Ceiling_Violation);
 
                --  ???
 
@@ -619,6 +589,13 @@ package body System.Tasking.Entry_Calls is
             --  corresponding code in the ATC case).
 
             Entry_Call.Cancellation_Attempted := True;
+
+            --  Reset Entry_Call.State so that the call is marked as cancelled
+            --  by Check_Pending_Actions_For_Entry_Call below.
+
+            if Entry_Call.State < Was_Abortable then
+               Entry_Call.State := Now_Abortable;
+            end if;
 
             if Self_Id.Pending_ATC_Level >= Entry_Call.Level then
                Self_Id.Pending_ATC_Level := Entry_Call.Level - 1;

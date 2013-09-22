@@ -1,32 +1,27 @@
 /* Implementation of the SIGNAL and ALARM g77 intrinsics
-   Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by François-Xavier Coudert <coudert@clipper.ens.fr>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 
@@ -34,21 +29,13 @@ Boston, MA 02110-1301, USA.  */
 #include <unistd.h>
 #endif
 
-#ifdef HAVE_SIGNAL_H
 #include <signal.h>
-#endif
 
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
 
 #include <errno.h>
-
-#ifdef HAVE_INTPTR_T
-# define INTPTR_T intptr_t
-#else
-# define INTPTR_T int
-#endif
 
 /* SIGNAL subroutine with PROCEDURE as handler  */
 extern void signal_sub (int *, void (*)(int), int *);
@@ -57,21 +44,15 @@ iexport_proto(signal_sub);
 void
 signal_sub (int *number, void (*handler)(int), int *status)
 {
-#ifdef HAVE_SIGNAL
-  INTPTR_T ret;
+  intptr_t ret;
 
   if (status != NULL)
     {
-      ret = (INTPTR_T) signal (*number, handler);
+      ret = (intptr_t) signal (*number, handler);
       *status = (int) ret;
     }
   else
     signal (*number, handler);
-#else
-  errno = ENOSYS;
-  if (status != NULL)
-    *status = -1;
-#endif
 }
 iexport(signal_sub);
 
@@ -83,21 +64,15 @@ iexport_proto(signal_sub_int);
 void
 signal_sub_int (int *number, int *handler, int *status)
 {
-#ifdef HAVE_SIGNAL
-  INTPTR_T ptr = *handler, ret;
+  intptr_t ptr = *handler, ret;
 
   if (status != NULL)
     {
-      ret = (INTPTR_T) signal (*number, (void (*)(int)) ptr);
+      ret = (intptr_t) signal (*number, (void (*)(int)) ptr);
       *status = (int) ret;
     }
   else
     signal (*number, (void (*)(int)) ptr);
-#else
-  errno = ENOSYS;
-  if (status != NULL)
-    *status = -1;
-#endif
 }
 iexport(signal_sub_int);
 
@@ -140,7 +115,7 @@ alarm_sub_i4 (int * seconds __attribute__ ((unused)),
 	      void (*handler)(int) __attribute__ ((unused)),
 	      GFC_INTEGER_4 *status)
 {
-#if defined (SIGALRM) && defined (HAVE_ALARM) && defined (HAVE_SIGNAL)
+#if defined (SIGALRM) && defined (HAVE_ALARM) 
   if (status != NULL)
     {
       if (signal (SIGALRM, handler) == SIG_ERR)
@@ -170,7 +145,7 @@ alarm_sub_i8 (int *seconds __attribute__ ((unused)),
 	      void (*handler)(int) __attribute__ ((unused)),
 	      GFC_INTEGER_8 *status)
 {
-#if defined (SIGALRM) && defined (HAVE_ALARM) && defined (HAVE_SIGNAL)
+#if defined (SIGALRM) && defined (HAVE_ALARM)
   if (status != NULL)
     {
       if (signal (SIGALRM, handler) == SIG_ERR)
@@ -201,17 +176,17 @@ alarm_sub_int_i4 (int *seconds __attribute__ ((unused)),
 		  int *handler __attribute__ ((unused)),
 		  GFC_INTEGER_4 *status)
 {
-#if defined (SIGALRM) && defined (HAVE_ALARM) && defined (HAVE_SIGNAL)
+#if defined (SIGALRM) && defined (HAVE_ALARM)
   if (status != NULL)
     {
-      if (signal (SIGALRM, (void (*)(int)) (INTPTR_T) *handler) == SIG_ERR)
+      if (signal (SIGALRM, (void (*)(int)) (intptr_t) *handler) == SIG_ERR)
 	*status = -1;
       else
 	*status = alarm (*seconds);
     }
   else
     {
-      signal (SIGALRM, (void (*)(int)) (INTPTR_T) *handler);
+      signal (SIGALRM, (void (*)(int)) (intptr_t) *handler);
       alarm (*seconds);
     }
 #else
@@ -231,17 +206,17 @@ alarm_sub_int_i8 (int *seconds __attribute__ ((unused)),
 		  int *handler __attribute__ ((unused)),
 		  GFC_INTEGER_8 *status)
 {
-#if defined (SIGALRM) && defined (HAVE_ALARM) && defined (HAVE_SIGNAL)
+#if defined (SIGALRM) && defined (HAVE_ALARM)
   if (status != NULL)
     {
-      if (signal (SIGALRM, (void (*)(int)) (INTPTR_T) *handler) == SIG_ERR)
+      if (signal (SIGALRM, (void (*)(int)) (intptr_t) *handler) == SIG_ERR)
 	*status = -1;
       else
 	*status = alarm (*seconds);
     }
   else
     {
-      signal (SIGALRM, (void (*)(int)) (INTPTR_T) *handler);
+      signal (SIGALRM, (void (*)(int)) (intptr_t) *handler);
       alarm (*seconds);
     }
 #else

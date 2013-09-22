@@ -32,11 +32,11 @@ function h(x)       ! { dg-error "is already being used as a FUNCTION" }
 end function h
 
 SUBROUTINE TT()
-  CHARACTER(LEN=10), EXTERNAL :: j
+  CHARACTER(LEN=10), EXTERNAL :: j ! { dg-error "Return type mismatch" }
   CHARACTER(LEN=10)          :: T
 ! PR20881=========================================================== 
 ! Error only appears once but testsuite associates with both lines.
-  T = j () ! { dg-error "is already being used as a FUNCTION" }
+  T = j (1.0) ! { dg-error "is already being used as a SUBROUTINE" }
   print *, T
 END SUBROUTINE TT
 
@@ -78,7 +78,7 @@ end
 ! Lahey - 2636-S: "SOURCE.F90", line 81:
 ! Subroutine 'j' is previously referenced as a function in 'line 39'.
 
-SUBROUTINE j (x)    ! { dg-error "is already being used as a FUNCTION" }
+SUBROUTINE j (x)    ! { dg-error "is already being used as a SUBROUTINE" }
   integer a(10)
   common /bar/ a    ! Global entity foo
   real x
@@ -96,5 +96,3 @@ END SUBROUTINE j
     entry link2 (nameg)    ! { dg-error "is already being used as a SUBROUTINE" }
     return
   end
-
-! { dg-final { cleanup-modules "m" } }

@@ -1,10 +1,90 @@
-2008-06-06  Release Manager
+2013-05-31  Release Manager
 
-	* GCC 4.3.1 released.
+	* GCC 4.8.1 released.
 
-2008-03-05  Release Manager
+2013-03-22  Release Manager
 
-	* GCC 4.3.0 released.
+	* GCC 4.8.0 released.
+
+2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* acinclude.m4: Additional FreeBSD 10 fixes.
+	* configure: Regenerate.
+
+2011-02-13  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* acinclude.m4 (AC_LIBTOOL_PROG_LD_SHLIBS)
+	(AC_LIBTOOL_SYS_DYNAMIC_LINKER): Remove handling
+	of freebsd1* which soon would incorrectly match FreeBSD 10.0.
+	* configure: Regenerate.
+
+2010-05-04  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR other/43620
+	* Makefile.am (AUTOMAKE_OPTIONS): Add no-dist.
+	* Makefile.in: Regenerate.
+
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+
+2009-12-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac: Disable libtool support for unused languages,
+	to avoid precious FFLAGS recheck cache consistency failure.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+
+2009-12-07  Jakub Jelinek  <jakub@redhat.com>
+
+	* acinclude.m4: Regenerated to pick:
+	2007-06-22 Ralf Wildenhues <Ralf.Wildenhues@gmx.de>
+
+	* libtool.m4 (AC_LIBTOOL_SYS_DYNAMIC_LINKER) [linux]:
+	Ignore lines in ld.so.conf starting with 'hwcap '.
+
+	* configure: Regenerated.
+
+	2009-11-24  Peter O'Gorman  <peter@pogma.com>
+
+	Backport of libltdl changes from the 2.2.6b release.
+	* ltdl.c: Backport changes.
+
+2009-09-22  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	* ltdl.h (LT_SCOPE): Change conditional to avoid breaking
+	auto-export during libgcj DLL linking.
+	* Makefile.am (libltdl_la_LDFLAGS): Remove -bindir switch.
+	* Makefile.in: Regenerate.
+
+2009-08-24  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac (AC_PREREQ): Bump to 2.64.  Remove FIXME.
+
+2009-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* config-h.in: Regenerate.
+	* configure: Regenerate.
+
+2009-08-20  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	* Makefile.am (libltdl_la_LDFLAGS): Add -bindir flag.
+	* Makefile.in: Regenerate.
+
+2008-06-17  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+
+2008-04-18  Paolo Bonzini  <bonzini@gnu.org>
+
+	PR bootstrap/35457
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
 
 2007-01-16  Jack Howarth  <howarth@bromo.med.uc.edu>
 

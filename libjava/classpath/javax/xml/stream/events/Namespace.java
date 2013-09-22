@@ -1,4 +1,4 @@
-/* Namespace.java -- 
+/* Namespace.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -41,7 +41,7 @@ package javax.xml.stream.events;
  * A namespace declaration event.
  */
 public interface Namespace
-  extends XMLEvent
+  extends Attribute
 {
 
   /**
@@ -58,6 +58,5 @@ public interface Namespace
    * Indicates whether this event declares the default namespace.
    */
   boolean isDefaultNamespaceDeclaration();
-  
-}
 
+}

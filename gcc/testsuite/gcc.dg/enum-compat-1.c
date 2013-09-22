@@ -12,8 +12,8 @@ enum e2 {c, d};
 void f(enum e1); /* { dg-error "prototype" "error at decl" } */
 
 void f(x)
-     enum e2 x;
-{ /* { dg-error "doesn't match prototype" "error at defn" } */
+     enum e2 x; /* { dg-error "doesn't match prototype" } */
+{
   return;
 }
 
@@ -25,7 +25,7 @@ enum e3 v3;
 enum e4 *p = &v3; /* { dg-warning "incompatible" "incompatible pointer" } */
 enum e3 *q = &v3;
 
-void g(enum e3); /* { dg-error "declaration" "error at first decl" } */
+void g(enum e3); /* { dg-message "note: previous declaration" "error at first decl" } */
 void g(enum e4); /* { dg-error "conflicting types" "error at second decl" } */
 
 void h(enum e3);

@@ -181,7 +181,6 @@ class TableView
                                    int spans[])
     {
       updateGrid();
-      int numCols = offsets.length;
       int realColumn = 0;
       int colCount = getViewCount();
       for (int i = 0; i < numColumns;)
@@ -478,7 +477,7 @@ class TableView
    * Overridden to perform the table layout before calling the super
    * implementation.
    */
-  protected void layoutMinorAxis(int targetSpan, int axis, int[] offsets, 
+  protected void layoutMinorAxis(int targetSpan, int axis, int[] offsets,
                                  int[] spans)
   {
     updateGrid();

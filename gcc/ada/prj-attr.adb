@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,9 +25,12 @@
 
 with Osint;
 with Prj.Com; use Prj.Com;
-with System.Case_Util; use System.Case_Util;
+
+with GNAT.Case_Util; use GNAT.Case_Util;
 
 package body Prj.Attr is
+
+   use GNAT;
 
    --  Data for predefined attributes and packages
 
@@ -53,6 +56,8 @@ package body Prj.Attr is
 
    --  The third optional letter is
    --     'R' to indicate that the attribute is read-only
+   --     'O' to indicate that others is allowed as an index for an associative
+   --     array
 
    --  End is indicated by two consecutive '#'
 
@@ -63,9 +68,9 @@ package body Prj.Attr is
    --  General
 
    "SVRname#" &
+   "SVRproject_dir#" &
    "lVmain#" &
    "LVlanguages#" &
-   "SVmain_language#" &
    "Lbroots#" &
    "SVexternally_built#" &
 
@@ -74,7 +79,9 @@ package body Prj.Attr is
    "SVobject_dir#" &
    "SVexec_dir#" &
    "LVsource_dirs#" &
+   "Lainherit_source_path#" &
    "LVexcluded_source_dirs#" &
+   "LVignore_source_sub_dirs#" &
 
    --  Source files
 
@@ -82,6 +89,14 @@ package body Prj.Attr is
    "LVlocally_removed_files#" &
    "LVexcluded_source_files#" &
    "SVsource_list_file#" &
+   "SVexcluded_source_list_file#" &
+   "LVinterfaces#" &
+
+   --  Projects (in aggregate projects)
+
+   "LVproject_files#" &
+   "LVproject_path#" &
+   "SAexternal#" &
 
    --  Libraries
 
@@ -90,7 +105,11 @@ package body Prj.Attr is
    "SVlibrary_kind#" &
    "SVlibrary_version#" &
    "LVlibrary_interface#" &
+   "SVlibrary_standalone#" &
+   "LVlibrary_encapsulated_options#" &
+   "SVlibrary_encapsulated_supported#" &
    "SVlibrary_auto_init#" &
+   "LVleading_library_options#" &
    "LVlibrary_options#" &
    "SVlibrary_src_dir#" &
    "SVlibrary_ali_dir#" &
@@ -103,8 +122,13 @@ package body Prj.Attr is
 
    "SVdefault_language#" &
    "LVrun_path_option#" &
+   "SVrun_path_origin#" &
+   "SVseparate_run_path_options#" &
    "Satoolchain_version#" &
    "Satoolchain_description#" &
+   "Saobject_generated#" &
+   "Saobjects_linked#" &
+   "SVtarget#" &
 
    --  Configuration - Libraries
 
@@ -114,6 +138,7 @@ package body Prj.Attr is
    --  Configuration - Archives
 
    "LVarchive_builder#" &
+   "LVarchive_builder_append_option#" &
    "LVarchive_indexer#" &
    "SVarchive_suffix#" &
    "LVlibrary_partial_linker#" &
@@ -127,22 +152,26 @@ package body Prj.Attr is
    "SVlibrary_auto_init_supported#" &
    "LVshared_library_minimum_switches#" &
    "LVlibrary_version_switches#" &
+   "SVlibrary_install_name_option#" &
    "Saruntime_library_dir#" &
+   "Saruntime_source_dir#" &
 
    --  package Naming
+   --  Some attributes are obsolescent, and renamed in the tree (see
+   --  Prj.Dect.Rename_Obsolescent_Attributes).
 
    "Pnaming#" &
-   "Saspecification_suffix#" &
+   "Saspecification_suffix#" &  --  Always renamed to "spec_suffix" in tree
    "Saspec_suffix#" &
-   "Saimplementation_suffix#" &
+   "Saimplementation_suffix#" & --  Always renamed to "body_suffix" in tree
    "Sabody_suffix#" &
    "SVseparate_suffix#" &
    "SVcasing#" &
    "SVdot_replacement#" &
-   "sAspecification#" &
-   "sAspec#" &
-   "sAimplementation#" &
-   "sAbody#" &
+   "saspecification#" &  --  Always renamed to "spec" in project tree
+   "saspec#" &
+   "saimplementation#" & --  Always renamed to "body" in project tree
+   "sabody#" &
    "Laspecification_exceptions#" &
    "Laimplementation_exceptions#" &
 
@@ -150,15 +179,25 @@ package body Prj.Attr is
 
    "Pcompiler#" &
    "Ladefault_switches#" &
-   "Lcswitches#" &
+   "LcOswitches#" &
    "SVlocal_configuration_pragmas#" &
    "Salocal_config_file#" &
 
    --  Configuration - Compiling
 
    "Sadriver#" &
+   "Salanguage_kind#" &
+   "Sadependency_kind#" &
    "Larequired_switches#" &
+   "Laleading_required_switches#" &
+   "Latrailing_required_switches#" &
    "Lapic_option#" &
+   "Sapath_syntax#" &
+   "Lasource_file_switches#" &
+   "Saobject_file_suffix#" &
+   "Laobject_file_switches#" &
+   "Lamulti_unit_switches#" &
+   "Samulti_unit_object_separator#" &
 
    --  Configuration - Mapping files
 
@@ -170,8 +209,10 @@ package body Prj.Attr is
 
    "Laconfig_file_switches#" &
    "Saconfig_body_file_name#" &
-   "Saconfig_spec_file_name#" &
+   "Saconfig_body_file_name_index#" &
    "Saconfig_body_file_name_pattern#" &
+   "Saconfig_spec_file_name#" &
+   "Saconfig_spec_file_name_index#" &
    "Saconfig_spec_file_name_pattern#" &
    "Saconfig_file_unique#" &
 
@@ -185,12 +226,14 @@ package body Prj.Attr is
    "Lainclude_switches#" &
    "Sainclude_path#" &
    "Sainclude_path_file#" &
+   "Laobject_path_switches#" &
 
    --  package Builder
 
    "Pbuilder#" &
    "Ladefault_switches#" &
-   "Lcswitches#" &
+   "LcOswitches#" &
+   "Lcglobal_compilation_switches#" &
    "Scexecutable#" &
    "SVexecutable_suffix#" &
    "SVglobal_configuration_pragmas#" &
@@ -205,7 +248,7 @@ package body Prj.Attr is
 
    "Pbinder#" &
    "Ladefault_switches#" &
-   "Lcswitches#" &
+   "LcOswitches#" &
 
    --  Configuration - Binding
 
@@ -220,8 +263,11 @@ package body Prj.Attr is
    "Plinker#" &
    "LVrequired_switches#" &
    "Ladefault_switches#" &
-   "Lcswitches#" &
+   "LcOleading_switches#" &
+   "LcOswitches#" &
+   "LcOtrailing_switches#" &
    "LVlinker_options#" &
+   "SVmap_file_option#" &
 
    --  Configuration - Linking
 
@@ -230,47 +276,66 @@ package body Prj.Attr is
    "SVlib_dir_switch#" &
    "SVlib_name_switch#" &
 
+   --  Configuration - Response files
+
+   "SVmax_command_line_length#" &
+   "SVresponse_file_format#" &
+   "LVresponse_file_switches#" &
+
+   --  package Clean
+
+   "Pclean#" &
+   "LVswitches#" &
+   "Lasource_artifact_extensions#" &
+   "Laobject_artifact_extensions#" &
+
    --  package Cross_Reference
 
    "Pcross_reference#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package Finder
 
    "Pfinder#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package Pretty_Printer
 
    "Ppretty_printer#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package gnatstub
 
    "Pgnatstub#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package Check
 
    "Pcheck#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
+
+   --  package Synchronize
+
+   "Psynchronize#" &
+   "Ladefault_switches#" &
+   "LbOswitches#" &
 
    --  package Eliminate
 
    "Peliminate#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package Metrics
 
    "Pmetrics#" &
    "Ladefault_switches#" &
-   "Lbswitches#" &
+   "LbOswitches#" &
 
    --  package Ide
 
@@ -285,6 +350,23 @@ package body Prj.Attr is
    "SVvcs_kind#" &
    "SVvcs_file_check#" &
    "SVvcs_log_check#" &
+   "SVdocumentation_dir#" &
+
+   --  package Install
+
+   "Pinstall#" &
+   "SVprefix#" &
+   "SVsources_subdir#" &
+   "SVexec_subdir#" &
+   "SVlib_subdir#" &
+   "SVproject_subdir#" &
+   "SVactive#" &
+
+   --  package Remote
+
+   "Premote#" &
+   "LVbuild_slaves#" &
+   "SVroot_dir#" &
 
    --  package Stack
 
@@ -296,8 +378,37 @@ package body Prj.Attr is
    Initialized : Boolean := False;
    --  A flag to avoid multiple initialization
 
+   Package_Names     : String_List_Access := new Strings.String_List (1 .. 20);
+   Last_Package_Name : Natural := 0;
+   --  Package_Names (1 .. Last_Package_Name) contains the list of the known
+   --  package names, coming from the Initialization_Data string or from
+   --  calls to one of the two procedures Register_New_Package.
+
+   procedure Add_Package_Name (Name : String);
+   --  Add a package name in the Package_Name list, extending it, if necessary
+
    function Name_Id_Of (Name : String) return Name_Id;
    --  Returns the Name_Id for Name in lower case
+
+   ----------------------
+   -- Add_Package_Name --
+   ----------------------
+
+   procedure Add_Package_Name (Name : String) is
+   begin
+      if Last_Package_Name = Package_Names'Last then
+         declare
+            New_List : constant Strings.String_List_Access :=
+                         new Strings.String_List (1 .. Package_Names'Last * 2);
+         begin
+            New_List (Package_Names'Range) := Package_Names.all;
+            Package_Names := New_List;
+         end;
+      end if;
+
+      Last_Package_Name := Last_Package_Name + 1;
+      Package_Names (Last_Package_Name) := new String'(Name);
+   end Add_Package_Name;
 
    -----------------------
    -- Attribute_Kind_Of --
@@ -364,6 +475,7 @@ package body Prj.Attr is
       Attribute_Name    : Name_Id           := No_Name;
       First_Attribute   : Attr_Node_Id      := Attr.First_Attribute;
       Read_Only         : Boolean;
+      Others_Allowed    : Boolean;
 
       function Attribute_Location return String;
       --  Returns a string depending if we are in the project level attributes
@@ -417,9 +529,9 @@ package body Prj.Attr is
 
                for Index in First_Package .. Package_Attributes.Last loop
                   if Package_Name = Package_Attributes.Table (Index).Name then
-                     Osint.Fail ("duplicate name """,
-                           Initialization_Data (Start .. Finish - 1),
-                           """ in predefined packages.");
+                     Osint.Fail ("duplicate name """
+                                 & Initialization_Data (Start .. Finish - 1)
+                                 & """ in predefined packages.");
                   end if;
                end loop;
 
@@ -432,6 +544,8 @@ package body Prj.Attr is
                   Known            => True,
                   First_Attribute  => Empty_Attr);
                Start := Finish + 1;
+
+               Add_Package_Name (Get_Name_String (Package_Name));
 
             when 'S' =>
                Var_Kind       := Single;
@@ -489,12 +603,16 @@ package body Prj.Attr is
 
             Start := Start + 1;
 
+            Read_Only := False;
+            Others_Allowed := False;
+
             if Initialization_Data (Start) = 'R' then
                Read_Only := True;
                Start := Start + 1;
 
-            else
-               Read_Only := False;
+            elsif Initialization_Data (Start) = 'O' then
+               Others_Allowed := True;
+               Start := Start + 1;
             end if;
 
             Finish := Start;
@@ -520,9 +638,9 @@ package body Prj.Attr is
 
                for Index in First_Attribute .. Attrs.Last - 1 loop
                   if Attribute_Name = Attrs.Table (Index).Name then
-                     Osint.Fail ("duplicate attribute """,
-                           Initialization_Data (Start .. Finish - 1),
-                           """ in " & Attribute_Location);
+                     Osint.Fail ("duplicate attribute """
+                                 & Initialization_Data (Start .. Finish - 1)
+                                 & """ in " & Attribute_Location);
                   end if;
                end loop;
 
@@ -537,6 +655,7 @@ package body Prj.Attr is
                Optional_Index => Optional_Index,
                Attr_Kind      => Attr_Kind,
                Read_Only      => Read_Only,
+               Others_Allowed => Others_Allowed,
                Next           => Empty_Attr);
             Start := Finish + 1;
          end if;
@@ -594,6 +713,26 @@ package body Prj.Attr is
       end if;
    end Optional_Index_Of;
 
+   function Others_Allowed_For
+     (Attribute : Attribute_Node_Id) return Boolean
+   is
+   begin
+      if Attribute = Empty_Attribute then
+         return False;
+      else
+         return Attrs.Table (Attribute.Value).Others_Allowed;
+      end if;
+   end Others_Allowed_For;
+
+   -----------------------
+   -- Package_Name_List --
+   -----------------------
+
+   function Package_Name_List return Strings.String_List is
+   begin
+      return Package_Names (1 .. Last_Package_Name);
+   end Package_Name_List;
+
    ------------------------
    -- Package_Node_Id_Of --
    ------------------------
@@ -639,8 +778,9 @@ package body Prj.Attr is
       end if;
 
       if In_Package = Empty_Package then
-         Fail ("attempt to add attribute """, Name,
-               """ to an undefined package");
+         Fail ("attempt to add attribute """
+               & Name
+               & """ to an undefined package");
          raise Project_Error;
       end if;
 
@@ -654,11 +794,12 @@ package body Prj.Attr is
       Curr_Attr := First_Attr;
       while Curr_Attr /= Empty_Attr loop
          if Attrs.Table (Curr_Attr).Name = Attr_Name then
-            Fail ("duplicate attribute name """, Name,
-                  """ in package """ &
-                  Get_Name_String
-                    (Package_Attributes.Table (In_Package.Value).Name) &
-                  """");
+            Fail ("duplicate attribute name """
+                  & Name
+                  & """ in package """
+                  & Get_Name_String
+                     (Package_Attributes.Table (In_Package.Value).Name)
+                  & """");
             raise Project_Error;
          end if;
 
@@ -692,6 +833,7 @@ package body Prj.Attr is
          Optional_Index => Opt_Index,
          Attr_Kind      => Real_Attr_Kind,
          Read_Only      => False,
+         Others_Allowed => False,
          Next           => First_Attr);
 
       Package_Attributes.Table (In_Package.Value).First_Attribute :=
@@ -716,8 +858,9 @@ package body Prj.Attr is
 
       for Index in Package_Attributes.First .. Package_Attributes.Last loop
          if Package_Attributes.Table (Index).Name = Pkg_Name then
-            Fail ("cannot register a package with a non unique name""",
-                  Name, """");
+            Fail ("cannot register a package with a non unique name """
+                  & Name
+                  & """");
             Id := Empty_Package;
             return;
          end if;
@@ -729,6 +872,8 @@ package body Prj.Attr is
         (Name             => Pkg_Name,
          Known            => True,
          First_Attribute  => Empty_Attr);
+
+      Add_Package_Name (Get_Name_String (Pkg_Name));
    end Register_New_Package;
 
    procedure Register_New_Package
@@ -751,8 +896,9 @@ package body Prj.Attr is
 
       for Index in Package_Attributes.First .. Package_Attributes.Last loop
          if Package_Attributes.Table (Index).Name = Pkg_Name then
-            Fail ("cannot register a package with a non unique name""",
-                  Name, """");
+            Fail ("cannot register a package with a non unique name """
+                  & Name
+                  & """");
             raise Project_Error;
          end if;
       end loop;
@@ -763,8 +909,11 @@ package body Prj.Attr is
          Curr_Attr := First_Attr;
          while Curr_Attr /= Empty_Attr loop
             if Attrs.Table (Curr_Attr).Name = Attr_Name then
-               Fail ("duplicate attribute name """, Attributes (Index).Name,
-                     """ in new package """ & Name & """");
+               Fail ("duplicate attribute name """
+                     & Attributes (Index).Name
+                     & """ in new package """
+                     & Name
+                     & """");
                raise Project_Error;
             end if;
 
@@ -796,6 +945,7 @@ package body Prj.Attr is
             Optional_Index => Attributes (Index).Opt_Index,
             Attr_Kind      => Attr_Kind,
             Read_Only      => False,
+            Others_Allowed => False,
             Next           => First_Attr);
          First_Attr := Attrs.Last;
       end loop;
@@ -805,6 +955,8 @@ package body Prj.Attr is
         (Name             => Pkg_Name,
          Known            => True,
          First_Attribute  => First_Attr);
+
+      Add_Package_Name (Get_Name_String (Pkg_Name));
    end Register_New_Package;
 
    ---------------------------

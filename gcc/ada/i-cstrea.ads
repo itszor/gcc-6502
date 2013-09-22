@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1995-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -44,6 +42,7 @@ package Interfaces.C_Streams is
    subtype int is System.CRTL.int;
    subtype long is System.CRTL.long;
    subtype size_t is System.CRTL.size_t;
+   subtype ssize_t is System.CRTL.ssize_t;
    subtype voids is System.Address;
 
    NULL_Stream : constant FILEs;
@@ -78,9 +77,9 @@ package Interfaces.C_Streams is
    -- Standard C functions --
    --------------------------
 
-   --  The functions selected below are ones that are available in DOS,
-   --  OS/2, UNIX and Xenix (but not necessarily in ANSI C). These are
-   --  very thin interfaces which copy exactly the C headers. For more
+   --  The functions selected below are ones that are available in
+   --  UNIX (but not necessarily in ANSI C). These are very thin
+   --  interfaces which copy exactly the C headers. For more
    --  documentation on these functions, see the Microsoft C "Run-Time
    --  Library Reference" (Microsoft Press, 1990, ISBN 1-55615-225-6),
    --  which includes useful information on system compatibility.
@@ -155,8 +154,17 @@ package Interfaces.C_Streams is
       origin : int) return int
      renames System.CRTL.fseek;
 
+   function fseek64
+     (stream : FILEs;
+      offset : ssize_t;
+      origin : int) return int
+     renames System.CRTL.fseek64;
+
    function ftell (stream : FILEs) return long
      renames System.CRTL.ftell;
+
+   function ftell64 (stream : FILEs) return ssize_t
+     renames System.CRTL.ftell64;
 
    function fwrite
      (buffer : voids;
@@ -177,7 +185,7 @@ package Interfaces.C_Streams is
       mode   : int;
       size   : size_t) return int;
 
-   procedure tmpnam (string : chars) renames System.CRTL.tmpnam;
+   procedure tmpnam (str : chars) renames System.CRTL.tmpnam;
    --  The parameter must be a pointer to a string buffer of at least L_tmpnam
    --  bytes (the call with a null parameter is not supported). The returned
    --  value, which is just a copy of the input argument, is discarded.
@@ -230,9 +238,10 @@ package Interfaces.C_Streams is
    --  pass an actual parameter for buffer that is big enough for any full
    --  path name. Use max_path_len given below as the size of buffer.
 
-   max_path_len : Integer;
-   --  Maximum length of an allowable full path name on the system,
-   --  including a terminating NUL character.
+   max_path_len : constant Integer;
+   --  Maximum length of an allowable full path name on the system,including a
+   --  terminating NUL character. Declared as a constant to allow references
+   --  from other preelaborated GNAT library packages.
 
 private
    --  The following functions are specialized in the body depending on the

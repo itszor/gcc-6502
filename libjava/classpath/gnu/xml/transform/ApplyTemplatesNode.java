@@ -1,4 +1,4 @@
-/* ApplyTemplatesNode.java -- 
+/* ApplyTemplatesNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -189,10 +191,10 @@ final class ApplyTemplatesNode
       }
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("apply-templates");
+    CPStringBuilder buf = new CPStringBuilder("apply-templates");
     buf.append('[');
     boolean o = false;
     if (select != null)
@@ -213,5 +215,5 @@ final class ApplyTemplatesNode
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

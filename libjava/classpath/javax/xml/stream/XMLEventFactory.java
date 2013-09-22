@@ -1,5 +1,5 @@
-/* XMLEventFactory.java -- 
-   Copyright (C) 2005,2006  Free Software Foundation, Inc.
+/* XMLEventFactory.java --
+   Copyright (C) 2005,2006,2009  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -43,7 +43,6 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
-import java.io.Reader;
 import java.util.Iterator;
 import java.util.Properties;
 import javax.xml.namespace.NamespaceContext;
@@ -95,8 +94,14 @@ public abstract class XMLEventFactory
    * system resource</li>
    * <li>the default factory class</li>
    * </ol>
+   * @param factoryId name of the factory to find, same as a property name
+   * @param classLoader the class loader to use
+   * @return the factory implementation
+   * @exception FactoryConfigurationError if an instance of this factory
+   * cannot be loaded
    */
-  static XMLEventFactory newInstance(String factoryId, ClassLoader classLoader)
+  public static XMLEventFactory newInstance(String factoryId,
+                                            ClassLoader classLoader)
     throws FactoryConfigurationError
   {
     ClassLoader loader = classLoader;
@@ -117,7 +122,7 @@ public abstract class XMLEventFactory
           {
             try
               {
-                Class t = (loader != null) ? loader.loadClass(className) :
+                Class<?> t = (loader != null) ? loader.loadClass(className) :
                   Class.forName(className);
                 return (XMLEventFactory) t.newInstance();
               }
@@ -194,7 +199,7 @@ public abstract class XMLEventFactory
    */
   public abstract Attribute createAttribute(String prefix, String namespaceURI,
                                             String localName, String value);
-  
+
   /**
    * Create an attribute event.
    */
@@ -218,6 +223,7 @@ public abstract class XMLEventFactory
   /**
    * Create a start-element event.
    */
+  @SuppressWarnings("rawtypes")
   public abstract StartElement createStartElement(QName name,
                                                   Iterator attributes,
                                                   Iterator namespaces);
@@ -232,6 +238,7 @@ public abstract class XMLEventFactory
   /**
    * Create a start-element event.
    */
+  @SuppressWarnings("rawtypes")
   public abstract StartElement createStartElement(String prefix,
                                                   String namespaceUri,
                                                   String localName,
@@ -241,16 +248,18 @@ public abstract class XMLEventFactory
   /**
    * Create a start-element event.
    */
+  @SuppressWarnings("rawtypes")
   public abstract StartElement createStartElement(String prefix,
                                                   String namespaceUri,
                                                   String localName,
                                                   Iterator attributes,
                                                   Iterator namespaces,
                                                   NamespaceContext context);
-  
+
   /**
    * Create an end-element event.
    */
+  @SuppressWarnings("rawtypes")
   public abstract EndElement createEndElement(QName name,
                                               Iterator namespaces);
 
@@ -264,6 +273,7 @@ public abstract class XMLEventFactory
   /**
    * Create an end-element event.
    */
+  @SuppressWarnings("rawtypes")
   public abstract EndElement createEndElement(String prefix,
                                               String namespaceUri,
                                               String localName,
@@ -338,6 +348,5 @@ public abstract class XMLEventFactory
    * Create a DOCTYPE declaration event.
    */
   public abstract DTD createDTD(String dtd);
-  
-}
 
+}

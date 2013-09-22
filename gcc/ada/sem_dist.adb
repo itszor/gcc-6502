@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,6 +35,8 @@ with Namet;    use Namet;
 with Opt;      use Opt;
 with Rtsfind;  use Rtsfind;
 with Sem;      use Sem;
+with Sem_Aux;  use Sem_Aux;
+with Sem_Disp; use Sem_Disp;
 with Sem_Eval; use Sem_Eval;
 with Sem_Res;  use Sem_Res;
 with Sem_Util; use Sem_Util;
@@ -63,7 +65,9 @@ package body Sem_Dist is
    procedure Add_Stub_Constructs (N : Node_Id) is
       U    : constant Node_Id := Unit (N);
       Spec : Entity_Id        := Empty;
-      Exp  : Node_Id          := U;         --  Unit that will be expanded
+
+      Exp : Node_Id := U;
+      --  Unit that will be expanded
 
    begin
       pragma Assert (Distribution_Stub_Mode /= No_Stubs);
@@ -83,7 +87,6 @@ package body Sem_Dist is
         or else Is_Remote_Call_Interface (Spec));
 
       if Distribution_Stub_Mode = Generate_Caller_Stub_Body then
-
          if Is_Shared_Passive (Spec) then
             null;
          elsif Nkind (U) = N_Package_Body then
@@ -94,7 +97,6 @@ package body Sem_Dist is
          end if;
 
       else
-
          if Is_Shared_Passive (Spec) then
             Build_Passive_Partition_Stub (Exp);
          else
@@ -185,7 +187,6 @@ package body Sem_Dist is
       if Parent_Name /= No_String then
          Start_String (Parent_Name);
          Store_String_Char (Get_Char_Code ('.'));
-
       else
          Start_String;
       end if;
@@ -241,15 +242,13 @@ package body Sem_Dist is
       Par : Node_Id;
 
    begin
-      if (Nkind (N) = N_Function_Call
-              or else Nkind (N) = N_Procedure_Call_Statement)
+      if Nkind (N) in N_Subprogram_Call
         and then Nkind (Name (N)) in N_Has_Entity
         and then Is_Remote_Call_Interface (Entity (Name (N)))
         and then Has_All_Calls_Remote (Scope (Entity (Name (N))))
         and then Comes_From_Source (N)
       then
          Par := Parent (Entity (Name (N)));
-
          while Present (Par)
            and then (Nkind (Par) /= N_Package_Specification
                        or else Is_Wrapper_Package (Defining_Entity (Par)))
@@ -268,13 +267,79 @@ package body Sem_Dist is
       end if;
    end Is_All_Remote_Call;
 
+   ---------------------------------
+   -- Is_RACW_Stub_Type_Operation --
+   ---------------------------------
+
+   function Is_RACW_Stub_Type_Operation (Op : Entity_Id) return Boolean is
+      Dispatching_Type : Entity_Id;
+
+   begin
+      case Ekind (Op) is
+         when E_Function | E_Procedure =>
+            Dispatching_Type := Find_Dispatching_Type (Op);
+            return Present (Dispatching_Type)
+                     and then Is_RACW_Stub_Type (Dispatching_Type)
+                     and then not Is_Internal (Op);
+
+         when others =>
+            return False;
+      end case;
+   end Is_RACW_Stub_Type_Operation;
+
+   ---------------------------------
+   -- Is_Valid_Remote_Object_Type --
+   ---------------------------------
+
+   function Is_Valid_Remote_Object_Type (E : Entity_Id) return Boolean is
+      P : constant Node_Id := Parent (E);
+
+   begin
+      pragma Assert (Is_Tagged_Type (E));
+
+      --  Simple case: a limited private type
+
+      if Nkind (P) = N_Private_Type_Declaration
+        and then Is_Limited_Record (E)
+      then
+         return True;
+
+      --  AI05-0060 (Binding Interpretation): A limited interface is a legal
+      --  ancestor for the designated type of an RACW type.
+
+      elsif Is_Limited_Record (E) and then Is_Limited_Interface (E) then
+         return True;
+
+      --  A generic tagged limited type is a valid candidate. Limitedness will
+      --  be checked again on the actual at instantiation point.
+
+      elsif Nkind (P) = N_Formal_Type_Declaration
+        and then Ekind (E) = E_Record_Type_With_Private
+        and then Is_Generic_Type (E)
+        and then Is_Limited_Record (E)
+      then
+         return True;
+
+      --  A private extension declaration is a valid candidate if its parent
+      --  type is.
+
+      elsif Nkind (P) = N_Private_Extension_Declaration then
+         return Is_Valid_Remote_Object_Type (Etype (E));
+
+      else
+         return False;
+      end if;
+   end Is_Valid_Remote_Object_Type;
+
    ------------------------------------
    -- Package_Specification_Of_Scope --
    ------------------------------------
 
    function Package_Specification_Of_Scope (E : Entity_Id) return Node_Id is
-      N : Node_Id := Parent (E);
+      N : Node_Id;
+
    begin
+      N := Parent (E);
       while Nkind (N) /= N_Package_Specification loop
          N := Parent (N);
       end loop;
@@ -295,11 +360,10 @@ package body Sem_Dist is
       Typ            : constant Entity_Id := Etype (N);
 
    begin
-      Ety := Entity (Prefix (N));
-
       --  In case prefix is not a library unit entity, get the entity
       --  of library unit.
 
+      Ety := Entity (Prefix (N));
       while (Present (Scope (Ety))
         and then Scope (Ety) /= Standard_Standard)
         and not Is_Child_Unit (Ety)
@@ -330,9 +394,7 @@ package body Sem_Dist is
 
       --  Build the function call which will replace the attribute
 
-      if Is_Remote_Call_Interface (Ety)
-        or else Is_Shared_Passive (Ety)
-      then
+      if Is_Remote_Call_Interface (Ety) or else Is_Shared_Passive (Ety) then
          Get_Pt_Id_Call :=
            Make_Function_Call (Loc,
              Name => Get_Pt_Id,
@@ -341,7 +403,6 @@ package body Sem_Dist is
 
       else
          Get_Pt_Id_Call := Make_Function_Call (Loc, Get_Pt_Id);
-
       end if;
 
       --  Replace the attribute node by a conversion of the function call
@@ -404,10 +465,11 @@ package body Sem_Dist is
 
       Tick_Access_Conv_Call :=
         Make_Function_Call (Loc,
-          Name => New_Occurrence_Of (Attribute_Subp, Loc),
+          Name                   => New_Occurrence_Of (Attribute_Subp, Loc),
           Parameter_Associations =>
             New_List (
-              Make_String_Literal (Loc, Full_Qualified_Name (RS_Pkg_E)),
+              Make_String_Literal (Loc,
+                Strval => Full_Qualified_Name (RS_Pkg_E)),
               Build_Subprogram_Id (Loc, Remote_Subp),
               New_Occurrence_Of (Async_E, Loc),
               New_Occurrence_Of (All_Calls_Remote_E, Loc)));
@@ -433,9 +495,7 @@ package body Sem_Dist is
       --  True iff this RAS has an access formal parameter (see
       --  Exp_Dist.Add_RAS_Dereference_TSS for details).
 
-      Subpkg      : constant Entity_Id :=
-                      Make_Defining_Identifier (Loc,
-                        New_Internal_Name ('S'));
+      Subpkg      : constant Entity_Id := Make_Temporary (Loc, 'S');
       Subpkg_Decl : Node_Id;
       Subpkg_Body : Node_Id;
       Vis_Decls   : constant List_Id := New_List;
@@ -446,16 +506,14 @@ package body Sem_Dist is
                       New_External_Name (Chars (User_Type), 'R'));
 
       Full_Obj_Type : constant Entity_Id :=
-                        Make_Defining_Identifier (Loc,
-                          Chars (Obj_Type));
+                        Make_Defining_Identifier (Loc, Chars (Obj_Type));
 
       RACW_Type : constant Entity_Id :=
                     Make_Defining_Identifier (Loc,
                       New_External_Name (Chars (User_Type), 'P'));
 
       Fat_Type : constant Entity_Id :=
-                   Make_Defining_Identifier (Loc,
-                     Chars (User_Type));
+                   Make_Defining_Identifier (Loc, Chars (User_Type));
 
       Fat_Type_Decl : Node_Id;
 
@@ -464,8 +522,9 @@ package body Sem_Dist is
       Parameter := First (Parameter_Specifications (Type_Def));
       while Present (Parameter) loop
          if Nkind (Parameter_Type (Parameter)) = N_Access_Definition then
-            Error_Msg_N ("formal parameter& has anonymous access type?",
-              Defining_Identifier (Parameter));
+            Error_Msg_N
+              ("formal parameter& has anonymous access type??",
+               Defining_Identifier (Parameter));
             Is_Degenerate := True;
             exit;
          end if;
@@ -475,7 +534,7 @@ package body Sem_Dist is
 
       if Is_Degenerate then
          Error_Msg_NE
-           ("remote access-to-subprogram type& can only be null?",
+           ("remote access-to-subprogram type& can only be null??",
             Defining_Identifier (Parameter), User_Type);
 
          --  The only legal value for a RAS with a formal parameter of an
@@ -505,8 +564,7 @@ package body Sem_Dist is
 
       Append_To (Priv_Decls,
         Make_Full_Type_Declaration (Loc,
-          Defining_Identifier =>
-            Full_Obj_Type,
+          Defining_Identifier => Full_Obj_Type,
           Type_Definition     =>
             Make_Record_Definition (Loc,
               Abstract_Present => True,
@@ -536,39 +594,33 @@ package body Sem_Dist is
               All_Present => True,
               Subtype_Indication =>
                 Make_Attribute_Reference (Loc,
-                  Prefix =>
-                    New_Occurrence_Of (Obj_Type, Loc),
-                  Attribute_Name =>
-                    Name_Class))));
+                  Prefix         => New_Occurrence_Of (Obj_Type, Loc),
+                  Attribute_Name => Name_Class))));
+
       Set_Is_Remote_Call_Interface (RACW_Type, Is_RCI);
       Set_Is_Remote_Types (RACW_Type, Is_RT);
 
       Subpkg_Decl :=
         Make_Package_Declaration (Loc,
           Make_Package_Specification (Loc,
-            Defining_Unit_Name =>
-              Subpkg,
-            Visible_Declarations =>
-              Vis_Decls,
-            Private_Declarations =>
-              Priv_Decls,
-            End_Label =>
-              New_Occurrence_Of (Subpkg, Loc)));
+            Defining_Unit_Name   => Subpkg,
+            Visible_Declarations => Vis_Decls,
+            Private_Declarations => Priv_Decls,
+            End_Label            => New_Occurrence_Of (Subpkg, Loc)));
+
       Set_Is_Remote_Call_Interface (Subpkg, Is_RCI);
       Set_Is_Remote_Types (Subpkg, Is_RT);
       Insert_After_And_Analyze (N, Subpkg_Decl);
 
       --  Generate package body to receive RACW calling stubs
-      --  Note: Analyze_Declarations has an absolute requirement that
-      --  the declaration list be non-empty, so we provide a dummy null
-      --  statement here.
+
+      --  Note: Analyze_Declarations has an absolute requirement that the
+      --  declaration list be non-empty, so provide dummy null statement here.
 
       Subpkg_Body :=
         Make_Package_Body (Loc,
-          Defining_Unit_Name =>
-            Make_Defining_Identifier (Loc, Chars (Subpkg)),
-          Declarations => New_List (
-            Make_Null_Statement (Loc)));
+          Defining_Unit_Name => Make_Defining_Identifier (Loc, Chars (Subpkg)),
+          Declarations       => New_List (Make_Null_Statement (Loc)));
       Insert_After_And_Analyze (Subpkg_Decl, Subpkg_Body);
 
       --  Many parts of the analyzer and expander expect
@@ -590,10 +642,10 @@ package body Sem_Dist is
                       Make_Defining_Identifier (Loc, Name_Ras),
                     Component_Definition =>
                       Make_Component_Definition (Loc,
-                        Aliased_Present     =>
-                          False,
+                        Aliased_Present     => False,
                         Subtype_Indication  =>
                           New_Occurrence_Of (RACW_Type, Loc)))))));
+
       Set_Equivalent_Type (User_Type, Fat_Type);
       Set_Corresponding_Remote_Type (Fat_Type, User_Type);
       Insert_After_And_Analyze (Subpkg_Body, Fat_Type_Decl);
@@ -603,7 +655,7 @@ package body Sem_Dist is
       --  is active), and there are order of elaboration problems if we do try
       --  to generate an init proc for this created record type.
 
-      Set_Suppress_Init_Proc (Fat_Type);
+      Set_Suppress_Initialization (Fat_Type);
 
       if Expander_Active then
          Add_RAST_Features (Parent (User_Type));
@@ -634,7 +686,6 @@ package body Sem_Dist is
          end if;
 
       elsif Nkind (Deref_Subp_Call) = N_Indexed_Component then
-
          Params := Expressions (Deref_Subp_Call);
 
          if Present (Params) then
@@ -659,13 +710,12 @@ package body Sem_Dist is
       if Ekind (Deref_Proc) = E_Function then
          Call_Node :=
            Make_Function_Call (Loc,
-              Name => New_Occurrence_Of (Deref_Proc, Loc),
+              Name                   => New_Occurrence_Of (Deref_Proc, Loc),
               Parameter_Associations => Params);
-
       else
          Call_Node :=
            Make_Procedure_Call_Statement (Loc,
-              Name => New_Occurrence_Of (Deref_Proc, Loc),
+              Name                   => New_Occurrence_Of (Deref_Proc, Loc),
               Parameter_Associations => Params);
       end if;
 
@@ -689,8 +739,8 @@ package body Sem_Dist is
         and then (Is_Remote_Call_Interface (ET)
                    or else Is_Remote_Types (ET))
         and then Present (Corresponding_Remote_Type (ET))
-        and then (Nkind (Parent (Parent (P))) = N_Procedure_Call_Statement
-                   or else Nkind (Parent (Parent (P))) = N_Indexed_Component)
+        and then Nkind_In (Parent (Parent (P)), N_Procedure_Call_Statement,
+                                                N_Indexed_Component)
         and then Expander_Active
       then
          RAS_E_Dereference (P);
@@ -766,17 +816,14 @@ package body Sem_Dist is
          --  We do not have to handle this case
 
          return False;
-
       end if;
 
       Rewrite (N,
         Make_Aggregate (Loc,
           Component_Associations => New_List (
             Make_Component_Association (Loc,
-              Choices => New_List (
-                Make_Identifier (Loc, Name_Ras)),
-              Expression =>
-                Make_Null (Loc)))));
+              Choices    => New_List (Make_Identifier (Loc, Name_Ras)),
+              Expression => Make_Null (Loc)))));
       Analyze_And_Resolve (N, Target_Type);
       return True;
    end Remote_AST_Null_Value;

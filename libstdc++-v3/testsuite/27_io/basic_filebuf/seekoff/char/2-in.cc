@@ -1,11 +1,11 @@
 // 2001-05-21 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001, 2002, 2003 Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 27.8.1.4 Overridden virtual functions
 
@@ -42,7 +41,7 @@ void test05()
   typedef filebuf::traits_type 	traits_type;
 
   bool test __attribute__((unused)) = true;
-  streamsize 			strmsz_1, strmsz_2;
+  streamsize 			strmsz_1;
 
   int_type c1;
   int_type c2;
@@ -67,7 +66,7 @@ void test05()
     //beg
     strmsz_1 = fb.in_avail(); 
     pt_1 = fb.pubseekoff(2, ios_base::beg);
-    strmsz_2 = fb.in_avail(); 
+    fb.in_avail(); 
     off_1 = off_type(pt_1);
     VERIFY( off_1 > 0 );
     c1 = fb.snextc(); //current in pointer +1

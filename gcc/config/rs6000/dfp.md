@@ -1,6 +1,5 @@
 ;; Decimal Floating Point (DFP) patterns.
-;; Copyright (C) 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2007-2013 Free Software Foundation, Inc.
 ;; Contributed by Ben Elliston (bje@au.ibm.com) and Peter Bergner
 ;; (bergner@vnet.ibm.com).
 
@@ -24,9 +23,9 @@
 ;; UNSPEC usage
 ;;
 
-(define_constants
-  [(UNSPEC_MOVSD_LOAD		400)
-   (UNSPEC_MOVSD_STORE		401)
+(define_c_enum "unspec"
+  [UNSPEC_MOVSD_LOAD
+   UNSPEC_MOVSD_STORE
   ])
 
 
@@ -62,50 +61,48 @@
 }")
 
 (define_insn "movsd_hardfloat"
-  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,r,m,f,*c*l,*q,!r,*h,!r,!r")
-	(match_operand:SD 1 "input_operand"        "r,m,r,f,r,r,h,0,G,Fn"))]
+  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,r,m,f,*c*l,!r,*h,!r,!r")
+	(match_operand:SD 1 "input_operand"        "r,m,r,f,r,h,0,G,Fn"))]
   "(gpc_reg_operand (operands[0], SDmode)
    || gpc_reg_operand (operands[1], SDmode))
    && (TARGET_HARD_FLOAT && TARGET_FPRS)"
   "@
    mr %0,%1
-   {l%U1%X1|lwz%U1%X1} %0,%1
-   {st%U0%X0|stw%U0%X0} %1,%0
+   lwz%U1%X1 %0,%1
+   stw%U0%X0 %1,%0
    fmr %0,%1
    mt%0 %1
-   mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #"
-  [(set_attr "type" "*,load,store,fp,mtjmpr,*,mfjmpr,*,*,*")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,8")])
+  [(set_attr "type" "*,load,store,fp,mtjmpr,mfjmpr,*,*,*")
+   (set_attr "length" "4,4,4,4,4,4,4,4,8")])
 
 (define_insn "movsd_softfloat"
-  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,cl,q,r,r,m,r,r,r,r,r,*h")
-	(match_operand:SD 1 "input_operand" "r,r,r,h,m,r,I,L,R,G,Fn,0"))]
+  [(set (match_operand:SD 0 "nonimmediate_operand" "=r,cl,r,r,m,r,r,r,r,r,*h")
+	(match_operand:SD 1 "input_operand" "r,r,h,m,r,I,L,R,G,Fn,0"))]
   "(gpc_reg_operand (operands[0], SDmode)
    || gpc_reg_operand (operands[1], SDmode))
    && (TARGET_SOFT_FLOAT || !TARGET_FPRS)"
   "@
    mr %0,%1
    mt%0 %1
-   mt%0 %1
    mf%1 %0
-   {l%U1%X1|lwz%U1%X1} %0,%1
-   {st%U0%X0|stw%U0%X0} %1,%0
-   {lil|li} %0,%1
-   {liu|lis} %0,%v1
-   {cal|la} %0,%a1
+   lwz%U1%X1 %0,%1
+   stw%U0%X0 %1,%0
+   li %0,%1
+   lis %0,%v1
+   la %0,%a1
    #
    #
-   {cror 0,0,0|nop}"
-  [(set_attr "type" "*,mtjmpr,*,mfjmpr,load,store,*,*,*,*,*,*")
-   (set_attr "length" "4,4,4,4,4,4,4,4,4,4,8,4")])
+   nop"
+  [(set_attr "type" "*,mtjmpr,mfjmpr,load,store,*,*,*,*,*,*")
+   (set_attr "length" "4,4,4,4,4,4,4,4,4,8,4")])
 
 (define_insn "movsd_store"
   [(set (match_operand:DD 0 "nonimmediate_operand" "=m")
-	(unspec:DD [(match_operand:SD 1 "input_operand" "f")]
+	(unspec:DD [(match_operand:SD 1 "input_operand" "d")]
 		   UNSPEC_MOVSD_STORE))]
   "(gpc_reg_operand (operands[0], DDmode)
    || gpc_reg_operand (operands[1], SDmode))
@@ -128,15 +125,15 @@
 ;; Hardware support for decimal floating point operations.
 
 (define_insn "extendsddd2"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
 	(float_extend:DD (match_operand:SD 1 "gpc_reg_operand" "f")))]
   "TARGET_DFP"
   "dctdp %0,%1"
   [(set_attr "type" "fp")])
 
 (define_expand "extendsdtd2"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(float_extend:TD (match_operand:SD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(float_extend:TD (match_operand:SD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
 {
   rtx tmp = gen_reg_rtx (DDmode);
@@ -147,7 +144,7 @@
 
 (define_insn "truncddsd2"
   [(set (match_operand:SD 0 "gpc_reg_operand" "=f")
-	(float_truncate:SD (match_operand:DD 1 "gpc_reg_operand" "f")))]
+	(float_truncate:SD (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "drsp %0,%1"
   [(set_attr "type" "fp")])
@@ -155,12 +152,12 @@
 (define_expand "negdd2"
   [(set (match_operand:DD 0 "gpc_reg_operand" "")
 	(neg:DD (match_operand:DD 1 "gpc_reg_operand" "")))]
-  "TARGET_HARD_FLOAT && (TARGET_FPRS || TARGET_E500_DOUBLE)"
+  "TARGET_HARD_FLOAT && TARGET_FPRS"
   "")
 
 (define_insn "*negdd2_fpr"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(neg:DD (match_operand:DD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(neg:DD (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fneg %0,%1"
   [(set_attr "type" "fp")])
@@ -168,19 +165,19 @@
 (define_expand "absdd2"
   [(set (match_operand:DD 0 "gpc_reg_operand" "")
 	(abs:DD (match_operand:DD 1 "gpc_reg_operand" "")))]
-  "TARGET_HARD_FLOAT && (TARGET_FPRS || TARGET_E500_DOUBLE)"
+  "TARGET_HARD_FLOAT && TARGET_FPRS"
   "")
 
 (define_insn "*absdd2_fpr"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(abs:DD (match_operand:DD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(abs:DD (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fabs %0,%1"
   [(set_attr "type" "fp")])
 
 (define_insn "*nabsdd2_fpr"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(neg:DD (abs:DD (match_operand:DF 1 "gpc_reg_operand" "f"))))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(neg:DD (abs:DD (match_operand:DD 1 "gpc_reg_operand" "d"))))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fnabs %0,%1"
   [(set_attr "type" "fp")])
@@ -281,8 +278,8 @@
 ;; The "??" is a kludge until we can figure out a more reasonable way
 ;; of handling these non-offsettable values.
 (define_insn "*movdd_hardfloat32"
-  [(set (match_operand:DD 0 "nonimmediate_operand" "=!r,??r,m,f,f,m,!r,!r,!r")
-	(match_operand:DD 1 "input_operand" "r,m,r,f,m,f,G,H,F"))]
+  [(set (match_operand:DD 0 "nonimmediate_operand" "=!r,??r,m,d,d,m,!r,!r,!r")
+	(match_operand:DD 1 "input_operand" "r,m,r,d,m,d,G,H,F"))]
   "! TARGET_POWERPC64 && TARGET_HARD_FLOAT && TARGET_FPRS
    && (gpc_reg_operand (operands[0], DDmode)
        || gpc_reg_operand (operands[1], DDmode))"
@@ -293,71 +290,9 @@
     default:
       gcc_unreachable ();
     case 0:
-      /* We normally copy the low-numbered register first.  However, if
-	 the first register operand 0 is the same as the second register
-	 of operand 1, we must copy in the opposite order.  */
-      if (REGNO (operands[0]) == REGNO (operands[1]) + 1)
-	return \"mr %L0,%L1\;mr %0,%1\";
-      else
-	return \"mr %0,%1\;mr %L0,%L1\";
     case 1:
-      if (rs6000_offsettable_memref_p (operands[1])
-	  || (GET_CODE (operands[1]) == MEM
-	      && (GET_CODE (XEXP (operands[1], 0)) == LO_SUM
-		  || GET_CODE (XEXP (operands[1], 0)) == PRE_INC
-		  || GET_CODE (XEXP (operands[1], 0)) == PRE_DEC)))
-	{
-	  /* If the low-address word is used in the address, we must load
-	     it last.  Otherwise, load it first.  Note that we cannot have
-	     auto-increment in that case since the address register is
-	     known to be dead.  */
-	  if (refers_to_regno_p (REGNO (operands[0]), REGNO (operands[0]) + 1,
-				 operands[1], 0))
-	    return \"{l|lwz} %L0,%L1\;{l|lwz} %0,%1\";
-	  else
-	    return \"{l%U1|lwz%U1} %0,%1\;{l|lwz} %L0,%L1\";
-	}
-      else
-	{
-	  rtx addreg;
-
-	  addreg = find_addr_reg (XEXP (operands[1], 0));
-	  if (refers_to_regno_p (REGNO (operands[0]),
-				 REGNO (operands[0]) + 1,
-				 operands[1], 0))
-	    {
-	      output_asm_insn (\"{cal|la} %0,4(%0)\", &addreg);
-	      output_asm_insn (\"{lx|lwzx} %L0,%1\", operands);
-	      output_asm_insn (\"{cal|la} %0,-4(%0)\", &addreg);
-	      return \"{lx|lwzx} %0,%1\";
-	    }
-	  else
-	    {
-	      output_asm_insn (\"{lx|lwzx} %0,%1\", operands);
-	      output_asm_insn (\"{cal|la} %0,4(%0)\", &addreg);
-	      output_asm_insn (\"{lx|lwzx} %L0,%1\", operands);
-	      output_asm_insn (\"{cal|la} %0,-4(%0)\", &addreg);
-	      return \"\";
-	    }
-	}
     case 2:
-      if (rs6000_offsettable_memref_p (operands[0])
-	  || (GET_CODE (operands[0]) == MEM
-	      && (GET_CODE (XEXP (operands[0], 0)) == LO_SUM
-		  || GET_CODE (XEXP (operands[0], 0)) == PRE_INC
-		  || GET_CODE (XEXP (operands[0], 0)) == PRE_DEC)))
-	return \"{st%U0|stw%U0} %1,%0\;{st|stw} %L1,%L0\";
-      else
-	{
-	  rtx addreg;
-
-	  addreg = find_addr_reg (XEXP (operands[0], 0));
-	  output_asm_insn (\"{stx|stwx} %1,%0\", operands);
-	  output_asm_insn (\"{cal|la} %0,4(%0)\", &addreg);
-	  output_asm_insn (\"{stx|stwx} %L1,%0\", operands);
-	  output_asm_insn (\"{cal|la} %0,-4(%0)\", &addreg);
-	  return \"\";
-	}
+      return \"#\";
     case 3:
       return \"fmr %0,%1\";
     case 4:
@@ -376,49 +311,18 @@
 (define_insn "*movdd_softfloat32"
   [(set (match_operand:DD 0 "nonimmediate_operand" "=r,r,m,r,r,r")
 	(match_operand:DD 1 "input_operand" "r,m,r,G,H,F"))]
-  "! TARGET_POWERPC64 && TARGET_SOFT_FLOAT
+  "! TARGET_POWERPC64 && (TARGET_SOFT_FLOAT || !TARGET_FPRS)
    && (gpc_reg_operand (operands[0], DDmode)
        || gpc_reg_operand (operands[1], DDmode))"
-  "*
-{
-  switch (which_alternative)
-    {
-    default:
-      gcc_unreachable ();
-    case 0:
-      /* We normally copy the low-numbered register first.  However, if
-	 the first register operand 0 is the same as the second register of
-	 operand 1, we must copy in the opposite order.  */
-      if (REGNO (operands[0]) == REGNO (operands[1]) + 1)
-	return \"mr %L0,%L1\;mr %0,%1\";
-      else
-	return \"mr %0,%1\;mr %L0,%L1\";
-    case 1:
-      /* If the low-address word is used in the address, we must load
-	 it last.  Otherwise, load it first.  Note that we cannot have
-	 auto-increment in that case since the address register is
-	 known to be dead.  */
-      if (refers_to_regno_p (REGNO (operands[0]), REGNO (operands[0]) + 1,
-			     operands[1], 0))
-	return \"{l|lwz} %L0,%L1\;{l|lwz} %0,%1\";
-      else
-	return \"{l%U1|lwz%U1} %0,%1\;{l|lwz} %L0,%L1\";
-    case 2:
-      return \"{st%U0|stw%U0} %1,%0\;{st|stw} %L1,%L0\";
-    case 3:
-    case 4:
-    case 5:
-      return \"#\";
-    }
-}"
+  "#"
   [(set_attr "type" "two,load,store,*,*,*")
    (set_attr "length" "8,8,8,8,12,16")])
 
 ; ld/std require word-aligned displacements -> 'Y' constraint.
 ; List Y->r and r->Y before r->r for reload.
 (define_insn "*movdd_hardfloat64_mfpgpr"
-  [(set (match_operand:DD 0 "nonimmediate_operand" "=Y,r,!r,f,f,m,*c*l,!r,*h,!r,!r,!r,r,f")
-	(match_operand:DD 1 "input_operand" "r,Y,r,f,m,f,r,h,0,G,H,F,f,r"))]
+  [(set (match_operand:DD 0 "nonimmediate_operand" "=Y,r,!r,d,d,m,*c*l,!r,*h,!r,!r,!r,r,d")
+	(match_operand:DD 1 "input_operand" "r,Y,r,d,m,d,r,h,0,G,H,F,d,r"))]
   "TARGET_POWERPC64 && TARGET_MFPGPR && TARGET_HARD_FLOAT && TARGET_FPRS
    && (gpc_reg_operand (operands[0], DDmode)
        || gpc_reg_operand (operands[1], DDmode))"
@@ -431,7 +335,7 @@
    stfd%U0%X0 %1,%0
    mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #
    #
@@ -443,8 +347,8 @@
 ; ld/std require word-aligned displacements -> 'Y' constraint.
 ; List Y->r and r->Y before r->r for reload.
 (define_insn "*movdd_hardfloat64"
-  [(set (match_operand:DD 0 "nonimmediate_operand" "=Y,r,!r,f,f,m,*c*l,!r,*h,!r,!r,!r")
-	(match_operand:DD 1 "input_operand" "r,Y,r,f,m,f,r,h,0,G,H,F"))]
+  [(set (match_operand:DD 0 "nonimmediate_operand" "=Y,r,!r,d,d,m,*c*l,!r,*h,!r,!r,!r")
+	(match_operand:DD 1 "input_operand" "r,Y,r,d,m,d,r,h,0,G,H,F"))]
   "TARGET_POWERPC64 && !TARGET_MFPGPR && TARGET_HARD_FLOAT && TARGET_FPRS
    && (gpc_reg_operand (operands[0], DDmode)
        || gpc_reg_operand (operands[1], DDmode))"
@@ -457,7 +361,7 @@
    stfd%U0%X0 %1,%0
    mt%0 %1
    mf%1 %0
-   {cror 0,0,0|nop}
+   nop
    #
    #
    #"
@@ -479,19 +383,19 @@
    #
    #
    #
-   {cror 0,0,0|nop}"
+   nop"
   [(set_attr "type" "load,store,*,mtjmpr,mfjmpr,*,*,*,*")
    (set_attr "length" "4,4,4,4,4,8,12,16,4")])
 
 (define_expand "negtd2"
   [(set (match_operand:TD 0 "gpc_reg_operand" "")
 	(neg:TD (match_operand:TD 1 "gpc_reg_operand" "")))]
-  "TARGET_HARD_FLOAT && (TARGET_FPRS || TARGET_E500_DOUBLE)"
+  "TARGET_HARD_FLOAT && TARGET_FPRS"
   "")
 
 (define_insn "*negtd2_fpr"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(neg:TD (match_operand:TD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(neg:TD (match_operand:TD 1 "gpc_reg_operand" "d")))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fneg %0,%1"
   [(set_attr "type" "fp")])
@@ -499,19 +403,19 @@
 (define_expand "abstd2"
   [(set (match_operand:TD 0 "gpc_reg_operand" "")
 	(abs:TD (match_operand:TD 1 "gpc_reg_operand" "")))]
-  "TARGET_HARD_FLOAT && (TARGET_FPRS || TARGET_E500_DOUBLE)"
+  "TARGET_HARD_FLOAT && TARGET_FPRS"
   "")
 
 (define_insn "*abstd2_fpr"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(abs:TD (match_operand:TD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(abs:TD (match_operand:TD 1 "gpc_reg_operand" "d")))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fabs %0,%1"
   [(set_attr "type" "fp")])
 
 (define_insn "*nabstd2_fpr"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(neg:TD (abs:TD (match_operand:DF 1 "gpc_reg_operand" "f"))))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(neg:TD (abs:TD (match_operand:TD 1 "gpc_reg_operand" "d"))))]
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "fnabs %0,%1"
   [(set_attr "type" "fp")])
@@ -522,12 +426,12 @@
   "TARGET_HARD_FLOAT && TARGET_FPRS"
   "{ rs6000_emit_move (operands[0], operands[1], TDmode); DONE; }")
 
-; It's important to list the o->f and f->o moves before f->f because
-; otherwise reload, given m->f, will try to pick f->f and reload it,
-; which doesn't make progress.  Likewise r->Y must be before r->r.
+; It's important to list the Y->r and r->Y moves before r->r because
+; otherwise reload, given m->r, will try to pick r->r and reload it,
+; which doesn't make progress.
 (define_insn_and_split "*movtd_internal"
-  [(set (match_operand:TD 0 "nonimmediate_operand" "=o,f,f,r,Y,r")
-	(match_operand:TD 1 "input_operand"         "f,o,f,YGHF,r,r"))]
+  [(set (match_operand:TD 0 "nonimmediate_operand" "=m,d,d,Y,r,r")
+	(match_operand:TD 1 "input_operand"         "d,m,d,r,YGHF,r"))]
   "TARGET_HARD_FLOAT && TARGET_FPRS
    && (gpc_reg_operand (operands[0], TDmode)
        || gpc_reg_operand (operands[1], TDmode))"
@@ -540,8 +444,8 @@
 ;; Hardware support for decimal floating point operations.
 
 (define_insn "extendddtd2"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(float_extend:TD (match_operand:DD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(float_extend:TD (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dctqpq %0,%1"
   [(set_attr "type" "fp")])
@@ -552,96 +456,103 @@
 ;; that the result is the first of the pair receiving the result of drdpq.
 
 (define_insn "trunctddd2"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(float_truncate:DD (match_operand:TD 1 "gpc_reg_operand" "f")))
-   (clobber (match_scratch:TD 2 "=f"))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(float_truncate:DD (match_operand:TD 1 "gpc_reg_operand" "d")))
+   (clobber (match_scratch:TD 2 "=d"))]
   "TARGET_DFP"
   "drdpq %2,%1\;fmr %0,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "adddd3"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(plus:DD (match_operand:DD 1 "gpc_reg_operand" "%f")
-		 (match_operand:DD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(plus:DD (match_operand:DD 1 "gpc_reg_operand" "%d")
+		 (match_operand:DD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dadd %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "addtd3"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(plus:TD (match_operand:TD 1 "gpc_reg_operand" "%f")
-		 (match_operand:TD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(plus:TD (match_operand:TD 1 "gpc_reg_operand" "%d")
+		 (match_operand:TD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "daddq %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "subdd3"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(minus:DD (match_operand:DD 1 "gpc_reg_operand" "f")
-		  (match_operand:DD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(minus:DD (match_operand:DD 1 "gpc_reg_operand" "d")
+		  (match_operand:DD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dsub %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "subtd3"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(minus:TD (match_operand:TD 1 "gpc_reg_operand" "f")
-		  (match_operand:TD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(minus:TD (match_operand:TD 1 "gpc_reg_operand" "d")
+		  (match_operand:TD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dsubq %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "muldd3"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(mult:DD (match_operand:DD 1 "gpc_reg_operand" "%f")
-		 (match_operand:DD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(mult:DD (match_operand:DD 1 "gpc_reg_operand" "%d")
+		 (match_operand:DD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dmul %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "multd3"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(mult:TD (match_operand:TD 1 "gpc_reg_operand" "%f")
-		 (match_operand:TD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(mult:TD (match_operand:TD 1 "gpc_reg_operand" "%d")
+		 (match_operand:TD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dmulq %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "divdd3"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(div:DD (match_operand:DD 1 "gpc_reg_operand" "f")
-		(match_operand:DD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(div:DD (match_operand:DD 1 "gpc_reg_operand" "d")
+		(match_operand:DD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "ddiv %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "divtd3"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(div:TD (match_operand:TD 1 "gpc_reg_operand" "f")
-		(match_operand:TD 2 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(div:TD (match_operand:TD 1 "gpc_reg_operand" "d")
+		(match_operand:TD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "ddivq %0,%1,%2"
   [(set_attr "type" "fp")])
 
 (define_insn "*cmpdd_internal1"
   [(set (match_operand:CCFP 0 "cc_reg_operand" "=y")
-	(compare:CCFP (match_operand:DD 1 "gpc_reg_operand" "f")
-		      (match_operand:DD 2 "gpc_reg_operand" "f")))]
+	(compare:CCFP (match_operand:DD 1 "gpc_reg_operand" "d")
+		      (match_operand:DD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dcmpu %0,%1,%2"
   [(set_attr "type" "fpcompare")])
 
 (define_insn "*cmptd_internal1"
   [(set (match_operand:CCFP 0 "cc_reg_operand" "=y")
-	(compare:CCFP (match_operand:TD 1 "gpc_reg_operand" "f")
-		      (match_operand:TD 2 "gpc_reg_operand" "f")))]
+	(compare:CCFP (match_operand:TD 1 "gpc_reg_operand" "d")
+		      (match_operand:TD 2 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dcmpuq %0,%1,%2"
   [(set_attr "type" "fpcompare")])
 
+(define_insn "floatdidd2"
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(float:DD (match_operand:DI 1 "gpc_reg_operand" "d")))]
+  "TARGET_DFP && TARGET_POPCNTD"
+  "dcffix %0,%1"
+  [(set_attr "type" "fp")])
+
 (define_insn "floatditd2"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(float:TD (match_operand:DI 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(float:TD (match_operand:DI 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dcffixq %0,%1"
   [(set_attr "type" "fp")])
@@ -650,8 +561,8 @@
 ;; This is the first stage of converting it to an integer type.
 
 (define_insn "ftruncdd2"
-  [(set (match_operand:DD 0 "gpc_reg_operand" "=f")
-	(fix:DD (match_operand:DD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DD 0 "gpc_reg_operand" "=d")
+	(fix:DD (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "drintn. 0,%0,%1,1"
   [(set_attr "type" "fp")])
@@ -660,8 +571,8 @@
 ;; This is the second stage of converting decimal float to integer type.
 
 (define_insn "fixdddi2"
-  [(set (match_operand:DI 0 "gpc_reg_operand" "=f")
-	(fix:DI (match_operand:DD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DI 0 "gpc_reg_operand" "=d")
+	(fix:DI (match_operand:DD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dctfix %0,%1"
   [(set_attr "type" "fp")])
@@ -670,8 +581,8 @@
 ;; This is the first stage of converting it to an integer type.
 
 (define_insn "ftrunctd2"
-  [(set (match_operand:TD 0 "gpc_reg_operand" "=f")
-	(fix:TD (match_operand:TD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:TD 0 "gpc_reg_operand" "=d")
+	(fix:TD (match_operand:TD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "drintnq. 0,%0,%1,1"
   [(set_attr "type" "fp")])
@@ -680,8 +591,8 @@
 ;; This is the second stage of converting decimal float to integer type.
 
 (define_insn "fixtddi2"
-  [(set (match_operand:DI 0 "gpc_reg_operand" "=f")
-	(fix:DI (match_operand:TD 1 "gpc_reg_operand" "f")))]
+  [(set (match_operand:DI 0 "gpc_reg_operand" "=d")
+	(fix:DI (match_operand:TD 1 "gpc_reg_operand" "d")))]
   "TARGET_DFP"
   "dctfixq %0,%1"
   [(set_attr "type" "fp")])

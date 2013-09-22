@@ -6,18 +6,18 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License along  --
+-- with this program; see file COPYING3.  If not see                        --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -172,6 +172,17 @@ package Sem_Attr is
       --  Ada code, e.g. if it is necessary to do selective reelaboration to
       --  fix some error.
 
+      --------------------
+      -- Elab_Subp_Body --
+      --------------------
+
+      Attribute_Elab_Subp_Body => True,
+      --  This attribute can only be applied to a library level subprogram
+      --  name and is only relevant in CodePeer mode. It returns the entity
+      --  for the corresponding elaboration procedure for elaborating the body
+      --  of the referenced subprogram unit. This is used in the main generated
+      --  elaboration procedure by the binder in CodePeer mode only.
+
       ---------------
       -- Elab_Spec --
       ---------------
@@ -209,6 +220,21 @@ package Sem_Attr is
       --  enumeration value. This will be equal to the 'Pos value in the
       --  absence of an enumeration representation clause. This is a static
       --  attribute (i.e. the result is static if the argument is static).
+
+      --------------
+      -- Enum_Val --
+      --------------
+
+      Attribute_Enum_Val => True,
+      --  For every enumeration subtype S, S'Enum_Val denotes a function
+      --  with the following specification:
+      --
+      --    function S'Enum_Val (Arg : universal_integer) return S'Base;
+      --
+      --  This function performs the inverse transformation to Enum_Rep. Given
+      --  a representation value for the type, it returns the corresponding
+      --  enumeration value. Constraint_Error is raised if no value of the
+      --  enumeration type corresponds to the given integer value.
 
       -----------------
       -- Fixed_Value --
@@ -276,6 +302,21 @@ package Sem_Attr is
       --  attribute is primarily intended for use in implementation of the
       --  standard input-output functions for fixed-point values.
 
+      Attribute_Invalid_Value => True,
+      --  For every scalar type, S'Invalid_Value designates an undefined value
+      --  of the type. If possible this value is an invalid value, and in fact
+      --  is identical to the value that would be set if Initialize_Scalars
+      --  mode were in effect (including the behavior of its value on
+      --  environment variables or binder switches). The intended use is
+      --  to set a value where initialization is required (e.g. as a result of
+      --  the coding standards in use), but logically no initialization is
+      --  needed, and the value should never be accessed.
+
+      Attribute_Loop_Entry => True,
+      --  For every object of a non-limited type, S'Loop_Entry [(Loop_Name)]
+      --  denotes the constant value of prefix S at the point of entry into the
+      --  related loop. The type of the attribute is the type of the prefix.
+
       ------------------
       -- Machine_Size --
       ------------------
@@ -301,7 +342,7 @@ package Sem_Attr is
       --------------------
 
       Attribute_Mechanism_Code => True,
-      --  function'Mechanism_Code yeilds an integer code for the mechanism
+      --  function'Mechanism_Code yields an integer code for the mechanism
       --  used for the result of function, and subprogram'Mechanism_Code (n)
       --  yields the mechanism used for formal parameter number n (a static
       --  integer value, 1 = first parameter). The code returned is:
@@ -325,7 +366,7 @@ package Sem_Attr is
       --  A reference T'Null_Parameter denotes an (imaginary) object of type or
       --  subtype T allocated at (machine) address zero. The attribute is
       --  allowed only as the default expression of a formal parameter, or as
-      --  an actual expression of a subporgram call. In either case, the
+      --  an actual expression of a subprogram call. In either case, the
       --  subprogram must be imported.
       --
       --  The identity of the object is represented by the address zero in the
@@ -369,6 +410,15 @@ package Sem_Attr is
       --  index subtype of a one dimensional array always gives the same result
       --  as Range applied to the array itself. The result is of type universal
       --  integer.
+
+      ---------
+      -- Ref --
+      ---------
+
+      Attribute_Ref => True,
+      --  System.Address'Ref (Address is the only permissible prefix) is
+      --  equivalent to System'To_Address, provided for compatibility with
+      --  other compilers.
 
       ------------------
       -- Storage_Unit --
@@ -414,14 +464,14 @@ package Sem_Attr is
       ----------------
 
       Attribute_To_Address => True,
-      --  System'To_Address (Address is the only permissible prefix) is a
+      --  System'To_Address (System is the only permissible prefix) is a
       --  function that takes any integer value, and converts it into an
       --  address value. The semantics is to first convert the integer value to
       --  type Integer_Address according to normal conversion rules, and then
       --  to convert this to an address using the same semantics as the
       --  System.Storage_Elements.To_Address function. The important difference
       --  is that this is a static attribute so it can be used in
-      --  initializations in preealborate packages.
+      --  initializations in preelaborate packages.
 
       ----------------
       -- Type_Class --
@@ -468,15 +518,12 @@ package Sem_Attr is
       ------------------------------
 
       Attribute_Universal_Literal_String => True,
-      --  The prefix of 'Universal_Literal_String must be a named number. The
-      --  static result is the string consisting of the characters of the
-      --  number as defined in the original source. This allows the user
-      --  program to access the actual text of named numbers without
-      --  intermediate conversions and without the need to enclose the strings
-      --  in quotes (which would preclude their use as numbers). This is used
-      --  internally for the construction of values of the floating-point
-      --  attributes from the file ttypef.ads, but may also be used by user
-      --  programs.
+      --  The prefix of 'Universal_Literal_String must be a named number.
+      --  The static result is the string consisting of the characters of
+      --  the number as defined in the original source. This allows the
+      --  user program to access the actual text of named numbers without
+      --  intermediate conversions and without the need to enclose the
+      --  strings in quotes (which would preclude their use as numbers).
 
       -------------------------
       -- Unrestricted_Access --
@@ -506,6 +553,39 @@ package Sem_Attr is
       --  the Object_Size rather than the Value_Size. For example, while
       --  Natural'Size is typically 31, the value of Natural'VADS_Size is 32.
       --  For all other types, Size and VADS_Size yield the same value.
+
+      -------------------
+      -- Valid_Scalars --
+      -------------------
+
+      Attribute_Valid_Scalars => True,
+      --  Obj'Valid_Scalars can be applied to any object. The result depends
+      --  on the type of the object:
+      --
+      --    For a scalar type, the result is the same as obj'Valid
+      --
+      --    For an array object, the result is True if the result of applying
+      --    Valid_Scalars to every component is True. For an empty array the
+      --    result is True.
+      --
+      --    For a record object, the result is True if the result of applying
+      --    Valid_Scalars to every component is True. For class-wide types,
+      --    only the components of the base type are checked. For variant
+      --    records, only the components actually present are checked. The
+      --    discriminants, if any, are also checked. If there are no components
+      --    or discriminants, the result is True.
+      --
+      --    For any other type that has discriminants, the result is True if
+      --    the result of applying Valid_Scalars to each discriminant is True.
+      --
+      --    For all other types, the result is always True
+      --
+      --  A warning is given for a trivially True result, when the attribute
+      --  is applied to an object that is not of scalar, array, or record
+      --  type, or in the composite case if no scalar subcomponents exist. For
+      --  a variant record, the warning is given only if none of the variants
+      --  have scalar subcomponents. In addition, the warning is suppressed
+      --  for private types, or generic formal types in an instance.
 
       ----------------
       -- Value_Size --
@@ -565,12 +645,12 @@ package Sem_Attr is
      (Typ          : Entity_Id;
       Nam          : TSS_Name_Type;
       Partial_View : Entity_Id := Empty) return Boolean;
-   --  For a limited type Typ, return True iff the given attribute is
-   --  available. For Ada 05, availability is defined by 13.13.2(36/1). For Ada
-   --  95, an attribute is considered to be available if it has been specified
-   --  using an attribute definition clause for the type, or for its full view,
-   --  or for an ancestor of either. Parameter Partial_View is used only
-   --  internally, when checking for an attribute definition clause that is not
-   --  visible (Ada 95 only).
+   --  For a limited type Typ, return True if and only if the given attribute
+   --  is available. For Ada 2005, availability is defined by 13.13.2(36/1).
+   --  For Ada 95, an attribute is considered to be available if it has been
+   --  specified using an attribute definition clause for the type, or for its
+   --  full view, or for an ancestor of either. Parameter Partial_View is used
+   --  only internally, when checking for an attribute definition clause that
+   --  is not visible (Ada 95 only).
 
 end Sem_Attr;

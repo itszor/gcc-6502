@@ -38,7 +38,9 @@ program test
   print *, nearest(1.0,-1.0)**(-huge(0)) ! { dg-error "Arithmetic overflow" }
 
 !!!!!! COMPLEX BASE !!!!!!
-  print *, (2.0,-4.3)**huge(0) ! { dg-error "Arithmetic NaN" }
-  print *, (2.0,-4.3)**(-huge(0)) ! { dg-error "Arithmetic NaN" }
+  print *, (2.0,-4.3)**huge(0) ! { dg-error "Arithmetic overflow" }
+  print *, (2.0,-4.3)**huge(0_8) ! { dg-error "Arithmetic overflow" }
+  print *, (2.0,-4.3)**(-huge(0))
+  print *, (2.0,-4.3)**(-huge(0_8))
 
 end program test

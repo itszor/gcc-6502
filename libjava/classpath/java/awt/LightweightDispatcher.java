@@ -101,7 +101,7 @@ final class LightweightDispatcher
   {
     // Nothing to do here.
   }
-  
+
   /**
    * Receives notification if a mouse event passes along the eventqueue.
    *
@@ -120,7 +120,7 @@ final class LightweightDispatcher
   /**
    * Handles all mouse events that are targetted at toplevel containers
    * (Window instances) and dispatches them to the correct lightweight child.
-   * 
+   *
    * @param ev the mouse event
    * @return whether or not we found a lightweight that handled the event.
    */
@@ -286,7 +286,8 @@ final class LightweightDispatcher
   private void redispatch(MouseEvent ev, Component target, int id)
   {
     Component source = ev.getComponent();
-    if (target != null)
+    assert target != null;
+    if (target.isShowing())
       {
         // Translate coordinates.
         int x = ev.getX();

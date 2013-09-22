@@ -1,19 +1,27 @@
 /* { dg-do compile } */
-/* { dg-options "-O0 -march=k8 -m3dnow -msse4 -msse5" } */
+/* { dg-options "-O0 -Werror-implicit-function-declaration -march=k8 -msse4a -m3dnow -mavx -mavx2 -mfma4 -mxop -maes -mpclmul -mpopcnt -mabm -mlzcnt -mbmi -mbmi2 -mtbm -mlwp -mfsgsbase -mrdrnd -mf16c -mfma -mrtm -mrdseed -mprfchw -madx -mfxsr -mxsaveopt" } */
+
+#include <mm_malloc.h>
 
 /* Test that the intrinsics compile without optimization.  All of them are
-   defined as inline functions in {,x,e,p,t,s,a,b}mmintrin.h  and mm3dnow.h
-   that reference the proper builtin functions.  Defining away "extern" and
-   "__inline" results in all of them being compiled as proper functions.  */
+   defined as inline functions in {,x,e,p,t,s,w,a,b,i}mmintrin.h, mm3dnow.h,
+   fma4intrin.h, xopintrin.h, abmintrin.h, bmiintrin.h, tbmintrin.h, 
+   lwpintrin.h, fmaintrin.h and mm_malloc.h that reference the proper 
+   builtin functions.
+
+   Defining away "extern" and "__inline" results in all of them being compiled
+   as proper functions.  */
 
 #define extern
 #define __inline
 
-#include <bmmintrin.h>
-#include <smmintrin.h>
-#include <mm3dnow.h>
+#include <x86intrin.h>
 
 #define _CONCAT(x,y) x ## y
+
+#define test_0(func, type, imm)						\
+  type _CONCAT(_,func) (int const I)					\
+  { return func (imm); }
 
 #define test_1(func, type, op1_type, imm)				\
   type _CONCAT(_,func) (op1_type A, int const I)			\
@@ -31,6 +39,11 @@
   type _CONCAT(_,func) (op1_type A, op2_type B, int const I, int const L) \
   { return func (A, B, imm1, imm2); }
 
+#define test_3(func, type, op1_type, op2_type, op3_type, imm)		\
+  type _CONCAT(_,func) (op1_type A, op2_type B,				\
+			op3_type C, int const I)			\
+  { return func (A, B, C, imm); }
+
 #define test_4(func, type, op1_type, op2_type, op3_type, op4_type, imm)	\
   type _CONCAT(_,func) (op1_type A, op2_type B,				\
 			op3_type C, op4_type D, int const I)		\
@@ -44,7 +57,60 @@
 test_1x (_mm_extracti_si64, __m128i, __m128i, 1, 1)
 test_2x (_mm_inserti_si64, __m128i, __m128i, __m128i, 1, 1)
 
+/* immintrin.h */
+test_2 (_mm256_blend_pd, __m256d, __m256d, __m256d, 1)
+test_2 (_mm256_blend_ps, __m256, __m256, __m256, 1)
+test_2 (_mm256_dp_ps, __m256, __m256, __m256, 1)
+test_2 (_mm256_shuffle_pd, __m256d, __m256d, __m256d, 1)
+test_2 (_mm256_shuffle_ps, __m256, __m256, __m256, 1)
+test_2 (_mm_cmp_sd, __m128d, __m128d, __m128d, 1)
+test_2 (_mm_cmp_ss, __m128, __m128, __m128, 1)
+test_2 (_mm_cmp_pd, __m128d, __m128d, __m128d, 1)
+test_2 (_mm_cmp_ps, __m128, __m128, __m128, 1)
+test_2 (_mm256_cmp_pd, __m256d, __m256d, __m256d, 1)
+test_2 (_mm256_cmp_ps, __m256, __m256, __m256, 1)
+test_1 (_mm256_extractf128_pd, __m128d, __m256d, 1)
+test_1 (_mm256_extractf128_ps, __m128, __m256, 1)
+test_1 (_mm256_extractf128_si256, __m128i, __m256i, 1)
+test_1 (_mm256_extract_epi8, int, __m256i, 20)
+test_1 (_mm256_extract_epi16, int, __m256i, 13)
+test_1 (_mm256_extract_epi32, int, __m256i, 6)
+#ifdef __x86_64__
+test_1 (_mm256_extract_epi64, long long, __m256i, 2)
+#endif
+test_1 (_mm_permute_pd, __m128d, __m128d, 1)
+test_1 (_mm256_permute_pd, __m256d, __m256d, 1)
+test_1 (_mm_permute_ps, __m128, __m128, 1)
+test_1 (_mm256_permute_ps, __m256, __m256, 1)
+test_2 (_mm256_permute2f128_pd, __m256d, __m256d, __m256d, 1)
+test_2 (_mm256_permute2f128_ps, __m256, __m256, __m256, 1)
+test_2 (_mm256_permute2f128_si256, __m256i, __m256i, __m256i, 1)
+test_2 (_mm256_insertf128_pd, __m256d, __m256d, __m128d, 1)
+test_2 (_mm256_insertf128_ps, __m256, __m256, __m128, 1)
+test_2 (_mm256_insertf128_si256, __m256i, __m256i, __m128i, 1)
+test_2 (_mm256_insert_epi8, __m256i, __m256i, int, 30)
+test_2 (_mm256_insert_epi16, __m256i, __m256i, int, 7)
+test_2 (_mm256_insert_epi32, __m256i, __m256i, int, 3)
+#ifdef __x86_64__
+test_2 (_mm256_insert_epi64, __m256i, __m256i, long long, 1)
+#endif
+test_1 (_mm256_round_pd, __m256d, __m256d, 1)
+test_1 (_mm256_round_ps, __m256, __m256, 1)
+test_1 (_cvtss_sh, unsigned short, float, 1)
+test_1 (_mm_cvtps_ph, __m128i, __m128, 1)
+test_1 (_mm256_cvtps_ph, __m128i, __m256, 1)
+test_0 (_xabort, void, 1)
+
+/* wmmintrin.h */
+test_1 (_mm_aeskeygenassist_si128, __m128i, __m128i, 1)
+test_2 (_mm_clmulepi64_si128, __m128i, __m128i, __m128i, 1)
+
 /* smmintrin.h */
+test_1 (_mm_round_pd, __m128d, __m128d, 1)
+test_1 (_mm_round_ps, __m128, __m128, 1)
+test_2 (_mm_round_sd, __m128d, __m128d, __m128d, 1)
+test_2 (_mm_round_ss, __m128, __m128, __m128, 1)
+
 test_2 (_mm_blend_epi16, __m128i, __m128i, __m128i, 1)
 test_2 (_mm_blend_ps, __m128, __m128, __m128, 1)
 test_2 (_mm_blend_pd, __m128d, __m128d, __m128d, 1)
@@ -102,8 +168,26 @@ test_1 (_mm_shuffle_pi16, __m64, __m64, 1)
 test_1 (_m_pshufw, __m64, __m64, 1)
 test_1 (_mm_prefetch, void, void *, _MM_HINT_NTA)
 
-/* bmmintrin.h */
-test_1 (_mm_roti_epi8, __m128i, __m128i, 1)
-test_1 (_mm_roti_epi16, __m128i, __m128i, 1)
-test_1 (_mm_roti_epi32, __m128i, __m128i, 1)
-test_1 (_mm_roti_epi64, __m128i, __m128i, 1)
+/* xopintrin.h */
+test_1 ( _mm_roti_epi8, __m128i, __m128i, 1)
+test_1 ( _mm_roti_epi16, __m128i, __m128i, 1)
+test_1 ( _mm_roti_epi32, __m128i, __m128i, 1)
+test_1 ( _mm_roti_epi64, __m128i, __m128i, 1)
+test_3 (_mm_permute2_pd, __m128d, __m128d, __m128d, __m128d, 1)
+test_3 (_mm256_permute2_pd, __m256d, __m256d, __m256d, __m256d, 1)
+test_3 (_mm_permute2_ps, __m128, __m128, __m128, __m128, 1)
+test_3 (_mm256_permute2_ps, __m256, __m256, __m256, __m256, 1)
+
+/* lwpintrin.h */
+test_2 ( __lwpval32, void, unsigned int, unsigned int, 1)
+test_2 ( __lwpins32, unsigned char, unsigned int, unsigned int, 1)
+#ifdef __x86_64__
+test_2 ( __lwpval64, void, unsigned long long, unsigned int, 1)
+test_2 ( __lwpins64, unsigned char, unsigned long long, unsigned int, 1)
+#endif
+
+/* tbmintrin.h */
+test_1 ( __bextri_u32, unsigned int, unsigned int, 1)
+#ifdef __x86_64__
+test_1 ( __bextri_u64, unsigned long long, unsigned long long, 1)
+#endif

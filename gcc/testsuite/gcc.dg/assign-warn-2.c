@@ -2,7 +2,7 @@
    -pedantic-errors test.  */
 /* Origin: Joseph Myers <jsm@polyomino.org.uk> */
 /* { dg-do compile } */
-/* { dg-options "-pedantic-errors" } */
+/* { dg-options "-pedantic-errors -ftrack-macro-expansion=0" } */
 
 #define TESTARG(ID, TL, TR) void ID##F(TL); void ID##F2(TR x) { ID##F(x); } extern int dummy
 #define TESTARP(ID, TL, TR) struct { void (*x)(TL); } ID##Fp; void ID##F2(TR x) { ID##Fp.x(x); } extern int dummy
@@ -13,11 +13,11 @@
 typedef void (*fp)(void);
 typedef void (*nrfp)(void) __attribute__((noreturn));
 
-TESTARG(fqa, nrfp, fp); /* { dg-error "passing argument 1 of 'fqaF' makes qualified function pointer from unqualified" } */
-TESTARP(fqb, nrfp, fp); /* { dg-error "passing argument 1 of 'fqbFp.x' makes qualified function pointer from unqualified" } */
-TESTASS(fqc, nrfp, fp); /* { dg-error "assignment makes qualified function pointer from unqualified" } */
-TESTINI(fqd, nrfp, fp); /* { dg-error "initialization makes qualified function pointer from unqualified" } */
-TESTRET(fqe, nrfp, fp); /* { dg-error "return makes qualified function pointer from unqualified" } */
+TESTARG(fqa, nrfp, fp); /* { dg-error "passing argument 1 of 'fqaF' makes '__attribute__..noreturn..' qualified function pointer from unqualified" } */
+TESTARP(fqb, nrfp, fp); /* { dg-error "passing argument 1 of 'fqbFp.x' makes '__attribute__..noreturn..' qualified function pointer from unqualified" } */
+TESTASS(fqc, nrfp, fp); /* { dg-error "assignment makes '__attribute__..noreturn..' qualified function pointer from unqualified" } */
+TESTINI(fqd, nrfp, fp); /* { dg-error "initialization makes '__attribute__..noreturn..' qualified function pointer from unqualified" } */
+TESTRET(fqe, nrfp, fp); /* { dg-error "return makes '__attribute__..noreturn..' qualified function pointer from unqualified" } */
 
 TESTARG(ofqa, fp, nrfp);
 TESTARP(ofqb, fp, nrfp);
@@ -25,11 +25,11 @@ TESTASS(ofqc, fp, nrfp);
 TESTINI(ofqd, fp, nrfp);
 TESTRET(ofqe, fp, nrfp);
 
-TESTARG(qa, char *, const char *); /* { dg-error "passing argument 1 of 'qaF' discards qualifiers from pointer target type" } */
-TESTARP(qb, char *, const char *); /* { dg-error "passing argument 1 of 'qbFp.x' discards qualifiers from pointer target type" } */
-TESTASS(qc, char *, const char *); /* { dg-error "assignment discards qualifiers from pointer target type" } */
-TESTINI(qd, char *, const char *); /* { dg-error "initialization discards qualifiers from pointer target type" } */
-TESTRET(qe, char *, const char *); /* { dg-error "return discards qualifiers from pointer target type" } */
+TESTARG(qa, char *, const char *); /* { dg-error "passing argument 1 of 'qaF' discards 'const' qualifier from pointer target type" } */
+TESTARP(qb, char *, const char *); /* { dg-error "passing argument 1 of 'qbFp.x' discards 'const' qualifier from pointer target type" } */
+TESTASS(qc, char *, const char *); /* { dg-error "assignment discards 'const' qualifier from pointer target type" } */
+TESTINI(qd, char *, const char *); /* { dg-error "initialization discards 'const' qualifier from pointer target type" } */
+TESTRET(qe, char *, const char *); /* { dg-error "return discards 'const' qualifier from pointer target type" } */
 
 TESTARG(oqa, const char *, char *);
 TESTARP(oqb, const char *, char *);
@@ -113,12 +113,13 @@ struct s { int a; };
 
 TESTARG(stria, struct s, int); /* { dg-error "incompatible type for argument 1 of 'striaF'" } */
 TESTARP(strib, struct s, int); /* { dg-error "incompatible type for argument 1 of 'stribFp.x'" } */
-TESTASS(stric, struct s, int); /* { dg-error "incompatible types in assignment" } */
+TESTASS(stric, struct s, int); /* { dg-error "incompatible types when assigning to type 'struct s' from type 'int'" } */
 TESTINI(strid, struct s, int); /* { dg-error "invalid initializer" } */
-TESTRET(strie, struct s, int); /* { dg-error "incompatible types in return" } */
+TESTRET(strie, struct s, int); /* { dg-error "incompatible types when returning type 'int' but 'struct s' was expected" } */
 
 TESTARG(istra, int, struct s); /* { dg-error "incompatible type for argument 1 of 'istraF'" } */
 TESTARP(istrb, int, struct s); /* { dg-error "incompatible type for argument 1 of 'istrbFp.x'" } */
-TESTASS(istrc, int, struct s); /* { dg-error "incompatible types in assignment" } */
-TESTINI(istrd, int, struct s); /* { dg-error "incompatible types in initialization" } */
-TESTRET(istre, int, struct s); /* { dg-error "incompatible types in return" } */
+TESTASS(istrc, int, struct s); /* { dg-error "incompatible types when assigning to type 'int' from type 'struct s'" } */
+TESTINI(istrd, int, struct s); /* { dg-error "incompatible types when initializing type 'int' using type 'struct s'" } */
+TESTRET(istre, int, struct s); /* { dg-error "incompatible types when returning type 'struct s' but 'int' was expected" } */
+/* { dg-message "note: expected '\[^'\n\]*' but argument is of type '\[^'\n\]*'" "note: expected" { target *-*-* } 0 } */

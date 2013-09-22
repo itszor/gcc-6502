@@ -37,8 +37,13 @@ exception statement from your version. */
 
 #include "gtkpeer.h"
 #include "gnu_java_awt_peer_gtk_GdkRobotPeer.h"
+
+#ifdef HAVE_XTEST
 #include <gdk/gdkx.h>
 #include <X11/extensions/XTest.h>
+#endif
+
+#ifdef HAVE_XTEST
 
 static int
 awt_button_mask_to_num (int buttons)
@@ -56,10 +61,15 @@ awt_button_mask_to_num (int buttons)
   return 0;
 }
 
+#endif
+
 JNIEXPORT jboolean JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_initXTest
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)))
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   int event_basep;
@@ -82,12 +92,22 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_initXTest
   gdk_threads_leave ();
 
   return result;
+
+#else
+
+  return JNI_FALSE;
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseMove
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint x, jint y)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   int result;
@@ -100,16 +120,29 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseMove
   result = XTestFakeMotionEvent (xdisplay,
 				 -1,
 				 x, y, CurrentTime);
+  if (result)
+    g_warning("XTestFakeMotionEvent returned %d\n", result);
 
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) x; // Unused.
+  (void) y; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mousePress
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint buttons)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   int result;
@@ -122,16 +155,28 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mousePress
   result = XTestFakeButtonEvent (xdisplay,
 				 awt_button_mask_to_num (buttons),
 				 True, CurrentTime);
+  if (result)
+    g_warning("XTestFakeButtonEvent returned %d\n", result);
 
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) buttons; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseRelease
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint buttons)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   int result;
@@ -144,16 +189,28 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseRelease
   result = XTestFakeButtonEvent (xdisplay,
 				 awt_button_mask_to_num (buttons),
 				 False, CurrentTime);
+  if (result)
+    g_warning("XTestFakeButtonEvent returned %d\n", result);
 
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) buttons; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseWheel
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint wheelAmt)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   int i = 0;
@@ -187,12 +244,22 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_mouseWheel
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) wheelAmt; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyPress
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint keycode)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   GdkKeymapKey *keymap_keys = NULL;
@@ -214,7 +281,7 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyPress
                                           &n_keys))
     {
       /* No matching keymap entry was found. */
-      g_printerr ("No matching keymap entries were found\n");
+      g_message ("No matching keymap entries were found\n");
       gdk_threads_leave ();
       return;
     }
@@ -226,18 +293,30 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyPress
   result = XTestFakeKeyEvent (xdisplay,
 			      keymap_keys[0].keycode,
 			      True, CurrentTime);
+  if (result)
+    g_warning("XTestFakeKeyEvent returned %d\n", result);
 
   g_free (keymap_keys);
 
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) keycode; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT void JNICALL
 Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyRelease
   (JNIEnv *env __attribute__((unused)), jobject obj __attribute__((unused)), jint keycode)
 {
+
+#ifdef HAVE_XTEST
+
   GdkDisplay *display;
   Display *xdisplay;
   GdkKeymapKey *keymap_keys = NULL;
@@ -259,7 +338,7 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyRelease
                                           &n_keys))
     {
       /* No matching keymap entry was found. */
-      g_printerr ("No matching keymap entries were found\n");
+      g_message ("No matching keymap entries were found\n");
       gdk_threads_leave ();
       return;
     }
@@ -271,12 +350,21 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_keyRelease
   result = XTestFakeKeyEvent (xdisplay,
 			      keymap_keys[0].keycode,
 			      False, CurrentTime);
+  if (result)
+    g_warning("XTestFakeKeyEvent returned %d\n", result);
 
   g_free (keymap_keys);
 
   XFlush (xdisplay);
 
   gdk_threads_leave ();
+
+#else
+
+  (void) keycode; // Unused.
+
+#endif
+
 }
 
 JNIEXPORT jintArray JNICALL
@@ -284,6 +372,9 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_nativeGetRGBPixels
   (JNIEnv *env, jobject obj __attribute__((unused)), jint x, jint y,
    jint width, jint height)
 {
+
+#ifdef HAVE_XTEST
+
   jint stride_bytes, stride_pixels, n_channels, n_pixels;
   jintArray jpixels;  
   jint *java_pixels;
@@ -334,4 +425,16 @@ Java_gnu_java_awt_peer_gtk_GdkRobotPeer_nativeGetRGBPixels
   gdk_threads_leave ();
 
   return jpixels;
+
+#else
+
+  (void) env;
+  (void) x;
+  (void) y;
+  (void) width;
+  (void) height;
+  return NULL;
+
+#endif
+
 }

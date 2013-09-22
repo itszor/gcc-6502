@@ -1,21 +1,22 @@
 /* { dg-require-effective-target vect_int } */
+/* { dg-add-options double_vectors } */
 
 #include <stdarg.h>
 #include "tree-vect.h"
 
 #define N 32
 
-unsigned int ic[N] __attribute__ ((__aligned__(16))) = 
+unsigned int ic[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
-unsigned int ib[N] __attribute__ ((__aligned__(16))) = 
+unsigned int ib[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
-unsigned short sc[N] __attribute__ ((__aligned__(16))) = 
+unsigned short sc[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
-unsigned short sb[N] __attribute__ ((__aligned__(16))) = 
+unsigned short sb[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
-unsigned char cc[N] __attribute__ ((__aligned__(16))) = 
+unsigned char cc[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
-unsigned char cb[N] __attribute__ ((__aligned__(16))) = 
+unsigned char cb[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__))) = 
 	{0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45};
 
 __attribute__ ((noinline))
@@ -59,8 +60,8 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { xfail { sparc*-*-* && ilp32 } }} } */
 /*  { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 6 "vect" { target vect_no_align } } } */
-/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 6 "vect" {xfail vect_no_align } } } */
+/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 6 "vect" {xfail { vect_no_align } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
 

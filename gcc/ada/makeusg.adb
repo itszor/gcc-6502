@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,8 +23,10 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Osint;  use Osint;
-with Output; use Output;
+with Makeutl;
+with Osint;   use Osint;
+with Output;  use Output;
+with Switch;  use Switch;
 with Usage;
 
 procedure Makeusg is
@@ -49,6 +51,8 @@ begin
 
    Write_Str ("gnatmake switches:");
    Write_Eol;
+
+   Display_Usage_Version_And_Help;
 
    --  Line for -a
 
@@ -195,6 +199,21 @@ begin
    Write_Str ("  -v       Display reasons for all (re)compilations");
    Write_Eol;
 
+   --  Line for -vl
+
+   Write_Str ("  -vl      Verbose output (low verbosity)");
+   Write_Eol;
+
+   --  Line for -vm
+
+   Write_Str ("  -vm      Verbose output (medium verbosity)");
+   Write_Eol;
+
+   --  Line for -vh
+
+   Write_Str ("  -vh      Equivalent to -v (high verbosity)");
+   Write_Eol;
+
    --  Line for -vPx
 
    Write_Str ("  -vPx     Specify verbosity when parsing GNAT Project Files");
@@ -231,6 +250,14 @@ begin
 
    Write_Str ("  -z       No main subprogram (zero main)");
    Write_Eol;
+   Write_Eol;
+
+   Write_Str ("  --create-map-file   Create map file mainprog.map");
+   Write_Eol;
+
+   Write_Str ("  --create-map-file=mapfile");
+   Write_Eol;
+   Write_Str ("                      Create map file mapfile");
    Write_Eol;
 
    Write_Str ("  --GCC=command       Use this gcc command");
@@ -305,6 +332,26 @@ begin
 
    Write_Str ("  --RTS=dir specify the default source and object search"
               & " path");
+   Write_Eol;
+
+   --  Line for --subdirs=
+
+   Write_Str ("  --subdirs=dir real obj/lib/exec dirs are subdirs");
+   Write_Eol;
+
+   --  Line for --source-info=
+
+   Write_Str ("  ");
+   Write_Str (Makeutl.Source_Info_Option);
+   Write_Str ("file specify a source info file");
+   Write_Eol;
+
+   --  Line for --unchecked-shared-lib-imports
+
+   Write_Str ("  ");
+   Write_Str (Makeutl.Unchecked_Shared_Lib_Imports);
+   Write_Eol;
+   Write_Str ("            Allow shared libraries to import static libraries");
    Write_Eol;
    Write_Eol;
 

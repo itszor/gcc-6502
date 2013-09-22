@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package java.lang.reflect;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.lang.reflect.TypeSignature;
 
 import java.io.Serializable;
@@ -215,7 +217,7 @@ public class Proxy implements Serializable
    * <p>There are several restrictions on this method, the violation of
    * which will result in an IllegalArgumentException or
    * NullPointerException:</p>
-   * 
+   *
    * <ul>
    * <li>All objects in `interfaces' must represent distinct interfaces.
    *     Classes, primitive types, null, and duplicates are forbidden.</li>
@@ -256,7 +258,7 @@ public class Proxy implements Serializable
   // synchronized so that we aren't trying to build the same class
   // simultaneously in two threads
   public static synchronized Class<?> getProxyClass(ClassLoader loader,
-						    Class<?>... interfaces)
+                                                    Class<?>... interfaces)
   {
     interfaces = (Class[]) interfaces.clone();
     ProxyType pt = new ProxyType(loader, interfaces);
@@ -272,7 +274,7 @@ public class Proxy implements Serializable
                               : ProxyData.getProxyData(pt));
 
             clazz = (VMProxy.HAVE_NATIVE_GENERATE_PROXY_CLASS
-		     ? VMProxy.generateProxyClass(loader, data)
+                     ? VMProxy.generateProxyClass(loader, data)
                      : new ClassFactory(data).generate(loader));
           }
 
@@ -471,9 +473,9 @@ public class Proxy implements Serializable
                                  .getMethod("equals",
                                             new Class[] {Object.class}));
           coreMethods.put(sig, sig);
-          sig = new ProxySignature(Object.class.getMethod("hashCode", null));
+          sig = new ProxySignature(Object.class.getMethod("hashCode"));
           coreMethods.put(sig, sig);
-          sig = new ProxySignature(Object.class.getMethod("toString", null));
+          sig = new ProxySignature(Object.class.getMethod("toString"));
           coreMethods.put(sig, sig);
         }
       catch (Exception e)
@@ -714,7 +716,7 @@ public class Proxy implements Serializable
           if (! Modifier.isPublic(inter.getModifiers()))
             if (in_package)
               {
-		String p = getPackage(inter);
+                String p = getPackage(inter);
                 if (! data.pack.equals(p))
                   throw new IllegalArgumentException("non-public interfaces "
                                                      + "from different "
@@ -767,7 +769,7 @@ public class Proxy implements Serializable
      * Method.equals as it would also check the declaring class, what we do not
      * want. We only want to check that the given method have the same signature
      * as a core method (same name and parameter types)
-     * 
+     *
      * @param method the method to check
      * @return whether the method has the same name and parameter types as
      *         Object.equals, Object.hashCode or Object.toString
@@ -793,7 +795,7 @@ public class Proxy implements Serializable
         }
       return false;
     }
-    
+
   } // class ProxyData
 
   /**
@@ -1033,7 +1035,7 @@ public class Proxy implements Serializable
           code_length += 9; // new, dup_x1, swap, invokespecial, athrow
         }
       int handler_pc = code_length - 1;
-      StringBuffer signature = new StringBuffer("(");
+      CPStringBuilder signature = new CPStringBuilder("(");
       for (int j = 0; j < paramtypes.length; j++)
         signature.append(TypeSignature.getEncodingOfClass(paramtypes[j]));
       signature.append(")").append(TypeSignature.getEncodingOfClass(ret_type));
@@ -1258,11 +1260,11 @@ public class Proxy implements Serializable
                            ProtectionDomain.class };
           Method m = vmClassLoader.getDeclaredMethod("defineClass", types);
           // We can bypass the security check of setAccessible(true), since
-	  // we're in the same package.
+          // we're in the same package.
           m.flag = true;
 
-          Object[] args = {loader, qualName, bytecode, new Integer(0),
-                           new Integer(bytecode.length),
+          Object[] args = {loader, qualName, bytecode, Integer.valueOf(0),
+                           Integer.valueOf(bytecode.length),
                            Object.class.getProtectionDomain() };
           Class clazz = (Class) m.invoke(null, args);
 
@@ -1492,7 +1494,7 @@ public class Proxy implements Serializable
       if (i == len)
         return str;
 
-      final StringBuffer sb = new StringBuffer(str);
+      final CPStringBuilder sb = new CPStringBuilder(str);
       sb.setLength(i);
       for ( ; i < len; i++)
         {
@@ -1533,7 +1535,7 @@ public class Proxy implements Serializable
           int size = poolEntries.size() + 1;
           if (size >= 65535)
             throw new IllegalArgumentException("exceeds VM limitations");
-          i = new Integer(size);
+          i = Integer.valueOf(size);
           poolEntries.put(sequence, i);
           pool.append(sequence);
         }

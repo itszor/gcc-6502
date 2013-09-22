@@ -1,7 +1,6 @@
 /* Declarations for variables relating to reading the source file.
    Used by parsers, lexical analyzers, and error message routines.
-   Copyright (C) 1993, 1997, 1998, 2000, 2003, 2004, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1993-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,90 +22,46 @@ along with GCC; see the file COPYING3.  If not see
 #define GCC_INPUT_H
 
 #include "line-map.h"
+
 extern GTY(()) struct line_maps *line_table;
 
+/* A value which will never be used to represent a real location.  */
+#define UNKNOWN_LOCATION ((source_location) 0)
+
 /* The location for declarations in "<built-in>" */
-#define BUILTINS_LOCATION ((source_location) 2)
+#define BUILTINS_LOCATION ((source_location) 1)
 
-/* Note: if any of the types defined inside this #ifdef are changed,
-   gengtype.c:define_location_structures must be updated to match.  */
-
-#ifdef USE_MAPPED_LOCATION
-
-typedef struct
-{
-  /* The name of the source file involved.  */
-  const char *file;
-
-  /* The line-location in the source file.  */
-  int line;
-
-  int column;
-} expanded_location;
+/* line-map.c reserves RESERVED_LOCATION_COUNT to the user.  Ensure
+   both UNKNOWN_LOCATION and BUILTINS_LOCATION fit into that.  */
+extern char builtins_location_check[(BUILTINS_LOCATION
+				     < RESERVED_LOCATION_COUNT) ? 1 : -1];
 
 extern expanded_location expand_location (source_location);
+extern const char * location_get_source_line(expanded_location xloc);
+extern expanded_location expand_location_to_spelling_point (source_location);
+extern source_location expansion_point_location_if_in_system_header (source_location);
 
-#define UNKNOWN_LOCATION ((source_location) 0)
-typedef source_location location_t; /* deprecated typedef */
-typedef source_location source_locus; /* to be removed */
-
-#define location_from_locus(LOCUS) (LOCUS)
-
-#else /* ! USE_MAPPED_LOCATION */
-
-struct location_s GTY(())
-{
-  /* The name of the source file involved.  */
-  const char *file;
-
-  /* The line-location in the source file.  */
-  int line;
-};
-
-typedef struct location_s expanded_location;
-typedef struct location_s location_t;
-typedef location_t *source_locus;
-
-#define expand_location(FILELINE) (FILELINE)
-extern location_t unknown_location;
-#define UNKNOWN_LOCATION unknown_location
-
-#define location_from_locus(LOCUS) (* (LOCUS))
-
-#endif /* ! USE_MAPPED_LOCATION */
-
-struct file_stack
-{
-  struct file_stack *next;
-  location_t location;
-};
-
-/* Top-level source file.  */
-extern const char *main_input_filename;
+/* Historically GCC used location_t, while cpp used source_location.
+   This could be removed but it hardly seems worth the effort.  */
+typedef source_location location_t;
 
 extern location_t input_location;
-#ifdef USE_MAPPED_LOCATION
-extern void push_srcloc (location_t);
-#else /* ! USE_MAPPED_LOCATION */
-extern void push_srcloc (const char *name, int line);
-#endif /* ! USE_MAPPED_LOCATION */
-extern void pop_srcloc (void);
-extern void restore_input_file_stack (int);
 
 #define LOCATION_FILE(LOC) ((expand_location (LOC)).file)
 #define LOCATION_LINE(LOC) ((expand_location (LOC)).line)
+#define LOCATION_COLUMN(LOC)((expand_location (LOC)).column)
+#define LOCATION_LOCUS(LOC) \
+  ((IS_ADHOC_LOC(LOC)) ? get_location_from_adhoc_loc (line_table, LOC) : (LOC))
+#define LOCATION_BLOCK(LOC) \
+  ((tree) ((IS_ADHOC_LOC (LOC)) ? get_data_from_adhoc_loc (line_table, (LOC)) \
+  : NULL))
 
-#define input_line LOCATION_LINE(input_location)
-#define input_filename LOCATION_FILE(input_location)
+#define input_line LOCATION_LINE (input_location)
+#define input_filename LOCATION_FILE (input_location)
+#define in_system_header_at(LOC) \
+  ((linemap_location_in_system_header_p (line_table, LOC)))
+#define in_system_header (in_system_header_at (input_location))
 
-/* Stack of currently pending input files.
-   The line member is not accurate for the innermost file on the stack.  */
-extern struct file_stack *input_file_stack;
-
-/* Incremented on each change to input_file_stack.  */
-extern int input_file_stack_tick;
-
-/* The number of bits available for input_file_stack_tick.  */
-#define INPUT_FILE_STACK_BITS	31
+void dump_line_table_statistics (void);
 
 #endif

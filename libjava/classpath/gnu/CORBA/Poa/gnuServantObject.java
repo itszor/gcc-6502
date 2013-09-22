@@ -51,6 +51,8 @@ import gnu.CORBA.Unexpected;
 import gnu.CORBA.ResponseHandlerImpl;
 import gnu.CORBA.StreamHolder;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.omg.CORBA.Any;
 import org.omg.CORBA.BAD_OPERATION;
 import org.omg.CORBA.BAD_PARAM;
@@ -129,7 +131,7 @@ public class gnuServantObject extends ObjectImpl
    * ids are requested from the servant.
    */
   public final String[] repository_ids;
-  
+
   /**
    * True indicates that the NO_RETAIN policy applies for the servant.
    * The servant must be discarded after the each call.
@@ -153,16 +155,16 @@ public class gnuServantObject extends ObjectImpl
     manager = a_poa.the_POAManager();
     poa = a_poa;
     orb = an_orb;
-    
-    noRetain = poa.applies(ServantRetentionPolicyValue.NON_RETAIN);    
+
+    noRetain = poa.applies(ServantRetentionPolicyValue.NON_RETAIN);
   }
-  
+
   /**
    * Get the IOR as it would be for this object.
    */
   public IOR getIor()
   {
-    return orb.getLocalIor(this);    
+    return orb.getLocalIor(this);
   }
 
   /**
@@ -190,7 +192,7 @@ public class gnuServantObject extends ObjectImpl
       }
     repository_ids = null;
     orb = an_orb;
-    
+
     noRetain = poa != null && poa.applies(ServantRetentionPolicyValue.NON_RETAIN);
   }
 
@@ -357,7 +359,7 @@ public class gnuServantObject extends ObjectImpl
    */
   public String toString()
   {
-    StringBuffer b = new StringBuffer("Servant object (");
+    CPStringBuilder b = new CPStringBuilder("Servant object (");
     for (int i = 0; i < Id.length; i++)
       {
         b.append(Integer.toHexString(Id [ i ] & 0xFF));
@@ -785,7 +787,7 @@ public class gnuServantObject extends ObjectImpl
    * assumed equal if they are connected to the same orb and poa under the same
    * Id, regardless of they delegates.
    *
-   * @param another instance to check.
+   * @param other instance to check.
    * @return
    */
   public boolean _is_equivalent(org.omg.CORBA.Object other)

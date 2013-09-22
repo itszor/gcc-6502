@@ -21,8 +21,8 @@
 // sure that doesn't happen again.
 
 
-void ovl (int);          // { dg-error "" } candidate
-void ovl (float);        // { dg-error "" } candidate
+void ovl (int);          // { dg-message "ovl|candidate expects" } candidate
+void ovl (float);        // { dg-message "ovl|candidate expects" } candidate
 void fn (int);
 void fna (int);
 
@@ -34,6 +34,7 @@ int main (int argc, char **argv)
   (ovl) (1);                // ok
   (&ovl) (1);               // { dg-error "" } not suitable for overload resolution
   (ovl) ();                 // { dg-error "" } no matching candidates
+  // { dg-message "candidate" "candidate note" { target *-*-* } 36 }
   (&ovl) ();                // { dg-error "" } not suitable for overload resolution
   
   // 13.3.1.1 indicates that the following are errors -- the primary expression
@@ -52,11 +53,10 @@ int main (int argc, char **argv)
   
   ptr = (ovl);              // ok
   ptr = (&ovl);             // ok
-  // 13.4 indicates these are ok.
-  ptr = (0, ovl);           // ok { dg-bogus "" "" { xfail *-*-* } }
-  ptr = (0, &ovl);          // ok { dg-bogus "" "" { xfail *-*-* } }
-  ptr = (argc ? ovl : ovl); // ok { dg-bogus "" "" { xfail *-*-* } }
-  ptr = (argc ? &ovl : &ovl);// ok { dg-bogus "" "" { xfail *-*-* } }
+  ptr = (0, ovl);           // ok { dg-error "no context" }
+  ptr = (0, &ovl);          // ok { dg-error "no context" }
+  ptr = (argc ? ovl : ovl); // ok { dg-error "no context" }
+  ptr = (argc ? &ovl : &ovl);// ok { dg-error "no context" }
   
   vptr = (ovl);              // { dg-error "" } no matching candidates
   vptr = (&ovl);             // { dg-error "" } no matching candidates
@@ -72,7 +72,7 @@ int main (int argc, char **argv)
   ptr = (argc ? fna : fn);
   ptr = (argc ? &fna : &fn);
   
-  f;                // { dg-warning "" } not a call
+  f;                // { dg-error "" } not a call
   ovl;              // { dg-error "" } not suitable for overload
   &ovl;             // { dg-error "" } not suitable for overload
   (void)f;          // ok

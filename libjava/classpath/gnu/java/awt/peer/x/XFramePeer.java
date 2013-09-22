@@ -65,6 +65,7 @@ public class XFramePeer
   XFramePeer(Frame f)
   {
     super(f);
+    setTitle(f.getTitle());
   }
 
   public void setIconImage(Image image)
@@ -87,14 +88,12 @@ public class XFramePeer
 
   public void setTitle(String title)
   {
-    // TODO: Implement this.
-    throw new UnsupportedOperationException("Not yet implemented.");
+    xwindow.set_wm_name (title);
   }
 
   public int getState()
   {
-    // TODO: Implement this.
-    throw new UnsupportedOperationException("Not yet implemented.");
+    return 0;
   }
 
   public void setState(int state)
@@ -108,10 +107,10 @@ public class XFramePeer
     // TODO: Implement this.
     throw new UnsupportedOperationException("Not yet implemented.");
   }
-  
+
   /**
    * Check if this frame peer supports being restacked.
-   * 
+   *
    * @return true if this frame peer can be restacked,
    * false otherwise
    * @since 1.5
@@ -121,10 +120,10 @@ public class XFramePeer
     // TODO: Implement this.
     throw new UnsupportedOperationException("Not yet implemented.");
   }
-  
+
   /**
    * Sets the bounds of this frame peer.
-   * 
+   *
    * @param x the new x co-ordinate
    * @param y the new y co-ordinate
    * @param width the new width

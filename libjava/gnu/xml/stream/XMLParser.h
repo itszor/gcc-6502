@@ -13,6 +13,13 @@ extern "Java"
 {
   namespace gnu
   {
+    namespace java
+    {
+      namespace lang
+      {
+          class CPStringBuilder;
+      }
+    }
     namespace xml
     {
       namespace stream
@@ -32,7 +39,7 @@ extern "Java"
   {
     namespace xml
     {
-      namespace namespace
+      namespace namespace$
       {
           class NamespaceContext;
           class QName;
@@ -57,12 +64,12 @@ public:
   virtual ::java::lang::String * getPrefix(::java::lang::String *);
   virtual ::java::util::Iterator * getPrefixes(::java::lang::String *);
   virtual void close();
-  virtual ::javax::xml::namespace::NamespaceContext * getNamespaceContext();
+  virtual ::javax::xml::namespace$::NamespaceContext * getNamespaceContext();
   virtual jint getAttributeCount();
   virtual ::java::lang::String * getAttributeLocalName(jint);
   virtual ::java::lang::String * getAttributeNamespace(jint);
   virtual ::java::lang::String * getAttributePrefix(jint);
-  virtual ::javax::xml::namespace::QName * getAttributeName(jint);
+  virtual ::javax::xml::namespace$::QName * getAttributeName(jint);
   virtual ::java::lang::String * getAttributeType(jint);
 private:
   ::java::lang::String * getAttributeType(::java::lang::String *, ::java::lang::String *);
@@ -78,7 +85,7 @@ public:
   virtual jint getEventType();
   virtual ::java::lang::String * getLocalName();
   virtual ::javax::xml::stream::Location * getLocation();
-  virtual ::javax::xml::namespace::QName * getName();
+  virtual ::javax::xml::namespace$::QName * getName();
   virtual jint getNamespaceCount();
   virtual ::java::lang::String * getNamespacePrefix(jint);
   virtual ::java::lang::String * getNamespaceURI();
@@ -145,13 +152,13 @@ private:
   void readMarkupdecl(jboolean);
   void readElementDecl();
   void readContentspec(::java::lang::String *);
-  ::gnu::xml::stream::XMLParser$ElementContentModel * readElements(::java::lang::StringBuffer *);
-  ::gnu::xml::stream::XMLParser$ContentParticle * readContentParticle(::java::lang::StringBuffer *);
+  ::gnu::xml::stream::XMLParser$ElementContentModel * readElements(::gnu::java::lang::CPStringBuilder *);
+  ::gnu::xml::stream::XMLParser$ContentParticle * readContentParticle(::gnu::java::lang::CPStringBuilder *);
   void readAttlistDecl();
   void readAttDef(::java::lang::String *);
-  ::java::lang::String * readAttType(::java::lang::StringBuffer *, ::java::util::HashSet *);
-  void readEnumeration(jboolean, ::java::lang::StringBuffer *, ::java::util::HashSet *);
-  void readNotationType(::java::lang::StringBuffer *, ::java::util::HashSet *);
+  ::java::lang::String * readAttType(::gnu::java::lang::CPStringBuilder *, ::java::util::HashSet *);
+  void readEnumeration(jboolean, ::gnu::java::lang::CPStringBuilder *, ::java::util::HashSet *);
+  void readNotationType(::gnu::java::lang::CPStringBuilder *, ::java::util::HashSet *);
   void readDefault(::java::lang::String *, ::java::lang::String *, ::java::lang::String *, ::java::lang::String *, ::java::util::HashSet *);
   void readEntityDecl(jboolean);
   void readNotationDecl(jboolean);
@@ -239,7 +246,6 @@ private:
   ::java::util::LinkedList * endEntityStack;
   jint state;
   jint event;
-  jboolean lookahead;
   ::java::util::LinkedList * stack;
   ::java::util::LinkedList * namespaces;
   ::java::util::LinkedList * bases;

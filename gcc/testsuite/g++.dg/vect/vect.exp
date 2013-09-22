@@ -1,4 +1,4 @@
-#   Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,91 +36,32 @@ global dg-do-what-default
 set save-dg-do-what-default ${dg-do-what-default}
 
 # Set up flags used for tests that don't specify options.
+global DEFAULT_VECTCFLAGS
 set DEFAULT_VECTCFLAGS ""
 
 # These flags are used for all targets.
-lappend DEFAULT_VECTCFLAGS "-O2" "-ftree-vectorize" "-fno-vect-cost-model" \
-  "-ftree-vectorizer-verbose=4" "-fdump-tree-vect-stats"
+lappend DEFAULT_VECTCFLAGS "-O2" "-ftree-vectorize" "-fno-vect-cost-model"
 
 # Skip these tests for targets that do not support generating vector
 # code.  Set additional target-dependent vector flags, which can be
 # overridden by using dg-options in individual tests.
-if  [istarget "powerpc-*paired*"]  {
-   lappend DEFAULT_VECTCFLAGS "-mpaired"
-    if [check_750cl_hw_available] {
-        set dg-do-what-default run 
-    } else {
-        set dg-do-what-default compile
-    }
-} elseif [istarget "powerpc*-*-*"] {
-    # Skip targets not supporting -maltivec.
-    if ![is-effective-target powerpc_altivec_ok] {
-	return
-    }
-
-    lappend DEFAULT_VECTCFLAGS "-maltivec"
-    if [check_vmx_hw_available] {
-	set dg-do-what-default run
-    } else {
-	if [is-effective-target ilp32] {
-	    # Specify a cpu that supports VMX for compile-only tests.
-	    lappend DEFAULT_VECTCFLAGS "-mcpu=970"
-	}
-	set dg-do-what-default compile
-    }
-} elseif { [istarget  "spu-*-*"] } {
-   set dg-do-what-default run
-} elseif { [istarget "i?86-*-*"] || [istarget "x86_64-*-*"] } {
-    lappend DEFAULT_VECTCFLAGS "-msse2"
-    if [check_sse2_hw_available] {
-	set dg-do-what-default run
-    } else {
-	set dg-do-what-default compile
-    }
-} elseif { [istarget "mips*-*-*"]
-	   && [check_effective_target_mpaired_single]
-	   && [check_effective_target_nomips16] } {
-    lappend DEFAULT_VECTCFLAGS "-mpaired-single"
-    set dg-do-what-default run
-} elseif [istarget "sparc*-*-*"] {
-    lappend DEFAULT_VECTCFLAGS "-mcpu=ultrasparc" "-mvis"
-    if [check_effective_target_ultrasparc_hw] {
-	set dg-do-what-default run
-    } else {
-	set dg-do-what-default compile
-    }
-} elseif [istarget "alpha*-*-*"] {
-    # Alpha's vectorization capabilities are extremely limited.
-    # It's more effort than its worth disabling all of the tests
-    # that it cannot pass.  But if you actually want to see what
-    # does work, command out the return.
-    return
-
-    lappend DEFAULT_VECTCFLAGS "-mmax"
-    if [check_alpha_max_hw_available] {
-	set dg-do-what-default run
-    } else {
-	set dg-do-what-default compile
-    }
-} elseif [istarget "ia64-*-*"] {
-    set dg-do-what-default run
-} elseif [is-effective-target arm_neon_ok] {
-    lappend DEFAULT_VECTCFLAGS "-mfpu=neon" "-mfloat-abi=softfp"
-    if [is-effective-target arm_neon_hw] {
-      set dg-do-what-default run
-    } else {
-      set dg-do-what-default compile
-    }
-} else {
+if ![check_vect_support_and_set_flags] {
     return
 }
+
+set VECT_SLP_CFLAGS $DEFAULT_VECTCFLAGS
+
+lappend DEFAULT_VECTCFLAGS "-fdump-tree-vect-details"
+lappend VECT_SLP_CFLAGS "-fdump-tree-slp-details"
 
 # Initialize `dg'.
 dg-init
 
 # Main loop.
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,cc,S} ]] \
-        "" $DEFAULT_VECTCFLAGS
+g++-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/pr*.{c,cc,S} ]] \
+        $DEFAULT_VECTCFLAGS
+g++-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/slp-pr*.{c,cc,S} ]] \
+        $VECT_SLP_CFLAGS
 
 #### Tests with special options
 global SAVED_DEFAULT_VECTCFLAGS
@@ -129,8 +70,8 @@ set SAVED_DEFAULT_VECTCFLAGS $DEFAULT_VECTCFLAGS
 # --param max-aliased-vops=0
 set DEFAULT_VECTCFLAGS $SAVED_DEFAULT_VECTCFLAGS
 lappend DEFAULT_VECTCFLAGS "--param max-aliased-vops=0"
-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/param-max-aliased*.\[cS\]]]  \
-        "" $DEFAULT_VECTCFLAGS 
+g++-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/param-max-aliased*.\[cS\]]]  \
+        $DEFAULT_VECTCFLAGS
 
 # Clean up.
 set dg-do-what-default ${save-dg-do-what-default} 

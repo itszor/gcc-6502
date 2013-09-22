@@ -1,5 +1,5 @@
 /* DataOutputStream.java -- Writes primitive Java datatypes to streams
-   Copyright (C) 1998, 2001, 2003, 2005  Free Software Foundation, Inc.
+   Copyright (C) 1998, 2001, 2003, 2005, 2008  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -66,12 +66,12 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
    * Utf8 byte buffer, used by writeUTF()
    */
   private byte[] buf;
-  
+
   /**
    * This method initializes an instance of <code>DataOutputStream</code> to
    * write its data to the specified underlying <code>OutputStream</code>
    *
-   * @param out The subordinate <code>OutputStream</code> to which this 
+   * @param out The subordinate <code>OutputStream</code> to which this
    * object will write
    */
   public DataOutputStream (OutputStream out)
@@ -127,7 +127,7 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
    *
    * @exception IOException If an error occurs.
    */
-  public synchronized void write (byte[] buf, int offset, int len) 
+  public synchronized void write (byte[] buf, int offset, int len)
      throws IOException
   {
     out.write(buf, offset, len);
@@ -162,7 +162,7 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
    * The value written can be read using the <code>readByte</code> or
    * <code>readUnsignedByte</code> methods in <code>DataInput</code>.
    *
-   * @param value The <code>byte</code> to write to the stream, passed as 
+   * @param value The <code>byte</code> to write to the stream, passed as
    * the low eight bits of an <code>int</code>.
    *
    * @exception IOException If an error occurs
@@ -215,7 +215,7 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
    * The value written can be read using the <code>readChar</code>
    * method in <code>DataInput</code>.
    *
-   * @param value The <code>char</code> value to write, 
+   * @param value The <code>char</code> value to write,
    * passed as an <code>int</code>.
    *
    * @exception IOException If an error occurs
@@ -379,35 +379,33 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
 
   /**
    *  Calculate the length, in bytes, of a <code>String</code> in Utf8 format.
+   *  This method is package-private so that <code>ObjectOutputStream</code>
+   *  may use it.  The return type is long so that a long string whose
+   *  Utf8 byte count is 64 bit long may be handled.
    *
    *  @param value The <code>String</code> to measure
    *  @param start String index at which to begin count
    *  @param sum Starting Utf8 byte count
    *
-   *  @throws UTFDataFormatException if result would exceed 65535
    */
-  private int getUTFlength(String value, int start, int sum)
-    throws IOException
+  long getUTFlength(String value, int start, long sum)
   {
     int len = value.length();
 
-    for (int i = start; i < len && sum <= 65535; ++i)
+    for (int i = start; i < len; ++i)
       {
-	char c = value.charAt(i);
-	if (c >= '\u0001' && c <= '\u007f')
-	  sum += 1;
-	else if (c == '\u0000' || (c >= '\u0080' && c <= '\u07ff'))
-	  sum += 2;
-	else
-	  sum += 3;
+        char c = value.charAt(i);
+        if (c >= '\u0001' && c <= '\u007f')
+          sum += 1;
+        else if (c == '\u0000' || (c >= '\u0080' && c <= '\u07ff'))
+          sum += 2;
+        else
+          sum += 3;
       }
-
-    if (sum > 65535)
-      throw new UTFDataFormatException ();
 
     return sum;
   }
-  
+
   /**
    * This method writes a Java <code>String</code> to the stream in a modified
    * UTF-8 format.  First, two bytes are written to the stream indicating the
@@ -442,49 +440,100 @@ public class DataOutputStream extends FilterOutputStream implements DataOutput
    */
   public final synchronized void writeUTF(String value) throws IOException
   {
+    long l = getUTFlength(value, 0, 0);
+    if (l > 65535)
+      throw new UTFDataFormatException ();
+    writeUTFShort(value, (int)l);
+  }
+
+  /**
+   * This method performs the main task of <code>writeUTF</code>.
+   * This method is package-private because ObjectOutputStream uses it.
+   *
+   * @param value The <code>String</code> to write to the output in UTF format
+   *
+   * @param bytelen The UTF-8 byte length of the <code>String</code>. When
+   * this method is called, the expected byte length must have been calculated
+   * by <code>getUTFlength</code>.
+   *
+   * @exception IOException If an error occurs
+   *
+   * @see DataInput#readUTF
+   */
+  final synchronized void writeUTFShort(String value, int bytelen)
+    throws IOException
+  {
+    writeShort(bytelen);
+    writeUTFBytes(value);
+  }
+
+  /**
+   * This method is similar to <code>writeUTF</code>, but it writes the
+   * UTF-8 byte length in 64 bits.
+   * This method is not public but <code>ObjectOutputStream</code> uses it.
+   *
+   * @param value The <code>String</code> to write to the output in UTF format
+   *
+   * @param bytelen The UTF-8 byte length of the <code>String</code>. When
+   * this method is called, the expected byte length must have been calculated
+   * by <code>getUTFlength</code>.
+   *
+   * @exception IOException If an error occurs
+   *
+   */
+  final synchronized void writeUTFLong(String value, long bytelen)
+    throws IOException
+  {
+    writeLong(bytelen);
+    writeUTFBytes(value);
+  }
+
+  /**
+   * This method performes the main task of <code>writeUTF</code> and
+   * <code>WriteUTFLong</code>, which is to write the UTF-8 byte
+   * sequence to the output.
+   *
+   * @param value The <code>String</code> to write to the output in UTF format
+   *
+   * @exception IOException If an error occurs
+   *
+   */
+  private final synchronized void writeUTFBytes(String value)
+    throws IOException
+  {
     int len = value.length();
     int i = 0;
     int pos = 0;
-    boolean lengthWritten = false;
 
     if (buf == null)
       buf = new byte[512];
-    
+
     do
       {
-	while (i < len && pos < buf.length - 3)
-	  {
-	    char c = value.charAt(i++);
-	    if (c >= '\u0001' && c <= '\u007f')
+        while (i < len && pos < buf.length - 3)
+          {
+            char c = value.charAt(i++);
+            if (c >= '\u0001' && c <= '\u007f')
               buf[pos++] = (byte) c;
-	    else if (c == '\u0000' || (c >= '\u0080' && c <= '\u07ff'))
-	      {
-		buf[pos++] = (byte) (0xc0 | (0x1f & (c >> 6)));
-		buf[pos++] = (byte) (0x80 | (0x3f & c));
-	      }
-	    else
-	      {
-		// JSL says the first byte should be or'd with 0xc0, but
-		// that is a typo.  Unicode says 0xe0, and that is what is
-		// consistent with DataInputStream.
-		buf[pos++] = (byte) (0xe0 | (0x0f & (c >> 12)));
-		buf[pos++] = (byte) (0x80 | (0x3f & (c >> 6)));
-		buf[pos++] = (byte) (0x80 | (0x3f & c));
-	      }
-	  }
-	if (! lengthWritten)
-	  {
-	    if (i == len)
-	      writeShort(pos);
-	    else
-	      writeShort(getUTFlength(value, i, pos));
-	    lengthWritten = true;
-	  }
-	write(buf, 0, pos);
-	pos = 0;
+            else if (c == '\u0000' || (c >= '\u0080' && c <= '\u07ff'))
+              {
+                buf[pos++] = (byte) (0xc0 | (0x1f & (c >> 6)));
+                buf[pos++] = (byte) (0x80 | (0x3f & c));
+              }
+            else
+              {
+                // JSL says the first byte should be or'd with 0xc0, but
+                // that is a typo.  Unicode says 0xe0, and that is what is
+                // consistent with DataInputStream.
+                buf[pos++] = (byte) (0xe0 | (0x0f & (c >> 12)));
+                buf[pos++] = (byte) (0x80 | (0x3f & (c >> 6)));
+                buf[pos++] = (byte) (0x80 | (0x3f & c));
+              }
+          }
+        write(buf, 0, pos);
+        pos = 0;
      }
     while (i < len);
   }
 
 } // class DataOutputStream
-

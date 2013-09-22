@@ -1,5 +1,5 @@
-/* SRPClient.java -- 
-   Copyright (C) 2003, 2006 Free Software Foundation, Inc.
+/* SRPClient.java --
+   Copyright (C) 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -37,6 +37,8 @@ exception statement from your version.  */
 
 
 package gnu.javax.crypto.sasl.srp;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Configuration;
 import gnu.java.security.Registry;
@@ -85,7 +87,8 @@ public class SRPClient
     extends ClientMechanism
     implements SaslClient
 {
-  private static final Logger log = Logger.getLogger(SRPClient.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(SRPClient.class.getName()) : null;
   private String uid; // the unique key for this type of client
   private String U; // the authentication identity
   BigInteger N, g, A, B;
@@ -863,7 +866,7 @@ public class SRPClient
     // For now we just select the defaults. Later we need to add support for
     // properties (perhaps in a file) where a user can specify the list of
     // algorithms they would prefer to use.
-    final StringBuffer sb = new StringBuffer();
+    final CPStringBuilder sb = new CPStringBuilder();
     sb.append(SRPRegistry.OPTION_SRP_DIGEST)
       .append("=").append(mdName).append(",");
     if (replayDetection)

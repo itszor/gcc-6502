@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -172,7 +172,7 @@ begin
    then
       Error_Msg_File_1 := File_Name;
       Error_Msg
-        ("?file name does not match unit name, should be{", Sloc (Curunit));
+        ("??file name does not match unit name, should be{", Sloc (Curunit));
    end if;
 
    --  For units other than the main unit, the expected unit name is set and
@@ -205,7 +205,8 @@ begin
 
          begin
             Error_Msg_Unit_1 := Expect_Name;
-            Error_Msg ("$$ is not a predefined library unit!", Loc);
+            Error_Msg -- CODEFIX
+              ("$$ is not a predefined library unit!", Loc);
 
             --  In the predefined file case, we know the user did not
             --  construct their own package, but we got the wrong one.
@@ -229,7 +230,8 @@ begin
               (Name_Id (Expect_Name), Name_Id (Actual_Name))
             then
                Error_Msg_Unit_1 := Actual_Name;
-               Error_Msg ("possible misspelling of $$!", Loc);
+               Error_Msg -- CODEFIX
+                 ("possible misspelling of $$!", Loc);
             end if;
          end;
 
@@ -264,20 +266,27 @@ begin
            Required   => False,
            Subunit    => False,
            Error_Node => Curunit,
-           Corr_Body  => Cur_Unum);
+           Corr_Body  => Cur_Unum,
+           PMES       => (Cur_Unum = Main_Unit));
 
-      --  If we successfully load the unit, then set the spec pointer. Once
-      --  again note that if the loaded unit has a fatal error, Load will
+      --  If we successfully load the unit, then set the spec/body pointers.
+      --  Once again note that if the loaded unit has a fatal error, Load will
       --  have set our Fatal_Error flag to propagate this condition.
 
       if Unum /= No_Unit then
          Set_Library_Unit (Curunit, Cunit (Unum));
+         Set_Library_Unit (Cunit (Unum), Curunit);
 
          --  If this is a separate spec for the main unit, then we reset
          --  Main_Unit_Entity to point to the entity for this separate spec
+         --  and this is also where we generate the SCO's for this spec.
 
          if Cur_Unum = Main_Unit then
             Main_Unit_Entity := Cunit_Entity (Unum);
+
+            if Generate_SCO then
+               SCO_Record (Unum);
+            end if;
          end if;
 
       --  If we don't find the spec, then if we have a subprogram body, we
@@ -339,7 +348,7 @@ begin
         Load_Unit
           (Load_Name  => Body_Name,
            Required   => True,
-           Subunit    => True,
+           Subunit    => False,
            Error_Node => Name (Unit (Curunit)));
 
       if Unum /= No_Unit then

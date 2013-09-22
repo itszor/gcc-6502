@@ -5,8 +5,8 @@
 
 #define N 64
 
-short X[N] __attribute__ ((__aligned__(16)));
-short Y[N] __attribute__ ((__aligned__(16)));
+short X[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+short Y[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 int result[N];
 
 /* short->int widening-mult */
@@ -29,6 +29,7 @@ int main (void)
   for (i=0; i<N; i++) {
     X[i] = i;
     Y[i] = 64-i;
+    __asm__ volatile ("");
   }
 
   foo1 (N);
@@ -41,7 +42,7 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" {  target { vect_strided && vect_widen_mult_hi_to_si } } } }*/
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 0 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target vect_widen_mult_hi_to_si } } }*/
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 1 "vect" { target vect_widen_mult_hi_to_si } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
 

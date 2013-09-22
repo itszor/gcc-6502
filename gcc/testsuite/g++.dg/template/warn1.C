@@ -9,15 +9,15 @@
 template <class T>  void Foo(T i) 
 { 
   i++, i++;
-  i, i++; // { dg-warning "left-hand operand" "" }
-  i++, i; // { dg-warning "right-hand operand" "" }
+  i, i++; // { dg-warning "left operand" "" }
+  i++, i; // { dg-warning "right operand" "" }
   for (;; --i, ++i)
     ;
 } 
  
 void Bar ()
 { 
-  Foo (1);  // { dg-error "instantiated" "" }
+  Foo (1);  // { dg-message "required" }
 }
 
 struct M {};
@@ -31,6 +31,6 @@ struct C
 
 void Baz (int i)
 {
-  i ? i + 1 : i + 2; // { dg-error "operand of" "" }
+  i ? i + 1 : i + 2; // { dg-warning "operand of" }
   i ? i++ : 0;
 }

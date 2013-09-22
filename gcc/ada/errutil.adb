@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1991-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1991-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,6 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
+with Atree;    use Atree;
 with Err_Vars; use Err_Vars;
 with Erroutc;  use Erroutc;
 with Namet;    use Namet;
@@ -30,6 +31,7 @@ with Opt;      use Opt;
 with Output;   use Output;
 with Scans;    use Scans;
 with Sinput;   use Sinput;
+with Stylesw;  use Stylesw;
 
 package body Errutil is
 
@@ -209,6 +211,7 @@ package body Errutil is
       Errors.Table (Cur_Msg).Col      := Get_Column_Number (Sptr);
       Errors.Table (Cur_Msg).Style    := Is_Style_Msg;
       Errors.Table (Cur_Msg).Warn     := Is_Warning_Msg;
+      Errors.Table (Cur_Msg).Warn_Chr := Warning_Msg_Char;
       Errors.Table (Cur_Msg).Serious  := Is_Serious_Error;
       Errors.Table (Cur_Msg).Uncond   := Is_Unconditional_Msg;
       Errors.Table (Cur_Msg).Msg_Cont := Continuation;
@@ -260,11 +263,11 @@ package body Errutil is
             --  avoid junk extra messages from cascaded parsing errors
 
             if not (Errors.Table (Prev_Msg).Warn
-                      or
+                     or else
                     Errors.Table (Prev_Msg).Style)
               or else
                    (Errors.Table (Cur_Msg).Warn
-                      or
+                     or else
                     Errors.Table (Cur_Msg).Style)
             then
                --  All tests passed, delete the message by simply returning
@@ -295,8 +298,12 @@ package body Errutil is
 
       --  Bump appropriate statistics count
 
-      if Errors.Table (Cur_Msg).Warn or Errors.Table (Cur_Msg).Style then
+      if Errors.Table (Cur_Msg).Warn
+           or else
+         Errors.Table (Cur_Msg).Style
+      then
          Warnings_Detected := Warnings_Detected + 1;
+
       else
          Total_Errors_Detected := Total_Errors_Detected + 1;
 
@@ -548,19 +555,28 @@ package body Errutil is
          Set_Standard_Output;
       end if;
 
-      if Maximum_Errors /= 0
-        and then Total_Errors_Detected + Warnings_Detected = Maximum_Errors
-      then
-         Set_Standard_Error;
-         Write_Str ("fatal error: maximum errors reached");
-         Write_Eol;
-         Set_Standard_Output;
+      if Maximum_Messages /= 0 then
+         if Warnings_Detected >= Maximum_Messages then
+            Set_Standard_Error;
+            Write_Line ("maximum number of warnings detected");
+            Warning_Mode := Suppress;
+         end if;
+
+         if Total_Errors_Detected >= Maximum_Messages then
+            Set_Standard_Error;
+            Write_Line ("fatal error: maximum errors reached");
+            Set_Standard_Output;
+         end if;
       end if;
 
       if Warning_Mode = Treat_As_Error then
          Total_Errors_Detected := Total_Errors_Detected + Warnings_Detected;
          Warnings_Detected := 0;
       end if;
+
+      --  Prevent displaying the same messages again in the future
+
+      First_Error_Msg := No_Error_Msg;
    end Finalize;
 
    ----------------
@@ -653,7 +669,7 @@ package body Errutil is
 
    procedure Set_Msg_Insertion_Column is
    begin
-      if Style.RM_Column_Check then
+      if RM_Column_Check then
          Set_Msg_Str (" in column ");
          Set_Msg_Int (Int (Error_Msg_Col) + 1);
       end if;

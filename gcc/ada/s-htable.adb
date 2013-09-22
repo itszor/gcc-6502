@@ -6,36 +6,33 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                    Copyright (C) 1995-2007, AdaCore                      --
+--                    Copyright (C) 1995-2012, AdaCore                      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 with Ada.Unchecked_Deallocation;
+with System.String_Hash;
 
 package body System.HTable is
 
@@ -65,7 +62,6 @@ package body System.HTable is
 
       begin
          Elmt := Table (Hash (K));
-
          loop
             if Elmt = Null_Ptr then
                return Null_Ptr;
@@ -99,10 +95,10 @@ package body System.HTable is
       begin
          if not Iterator_Started then
             return Null_Ptr;
+         else
+            Iterator_Ptr := Next (Iterator_Ptr);
+            return Get_Non_Null;
          end if;
-
-         Iterator_Ptr := Next (Iterator_Ptr);
-         return Get_Non_Null;
       end Get_Next;
 
       ------------------
@@ -111,7 +107,7 @@ package body System.HTable is
 
       function Get_Non_Null return Elmt_Ptr is
       begin
-         while Iterator_Ptr = Null_Ptr  loop
+         while Iterator_Ptr = Null_Ptr loop
             if Iterator_Index = Table'Last then
                Iterator_Started := False;
                return Null_Ptr;
@@ -123,6 +119,15 @@ package body System.HTable is
 
          return Iterator_Ptr;
       end Get_Non_Null;
+
+      -------------
+      -- Present --
+      -------------
+
+      function Present (K : Key) return Boolean is
+      begin
+         return Get (K) /= Null_Ptr;
+      end Present;
 
       ------------
       -- Remove --
@@ -177,12 +182,42 @@ package body System.HTable is
 
       procedure Set (E : Elmt_Ptr) is
          Index : Header_Num;
-
       begin
          Index := Hash (Get_Key (E));
          Set_Next (E, Table (Index));
          Table (Index) := E;
       end Set;
+
+      ------------------------
+      -- Set_If_Not_Present --
+      ------------------------
+
+      function Set_If_Not_Present (E : Elmt_Ptr) return Boolean is
+         K : Key renames Get_Key (E);
+         --  Note that it is important to use a renaming here rather than
+         --  define a constant initialized by the call, because the latter
+         --  construct runs into bootstrap problems with earlier versions
+         --  of the GNAT compiler.
+
+         Index : constant Header_Num := Hash (K);
+         Elmt  : Elmt_Ptr;
+
+      begin
+         Elmt := Table (Index);
+         loop
+            if Elmt = Null_Ptr then
+               Set_Next (E, Table (Index));
+               Table (Index) := E;
+               return True;
+
+            elsif Equal (Get_Key (Elmt), K) then
+               return False;
+
+            else
+               Elmt := Next (Elmt);
+            end if;
+         end loop;
+      end Set_If_Not_Present;
 
    end Static_HTable;
 
@@ -247,6 +282,17 @@ package body System.HTable is
          end if;
       end Get_First;
 
+      procedure Get_First (K : in out Key; E : out Element) is
+         Tmp : constant Elmt_Ptr := Tab.Get_First;
+      begin
+         if Tmp = null then
+            E := No_Element;
+         else
+            K := Tmp.K;
+            E := Tmp.E;
+         end if;
+      end Get_First;
+
       -------------
       -- Get_Key --
       -------------
@@ -267,6 +313,17 @@ package body System.HTable is
             return No_Element;
          else
             return Tmp.E;
+         end if;
+      end Get_Next;
+
+      procedure Get_Next (K : in out Key; E : out Element) is
+         Tmp : constant Elmt_Ptr := Tab.Get_Next;
+      begin
+         if Tmp = null then
+            E := No_Element;
+         else
+            K := Tmp.K;
+            E := Tmp.E;
          end if;
       end Get_Next;
 
@@ -342,22 +399,14 @@ package body System.HTable is
    ----------
 
    function Hash (Key : String) return Header_Num is
-
       type Uns is mod 2 ** 32;
 
-      function Rotate_Left (Value : Uns; Amount : Natural) return Uns;
-      pragma Import (Intrinsic, Rotate_Left);
-
-      Hash_Value : Uns;
+      function Hash_Fun is
+         new System.String_Hash.Hash (Character, String, Uns);
 
    begin
-      Hash_Value := 0;
-      for J in Key'Range loop
-         Hash_Value := Rotate_Left (Hash_Value, 3) + Character'Pos (Key (J));
-      end loop;
-
       return Header_Num'First +
-               Header_Num'Base (Hash_Value mod Header_Num'Range_Length);
+        Header_Num'Base (Hash_Fun (Key) mod Header_Num'Range_Length);
    end Hash;
 
 end System.HTable;

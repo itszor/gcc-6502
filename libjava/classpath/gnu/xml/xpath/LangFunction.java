@@ -1,4 +1,4 @@
-/* LangFunction.java -- 
+/* LangFunction.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -64,9 +64,9 @@ final class LangFunction
 
   final Expr arg;
 
-  LangFunction(List args)
+  LangFunction(List<Expr> args)
   {
-    this((Expr) args.get(0));
+    this(args.get(0));
   }
 
   LangFunction(Expr arg)
@@ -74,6 +74,7 @@ final class LangFunction
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = arg.evaluate(context, pos, len);
@@ -103,7 +104,7 @@ final class LangFunction
       }
     return null;
   }
-  
+
   public Expr clone(Object context)
   {
     return new IdFunction(arg.clone(context));
@@ -118,5 +119,5 @@ final class LangFunction
   {
     return "lang(" + arg + ")";
   }
-  
+
 }

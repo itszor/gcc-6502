@@ -1,4 +1,4 @@
-/* CountFunction.java -- 
+/* CountFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -54,9 +54,9 @@ final class CountFunction
 
   final Expr arg;
 
-  CountFunction(List args)
+  CountFunction(List<Expr> args)
   {
-    this((Expr) args.get(0));
+    this(args.get(0));
   }
 
   CountFunction(Expr arg)
@@ -64,10 +64,11 @@ final class CountFunction
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = arg.evaluate(context, pos, len);
-    return new Double((double) ((Collection) val).size());
+    return new Double((double) ((Collection<?>) val).size());
   }
 
   public Expr clone(Object context)
@@ -84,5 +85,5 @@ final class CountFunction
   {
     return "count(" + arg + ")";
   }
-  
+
 }

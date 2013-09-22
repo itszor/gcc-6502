@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 1999-2007, Free Software Foundation, Inc.        --
+--           Copyright (C) 1999-2012, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -42,7 +40,7 @@ with System.Traceback_Entries;
 
 package body GNAT.Traceback.Symbolic is
 
-   pragma Warnings (Off);
+   pragma Warnings (Off); --  Needs comment ???
    pragma Linker_Options ("--for-linker=sys$library:trace.exe");
 
    use Interfaces.C;
@@ -95,7 +93,7 @@ package body GNAT.Traceback.Symbolic is
       User_Arg_Value : User_Arg_Type     := 0);
    --  Comment on above procedure required ???
 
-   pragma Interface (External, Symbolize);
+   pragma Import (External, Symbolize);
 
    pragma Import_Valued_Procedure
      (Symbolize, "TBK$SYMBOLIZE",
@@ -219,11 +217,9 @@ package body GNAT.Traceback.Symbolic is
          System.Soft_Links.Lock_Task.all;
 
          for J in Traceback'Range loop
-            if J = Traceback'Last then
-               Return_Address := Address_Zero;
-            else
-               Return_Address := PC_For (Traceback (J + 1));
-            end if;
+            Return_Address :=
+              (if J = Traceback'Last then Address_Zero
+                                     else PC_For (Traceback (J + 1)));
 
             Symbolize
               (Status,

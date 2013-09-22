@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package javax.swing.event;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -105,8 +107,8 @@ public class EventListenerList
    * have no listeners.
    */
   private static final Object[] NO_LISTENERS = new Object[0];
-  
-  
+
+
   /**
    * An array with all currently registered listeners.  The array has
    * twice as many elements as there are listeners.  For an even
@@ -116,7 +118,7 @@ public class EventListenerList
    */
   protected transient Object[] listenerList = NO_LISTENERS;
 
-  
+
   /**
    * EventListenerList constructor
    */
@@ -192,7 +194,7 @@ public class EventListenerList
   /**
    * Returns an array containing a sequence of listenerType/listener pairs, one
    * for each listener.
-   * 
+   *
    * @return An array containing the listener types and references.
    */
   public Object[] getListenerList()
@@ -238,7 +240,7 @@ public class EventListenerList
     for (int i = listenerList.length - 2; i >= 0; i -= 2)
       if (listenerList[i] == c)
         result[f++] = (EventListener) listenerList[i + 1];
-    
+
     return (T[]) result;
   }
 
@@ -295,7 +297,7 @@ public class EventListenerList
    */
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("EventListenerList: ");
+    CPStringBuilder buf = new CPStringBuilder("EventListenerList: ");
     buf.append(listenerList.length / 2);
     buf.append(" listeners: ");
     for (int i = 0; i < listenerList.length; i += 2)

@@ -1,11 +1,11 @@
 // Locale support -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -13,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file locale_classes.tcc
+/** @file bits/locale_classes.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{locale}
  */
 
 //
@@ -41,7 +36,9 @@
 
 #pragma GCC system_header
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Facet>
     locale::
@@ -49,9 +46,9 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     {
       _M_impl = new _Impl(*__other._M_impl, 1);
 
-      try
+      __try
 	{ _M_impl->_M_install_facet(&_Facet::id, __f); }
-      catch(...)
+      __catch(...)
 	{
 	  _M_impl->_M_remove_reference();
 	  __throw_exception_again;
@@ -66,11 +63,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     combine(const locale& __other) const
     {
       _Impl* __tmp = new _Impl(*_M_impl, 1);
-      try
+      __try
 	{
 	  __tmp->_M_replace_facet(__other._M_impl, &_Facet::id);
 	}
-      catch(...)
+      __catch(...)
 	{
 	  __tmp->_M_remove_reference();
 	  __throw_exception_again;
@@ -90,7 +87,18 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 				__s2.data(), __s2.data() + __s2.length()) < 0);
     }
 
-
+  /**
+   *  @brief  Test for the presence of a facet.
+   *  @ingroup locales
+   *
+   *  has_facet tests the locale argument for the presence of the facet type
+   *  provided as the template parameter.  Facets derived from the facet
+   *  parameter will also return true.
+   *
+   *  @tparam  _Facet  The facet type to test the presence of.
+   *  @param  __loc  The locale to test.
+   *  @return  true if @p __loc contains a facet of type _Facet, else false.
+  */
   template<typename _Facet>
     bool
     has_facet(const locale& __loc) throw()
@@ -105,6 +113,20 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
     }
 
+  /**
+   *  @brief  Return a facet.
+   *  @ingroup locales
+   *
+   *  use_facet looks for and returns a reference to a facet of type Facet
+   *  where Facet is the template parameter.  If has_facet(locale) is true,
+   *  there is a suitable facet to return.  It throws std::bad_cast if the
+   *  locale doesn't contain a facet of type Facet.
+   *
+   *  @tparam  _Facet  The facet type to access.
+   *  @param  __loc  The locale to use.
+   *  @return  Reference to facet of type Facet.
+   *  @throw  std::bad_cast if @p __loc doesn't contain a facet of type _Facet.
+  */
   template<typename _Facet>
     const _Facet&
     use_facet(const locale& __loc)
@@ -124,13 +146,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   // Generic version does nothing.
   template<typename _CharT>
     int
-    collate<_CharT>::_M_compare(const _CharT*, const _CharT*) const
+    collate<_CharT>::_M_compare(const _CharT*, const _CharT*) const throw ()
     { return 0; }
 
   // Generic version does nothing.
   template<typename _CharT>
     size_t
-    collate<_CharT>::_M_transform(_CharT*, const _CharT*, size_t) const
+    collate<_CharT>::_M_transform(_CharT*, const _CharT*, size_t) const throw ()
     { return 0; }
 
   template<typename _CharT>
@@ -189,7 +211,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       _CharT* __c = new _CharT[__len];
 
-      try
+      __try
 	{
 	  // strxfrm stops when it sees a nul character so we break
 	  // the string into zero-terminated substrings and pass those
@@ -217,7 +239,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	      __ret.push_back(_CharT());
 	    }
 	}
-      catch(...)
+      __catch(...)
 	{
 	  delete [] __c;
 	  __throw_exception_again;
@@ -244,7 +266,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
-  // NB: This syntax is a GNU extension.
 #if _GLIBCXX_EXTERN_TEMPLATE
   extern template class collate<char>;
   extern template class collate_byname<char>;
@@ -271,6 +292,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif

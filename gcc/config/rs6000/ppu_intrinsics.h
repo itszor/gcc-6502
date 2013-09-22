@@ -1,9 +1,9 @@
 /* PPU intrinsics as defined by the C/C++ Language extension for Cell BEA.
-   Copyright (C) 2007 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
-   Software Foundation; either version 2 of the License, or (at your option)
+   Software Foundation; either version 3 of the License, or (at your option)
    any later version.
 
    This file is distributed in the hope that it will be useful, but WITHOUT
@@ -11,16 +11,14 @@
    FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
    for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with this file; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source files
-   compiled by GCC, this header file does not by itself cause  the resulting
-   executable to be covered by the GNU General Public License.  This exception
-   does not however invalidate any other reasons why the executable file might
-   be covered by the GNU General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /*  TODO:
     misc ops (traps)
@@ -387,11 +385,11 @@ typedef int __V4SI __attribute__((vector_size(16)));
 
 #define __mffs() __extension__			\
   ({double result;				\
-  __asm__ volatile ("mffs %0" : "=f" (result)); \
+  __asm__ volatile ("mffs %0" : "=d" (result)); \
   result; })
 
 #define __mtfsf(mask,value) \
-  __asm__ volatile ("mtfsf %0,%1" : : "n" (mask), "f" ((double) (value)))
+  __asm__ volatile ("mtfsf %0,%1" : : "n" (mask), "d" ((double) (value)))
   
 #define __mtfsfi(bits,field) \
   __asm__ volatile ("mtfsfi %0,%1" : : "n" (bits), "n" (field))
@@ -402,8 +400,8 @@ typedef int __V4SI __attribute__((vector_size(16)));
 #define __setflm(v) __extension__	      \
   ({double result;			      \
   __asm__ volatile ("mffs %0\n\tmtfsf 255,%1" \
-		    : "=&f" (result)	      \
-		    : "f" ((double) (v)));    \
+		    : "=&d" (result)	      \
+		    : "d" ((double) (v)));    \
   result; })
 
 /* __builtin_fabs may perform unnecessary rounding.  */
@@ -418,7 +416,7 @@ static __inline__ double
 __fabs(double x)
 {
   double r;
-  __asm__("fabs %0,%1" : "=f"(r) : "f"(x));
+  __asm__("fabs %0,%1" : "=d"(r) : "d"(x));
   return r;
 }
 
@@ -436,7 +434,7 @@ static __inline__ double
 __fnabs(double x)
 {
   double r;
-  __asm__("fnabs %0,%1" : "=f"(r) : "f"(x));
+  __asm__("fnabs %0,%1" : "=d"(r) : "d"(x));
   return r;
 }
 
@@ -455,7 +453,7 @@ static __inline__ double
 __fmadd(double x, double y, double z)
 {
   double r;
-  __asm__("fmadd %0,%1,%2,%3" : "=f"(r) : "f"(x),"f"(y),"f"(z));
+  __asm__("fmadd %0,%1,%2,%3" : "=d"(r) : "d"(x),"d"(y),"d"(z));
   return r;
 }
 
@@ -465,7 +463,7 @@ static __inline__ double
 __fmsub(double x, double y, double z)
 {
   double r;
-  __asm__("fmsub %0,%1,%2,%3" : "=f"(r) : "f"(x),"f"(y),"f"(z));
+  __asm__("fmsub %0,%1,%2,%3" : "=d"(r) : "d"(x),"d"(y),"d"(z));
   return r;
 }
 
@@ -475,7 +473,7 @@ static __inline__ double
 __fnmadd(double x, double y, double z)
 {
   double r;
-  __asm__("fnmadd %0,%1,%2,%3" : "=f"(r) : "f"(x),"f"(y),"f"(z));
+  __asm__("fnmadd %0,%1,%2,%3" : "=d"(r) : "d"(x),"d"(y),"d"(z));
   return r;
 }
 
@@ -485,7 +483,7 @@ static __inline__ double
 __fnmsub(double x, double y, double z)
 {
   double r;
-  __asm__("fnmsub %0,%1,%2,%3" : "=f"(r) : "f"(x),"f"(y),"f"(z));
+  __asm__("fnmsub %0,%1,%2,%3" : "=d"(r) : "d"(x),"d"(y),"d"(z));
   return r;
 }
 
@@ -535,7 +533,7 @@ static __inline__ double
 __fsel(double x, double y, double z)
 {
   double r;
-  __asm__("fsel %0,%1,%2,%3" : "=f"(r) : "f"(x),"f"(y),"f"(z));
+  __asm__("fsel %0,%1,%2,%3" : "=d"(r) : "d"(x),"d"(y),"d"(z));
   return r;
 }
 
@@ -554,7 +552,7 @@ static __inline__ double
 __frsqrte(double x)
 {
   double r;
-  __asm__("frsqrte %0,%1" : "=f" (r) : "f" (x));
+  __asm__("frsqrte %0,%1" : "=d" (r) : "d" (x));
   return r;
 }
 
@@ -572,7 +570,7 @@ static __inline__ double
 __fsqrt(double x)
 {
   double r;
-  __asm__("fsqrt %0,%1" : "=f"(r) : "f"(x));
+  __asm__("fsqrt %0,%1" : "=d"(r) : "d"(x));
   return r;
 }
 
@@ -590,7 +588,7 @@ static __inline__ double
 __fmul(double a, double b)
 {
   double d;
-  __asm__ ("fmul %0,%1,%2" : "=f" (d) : "f" (a), "f" (b));
+  __asm__ ("fmul %0,%1,%2" : "=d" (d) : "d" (a), "d" (b));
   return d;
 }
 
@@ -599,7 +597,7 @@ static __inline__ float
 __fmuls (float a, float b)
 {
   float d;
-  __asm__ ("fmuls %0,%1,%2" : "=f" (d) : "f" (a), "f" (b));
+  __asm__ ("fmuls %0,%1,%2" : "=d" (d) : "f" (a), "f" (b));
   return d;
 }
 
@@ -608,7 +606,7 @@ static __inline__ float
 __frsp (float a)
 {
   float d;
-  __asm__ ("frsp %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("frsp %0,%1" : "=d" (d) : "f" (a));
   return d;
 }
 
@@ -617,7 +615,7 @@ static __inline__ double
 __fcfid (long long a)
 {
   double d;
-  __asm__ ("fcfid %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("fcfid %0,%1" : "=d" (d) : "d" (a));
   return d;
 }
 
@@ -626,7 +624,7 @@ static __inline__ long long
 __fctid (double a)
 {
   long long d;
-  __asm__ ("fctid %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("fctid %0,%1" : "=d" (d) : "d" (a));
   return d;
 }
 
@@ -635,7 +633,7 @@ static __inline__ long long
 __fctidz (double a)
 {
   long long d;
-  __asm__ ("fctidz %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("fctidz %0,%1" : "=d" (d) : "d" (a));
   return d;
 }
 
@@ -644,7 +642,7 @@ static __inline__ int
 __fctiw (double a)
 {
   unsigned long long d;
-  __asm__ ("fctiw %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("fctiw %0,%1" : "=d" (d) : "d" (a));
   return (int) d;
 }
 
@@ -653,7 +651,7 @@ static __inline__ int
 __fctiwz (double a)
 {
   long long d;
-  __asm__ ("fctiwz %0,%1" : "=f" (d) : "f" (a));
+  __asm__ ("fctiwz %0,%1" : "=d" (d) : "d" (a));
   return (int) d;
 }
 

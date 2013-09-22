@@ -6,35 +6,43 @@
 
 extern void abort (void);
 
+unsigned int A[8] = {0x08000000,0xffffffff,0xff0000ff,0xf0000001,
+		     0x08000000,0xffffffff,0xff0000ff,0xf0000001};
+unsigned int B[8] = {0x08000000,0x08000001,0xff0000ff,0xf0000001,
+		     0x08000000,0x08000001,0xff0000ff,0xf0000001};
+unsigned int Answer[8] = {0,0xf7ffffff,0x0200fe01,0xe0000001,
+			  0,0xf7ffffff,0x0200fe01,0xe0000001};
+unsigned int C[8];
+
 __attribute__ ((noinline))
 void u ()
 {  
-  unsigned int A[4] = {0x08000000,0xffffffff,0xff0000ff,0xf0000001};
-  unsigned int B[4] = {0x08000000,0x08000001,0xff0000ff,0xf0000001};
-  unsigned int Answer[4] = {0,0xf7ffffff,0x0200fe01,0xe0000001};
-  unsigned int C[4];
   int i, j;
   
-  for (i=0; i<4; i++)
+  for (i=0; i<8; i++)
     C[i] = A[i] * B[i];
-  for (i=0; i<4; i++)
+  for (i=0; i<8; i++)
     if (C[i] != Answer[i])
       abort ();
 }
 
+signed int D[8] = {0x08000000,0xffffffff,0xff0000ff,0xf0000001,
+		   0x08000000,0xffffffff,0xff0000ff,0xf0000001};
+signed int E[8] = {0x08000000,0x08000001,0xff0000ff,0xf0000001,
+		   0x08000000,0x08000001,0xff0000ff,0xf0000001};
+signed int Dnswer[8] = {0,0xf7ffffff,0x0200fe01, 0xe0000001,
+			0,0xf7ffffff,0x0200fe01, 0xe0000001};
+signed int F[8];
+
 __attribute__ ((noinline))
 void s()
 {
-  signed int A[4] = {0x08000000,0xffffffff,0xff0000ff,0xf0000001};
-  signed int B[4] = {0x08000000,0x08000001,0xff0000ff,0xf0000001};
-  signed int Answer[4] = {0,0xf7ffffff,0x0200fe01, 0xe0000001};
-  signed int C[4];
   int i, j;
   
-  for (i=0; i<4; i++)
-    C[i] = A[i] * B[i];
-  for (i=0; i<4; i++)
-    if (C[i] != Answer[i])
+  for (i=0; i<8; i++)
+    F[i] = D[i] * E[i];
+  for (i=0; i<8; i++)
+    if (F[i] != Dnswer[i])
       abort ();
 }
 

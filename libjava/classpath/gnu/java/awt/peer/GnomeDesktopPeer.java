@@ -37,6 +37,8 @@
 
 package gnu.java.awt.peer;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -58,13 +60,13 @@ public class GnomeDesktopPeer
   {
     // check if a command already exists
     String command = super.getCommand(action);
-    
+
     if (command == null)
       {
         try
           {
             if (action == _BROWSE)
-              { 
+              {
                 command = execQuery(BROWSER_QUERY_GNOME);
               }
             else if (action == _PRINT)
@@ -81,50 +83,50 @@ public class GnomeDesktopPeer
             command = null;
           }
       }
-    
+
     return command;
   }
-  
+
   public void browse(URI url) throws IOException
   {
     checkPermissions();
-    
+
     String browser = getCommand(_BROWSE);
-    
+
     if (browser == null)
       throw new UnsupportedOperationException();
-    
+
     browser = browser + " " + url.toString();
-    
+
     Runtime.getRuntime().exec(browser);
   }
 
   protected boolean supportCommand(String check)
   {
     if (check == _PRINT)
-      { 
+      {
         return super.supportCommand(check);
       }
-    
+
     return true;
   }
 
   public void mail() throws IOException
   {
     checkPermissions();
-    
+
     String mail = getCommand(_MAIL);
-    
+
     if (mail == null)
       throw new UnsupportedOperationException();
-    
+
     Runtime.getRuntime().exec(mail + " mailto:");
   }
-  
+
   protected String execQuery(String command) throws IOException
   {
     InputStream in = null;
-    StringBuilder output = new StringBuilder();
+    CPStringBuilder output = new CPStringBuilder();
 
     try
       {
@@ -147,7 +149,7 @@ public class GnomeDesktopPeer
     // remove %s from the string, leave only the command line
     int index = output.indexOf("%s");
     output.delete(index, index + 1);
-    
+
     return output.toString().trim();
   }
 }

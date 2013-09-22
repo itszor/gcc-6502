@@ -1,6 +1,6 @@
 /* { dg-do compile } */
 /* { dg-options "-mno-sse" } */
-/* { dg-require-effective-target ilp32 } */
+/* { dg-require-effective-target ia32 } */
 
 float essef(float) __attribute__((sseregparm));
 double essed(double) __attribute__((sseregparm));
@@ -10,8 +10,8 @@ extern double d;
 extern float f;
 void test(void)
 {
-  f = essef(f); /* { dg-error "SSE" } */
-  d = essed(d); /* { dg-error "SSE" } */
-  f = ssef(f); /* { dg-error "SSE" } */
-  d = ssed(d); /* { dg-error "SSE" } */
+  f = essef(f);
+  d = essed(d);
+  f = ssef(f);
+  d = ssed(d);
 }

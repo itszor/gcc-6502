@@ -13,5 +13,5 @@ public:
 template<class T>
 void f()
 {
-  Vector<T>::iterator i = 0; // { dg-warning "" } missing typename
-}
+  Vector<T>::iterator i = 0; // { dg-error "typename" "typename" } missing typename
+} // { dg-error "expected" "expected" { target *-*-* } 16 }

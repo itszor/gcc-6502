@@ -5,9 +5,9 @@
 
 /* { dg-do compile } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.h"
 
-@interface Sprite: Object {
+@interface Sprite: TestsuiteObject {
   int sprite, spree;
 }
 + (void)setFoo:(int)foo;

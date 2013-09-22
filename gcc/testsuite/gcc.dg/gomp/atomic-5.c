@@ -11,9 +11,9 @@ void f1(void)
   #pragma omp atomic
     x %= 2;		/* { dg-error "invalid operator" } */
   #pragma omp atomic
-    x = x + 1;		/* { dg-error "invalid operator" } */
+    x = x + 1;
   #pragma omp atomic
-    x = 1;		/* { dg-error "invalid operator" } */
+    x = 1;		/* { dg-error "invalid form" } */
   #pragma omp atomic
     ++y;		/* { dg-error "read-only variable" } */
   #pragma omp atomic
@@ -35,4 +35,5 @@ void f1(void)
     ;
   /* Check that we didn't get stuck on the pragma eol marker.  */
   undef;		/* { dg-error "" } */
+  /* { dg-message "undeclared identifier is reported only once" "reminder" { target *-*-* } 37 } */
 }

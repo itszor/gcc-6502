@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include "../../tree-vect.h"
 
-__attribute__ ((noinline))
-void interp_pitch(float *exc, float *interp, int pitch, int len)
+__attribute__ ((noinline)) void
+interp_pitch(float *exc, float *interp, int pitch, int len)
 {
    int i,k;
    int maxj;
@@ -13,7 +13,7 @@ void interp_pitch(float *exc, float *interp, int pitch, int len)
    for (i=0;i<len;i++)
    {
       float tmp = 0;
-      for (k=0;k<7;k++)
+      for (k=0;k<12;k++)
       {
          tmp += exc[i-pitch+k+maxj-6];
       }
@@ -23,7 +23,7 @@ void interp_pitch(float *exc, float *interp, int pitch, int len)
 
 int main()
 {
-   float *exc = calloc(126,sizeof(float));
+   float *exc = calloc(136,sizeof(float));
    float *interp = calloc(80,sizeof(float));
    int pitch = -35;
 

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -34,6 +32,9 @@
 --  This unit provides software routines for doing arithmetic on 64-bit
 --  signed integer values in cases where either overflow checking is
 --  required, or intermediate results are longer than 64 bits.
+
+pragma Restrictions (No_Elaboration_Code);
+--  Allow direct call from gigi generated code
 
 with Interfaces;
 
@@ -51,8 +52,10 @@ package System.Arith_64 is
    --  bits, otherwise returns the 64-bit signed integer difference.
 
    function Multiply_With_Ovflo_Check (X, Y : Int64) return Int64;
+   pragma Export (C, Multiply_With_Ovflo_Check, "__gnat_mulv64");
    --  Raises Constraint_Error if product of operands overflows 64
    --  bits, otherwise returns the 64-bit signed integer product.
+   --  GIGI may also call this routine directly.
 
    procedure Scaled_Divide
      (X, Y, Z : Int64;
@@ -63,7 +66,7 @@ package System.Arith_64 is
    --  or if the quotient does not fit in 64-bits. Round indicates if
    --  the result should be rounded. If Round is False, then Q, R are
    --  the normal quotient and remainder from a truncating division.
-   --  If Round is True, then Q is the rounded quotient. the remainder
+   --  If Round is True, then Q is the rounded quotient. The remainder
    --  R is not affected by the setting of the Round flag.
 
    procedure Double_Divide

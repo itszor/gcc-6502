@@ -1,4 +1,4 @@
-/* IdFunction.java -- 
+/* IdFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -62,9 +62,9 @@ public final class IdFunction
 
   final Expr arg;
 
-  IdFunction(List args)
+  IdFunction(List<Expr> args)
   {
-    this((Expr) args.get(0));
+    this(args.get(0));
   }
 
   public IdFunction(Expr arg)
@@ -75,9 +75,10 @@ public final class IdFunction
   public boolean matches(Node context)
   {
     Object ret = evaluate(context, 1, 1);
-    return !((Collection) ret).isEmpty();
+    return !((Collection<?>) ret).isEmpty();
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = arg.evaluate(context, pos, len);
@@ -98,5 +99,5 @@ public final class IdFunction
   {
     return "id(" + arg + ")";
   }
-  
+
 }

@@ -1,12 +1,11 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
-//
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file tr1/gamma.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -49,18 +43,19 @@
 //   (4) Gamma, Exploring Euler's Constant, Julian Havil,
 //       Princeton, 2003.
 
-#ifndef _TR1_GAMMA_TCC
-#define _TR1_GAMMA_TCC 1
+#ifndef _GLIBCXX_TR1_GAMMA_TCC
+#define _GLIBCXX_TR1_GAMMA_TCC 1
 
 #include "special_function_util.h"
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /**
      *   @brief This returns Bernoulli numbers from a table or by summation
@@ -72,7 +67,8 @@ namespace tr1
      *   @return  The Bernoulli number of order n.
      */
     template <typename _Tp>
-    _Tp __bernoulli_series(unsigned int __n)
+    _Tp
+    __bernoulli_series(unsigned int __n)
     {
 
       static const _Tp __num[28] = {
@@ -135,10 +131,8 @@ namespace tr1
      */
     template<typename _Tp>
     inline _Tp
-    __bernoulli(const int __n)
-    {
-      return __bernoulli_series<_Tp>(__n);
-    }
+    __bernoulli(int __n)
+    { return __bernoulli_series<_Tp>(__n); }
 
 
     /**
@@ -151,7 +145,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __log_gamma_bernoulli(const _Tp __x)
+    __log_gamma_bernoulli(_Tp __x)
     {
       _Tp __lg = (__x - _Tp(0.5L)) * std::log(__x) - __x
                + _Tp(0.5L) * std::log(_Tp(2)
@@ -179,7 +173,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __log_gamma_lanczos(const _Tp __x)
+    __log_gamma_lanczos(_Tp __x)
     {
       const _Tp __xm1 = __x - _Tp(1);
 
@@ -223,7 +217,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __log_gamma(const _Tp __x)
+    __log_gamma(_Tp __x)
     {
       if (__x > _Tp(0.5L))
         return __log_gamma_lanczos(__x);
@@ -250,7 +244,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __log_gamma_sign(const _Tp __x)
+    __log_gamma_sign(_Tp __x)
     {
       if (__x > _Tp(0))
         return _Tp(1);
@@ -281,7 +275,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __log_bincoef(const unsigned int __n, const unsigned int __k)
+    __log_bincoef(unsigned int __n, unsigned int __k)
     {
       //  Max e exponent before overflow.
       static const _Tp __max_bincoeff
@@ -312,7 +306,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __bincoef(const unsigned int __n, const unsigned int __k)
+    __bincoef(unsigned int __n, unsigned int __k)
     {
       //  Max e exponent before overflow.
       static const _Tp __max_bincoeff
@@ -335,10 +329,8 @@ namespace tr1
      */
     template<typename _Tp>
     inline _Tp
-    __gamma(const _Tp __x)
-    {
-      return std::exp(__log_gamma(__x));
-    }
+    __gamma(_Tp __x)
+    { return std::exp(__log_gamma(__x)); }
 
 
     /**
@@ -356,7 +348,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __psi_series(const _Tp __x)
+    __psi_series(_Tp __x)
     {
       _Tp __sum = -__numeric_constants<_Tp>::__gamma_e() - _Tp(1) / __x;
       const unsigned int __max_iter = 100000;
@@ -386,7 +378,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __psi_asymp(const _Tp __x)
+    __psi_asymp(_Tp __x)
     {
       _Tp __sum = std::log(__x) - _Tp(0.5L) / __x;
       const _Tp __xx = __x * __x;
@@ -417,7 +409,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __psi(const _Tp __x)
+    __psi(_Tp __x)
     {
       const int __n = static_cast<int>(__x + 0.5L);
       const _Tp __eps = _Tp(4) * std::numeric_limits<_Tp>::epsilon();
@@ -446,7 +438,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __psi(const unsigned int __n, const _Tp __x)
+    __psi(unsigned int __n, _Tp __x)
     {
       if (__x <= _Tp(0))
         std::__throw_domain_error(__N("Argument out of range "
@@ -468,9 +460,10 @@ namespace tr1
         }
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }
 
-#endif // _TR1_GAMMA_TCC
+#endif // _GLIBCXX_TR1_GAMMA_TCC
 

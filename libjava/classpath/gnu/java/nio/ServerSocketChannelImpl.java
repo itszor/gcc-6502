@@ -1,4 +1,4 @@
-/* ServerSocketChannelImpl.java -- 
+/* ServerSocketChannelImpl.java --
    Copyright (C) 2002, 2003, 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -40,7 +40,6 @@ package gnu.java.nio;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NotYetBoundException;
 import java.nio.channels.ServerSocketChannel;
@@ -98,7 +97,7 @@ public final class ServerSocketChannelImpl extends ServerSocketChannel
       throw new NotYetBoundException();
 
     boolean completed = false;
-    
+
     try
       {
         begin();
@@ -121,7 +120,7 @@ public final class ServerSocketChannelImpl extends ServerSocketChannel
   {
     return serverSocket;
   }
-  
+
   public VMChannel getVMChannel()
   {
     return channel;

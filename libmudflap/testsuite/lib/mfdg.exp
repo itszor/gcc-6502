@@ -1,9 +1,9 @@
 # `mfdg' - overrides parts of general purpose testcase driver.
-# Copyright (C) 1994 - 2001, 2003 Free Software Foundation, Inc.
+# Copyright (C) 1994-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 # 
 # This program is distributed in the hope that it will be useful,
@@ -12,8 +12,8 @@
 # GNU General Public License for more details.
 # 
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 
 
 # This is a modified excerpt of dejagnu/lib/dg.exp.
@@ -33,6 +33,7 @@ load_lib dg.exp
 proc dg-test { args } {
     global dg-do-what-default dg-interpreter-batch-mode dg-linenum-format
     global errorCode errorInfo
+    global additional_prunes
     global tool
     global srcdir		;# eg: /calvin/dje/build/gcc/./testsuite/
     global host_triplet target_triplet
@@ -40,8 +41,7 @@ proc dg-test { args } {
     set keep 0
     set i 0
     set dg-repetitions 1 ;# may be overridden by { dg-repetitions N }
-    global dg-timeout
-    set dg-timeout 0 ;# likewise by { dg-timeout N }
+    unset_timeout_vars
 
     if { [string index [lindex $args 0] 0] == "-" } {
 	for { set i 0 } { $i < [llength $args] } { incr i } {
@@ -91,6 +91,8 @@ proc dg-test { args } {
     set dg-messages ""
     set dg-extra-tool-flags $default_extra_tool_flags
     set dg-final-code ""
+
+    set additional_prunes ""
 
     # `dg-output-text' is a list of two elements: pass/fail and text.
     # Leave second element off for now (indicates "don't perform test")
@@ -335,7 +337,6 @@ proc dg-test { args } {
 }
 
 
-
 # 
 # Indicate that this test case is to be rerun several times.  This
 # is useful if it is nondeterministic.  This applies to rerunning the
@@ -349,29 +350,16 @@ proc dg-repetitions { line value } {
 }
 
 
-# 
-# Indicate that this test case is to be run with a short timeout.
-# The embedded format is "{ dg-timeout N }", where N is in seconds.
-#
-proc dg-timeout { line value } {
-    global dg-timeout
-    set dg-timeout $value
-}
+# Prune any messages matching ARGS[1] (a regexp) from test output.
+proc dg-prune-output { args } {
+    global additional_prunes
 
-
-# dejagnu's config/unix.exp hard-codes 300 seconds as the timeout
-# for any natively run executable.  That's too long for tests run
-# multiple times and that may possibly hang.  So we override it here
-# to provide some degree of control.
-rename standard_wait hooked_standard_wait
-proc standard_wait { dest timeout } {
-    global dg-timeout
-    if {[info exists dg-timeout]} {
-	if {${dg-timeout} > 0} {
-	    verbose -log "Overriding timeout = ${dg-timeout}"
-	    set timeout ${dg-timeout}
-	}
+    if { [llength $args] != 2 } {
+	error "[lindex $args 1]: need one argument"
+	return
     }
 
-    hooked_standard_wait $dest $timeout
+    lappend additional_prunes [lindex $args 1]
 }
+
+set additional_prunes ""

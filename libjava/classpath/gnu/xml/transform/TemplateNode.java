@@ -1,4 +1,4 @@
-/* TemplateNode.java -- 
+/* TemplateNode.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -52,7 +52,7 @@ import gnu.xml.xpath.DocumentOrderComparator;
 abstract class TemplateNode
 {
 
-  static final Comparator documentOrderComparator =
+  static final Comparator<Node> documentOrderComparator =
     new DocumentOrderComparator();
 
   TemplateNode children;

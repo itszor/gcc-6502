@@ -1,5 +1,5 @@
 /* SourceGiopRmicCompiler -- Central GIOP-based RMI stub and tie compiler class.
-   Copyright (C) 2006 Free Software Foundation
+   Copyright (C) 2006, 2008, 2012 Free Software Foundation
 
 This file is part of GNU Classpath.
 
@@ -46,11 +46,11 @@ import java.util.TreeSet;
 /**
  * Provides the extended rmic functionality to generate the POA - based classes
  * for GIOP (javax.rmi.CORBA package).
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (audriusa@Bioinformatics.org)
  */
 public class SourceGiopRmicCompiler
-  extends Generator implements Comparator, RmicBackend
+  extends Generator implements Comparator<AbstractMethodGenerator>, RmicBackend
 {
   /** The package name. */
   protected String packag;
@@ -74,17 +74,18 @@ public class SourceGiopRmicCompiler
   /**
    * The Remote's, implemented by this class.
    */
-  protected Collection implementedRemotes = new HashSet();
+  protected Collection<Class<?>> implementedRemotes = new HashSet<Class<?>>();
 
   /**
    * The extra classes that must be imported.
    */
-  protected Collection extraImports = new HashSet();
+  protected Collection<String> extraImports = new HashSet<String>();
 
   /**
    * The methods we must implement.
    */
-  protected Collection methods = new HashSet();
+  protected Collection<AbstractMethodGenerator> methods =
+    new HashSet<AbstractMethodGenerator>();
 
   /**
    * The map of all code generator variables.
@@ -121,7 +122,7 @@ public class SourceGiopRmicCompiler
    * Verbose output
    */
   protected boolean verbose = false;
-  
+
   /**
    * Force mode - do not check the exceptions
    */
@@ -140,7 +141,7 @@ public class SourceGiopRmicCompiler
   /**
    * Clear data, preparing for the next compilation.
    */
-  public void reset()
+  public synchronized void reset()
   {
     packag = name = implName = stubName = null;
     implementedRemotes.clear();
@@ -148,10 +149,10 @@ public class SourceGiopRmicCompiler
     methods.clear();
     vars.clear();
   }
-  
+
   /**
    * Set the class path (handle the -classpath key)
-   * 
+   *
    * @param classPath the class path to set.
    */
   public void setClassPath(String classPath)
@@ -196,11 +197,11 @@ public class SourceGiopRmicCompiler
       }
 
     classLoader = new URLClassLoader(u, classLoader);
-  }    
-  
+  }
+
   /**
    * Loads the class with the given name (uses class path, if applicable)
-   * 
+   *
    * @param name the name of the class.
    */
   public Class loadClass(String name)
@@ -224,11 +225,11 @@ public class SourceGiopRmicCompiler
   /**
    * Compile the given class (the instance of Remote), generating the stub and
    * tie for it.
-   * 
+   *
    * @param remote
    *          the class to compile.
    */
-  public synchronized void compile(Class remote)
+  public synchronized void compile(Class<?> remote)
   {
     reset();
     String s;
@@ -247,7 +248,7 @@ public class SourceGiopRmicCompiler
         packag = s.substring(0, p);
         implName = name = s.substring(p + 1);
       }
-     
+
     name = convertStubName(name);
 
     stubName = name;
@@ -261,7 +262,7 @@ public class SourceGiopRmicCompiler
                          + implName);
 
     // Get the implemented remotes.
-    Class[] interfaces = remote.getInterfaces();
+    Class<?>[] interfaces = remote.getInterfaces();
 
     for (int i = 0; i < interfaces.length; i++)
       {
@@ -277,11 +278,11 @@ public class SourceGiopRmicCompiler
     vars.put("#idList", getIdList(implementedRemotes));
 
     // Collect and process methods.
-    Iterator iter = implementedRemotes.iterator();
+    Iterator<Class<?>> iter = implementedRemotes.iterator();
 
     while (iter.hasNext())
       {
-        Class c = (Class) iter.next();
+        Class<?> c = iter.next();
         Method[] m = c.getMethods();
 
         // Check if throws RemoteException.
@@ -292,17 +293,17 @@ public class SourceGiopRmicCompiler
 
             for (int j = 0; j < exc.length; j++)
               {
-                if (RemoteException.class.isAssignableFrom(exc[j]))
+                if (exc[j].isAssignableFrom(RemoteException.class))
                   {
                     remEx = true;
                     break;
                   }
-	      }
-	    if (! remEx && !force)
-	      throw new CompilationError(m[i].getName() + ", defined in "
-					 + c.getName()
-					 + ", does not throw "
-					 + RemoteException.class.getName());
+              }
+            if (! remEx && !force)
+              throw new CompilationError(m[i].getName() + ", defined in "
+                                         + c.getName()
+                                         + ", does not throw "
+                                         + RemoteException.class.getName());
             AbstractMethodGenerator mm = createMethodGenerator(m[i]);
             methods.add(mm);
           }
@@ -311,9 +312,9 @@ public class SourceGiopRmicCompiler
 
   /**
    * Create the method generator for the given method.
-   * 
+   *
    * @param m the method
-   * 
+   *
    * @return the created method generator
    */
   protected AbstractMethodGenerator createMethodGenerator(Method m)
@@ -324,12 +325,12 @@ public class SourceGiopRmicCompiler
   /**
    * Get the name of the given class. The class is added to imports, if not
    * already present and not from java.lang and not from the current package.
-   * 
+   *
    * @param nameIt
    *          the class to name
    * @return the name of class as it should appear in java language
    */
-  public String name(Class nameIt)
+  public synchronized String name(Class nameIt)
   {
     if (nameIt.isArray())
       {
@@ -342,7 +343,7 @@ public class SourceGiopRmicCompiler
             dimension++;
           }
 
-        StringBuffer brackets = new StringBuffer();
+        StringBuilder brackets = new StringBuilder();
 
         for (int i = 0; i < dimension; i++)
           {
@@ -369,42 +370,42 @@ public class SourceGiopRmicCompiler
 
   /**
    * Get the RMI-style repository Id for the given class.
-   * 
+   *
    * @param c
    *          the interface, for that the repository Id must be created.
    * @return the repository id
    */
-  public String getId(Class c)
+  public String getId(Class<?> c)
   {
     return "RMI:" + c.getName() + ":0000000000000000";
   }
 
   /**
    * Get repository Id string array declaration.
-   * 
+   *
    * @param remotes
    *          the collection of interfaces
    * @return the fully formatted string array.
    */
-  public String getIdList(Collection remotes)
+  public String getIdList(Collection<Class<?>> remotes)
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
 
     // Keep the Ids sorted, ensuring, that the same order will be preserved
     // between compilations.
-    TreeSet sortedIds = new TreeSet();
+    TreeSet<String> sortedIds = new TreeSet<String>();
 
-    Iterator iter = remotes.iterator();
+    Iterator<Class<?>> iter = remotes.iterator();
     while (iter.hasNext())
       {
-        sortedIds.add(getId((Class) iter.next()));
+        sortedIds.add(getId(iter.next()));
       }
 
-    iter = sortedIds.iterator();
-    while (iter.hasNext())
+    Iterator<String> iterIds = sortedIds.iterator();
+    while (iterIds.hasNext())
       {
-        b.append("      \"" + iter.next() + "\"");
-        if (iter.hasNext())
+        b.append("      \"" + iterIds.next() + "\"");
+        if (iterIds.hasNext())
           b.append(", \n");
       }
     return b.toString();
@@ -412,7 +413,7 @@ public class SourceGiopRmicCompiler
 
   /**
    * Generate stub. Can only be called from {@link #compile}.
-   * 
+   *
    * @return the string, containing the text of the generated stub.
    */
   public String generateStub()
@@ -420,11 +421,11 @@ public class SourceGiopRmicCompiler
     String template = getResource("Stub.jav");
 
     // Generate methods.
-    StringBuffer b = new StringBuffer();
-    Iterator iter = methods.iterator();
+    StringBuilder b = new StringBuilder();
+    Iterator<AbstractMethodGenerator> iter = methods.iterator();
     while (iter.hasNext())
       {
-        AbstractMethodGenerator m = (AbstractMethodGenerator) iter.next();
+        AbstractMethodGenerator m = iter.next();
         b.append(m.generateStubMethod());
       }
 
@@ -439,12 +440,12 @@ public class SourceGiopRmicCompiler
   /**
    * Get the list of all interfaces, implemented by the class, that are
    * derived from Remote.
-   * 
+   *
    * @return the string - all interfaces.
    */
   public String getAllInterfaces()
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
     Iterator iter = implementedRemotes.iterator();
 
     while (iter.hasNext())
@@ -459,7 +460,7 @@ public class SourceGiopRmicCompiler
 
   /**
    * Generate Tie. Can only be called from {@link #compile}.
-   * 
+   *
    * @return the string, containing the text of the generated Tie.
    */
   public String generateTie()
@@ -474,7 +475,7 @@ public class SourceGiopRmicCompiler
     HashFinder hashFinder = new HashFinder();
 
     // Find the hash character position:
-    Iterator iter = methods.iterator();
+    Iterator<AbstractMethodGenerator> iter = methods.iterator();
     String[] names = new String[methods.size()];
     int p = 0;
 
@@ -489,12 +490,13 @@ public class SourceGiopRmicCompiler
 
     vars.put("#hashCharPos", Integer.toString(hashCharPosition));
 
-    ArrayList sortedMethods = new ArrayList(methods);
+    ArrayList<AbstractMethodGenerator> sortedMethods =
+      new ArrayList<AbstractMethodGenerator>(methods);
     Collections.sort(sortedMethods, this);
 
     iter = sortedMethods.iterator();
 
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
 
     MethodGenerator prev = null;
 
@@ -515,31 +517,31 @@ public class SourceGiopRmicCompiler
     return output;
   }
 
-  public int compare(Object a, Object b)
+  public int compare(AbstractMethodGenerator ag1, AbstractMethodGenerator ag2)
   {
-    MethodGenerator g1 = (MethodGenerator) a;
-    MethodGenerator g2 = (MethodGenerator) b;
+    MethodGenerator g1 = (MethodGenerator) ag1;
+    MethodGenerator g2 = (MethodGenerator) ag2;
 
     return g1.getHashChar() - g2.getHashChar();
   }
 
   /**
    * Import the extra classes, used as the method parameters and return values.
-   * 
+   *
    * @return the additional import block.
    */
   protected String getImportStatements()
   {
-    TreeSet imp = new TreeSet();
+    TreeSet<String> imp = new TreeSet<String>();
 
-    Iterator it = extraImports.iterator();
+    Iterator<String> it = extraImports.iterator();
     while (it.hasNext())
       {
-        String ic = it.next().toString();
+        String ic = it.next();
         imp.add("import " + ic + ";\n");
       }
 
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
     it = imp.iterator();
 
     while (it.hasNext())
@@ -561,7 +563,7 @@ public class SourceGiopRmicCompiler
 
   /**
    * Set the verbose output mode (false by default)
-   * 
+   *
    * @param isVerbose the verbose output mode
    */
   public void setVerbose(boolean isVerbose)
@@ -576,7 +578,7 @@ public class SourceGiopRmicCompiler
   {
     warnings = warn;
   }
-  
+
   /**
    * Set the error ignore mode.
    */
@@ -600,7 +602,7 @@ public class SourceGiopRmicCompiler
   {
     return stubName;
   }
-  
+
   /**
    * Additional processing of the stub name.
    */

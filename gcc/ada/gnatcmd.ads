@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,7 @@
 --  style switches that are accepted directly.
 
 --    The program is typically called GNAT when it is installed and
---    the two possibile styles of use are:
+--    the two possible styles of use are:
 
 --  To call gcc:
 

@@ -1,12 +1,11 @@
 // Heap implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -53,18 +47,25 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_heap.h
+/** @file bits/stl_heap.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{queue}
  */
 
 #ifndef _STL_HEAP_H
 #define _STL_HEAP_H 1
 
 #include <debug/debug.h>
-#include <bits/stl_move.h>
+#include <bits/move.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  /**
+   * @defgroup heap_algorithms Heap
+   * @ingroup sorting_algorithms
+   */
 
   template<typename _RandomAccessIterator, typename _Distance>
     _Distance
@@ -142,12 +143,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Push an element onto a heap.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap + element.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap + element.
+   *  @ingroup heap_algorithms
    *
-   *  This operation pushes the element at last-1 onto the valid heap over the
-   *  range [first,last-1).  After completion, [first,last) is a valid heap.
+   *  This operation pushes the element at last-1 onto the valid heap
+   *  over the range [__first,__last-1).  After completion,
+   *  [__first,__last) is a valid heap.
   */
   template<typename _RandomAccessIterator>
     inline void
@@ -189,14 +191,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Push an element onto a heap using comparison functor.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap + element.
-   *  @param  comp   Comparison functor.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap + element.
+   *  @param  __comp   Comparison functor.
+   *  @ingroup heap_algorithms
    *
-   *  This operation pushes the element at last-1 onto the valid heap over the
-   *  range [first,last-1).  After completion, [first,last) is a valid heap.
-   *  Compare operations are performed using comp.
+   *  This operation pushes the element at __last-1 onto the valid
+   *  heap over the range [__first,__last-1).  After completion,
+   *  [__first,__last) is a valid heap.  Compare operations are
+   *  performed using comp.
   */
   template<typename _RandomAccessIterator, typename _Compare>
     inline void
@@ -264,12 +267,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Pop an element off a heap.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @pre    [__first, __last) is a valid, non-empty range.
+   *  @ingroup heap_algorithms
    *
-   *  This operation pops the top of the heap.  The elements first and last-1
-   *  are swapped and [first,last-1) is made into a heap.
+   *  This operation pops the top of the heap.  The elements __first
+   *  and __last-1 are swapped and [__first,__last-1) is made into a
+   *  heap.
   */
   template<typename _RandomAccessIterator>
     inline void
@@ -282,10 +287,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       __glibcxx_function_requires(_Mutable_RandomAccessIteratorConcept<
 	    _RandomAccessIterator>)
       __glibcxx_function_requires(_LessThanComparableConcept<_ValueType>)
+      __glibcxx_requires_non_empty_range(__first, __last);
       __glibcxx_requires_valid_range(__first, __last);
       __glibcxx_requires_heap(__first, __last);
 
-      std::__pop_heap(__first, __last - 1, __last - 1);
+      if (__last - __first > 1)
+	{
+	  --__last;
+	  std::__pop_heap(__first, __last, __last);
+	}
     }
 
   template<typename _RandomAccessIterator, typename _Distance,
@@ -335,14 +345,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Pop an element off a heap using comparison functor.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @param  comp   Comparison functor to use.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @param  __comp   Comparison functor to use.
+   *  @ingroup heap_algorithms
    *
-   *  This operation pops the top of the heap.  The elements first and last-1
-   *  are swapped and [first,last-1) is made into a heap.  Comparisons are
-   *  made using comp.
+   *  This operation pops the top of the heap.  The elements __first
+   *  and __last-1 are swapped and [__first,__last-1) is made into a
+   *  heap.  Comparisons are made using comp.
   */
   template<typename _RandomAccessIterator, typename _Compare>
     inline void
@@ -353,18 +363,23 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       __glibcxx_function_requires(_Mutable_RandomAccessIteratorConcept<
 	    _RandomAccessIterator>)
       __glibcxx_requires_valid_range(__first, __last);
+      __glibcxx_requires_non_empty_range(__first, __last);
       __glibcxx_requires_heap_pred(__first, __last, __comp);
 
-      std::__pop_heap(__first, __last - 1, __last - 1, __comp);
+      if (__last - __first > 1)
+	{
+	  --__last;
+	  std::__pop_heap(__first, __last, __last, __comp);
+	}
     }
 
   /**
    *  @brief  Construct a heap over a range.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @ingroup heap_algorithms
    *
-   *  This operation makes the elements in [first,last) into a heap.
+   *  This operation makes the elements in [__first,__last) into a heap.
   */
   template<typename _RandomAccessIterator>
     void
@@ -398,13 +413,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Construct a heap over a range using comparison functor.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @param  comp   Comparison functor to use.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @param  __comp   Comparison functor to use.
+   *  @ingroup heap_algorithms
    *
-   *  This operation makes the elements in [first,last) into a heap.
-   *  Comparisons are made using comp.
+   *  This operation makes the elements in [__first,__last) into a heap.
+   *  Comparisons are made using __comp.
   */
   template<typename _RandomAccessIterator, typename _Compare>
     void
@@ -439,11 +454,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Sort a heap.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @ingroup heap_algorithms
    *
-   *  This operation sorts the valid heap in the range [first,last).
+   *  This operation sorts the valid heap in the range [__first,__last).
   */
   template<typename _RandomAccessIterator>
     void
@@ -458,18 +473,21 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       __glibcxx_requires_heap(__first, __last);
 
       while (__last - __first > 1)
-	std::pop_heap(__first, _RandomAccessIterator(__last--));
+	{
+	  --__last;
+	  std::__pop_heap(__first, __last, __last);
+	}
     }
 
   /**
    *  @brief  Sort a heap using comparison functor.
-   *  @param  first  Start of heap.
-   *  @param  last   End of heap.
-   *  @param  comp   Comparison functor to use.
-   *  @ingroup heap
+   *  @param  __first  Start of heap.
+   *  @param  __last   End of heap.
+   *  @param  __comp   Comparison functor to use.
+   *  @ingroup heap_algorithms
    *
-   *  This operation sorts the valid heap in the range [first,last).
-   *  Comparisons are made using comp.
+   *  This operation sorts the valid heap in the range [__first,__last).
+   *  Comparisons are made using __comp.
   */
   template<typename _RandomAccessIterator, typename _Compare>
     void
@@ -483,19 +501,22 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       __glibcxx_requires_heap_pred(__first, __last, __comp);
 
       while (__last - __first > 1)
-	std::pop_heap(__first, _RandomAccessIterator(__last--), __comp);
+	{
+	  --__last;
+	  std::__pop_heap(__first, __last, __last, __comp);
+	}
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
   /**
    *  @brief  Search the end of a heap.
-   *  @param  first  Start of range.
-   *  @param  last   End of range.
+   *  @param  __first  Start of range.
+   *  @param  __last   End of range.
    *  @return  An iterator pointing to the first element not in the heap.
-   *  @ingroup heap
+   *  @ingroup heap_algorithms
    *
-   *  This operation returns the last iterator i in [first, last) for which
-   *  the range [first, i) is a heap.
+   *  This operation returns the last iterator i in [__first, __last) for which
+   *  the range [__first, i) is a heap.
   */
   template<typename _RandomAccessIterator>
     inline _RandomAccessIterator
@@ -514,14 +535,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Search the end of a heap using comparison functor.
-   *  @param  first  Start of range.
-   *  @param  last   End of range.
-   *  @param  comp   Comparison functor to use.
+   *  @param  __first  Start of range.
+   *  @param  __last   End of range.
+   *  @param  __comp   Comparison functor to use.
    *  @return  An iterator pointing to the first element not in the heap.
-   *  @ingroup heap
+   *  @ingroup heap_algorithms
    *
-   *  This operation returns the last iterator i in [first, last) for which
-   *  the range [first, i) is a heap.  Comparisons are made using comp.
+   *  This operation returns the last iterator i in [__first, __last) for which
+   *  the range [__first, i) is a heap.  Comparisons are made using __comp.
   */
   template<typename _RandomAccessIterator, typename _Compare>
     inline _RandomAccessIterator
@@ -540,10 +561,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Determines whether a range is a heap.
-   *  @param  first  Start of range.
-   *  @param  last   End of range.
+   *  @param  __first  Start of range.
+   *  @param  __last   End of range.
    *  @return  True if range is a heap, false otherwise.
-   *  @ingroup heap
+   *  @ingroup heap_algorithms
   */
   template<typename _RandomAccessIterator>
     inline bool
@@ -552,11 +573,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Determines whether a range is a heap using comparison functor.
-   *  @param  first  Start of range.
-   *  @param  last   End of range.
-   *  @param  comp   Comparison functor to use.
+   *  @param  __first  Start of range.
+   *  @param  __last   End of range.
+   *  @param  __comp   Comparison functor to use.
    *  @return  True if range is a heap, false otherwise.
-   *  @ingroup heap
+   *  @ingroup heap_algorithms
   */
   template<typename _RandomAccessIterator, typename _Compare>
     inline bool
@@ -565,6 +586,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     { return std::is_heap_until(__first, __last, __comp) == __last; }
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_HEAP_H */

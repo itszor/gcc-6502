@@ -18,11 +18,16 @@
 #   libgcj_cflags	Special CFLAGS to use when building
 #   libgcj_cxxflags	Special CXXFLAGS to use when building
 #   libgcj_javaflags	Special JAVAFLAGS to use when building
+#   libgcj_sublib_ltflags  Special Libtool flags to use when building sublibs
+#   libgcj_sublib_core_extra_deps  Extra dependencies to add to core sublib
 #   libgcj_interpreter  If the bytecode interpreter supports this platform.
 #   enable_java_net_default  If java.net native code should be enabled by
 #                            default.
 #   enable_hash_synchronization_default  If hash synchronization should be
 #                                        enabled by default.
+#   enable_libgcj_sublibs_default  Whether to build libgcj as a bunch of
+#                                  separate shared libraries or in one 
+#                                  monolithic one.
 #   sysdeps_dir		Directory containing system-dependent headers
 #   slow_pthread_self   The synchronization code should try to avoid 
 #			pthread_self calls by caching thread IDs in a hashtable
@@ -38,9 +43,12 @@ libgcj_flags=
 libgcj_cflags=
 libgcj_cxxflags=
 libgcj_javaflags=
+libgcj_sublib_ltflags=
+libgcj_sublib_core_extra_deps=
 libgcj_interpreter=
 enable_java_net_default=yes
 enable_hash_synchronization_default=no
+enable_libgcj_sublibs_default=no
 sysdeps_dir=generic
 slow_pthread_self=
 can_unwind_signal=no
@@ -69,10 +77,11 @@ DIVIDESPEC=-fuse-divide-subroutine
 EXCEPTIONSPEC=-fnon-call-exceptions
 CHECKREFSPEC=
 BACKTRACESPEC=
+ATOMICSPEC=
 
 # This case statement supports per-CPU defaults.
 case "${host}" in
-  arm*-elf | strongarm*-elf | xscale*-elf)
+  arm*-elf)
 	with_libffi_default=no
 	PROCESS=Ecos
 	FILE=Posix
@@ -87,6 +96,11 @@ case "${host}" in
 	libgcj_interpreter=yes
 	sysdeps_dir=arm
 	fallback_backtrace_h=sysdep/arm/backtrace.h
+	libgcj_cxxflags=-Wno-abi
+	ATOMICSPEC=-fuse-atomic-builtins
+	# Work around a strange libtool feature that causes libraries
+	# to be linked with libgcc_s but not libgcc.  
+	LDFLAGS="${LDFLAGS} -Wl,-lgcc"
 	;;
   mips-tx39-*|mipstx39-unknown-*)
 	libgcj_flags="${libgcj_flags} -G 0"
@@ -118,7 +132,7 @@ case "${host}" in
 	slow_pthread_self=yes
 	;;
   x86_64-*)
-	sysdeps_dir=x86-64
+	sysdeps_dir=i386
 	# For 64-bit we always use SSE registers for arithmetic,
 	# which doesn't have the extra precision problems of the fpu.
 	# But be careful about 32-bit multilibs.
@@ -127,6 +141,9 @@ case "${host}" in
 		libgcj_flags="${libgcj_flags} -ffloat-store" ;;
 	esac
 	libgcj_flags="${libgcj_flags} -fomit-frame-pointer"
+	# On Solaris we have defined 'sun' which later conflicts with 
+	# namespace usage. So to work this away we use the below undefine.
+	libgcj_flags="${libgcj_flags} -Usun"
 	libgcj_cxxflags=
 	libgcj_cflags=
 	DIVIDESPEC=-fno-use-divide-subroutine
@@ -260,18 +277,17 @@ EOF
 	  rm -f conftest conftest.c
 	fi
 	;;
-   i[34567]86*-kfreebsd*-gnu | x86_64*-kfreebsd*-gnu)
+  i[34567]86*-kfreebsd*-gnu | x86_64*-kfreebsd*-gnu)
         libgcj_ld_symbolic='-Wl,-Bsymbolic'
         slow_pthread_self=
         ;;
   i[34567]86-*-solaris2.1[0-9]* )
-	sysdeps_dir=x86-64
+	sysdeps_dir=i386
 	DIVIDESPEC=-f%{m32:no-}%{!m32:%{!m64:no-}}%{m64:}use-divide-subroutine
 	;;
-  mips-sgi-irix6* )
-	sysdeps_dir=mips
-	# disable interpreter, no closure support for N32 and N64 ABIs
-	libgcj_interpreter=no
+  x86_64-*-solaris2.1[0-9]* )
+	sysdeps_dir=i386
+	DIVIDESPEC=-f%{m32:no-}use-divide-subroutine
 	;;
   arm*-linux* )
 	slow_pthread_self=no
@@ -295,16 +311,19 @@ EOF
 	slow_pthread_self=
 	can_unwind_signal=no
 	;;
-  i?86-*-darwin9*)
+  i?86-*-darwin[912]*)
 	can_unwind_signal=yes
 	DIVIDESPEC=-f%{m32:no-}%{!m32:%{!m64:no-}}%{m64:}use-divide-subroutine
         ;;
-  x86_64-*-darwin9*)
+  x86_64-*-darwin[912]*)
 	enable_hash_synchronization_default=yes
 	slow_pthread_self=
 	can_unwind_signal=yes
 	DIVIDESPEC=-fuse-divide-subroutine
 	CHECKREFSPEC=-fcheck-references
+	;;
+  i?86-*-solaris2* | x86_64-*-solaris2.1[0-9]*)
+	can_unwind_signal=yes
 	;;
   *-*-freebsd*)
 	slow_pthread_self=
@@ -328,6 +347,10 @@ EOF
 	can_unwind_signal=yes
 	DIVIDESPEC=-fuse-divide-subroutine
 	;;
+  sparc*-sun-solaris2.*)
+	slow_pthread_self=
+	can_unwind_signal=yes
+	;;
 esac
 
 case "${host}" in
@@ -335,6 +358,11 @@ case "${host}" in
 	fallback_backtrace_h=sysdep/i386/backtrace.h  
 	# We need a frame pointer on Windows, so override BACKTRACESPEC
   	BACKTRACESPEC=
+	# Win32 DLLs are limited to 64k exported symbols each.
+	enable_libgcj_sublibs_default=yes
+	libgcj_sublib_ltflags='$(lt_host_flags) \
+	    -Wl,-u,__ZN3org4ietf4jgss10GSSManagerC1Ev,-L..,-lgcj-noncore-dummy'
+	libgcj_sublib_core_extra_deps=libgcj-noncore-dummy.dll.a
   ;;
 esac
 

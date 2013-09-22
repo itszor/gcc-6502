@@ -1,5 +1,5 @@
 ;; Predicate definitions for Motorola 68000.
-;; Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2013 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -124,13 +124,20 @@
   (and (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le")
        (match_test "valid_dbcc_comparison_p_2 (op, mode)")))
 
+(define_predicate "m68k_cstore_comparison_operator"
+  (if_then_else (match_test "TARGET_68881")
+	        (match_operand 0 "comparison_operator")
+		(match_operand 0 "ordered_comparison_operator")))
+
 ;; Check for sign_extend or zero_extend.  Used for bit-count operands.
 
 (define_predicate "extend_operator"
   (match_code "sign_extend,zero_extend"))
 
 ;; Returns true if OP is either a symbol reference or a sum of a
-;; symbol reference and a constant.
+;; symbol reference and a constant.  This predicate is for "raw"
+;; symbol references not yet processed by legitimize*_address,
+;; hence we do not handle UNSPEC_{XGOT, TLS, XTLS} here.
 
 (define_predicate "symbolic_operand"
   (match_code "symbol_ref,label_ref,const")
@@ -192,6 +199,24 @@
 (define_predicate "pre_dec_operand"
   (and (match_code "mem")
        (match_test "GET_CODE (XEXP (op, 0)) == PRE_DEC")))
+
+;; A zero constant.
+(define_predicate "const0_operand"
+  (and (match_code "const_int,const_double,const_vector")
+       (match_test "op == CONST0_RTX (mode)")))
+
+;; A one constant (operand for conditional_trap).
+(define_predicate "const1_operand"
+  (and (match_code "const_int")
+       (match_test "op == const1_rtx")))
+
+;; A valid operand for a HImode or QImode conditional operation.
+;; ColdFire has tst patterns, but not cmp patterns.
+(define_predicate "m68k_subword_comparison_operand"
+  (if_then_else (match_test "TARGET_COLDFIRE")
+                (and (match_code "const_int")
+		     (match_test "op == const0_rtx"))
+		(match_operand 0 "general_src_operand")))
 
 ;; An operand for movsi_const0 pattern.
 (define_predicate "movsi_const0_operand"

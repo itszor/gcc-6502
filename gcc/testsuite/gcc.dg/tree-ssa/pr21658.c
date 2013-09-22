@@ -3,7 +3,7 @@
    statement below from being folded.  */
 
 /* { dg-do compile } */
-/* { dg-options "-O2 -fno-tree-dominator-opts -fdump-tree-ccp-details" } */
+/* { dg-options "-O2 -fno-tree-dominator-opts -fdump-tree-ccp1-details" } */
 
 void link_error (void);
 
@@ -17,5 +17,5 @@ f (void)
     link_error ();
 }
 
-/* { dg-final { scan-tree-dump-times "Folded statement: if " 1 "ccp1"} } */
-/* { dg-final { cleanup-tree-dump "ccp\[1-2\]" } } */
+/* { dg-final { scan-tree-dump-times "Folded into: if " 1 "ccp1"} } */
+/* { dg-final { cleanup-tree-dump "ccp1" } } */

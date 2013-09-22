@@ -1,4 +1,4 @@
-/* GnomeAttr.java - 
+/* GnomeAttr.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.Attr;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;
@@ -57,31 +59,31 @@ class GnomeAttr
   {
     super(id);
   }
-  
+
   public String getName()
   {
     return getNodeName();
   }
-  
+
   public native boolean getSpecified();
-  
+
   public native String getValue();
-  
+
   public native void setValue(String value)
     throws DOMException;
-  
+
   public Node getParentNode()
   {
     return null;
   }
-  
+
   public Element getOwnerElement()
   {
     return (Element) super.getParentNode();
   }
-  
+
   // DOM Level 3 methods
-  
+
   public TypeInfo getSchemaTypeInfo()
   {
     return new GnomeTypeInfo(id);
@@ -98,12 +100,12 @@ class GnomeAttr
             element.userIdAttrs != null &&
             element.userIdAttrs.contains(this));
   }
-  
+
   private native boolean xmljIsId();
 
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(getClass().getName());
+    CPStringBuilder buffer = new CPStringBuilder(getClass().getName());
     buffer.append("[name=");
     buffer.append(getName());
     buffer.append(",value=");
@@ -111,6 +113,5 @@ class GnomeAttr
     buffer.append("]");
     return buffer.toString();
   }
-  
-}
 
+}

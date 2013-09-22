@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -46,10 +44,7 @@
 --  System.Protected_Objects.Single_Entry
 
 with System.Task_Info;
---  used for Task_Info_Type
-
 with System.Parameters;
---  used for Size_Type
 
 package System.Tasking.Restricted.Stages is
    pragma Elaborate_Body;
@@ -92,9 +87,9 @@ package System.Tasking.Restricted.Stages is
    --         system__tasking__ada_task_control_blockIP (_init._atcb, 0);
    --         _init._task_id := _init._atcb'unchecked_access;
    --         create_restricted_task (unspecified_priority, tZ,
-   --           unspecified_task_info, task_procedure_access!(tB'address),
-   --           _init'address, tE'unchecked_access, _chain, _task_name, _init.
-   --           _task_id);
+   --           unspecified_task_info, unspecified_cpu,
+   --           task_procedure_access!(tB'address), _init'address,
+   --           tE'unchecked_access, _task_name, _init._task_id);
    --         return;
    --      end tVIP;
 
@@ -125,13 +120,19 @@ package System.Tasking.Restricted.Stages is
    --   t1S : constant String := "t1";
    --   tIP (t1, 3, _chain, t1S, 1);
 
-   --   activate_restricted_tasks (_chain'unchecked_access);
+   Partition_Elaboration_Policy : Character := 'C';
+   pragma Export (C, Partition_Elaboration_Policy,
+                  "__gnat_partition_elaboration_policy");
+   --  Partition elaboration policy. Value can be either 'C' for concurrent,
+   --  which is the default or 'S' for sequential. This value can be modified
+   --  by the binder generated code, before calling elaboration code.
 
    procedure Create_Restricted_Task
      (Priority      : Integer;
       Stack_Address : System.Address;
       Size          : System.Parameters.Size_Type;
       Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
       State         : Task_Procedure_Access;
       Discriminants : System.Address;
       Elaborated    : Access_Boolean;
@@ -139,7 +140,8 @@ package System.Tasking.Restricted.Stages is
       Task_Image    : String;
       Created_Task  : Task_Id);
    --  Compiler interface only. Do not call from within the RTS.
-   --  This must be called to create a new task.
+   --  This must be called to create a new task, when the partition
+   --  elaboration policy is not specified (or is concurrent).
    --
    --  Priority is the task's priority (assumed to be in the
    --  System.Any_Priority'Range)
@@ -154,6 +156,11 @@ package System.Tasking.Restricted.Stages is
    --  Task_Info is the task info associated with the created task, or
    --  Unspecified_Task_Info if none.
    --
+   --  CPU is the task affinity. We pass it as an Integer to avoid an explicit
+   --   dependency from System.Multiprocessors when not needed. Static range
+   --   checks are performed when analyzing the pragma, and dynamic ones are
+   --   performed before setting the affinity at run time.
+   --
    --  State is the compiler generated task's procedure body
    --
    --  Discriminants is a pointer to a limited record whose discriminants are
@@ -161,7 +168,7 @@ package System.Tasking.Restricted.Stages is
    --  single argument to State.
    --
    --  Elaborated is a pointer to a Boolean that must be set to true on exit
-   --  if the task could be sucessfully elaborated.
+   --  if the task could be successfully elaborated.
    --
    --  Chain is a linked list of task that needs to be created. On exit,
    --  Created_Task.Activation_Link will be Chain.T_ID, and Chain.T_ID will be
@@ -173,6 +180,26 @@ package System.Tasking.Restricted.Stages is
    --  Created_Task is the resulting task.
    --
    --  This procedure can raise Storage_Error if the task creation fails
+
+   procedure Create_Restricted_Task_Sequential
+     (Priority      : Integer;
+      Stack_Address : System.Address;
+      Size          : System.Parameters.Size_Type;
+      Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
+      State         : Task_Procedure_Access;
+      Discriminants : System.Address;
+      Elaborated    : Access_Boolean;
+      Task_Image    : String;
+      Created_Task  : Task_Id);
+   --  Compiler interface only. Do not call from within the RTS.
+   --  This must be called to create a new task, when the sequential partition
+   --  elaboration policy is used.
+   --
+   --  The parameters are the same as Create_Restricted_Task_Concurrent,
+   --  except there is no Chain parameter (for the activation chain), as there
+   --  is only one global activation chain, which is declared in the body of
+   --  this package.
 
    procedure Activate_Restricted_Tasks
      (Chain_Access : Activation_Chain_Access);
@@ -188,6 +215,16 @@ package System.Tasking.Restricted.Stages is
    --  it is not needed if priority-based scheduling is supported, since all
    --  the activated tasks synchronize on the activators lock before they start
    --  activating and so they should start activating in priority order.
+   --
+   --  When the partition elaboration policy is sequential, this procedure
+   --  does nothing, tasks will be activated at end of elaboration.
+
+   procedure Activate_All_Tasks_Sequential;
+   pragma Export (C, Activate_All_Tasks_Sequential,
+                  "__gnat_activate_all_tasks");
+   --  Binder interface only. Do not call from within the RTS. This must be
+   --  called an the end of the elaboration to activate all tasks, in order
+   --  to implement the sequential elaboration policy.
 
    procedure Complete_Restricted_Activation;
    --  Compiler interface only. Do not call from within the RTS. This should be
@@ -216,7 +253,7 @@ package System.Tasking.Restricted.Stages is
    --     restricted_terminated (t1._task_id)
 
    procedure Finalize_Global_Tasks;
-   --  This is needed to support the compiler interface; it will only be called
+   --  This is needed to support the compiler interface. It will only be called
    --  by the Environment task in the binder generated file (by adafinal).
    --  Instead, it will cause the Environment to block forever, since none of
    --  the dependent tasks are expected to terminate

@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.javax.naming.ictxImpl.trans;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.Enumeration;
 import java.util.NoSuchElementException;
 
@@ -45,7 +47,7 @@ import javax.naming.Name;
 
 /**
  * The implementation of the {@link Name}.
- * 
+ *
  * @author Audrius Meskauskas
  */
 public class GnuName
@@ -59,7 +61,7 @@ public class GnuName
   {
     /**
      * Get the new enumeration that enumerates from the given position forward
-     * 
+     *
      * @param position the position of the first name component to enumerate (0
      *          means first element)
      */
@@ -132,7 +134,7 @@ public class GnuName
 
   /**
    * Creates the name, containing from the given chain of the atomic components.
-   * 
+   *
    * @param name the array, containing the name components.
    */
   public GnuName(String[] name)
@@ -155,7 +157,7 @@ public class GnuName
    * Inserts the given <code>String</code> component to this <code>Name</code>
    * at the given index. The method modifies the current <code>Name</code> and
    * then returns it.
-   * 
+   *
    * @exception ArrayIndexOutOfBoundsException if the given index is smaller
    *              then zero or greater then or equal to <code>size()</code>.
    * @exception InvalidNameException if the given <code>String</code> is not a
@@ -179,7 +181,7 @@ public class GnuName
    * Adds the given <code>String</code> component to the end of this
    * <code>Name</code>. The method modifies the current <code>Name</code>
    * and then returns it.
-   * 
+   *
    * @exception InvalidNameException if the given <code>String</code> is not a
    *              valid component for this <code>Name</code>.
    */
@@ -201,7 +203,7 @@ public class GnuName
    * <code>Name</code> at the given index. Components after this index (if
    * any) are shifted up. The method modifies the current <code>Name</code>
    * and then returns it.
-   * 
+   *
    * @exception ArrayIndexOutOfBoundsException if the given index is smaller
    *              then zero or greater then or equal to <code>size()</code>.
    * @exception InvalidNameException if any of the given components is not a
@@ -228,7 +230,7 @@ public class GnuName
    * Adds all the components of the given <code>Name</code> to the end of this
    * <code>Name</code>. The method modifies the current <code>Name</code>
    * and then returns it.
-   * 
+   *
    * @exception InvalidNameException if any of the given components is not a
    *              valid component for this <code>Name</code>.
    */
@@ -294,7 +296,7 @@ public class GnuName
 
   /**
    * Gets the component at the given index.
-   * 
+   *
    * @exception ArrayIndexOutOfBoundsException if the given index is smaller
    *              then zero or greater then or equal to <code>size()</code>.
    */
@@ -315,7 +317,7 @@ public class GnuName
   /**
    * Returns the components till the given index as a <code>Name</code>. The
    * returned <code>Name</code> can be modified without changing the original.
-   * 
+   *
    * @param posn the ending position, exclusive
    * @exception ArrayIndexOutOfBoundsException if the given index is smaller
    *              then zero or greater then or equal to <code>size()</code>.
@@ -329,7 +331,7 @@ public class GnuName
    * Returns the components from the given index till the end as a
    * <code>Name</code>. The returned <code>Name</code> can be modified
    * without changing the original.
-   * 
+   *
    * @param posn the starting position, inclusive. If it is equal to the size of
    *          the name, the empty name is returned.
    * @exception ArrayIndexOutOfBoundsException if the given index is smaller
@@ -352,7 +354,7 @@ public class GnuName
   /**
    * Removes the component at the given index from this <code>Name</code>.
    * The method modifies the current <code>Name</code> and then returns it.
-   * 
+   *
    * @exception InvalidNameException if the name size reduces below zero.
    */
   public Object remove(int posn) throws InvalidNameException
@@ -455,7 +457,7 @@ public class GnuName
    */
   public String toString()
   {
-    StringBuffer b = new StringBuffer();
+    CPStringBuilder b = new CPStringBuilder();
     for (int i = 0; i < length; i++)
       {
         b.append(get(i));

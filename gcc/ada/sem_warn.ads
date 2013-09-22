@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1999-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -27,25 +27,43 @@
 --  about uses of uninitialized variables and unused with's. It also has
 --  some unrelated routines related to the generation of warnings.
 
+with Alloc; use Alloc;
+with Table;
 with Types; use Types;
 
 package Sem_Warn is
+
+   ------------------------
+   -- Warnings Off Table --
+   ------------------------
+
+   type Warnings_Off_Entry is record
+      N : Node_Id;
+      --  A pragma Warnings (Off, ent) node
+
+      E : Entity_Id;
+      --  The entity involved
+   end record;
+
+   --  An entry is made in the following table for any valid Pragma Warnings
+   --  (Off, entity) encountered while Opt.Warn_On_Warnings_Off is True. It
+   --  is used to generate warnings on any of these pragmas that turn out not
+   --  to be needed, or that could be replaced by Unmodified/Unreferenced.
+
+   package Warnings_Off_Pragmas is new Table.Table (
+     Table_Component_Type => Warnings_Off_Entry,
+     Table_Index_Type     => Int,
+     Table_Low_Bound      => 0,
+     Table_Initial        => Alloc.Warnings_Off_Pragmas_Initial,
+     Table_Increment      => Alloc.Warnings_Off_Pragmas_Increment,
+     Table_Name           => "Name_Warnings_Off_Pragmas");
 
    --------------------
    -- Initialization --
    --------------------
 
-   function Set_Warning_Switch (C : Character) return Boolean;
-   --  This function sets the warning switch or switches corresponding to the
-   --  given character. It is used to process a -gnatw switch on the command
-   --  line, or a character in a string literal in pragma Warnings. Returns
-   --  True for valid warning character C, False for invalid character.
-
-   function Set_Dot_Warning_Switch (C : Character) return Boolean;
-   --  This function sets the warning switch or switches corresponding to the
-   --  given character preceded by a dot. Used to process a -gnatw. switch on
-   --  the command line or .C in a string literal in pragma Warnings. Returns
-   --  True for valid warning character C, False for invalid character.
+   procedure Initialize;
+   --  Initialize this package for new compilation
 
    ------------------------------------------
    -- Routines to Handle Unused References --
@@ -104,7 +122,7 @@ package Sem_Warn is
    -- Output Routines --
    ---------------------
 
-   procedure Output_Non_Modifed_In_Out_Warnings;
+   procedure Output_Non_Modified_In_Out_Warnings;
    --  Warnings about IN OUT parameters that could be IN are collected till
    --  the end of the compilation process (see body of this routine for a
    --  discussion of why this is done). This procedure outputs the warnings.
@@ -121,6 +139,12 @@ package Sem_Warn is
    --  the compilation process (see Check_Unset_Reference for further
    --  details). This procedure outputs waiting warnings, if any.
 
+   procedure Output_Unused_Warnings_Off_Warnings;
+   --  Warnings about pragma Warnings (Off, ent) statements that are unused,
+   --  or could be replaced by Unmodified/Unreferenced pragmas, are collected
+   --  till the end of the compilation process. This procedure outputs waiting
+   --  warnings if any.
+
    ----------------------------
    -- Other Warning Routines --
    ----------------------------
@@ -130,10 +154,19 @@ package Sem_Warn is
 
    procedure Check_Infinite_Loop_Warning (Loop_Statement : Node_Id);
    --  N is the node for a loop statement. This procedure checks if a warning
-   --  should be given for a possible infinite loop, and if so issues it.
+   --  for a possible infinite loop should be given for a suspicious WHILE or
+   --  EXIT WHEN condition.
+
+   procedure Check_Low_Bound_Tested (Expr : Node_Id);
+   --  Expr is the node for a comparison operation. This procedure checks if
+   --  the comparison is a source comparison of P'First with some other value
+   --  and if so, sets the Low_Bound_Tested flag on entity P to suppress
+   --  warnings about improper low bound assumptions (we assume that if the
+   --  code has a test that explicitly checks P'First, then it is not operating
+   --  in blind assumption mode).
 
    procedure Warn_On_Known_Condition (C : Node_Id);
-   --  C is a node for a boolean expression resluting from a relational
+   --  C is a node for a boolean expression resulting from a relational
    --  or membership operation. If the expression has a compile time known
    --  value, then a warning is output if all the following conditions hold:
    --
@@ -161,6 +194,11 @@ package Sem_Warn is
    --  Returns True if we should activate warnings for entity E being modified
    --  as an out parameter. True if either Warn_On_Modified_Unread is set for
    --  an only OUT parameter, or if Warn_On_All_Unread_Out_Parameters is set.
+
+   procedure Warn_On_Overlapping_Actuals (Subp : Entity_Id; N : Node_Id);
+   --  Called on a subprogram call. Checks whether an IN OUT actual that is
+   --  not by-copy may overlap with another actual, thus leading to aliasing
+   --  in the body of the called subprogram.
 
    procedure Warn_On_Suspicious_Index (Name : Entity_Id; X : Node_Id);
    --  This is called after resolving an indexed component or a slice. Name

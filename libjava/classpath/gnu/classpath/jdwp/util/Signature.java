@@ -39,6 +39,8 @@ exception statement from your version. */
 
 package gnu.classpath.jdwp.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
@@ -59,7 +61,7 @@ public class Signature
    */
   public static String computeClassSignature (Class theClass)
   {
-    StringBuffer sb = new StringBuffer ();
+    CPStringBuilder sb = new CPStringBuilder ();
     _addToSignature (sb, theClass);
     return sb.toString ();
   }
@@ -87,24 +89,24 @@ public class Signature
   public static String computeMethodSignature (Method method)
   {
     return _computeSignature (method.getReturnType (),
-			      method.getParameterTypes ());
+                              method.getParameterTypes ());
   }
 
   private static String _computeSignature (Class returnType,
-					   Class[] paramTypes)
+                                           Class[] paramTypes)
   {
-    StringBuffer sb = new StringBuffer ("(");
+    CPStringBuilder sb = new CPStringBuilder ("(");
     if (paramTypes != null)
       {
-	for (int i = 0; i < paramTypes.length; ++i)
-	  _addToSignature (sb, paramTypes[i]);
+        for (int i = 0; i < paramTypes.length; ++i)
+          _addToSignature (sb, paramTypes[i]);
       }
     sb.append (")");
     _addToSignature (sb, returnType);
     return sb.toString();
   }
 
-  private static void _addToSignature (StringBuffer sb, Class k)
+  private static void _addToSignature (CPStringBuilder sb, Class k)
   {
     // For some reason there's no easy way to get the signature of a
     // class.
@@ -130,7 +132,7 @@ public class Signature
           sb.append('J');
         return;
       }
-    
+
     String name = k.getName ();
     int len = name.length ();
     sb.ensureCapacity (len);
@@ -138,10 +140,10 @@ public class Signature
       sb.append('L');
     for (int i = 0; i < len; ++i)
       {
-	char c = name.charAt (i);
-	if (c == '.')
-	  c = '/';
-	sb.append (c);
+        char c = name.charAt (i);
+        if (c == '.')
+          c = '/';
+        sb.append (c);
       }
     if (! k.isArray ())
       sb.append(';');

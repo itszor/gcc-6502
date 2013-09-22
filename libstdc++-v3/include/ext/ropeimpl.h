@@ -1,12 +1,11 @@
 // SGI's rope class implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  * Copyright (c) 1997
@@ -43,7 +37,7 @@
 
 /** @file ropeimpl.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ext/rope}
  */
 
 #include <cstdio>
@@ -54,14 +48,16 @@
 #include <ext/memory> // For uninitialized_copy_n
 #include <ext/numeric> // For power
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   using std::size_t;
   using std::printf;
   using std::basic_ostream;
   using std::__throw_length_error;
   using std::_Destroy;
-  using std::uninitialized_fill_n;
+  using std::__uninitialized_fill_n_a;
 
   // Set buf_start, buf_end, and buf_ptr appropriately, filling tmp_buf
   // if necessary.  Assumes _M_path_end[leaf_index] and leaf_pos are correct.
@@ -383,7 +379,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	    _Rope_RopeLeaf<_CharT, _Alloc>* __l
 	      = (_Rope_RopeLeaf<_CharT, _Alloc>*)this;
 	    __l->_Rope_RopeLeaf<_CharT, _Alloc>::~_Rope_RopeLeaf();
-	    _L_deallocate(__l, 1);
+	    this->_L_deallocate(__l, 1);
 	    break;
 	  }
 	case __detail::_S_concat:
@@ -392,7 +388,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	      = (_Rope_RopeConcatenation<_CharT, _Alloc>*)this;
 	    __c->_Rope_RopeConcatenation<_CharT, _Alloc>::
 	      ~_Rope_RopeConcatenation();
-	    _C_deallocate(__c, 1);
+	    this->_C_deallocate(__c, 1);
 	    break;
 	  }
 	case __detail::_S_function:
@@ -400,7 +396,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	    _Rope_RopeFunction<_CharT, _Alloc>* __f
 	      = (_Rope_RopeFunction<_CharT, _Alloc>*)this;
 	    __f->_Rope_RopeFunction<_CharT, _Alloc>::~_Rope_RopeFunction();
-	    _F_deallocate(__f, 1);
+	    this->_F_deallocate(__f, 1);
 	    break;
 	  }
 	case __detail::_S_substringfn:
@@ -409,7 +405,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	      (_Rope_RopeSubstring<_CharT, _Alloc>*)this;
 	    __ss->_Rope_RopeSubstring<_CharT, _Alloc>::
 	      ~_Rope_RopeSubstring();
-	    _S_deallocate(__ss, 1);
+	    this->_S_deallocate(__ss, 1);
 	    break;
 	  }
 	}
@@ -433,18 +429,18 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     {
       size_t __old_len = __r->_M_size;
       _CharT* __new_data = (_CharT*)
-	_Data_allocate(_S_rounded_up_size(__old_len + __len));
+	rope::_Data_allocate(_S_rounded_up_size(__old_len + __len));
       _RopeLeaf* __result;
 
       uninitialized_copy_n(__r->_M_data, __old_len, __new_data);
       uninitialized_copy_n(__iter, __len, __new_data + __old_len);
       _S_cond_store_eos(__new_data[__old_len + __len]);
-      try
+      __try
 	{
 	  __result = _S_new_RopeLeaf(__new_data, __old_len + __len,
 				     __r->_M_get_allocator());
 	}
-      catch(...)
+      __catch(...)
 	{
 	  _RopeRep::__STL_FREE_STRING(__new_data, __old_len + __len,
 				      __r->_M_get_allocator());
@@ -507,14 +503,14 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	{
 	  _RopeRep* __balanced;
 
-	  try
+	  __try
 	    {
 	      __balanced = _S_balance(__result);
 	      __result->_M_unref_nonnil();
 	    }
-	  catch(...)
+	  __catch(...)
 	    {
-	      _C_deallocate(__result,1);
+	      rope::_C_deallocate(__result,1);
 	      __throw_exception_again;
 	    }
 	  // In case of exception, we need to deallocate
@@ -558,9 +554,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	      _RopeRep* __nright =
 		_S_leaf_concat_char_iter((_RopeLeaf*)__right, __s, __slen);
 	      __left->_M_ref_nonnil();
-	      try
+	      __try
 		{ __result = _S_tree_concat(__left, __nright); }
-	      catch(...)
+	      __catch(...)
 		{
 		  _S_unref(__left);
 		  _S_unref(__nright);
@@ -571,12 +567,12 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	}
       _RopeRep* __nright =
 	__STL_ROPE_FROM_UNOWNED_CHAR_PTR(__s, __slen, __r->_M_get_allocator());
-      try
+      __try
 	{
 	  __r->_M_ref_nonnil();
 	  __result = _S_tree_concat(__r, __nright);
 	}
-      catch(...)
+      __catch(...)
 	{
 	  _S_unref(__r);
 	  _S_unref(__nright);
@@ -638,9 +634,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       _RopeRep* __right =
 	__STL_ROPE_FROM_UNOWNED_CHAR_PTR(__s, __slen, __r->_M_get_allocator());
       __r->_M_ref_nonnil();
-      try
+      __try
 	{ __result = _S_tree_concat(__r, __right); }
-      catch(...)
+      __catch(...)
 	{
 	  _S_unref(__r);
 	  _S_unref(__right);
@@ -690,9 +686,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 							      _M_data,
 							      __right->_M_size);
 		  __leftleft->_M_ref_nonnil();
-		  try
+		  __try
 		    { return(_S_tree_concat(__leftleft, __rest)); }
-		  catch(...)
+		  __catch(...)
 		    {
 		      _S_unref(__leftleft);
 		      _S_unref(__rest);
@@ -703,9 +699,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	}
       __left->_M_ref_nonnil();
       __right->_M_ref_nonnil();
-      try
+      __try
 	{ return(_S_tree_concat(__left, __right)); }
-      catch(...)
+      __catch(...)
 	{
 	  _S_unref(__left);
 	  _S_unref(__right);
@@ -817,10 +813,10 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	    if (__result_len > __lazy_threshold)
 	      goto lazy;
 	    __section = (_CharT*)
-	      _Data_allocate(_S_rounded_up_size(__result_len));
-	    try
+	      rope::_Data_allocate(_S_rounded_up_size(__result_len));
+	    __try
 	      {	(*(__f->_M_fn))(__start, __result_len, __section); }
-	    catch(...)
+	    __catch(...)
 	      {
 		_RopeRep::__STL_FREE_STRING(__section, __result_len,
 					    __base->_M_get_allocator());
@@ -965,13 +961,13 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	      bool __result;
 	      _CharT* __buffer =
 		(_CharT*)_Alloc().allocate(__len * sizeof(_CharT));
-	      try
+	      __try
 		{
 		  (*(__f->_M_fn))(__begin, __len, __buffer);
 		  __result = __c(__buffer, __len);
                   _Alloc().deallocate(__buffer, __len * sizeof(_CharT));
                 }
-	      catch(...)
+	      __catch(...)
 		{
 		  _Alloc().deallocate(__buffer, __len * sizeof(_CharT));
 		  __throw_exception_again;
@@ -1027,7 +1023,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
       if (!__is_simple)
 	__o.width(__w / __rope_len);
-      try
+      __try
 	{
 	  if (__is_simple && !__left && __pad_len > 0)
 	    _Rope_fill(__o, __pad_len);
@@ -1037,7 +1033,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	  if (!__is_simple)
 	    __o.width(__w);
 	}
-      catch(...)
+      __catch(...)
 	{
 	  if (!__is_simple)
 	    __o.width(__w);
@@ -1216,7 +1212,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       
       for (__i = 0; __i <= int(__detail::_S_max_rope_depth); ++__i)
 	__forest[__i] = 0;
-      try
+      __try
 	{
 	  _S_add_to_forest(__r, __forest);
 	  for (__i = 0; __i <= int(__detail::_S_max_rope_depth); ++__i)
@@ -1232,7 +1228,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 #endif
 	      }
 	}
-      catch(...)
+      __catch(...)
 	{
 	  for(__i = 0; __i <= int(__detail::_S_max_rope_depth); __i++)
 	    _S_unref(__forest[__i]);
@@ -1552,10 +1548,10 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	  __uninitialized_fill_n_a(__rest_buffer, __rest, __c,
 				   _M_get_allocator());
 	  _S_cond_store_eos(__rest_buffer[__rest]);
-	  try
+	  __try
 	    { __remainder = _S_new_RopeLeaf(__rest_buffer, __rest,
 					    _M_get_allocator()); }
-	  catch(...)
+	  __catch(...)
 	    {
 	      _RopeRep::__STL_FREE_STRING(__rest_buffer, __rest,
 					  _M_get_allocator());
@@ -1572,13 +1568,13 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	  __uninitialized_fill_n_a(__base_buffer, __exponentiate_threshold, __c,
 				   _M_get_allocator());
 	  _S_cond_store_eos(__base_buffer[__exponentiate_threshold]);
-	  try
+	  __try
 	    {
 	      __base_leaf = _S_new_RopeLeaf(__base_buffer,
 					    __exponentiate_threshold,
 					    _M_get_allocator());
 	    }
-	  catch(...)
+	  __catch(...)
 	    {
 	      _RopeRep::__STL_FREE_STRING(__base_buffer,
 					  __exponentiate_threshold,
@@ -1703,4 +1699,5 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
   { _Rope_rotate(__first, __middle, __last); }
 # endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace

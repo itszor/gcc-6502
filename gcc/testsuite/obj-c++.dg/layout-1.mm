@@ -3,15 +3,15 @@
 /* { dg-do compile } */
 /* { dg-options "-Wpadded -Wpacked -Wabi" } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.h"
 
-@interface Derived1: Object
+@interface Derived1: TestsuiteObject
 { }
 @end
 
-@interface Derived2: Object
+@interface Derived2: TestsuiteObject
 - (id) foo;
 @end
 
-/* { dg-excess-errors "In file included from" { target lp64 } } */
-/* { dg-bogus "padding struct to align" "PR23610" { xfail lp64 } 1 } */
+/* { dg-prune-output "In output included from" }   Ignore this message.  */
+/* { dg-bogus "padding struct to align" "PR23610" { target *-*-* } 0 } */

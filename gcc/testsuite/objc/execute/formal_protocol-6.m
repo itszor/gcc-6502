@@ -1,6 +1,8 @@
 /* Contributed by Nicola Pero - Fri Mar  9 21:35:47 CET 2001 */
-#include <objc/objc.h>
+
+#include <stdlib.h>
 #include <objc/Protocol.h>
+#include "../../objc-obj-c++-shared/runtime.h"
 
 /* Test defining a protocol, and accessing it using @protocol */
 
@@ -15,7 +17,7 @@ int main (void)
 {
   Protocol *protocol = @protocol (Evaluating);
 
-  if (strcmp ([protocol name], "Evaluating"))
+  if (strcmp (protocol_getName(protocol), "Evaluating"))
     {
       abort ();
     }

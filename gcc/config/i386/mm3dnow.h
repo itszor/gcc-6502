@@ -1,10 +1,10 @@
-/* Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    GCC is distributed in the hope that it will be useful,
@@ -12,17 +12,14 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Implemented from the mm3dnow.h (of supposedly AMD origin) included with
    MSVC 7.1.  */
@@ -33,9 +30,7 @@
 #ifdef __3dNOW__
 
 #include <mmintrin.h>
-
-/* Internal data types for implementing the intrinsics.  */
-typedef float __v2sf __attribute__ ((__vector_size__ (8)));
+#include <prfchwintrin.h>
 
 extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _m_femms (void)
@@ -161,12 +156,6 @@ extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artific
 _m_prefetch (void *__P)
 {
   __builtin_prefetch (__P, 0, 3 /* _MM_HINT_T0 */);
-}
-
-extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artificial__))
-_m_prefetchw (void *__P)
-{
-  __builtin_prefetch (__P, 1, 3 /* _MM_HINT_T0 */);
 }
 
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))

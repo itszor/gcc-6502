@@ -12,12 +12,13 @@ class C
 class D
 {
    public:
-   void a(C& b); // { dg-error "" } referenced below
+   void a(C& b); // { dg-message "D::a|no known conversion" }
 };
 
 void C::test() const
 {
    D d;
 
-   d.a(*this);	// { dg-error "" } *this is const, so should get error
+   d.a(*this);	// { dg-error "match" } *this is const, so should get error
+   // { dg-message "candidate" "candidate note" { target *-*-* } 22 }
 }

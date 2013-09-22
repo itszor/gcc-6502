@@ -8,14 +8,14 @@
 template <typename T> class srp;
 template <typename T> struct ptr
 {
-  template <typename U> ptr(const srp<U> &other); // { dg-error "ptr<T>::ptr" }
+  template <typename U> ptr(const srp<U> &other); // { dg-message "ptr<T>::ptr" }
 };
 template <typename T> struct srp
 {
-  template <typename U> operator ptr<U>(void) const; // { dg-error "srp<T>::operator" }
+  template <typename U> operator ptr<U>(void) const; // { dg-message "srp<T>::operator" }
 };
 ptr<int> parent_get()
 {
-  srp<int> parent;
+  srp<int> parent;		// { dg-message "candidate" }
   return parent; // { dg-error "is ambiguous" }
 }

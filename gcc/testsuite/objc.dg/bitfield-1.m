@@ -2,15 +2,16 @@
    being "promoted" to ints).  */
 /* Contributed by Ziemowit Laski <zlaski@apple.com>.  */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <objc/objc.h>
-#include <objc/Object.h>
 
 extern void abort(void);
 
 #define CHECK_IF(expr) if(!(expr)) abort();
 
-@interface Base: Object 
+@interface Base: TestsuiteObject 
 {
     int full;
     int full2: 32;
@@ -78,3 +79,4 @@ int main(void) {
 
   return 0;
 }
+

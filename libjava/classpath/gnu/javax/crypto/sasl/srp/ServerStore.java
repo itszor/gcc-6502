@@ -1,4 +1,4 @@
-/* ServerStore.java -- 
+/* ServerStore.java --
    Copyright (C) 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.javax.crypto.sasl.srp;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.HashMap;
 
 /**
@@ -66,7 +68,7 @@ public class ServerStore
 
   /**
    * Returns the classloader Singleton.
-   * 
+   *
    * @return the classloader Singleton instance.
    */
   static synchronized final ServerStore instance()
@@ -78,13 +80,13 @@ public class ServerStore
 
   /**
    * Returns a legible new session identifier.
-   * 
+   *
    * @return a new session identifier.
    */
   static synchronized final byte[] getNewSessionID()
   {
     final String sid = String.valueOf(++counter);
-    return new StringBuffer("SID-")
+    return new CPStringBuilder("SID-")
         .append("0000000000".substring(0, 10 - sid.length())).append(sid)
         .toString().getBytes();
   }
@@ -92,7 +94,7 @@ public class ServerStore
   /**
    * Returns a boolean flag indicating if the designated session is still alive
    * or not.
-   * 
+   *
    * @param sid the identifier of the session to check.
    * @return <code>true</code> if the designated session is still alive.
    *         <code>false</code> otherwise.
@@ -123,7 +125,7 @@ public class ServerStore
   /**
    * Records a mapping between a session identifier and the Security Context of
    * the designated SRP server mechanism instance.
-   * 
+   *
    * @param ttl the session's Time-To-Live indicator (in seconds).
    * @param ctx the server's security context.
    */
@@ -142,7 +144,7 @@ public class ServerStore
    * designated server's SASL Security Context. In the process, computes and
    * return the underlying mechanism server's evidence that shall be returned to
    * the client in a session re-use exchange.
-   * 
+   *
    * @param sid the identifier of the session to restore.
    * @return an SRP server's security context.
    */
@@ -160,7 +162,7 @@ public class ServerStore
 
   /**
    * Removes all information related to the designated session ID.
-   * 
+   *
    * @param sid the identifier of the seesion to invalidate.
    */
   void invalidateSession(final byte[] sid)

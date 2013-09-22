@@ -1,8 +1,9 @@
 /* Contributed by Nicola Pero - Fri Dec 14 08:36:00 GMT 2001 */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
+
 #include <objc/objc.h>
-#include <objc/objc-api.h>
-#include <objc/Object.h>
+#include "../../objc-obj-c++-shared/runtime.h"
 
 extern void abort (void);
 
@@ -23,9 +24,7 @@ extern void abort (void);
 {
   return 4;
 }
-#ifdef __NEXT_RUNTIME__                                   
 + initialize { return self; }
-#endif
 @end
 
 
@@ -34,13 +33,13 @@ int main (void)
   TestClass *test;
   Class testClass;
 
-  testClass = objc_get_class ("TestClass");
+  testClass = objc_getClass ("TestClass");
   if (testClass == Nil)
     {
       abort ();
     }
   
-  test = (TestClass *)(class_create_instance (testClass));
+  test = (TestClass *)(class_createInstance (testClass, 0));
   if (test == nil)
     {
       abort ();

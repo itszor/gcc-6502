@@ -1,6 +1,5 @@
 /* Utility macros to read Java(TM) .class files and byte codes.
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -45,14 +44,6 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #define JCF_word JCF_u4
 #endif
 
-/* If we have both "scandir" and "alphasort", we can cache directory
-   listings to reduce the time taken to search the classpath.  */
-#if defined(HAVE_SCANDIR) && defined(HAVE_ALPHASORT)
-#define JCF_USE_SCANDIR 1
-#else
-#define JCF_USE_SCANDIR 0
-#endif 
-
 /* On case-insensitive file systems, we need to ensure that a request
    to open a .java or .class file is honored only if the file to be
    opened is of the exact case we are asking for. In other words, we
@@ -74,7 +65,7 @@ jcf_open_exact_case (const char* filename, int oflag);
 struct JCF;
 typedef int (*jcf_filbuf_t) (struct JCF*, int needed);
 
-union cpool_entry GTY(()) {
+union GTY((variable_size)) cpool_entry {
   jword GTY ((tag ("0"))) w;
   tree GTY ((tag ("1"))) t;
 };
@@ -82,7 +73,7 @@ union cpool_entry GTY(()) {
 #define cpool_entry_is_tree(tag) \
   (tag & CONSTANT_ResolvedFlag) || tag == CONSTANT_Utf8
 
-typedef struct CPool GTY(()) {
+typedef struct GTY(()) CPool {
   /* Available number of elements in the constants array, before it
      must be re-allocated. */
   int capacity;
@@ -90,17 +81,28 @@ typedef struct CPool GTY(()) {
   /* The constant_pool_count. */
   int		count;
 
-  uint8* GTY((length ("%h.count")))	tags;
+  uint8 * GTY((atomic)) tags;
 
   union cpool_entry * GTY((length ("%h.count"),
 			   desc ("cpool_entry_is_tree (%1.tags%a)")))	data;
 } CPool;
 
+typedef struct GTY(()) bootstrap_method {
+  unsigned method_ref;
+  unsigned num_arguments;
+  unsigned * GTY((atomic)) bootstrap_arguments;
+} bootstrap_method;
+
+typedef struct GTY(()) BootstrapMethods {
+  unsigned count;
+  bootstrap_method* GTY((length ("%h.count"))) methods;
+} BootstrapMethods;
+
 struct ZipDirectory;
 
 /* JCF encapsulates the state of reading a Java Class File. */
 
-typedef struct JCF GTY(()) {
+typedef struct GTY(()) JCF {
   unsigned char * GTY ((skip)) buffer;
   unsigned char * GTY ((skip)) buffer_end;
   unsigned char * GTY ((skip)) read_ptr;
@@ -117,6 +119,7 @@ typedef struct JCF GTY(()) {
   JCF_u2 this_class;
   JCF_u2 super_class;
   CPool cpool;
+  BootstrapMethods bootstrap_methods;
 } JCF;
 /*typedef JCF*  JCF_FILE;*/
 
@@ -253,6 +256,10 @@ enum cpool_tag
   CONSTANT_NameAndType = 12,
   CONSTANT_Utf8 = 1,
   CONSTANT_Unicode = 2,
+  CONSTANT_MethodHandle = 15,
+  CONSTANT_MethodType = 16,
+  CONSTANT_InvokeDynamic = 18,
+
   CONSTANT_None = 0
 };
 
@@ -282,7 +289,6 @@ extern const char *jcf_write_base_directory;
 
 /* Debug macros, for the front end */
 
-extern int quiet_flag;
 #ifdef VERBOSE_SKELETON
 #undef SOURCE_FRONTEND_DEBUG
 #define SOURCE_FRONTEND_DEBUG(X)				\

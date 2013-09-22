@@ -1,5 +1,5 @@
-/* RSAPSSSignature.java -- 
-   Copyright (C) 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
+/* RSAPSSSignature.java --
+   Copyright (C) 2001, 2002, 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -75,7 +75,8 @@ import java.util.logging.Logger;
 public class RSAPSSSignature
     extends BaseSignature
 {
-  private static final Logger log = Logger.getLogger(RSAPSSSignature.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(RSAPSSSignature.class.getName()) : null;
 
   /** The underlying EMSA-PSS instance for this object. */
   private EMSA_PSS pss;
@@ -95,7 +96,7 @@ public class RSAPSSSignature
   /**
    * Constructs an instance of this object using the designated message digest
    * algorithm as its underlying hash function, and having 0-octet <i>salt</i>.
-   * 
+   *
    * @param mdName the canonical name of the underlying hash function.
    */
   public RSAPSSSignature(String mdName)
@@ -106,7 +107,7 @@ public class RSAPSSSignature
   /**
    * Constructs an instance of this object using the designated message digest
    * algorithm as its underlying hash function.
-   * 
+   *
    * @param mdName the canonical name of the underlying hash function.
    * @param sLen the desired length in octets of the salt to use for encoding /
    *          decoding signatures.

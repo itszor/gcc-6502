@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 2001-2007, AdaCore                     --
+--                     Copyright (C) 2001-2009, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,11 +23,11 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package provides a set of target dependent routines to build
---  static, dynamic and shared libraries.  There are several packages
---  providing the actual routines; this package calls them indirectly
---  by means of access-to-subprogram values; each target-dependent
---  package initializes these values in its elaboration block.
+--  This package provides a set of target dependent routines to build static,
+--  dynamic and shared libraries. There are several packages providing
+--  the actual routines. This package calls them indirectly by means of
+--  access-to-subprogram values. Each target-dependent package initializes
+--  these values in its elaboration block.
 
 with Prj; use Prj;
 
@@ -132,7 +132,7 @@ package MLib.Tgt is
    --  "libtoto.so" will be a symbolic link to "libtoto.so.2.1" which
    --  will be the actual library file.
    --
-   --  Symbol_Data is used for some patforms, including VMS, to generate
+   --  Symbol_Data is used for some platforms, including VMS, to generate
    --  the symbols to be exported by the library.
    --
    --  Note: Depending on the OS, some of the parameters may not be taken into
@@ -140,7 +140,8 @@ package MLib.Tgt is
    --  are ignored.
 
    function Library_Exists_For
-     (Project : Project_Id; In_Tree : Project_Tree_Ref) return Boolean;
+     (Project : Project_Id;
+      In_Tree : Project_Tree_Ref) return Boolean;
    --  Return True if the library file for a library project already exists.
    --  This function can only be called for library projects.
 
@@ -153,7 +154,7 @@ package MLib.Tgt is
    function Library_Major_Minor_Id_Supported return Boolean;
    --  Indicates if major and minor ids are supported for libraries.
    --  If they are supported, then a Library_Version such as libtoto.so.1.2
-   --  will have a major id of 1 and a minor id of 2. Then litoto.so,
+   --  will have a major id of 1 and a minor id of 2. Then libtoto.so,
    --  libtoto.so.1 and libtoto.so.1.2 will be created, all three designating
    --  the same file.
 
@@ -166,6 +167,7 @@ private
    type Is_Ext_Function is access function (Ext : String) return Boolean;
    type String_List_Access_Function is access function
      return String_List_Access;
+
    type Build_Dynamic_Library_Function is access procedure
      (Ofiles       : Argument_List;
       Options      : Argument_List;
@@ -176,11 +178,15 @@ private
       Driver_Name  : Name_Id := No_Name;
       Lib_Version  : String  := "";
       Auto_Init    : Boolean := False);
+
    type Library_Exists_For_Function is access function
-     (Project : Project_Id; In_Tree : Project_Tree_Ref) return Boolean;
+     (Project : Project_Id;
+      In_Tree : Project_Tree_Ref) return Boolean;
+
    type Library_File_Name_For_Function is access function
      (Project : Project_Id;
       In_Tree : Project_Tree_Ref) return File_Name_Type;
+
    type Boolean_Function is access function return Boolean;
    type Library_Support_Function is access function return Library_Support;
 
@@ -233,7 +239,8 @@ private
    Libgnat_Ptr : String_Function := Libgnat_Default'Access;
 
    function Library_Exists_For_Default
-     (Project : Project_Id; In_Tree : Project_Tree_Ref) return Boolean;
+     (Project : Project_Id;
+      In_Tree : Project_Tree_Ref) return Boolean;
    Library_Exists_For_Ptr : Library_Exists_For_Function :=
                               Library_Exists_For_Default'Access;
 

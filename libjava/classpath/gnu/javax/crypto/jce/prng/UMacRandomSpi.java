@@ -1,5 +1,5 @@
-/* UMacRandomSpi.java -- 
-   Copyright (C) 2001, 2002, 2006  Free Software Foundation, Inc.
+/* UMacRandomSpi.java --
+   Copyright (C) 2001, 2002, 2006, 2010  Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -41,6 +41,7 @@ package gnu.javax.crypto.jce.prng;
 import gnu.java.security.Configuration;
 import gnu.java.security.Registry;
 import gnu.java.security.prng.LimitReachedException;
+import gnu.java.security.jce.prng.SecureRandomAdapter;
 import gnu.javax.crypto.cipher.IBlockCipher;
 import gnu.javax.crypto.prng.UMacGenerator;
 
@@ -56,7 +57,9 @@ import java.util.logging.Logger;
 public class UMacRandomSpi
     extends SecureRandomSpi
 {
-  private static final Logger log = Logger.getLogger(UMacRandomSpi.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                    Logger.getLogger(UMacRandomSpi.class.getName()) : null;
+
   /** Class-wide prng to generate random material for the underlying prng. */
   private static final UMacGenerator prng; // blank final
   static
@@ -88,17 +91,13 @@ public class UMacRandomSpi
 
   public byte[] engineGenerateSeed(int numBytes)
   {
-    if (numBytes < 1)
-      return new byte[0];
-    byte[] result = new byte[numBytes];
-    this.engineNextBytes(result);
-    return result;
+    return SecureRandomAdapter.getSeed(numBytes);
   }
 
   public void engineNextBytes(byte[] bytes)
   {
     if (! adaptee.isInitialised())
-      this.engineSetSeed(new byte[0]);
+      engineSetSeed(engineGenerateSeed(32));
     while (true)
       {
         try

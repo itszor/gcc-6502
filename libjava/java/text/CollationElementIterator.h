@@ -28,6 +28,7 @@ class java::text::CollationElementIterator : public ::java::lang::Object
 
 public: // actually package-private
   CollationElementIterator(::java::text::RuleBasedCollator *, ::java::lang::String *);
+  CollationElementIterator(::java::text::RuleBasedCollator *, ::java::text::CharacterIterator *);
   ::java::text::RuleBasedCollator$CollationElement * nextBlock();
   ::java::text::RuleBasedCollator$CollationElement * previousBlock();
 public:
@@ -45,12 +46,12 @@ public:
   static const jint NULLORDER = -1;
 public: // actually package-private
   ::java::text::RuleBasedCollator * __attribute__((aligned(__alignof__( ::java::lang::Object)))) collator;
-  ::java::lang::String * text;
+  ::java::text::CharacterIterator * text;
   jint index;
   jint textIndex;
 private:
-  JArray< ::java::text::RuleBasedCollator$CollationElement * > * text_decomposition;
-  JArray< jint > * text_indexes;
+  JArray< ::java::text::RuleBasedCollator$CollationElement * > * textDecomposition;
+  JArray< jint > * textIndexes;
 public:
   static ::java::lang::Class class$;
 };

@@ -1,10 +1,10 @@
 //
-// Copyright (C) 2004, 2005 Free Software Foundation, Inc.
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -13,52 +13,16 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 20.4.1.1 allocator members
 
 #include <string>
 #include <stdexcept>
+#include <cstdio>
 #include <ext/mt_allocator.h>
-
-static size_t count;
-
-struct count_check
-{
-  count_check() { }
-  ~count_check()
-  {
-    // NB: __mt_allocator doesn't clean itself up. Thus, this will not
-    // be zero.
-    if (count != 0)
-      {
-	//throw std::runtime_error("allocation/deallocation count isn't zero");
-	printf("allocation/deallocation count is %zu \n", count);
-      }
-  }
-};
- 
-static count_check check;
-
-void* operator new(size_t size) throw(std::bad_alloc)
-{
-  printf("operator new is called \n");
-  void* p = malloc(size);
-  if (p == NULL)
-    throw std::bad_alloc();
-  count++;
-  return p;
-}
- 
-void operator delete(void* p) throw()
-{
-  printf("operator delete is called \n");
-  if (p == NULL)
-    return;
-  count--;
-}
+#include <replacement_memory_operators.h>
 
 typedef char value_type;
 typedef std::char_traits<value_type> traits_type;
@@ -69,6 +33,9 @@ typedef std::basic_string<value_type, traits_type, allocator_type> string_type;
 
 int main()
 {
+  // NB: __mt_allocator doesn't clean itself up. Thus, the count will
+  // not be zero.
+  __gnu_test::counter::exceptions(false);
   string_type s;
   s += "bayou bend";
   return 0;

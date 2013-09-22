@@ -40,6 +40,8 @@ package gnu.CORBA.CDR;
 
 import gnu.CORBA.Minor;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.omg.CORBA.LocalObject;
 import org.omg.CORBA.MARSHAL;
 
@@ -54,7 +56,7 @@ import java.util.TreeSet;
 
 /**
  * Our implementation of the sending context runtime.
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (AudriusA@Bioinformatics.org)
  */
 public class gnuRuntime
@@ -163,11 +165,11 @@ public class gnuRuntime
 
   /**
    * Create Runtime.
-   * 
+   *
    * @param a_id a repository Id, if only one Id was specified in the stream.
    * @param a_ids a repository Ids, if the multiple Ids were specified in te
    * stream.
-   * @param a_codabase a codebase, if it was specified in the stream.
+   * @param a_codebase a codebase, if it was specified in the stream.
    */
   public gnuRuntime(String a_codebase, Object a_target)
   {
@@ -198,7 +200,7 @@ public class gnuRuntime
 
   /**
    * Check if the object is already written.
-   * 
+   *
    * @return the position, at that the object is allready written or -1 if it is
    * not yet written.
    */
@@ -222,9 +224,9 @@ public class gnuRuntime
   /**
    * Get the object, written at the given position. This returs both shared
    * objects and repository Ids.
-   * 
+   *
    * @return the position, at that the object is allready written.
-   * 
+   *
    * @throws MARSHAL if there is no object written at that position.
    */
   public Object isObjectWrittenAt(int x, int offset)
@@ -236,7 +238,7 @@ public class gnuRuntime
       return e.object;
     else
       {
-        MARSHAL m = new MARSHAL("No object was written at " + x + 
+        MARSHAL m = new MARSHAL("No object was written at " + x +
           " (offset " + offset + ") r " + this + dump());
         m.minor = Minor.Graph;
         throw m;
@@ -266,7 +268,7 @@ public class gnuRuntime
   public void multipleIdsWritten(String[] ids, int at)
   {
     if (sh_ids.containsKey(ids))
-      throw new InternalError("Repetetive writing of the same string " + 
+      throw new InternalError("Repetetive writing of the same string " +
         ids + dump());
 
     Entry e = new Entry();
@@ -279,7 +281,7 @@ public class gnuRuntime
 
   /**
    * Check if the object is already written.
-   * 
+   *
    * @return the position, at that the object is allready written or -1 if it is
    * not yet written.
    */
@@ -318,7 +320,7 @@ public class gnuRuntime
    */
   public String dump()
   {
-    StringBuffer b = new StringBuffer(" Stream content: \n");
+    CPStringBuilder b = new CPStringBuilder(" Stream content: \n");
 
     // Sort by position.
     TreeSet t = new TreeSet(positions.keySet());

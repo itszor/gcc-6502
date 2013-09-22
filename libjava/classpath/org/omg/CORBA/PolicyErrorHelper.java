@@ -59,16 +59,16 @@ public abstract class PolicyErrorHelper
 {
   /**
    * Create the PolicyError typecode. The typecode defines a structure, named
-   * "PolicyError", containing the PolicyErrorCode (alias int, see 
+   * "PolicyError", containing the PolicyErrorCode (alias int, see
    * {@link PolicyErrorCodeHelper}) field, named "reason".
    */
   public static TypeCode type()
   {
     ORB orb = OrbRestricted.Singleton;
     StructMember[] members = new StructMember[ 1 ];
-    
+
     TypeCode field;
-    
+
     field =
       orb.create_alias_tc("IDL:omg.org/CORBA/PolicyErrorCode:1.0",
                           "PolicyErrorCode", orb.get_primitive_tc(TCKind.tk_short)
@@ -128,7 +128,7 @@ public abstract class PolicyErrorHelper
   public static PolicyError read(InputStream input)
   {
     // Read the exception repository id.
-    String id = input.read_string();
+    input.read_string();
     PolicyError value = new PolicyError();
 
     value.reason = input.read_short();

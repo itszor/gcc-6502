@@ -1,4 +1,4 @@
-! { dg-compile }
+! { dg-do compile }
 !
 ! Private types and types with private components
 ! are acceptable in local namelists.
@@ -25,5 +25,3 @@ contains
     namelist /nml3/ t2       ! ok, private components
   end subroutine
 END MODULE
-
-! { dg-final { cleanup-modules "nml" } }

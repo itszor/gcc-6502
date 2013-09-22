@@ -1,4 +1,4 @@
-/* Provider.java -- 
+/* Provider.java --
    Copyright (C) 2002, 2005, 2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -65,16 +65,16 @@ public final class Provider extends CharsetProvider
   /**
    * Map from charset name to charset canonical name. The strings
    * are all lower-case to allow case-insensitive retrieval of
-   * Charset instances. 
+   * Charset instances.
    */
-  private final HashMap canonicalNames;
+  private final HashMap<String, String> canonicalNames;
 
   /**
    * Map from lower-case canonical name to Charset.
    * TODO: We may want to use soft references.  We would then need to keep
    * track of the class name to regenerate the object.
    */
-  private final HashMap charsets;
+  private final HashMap<String, Charset> charsets;
 
   /**
    * We don't load all available charsets at the start
@@ -85,8 +85,8 @@ public final class Provider extends CharsetProvider
   Provider ()
   {
     extendedLoaded = false;
-    canonicalNames = new HashMap ();
-    charsets = new HashMap ();
+    canonicalNames = new HashMap<String,String> ();
+    charsets = new HashMap<String,Charset> ();
 
     // US-ASCII aka ISO646-US
     addCharset (new US_ASCII ());
@@ -203,7 +203,7 @@ public final class Provider extends CharsetProvider
     extendedLoaded = true;
   }
 
-  public Iterator charsets ()
+  public Iterator<Charset> charsets ()
   {
     loadExtended();
     return Collections.unmodifiableCollection (charsets.values ())
@@ -214,9 +214,9 @@ public final class Provider extends CharsetProvider
    * Returns a Charset instance by converting the given
    * name to lower-case, looking up the canonical charset
    * name and finally looking up the Charset with that name.
-   * 
+   *
    * <p>The lookup is therefore case-insensitive.</p>
-   * 
+   *
    *  @returns The Charset having <code>charsetName</code>
    *  as its alias or null if no such Charset exist.
    */
@@ -234,23 +234,23 @@ public final class Provider extends CharsetProvider
   /**
    * Puts a Charset under its canonical name into the 'charsets' map.
    * Then puts a mapping from all its alias names to the canonical name.
-   * 
+   *
    * <p>All names are converted to lower-case</p>.
-   * 
+   *
    * @param cs
    */
   private void addCharset (Charset cs)
   {
     String canonicalName = cs.name().toLowerCase();
     charsets.put (canonicalName, cs);
-    
+
     /* Adds a mapping between the canonical name
      * itself making a lookup using that name
      * no special case.
-     */  
+     */
     canonicalNames.put(canonicalName, canonicalName);
 
-    for (Iterator i = cs.aliases ().iterator (); i.hasNext (); )
+    for (Iterator<String> i = cs.aliases ().iterator (); i.hasNext (); )
       canonicalNames.put (((String) i.next()).toLowerCase(), canonicalName);
   }
 
@@ -258,14 +258,14 @@ public final class Provider extends CharsetProvider
   {
     // The default provider is safe to instantiate.
     if (singleton == null)
-      singleton = (Provider) AccessController.doPrivileged
-	(new PrivilegedAction()
-	  {
-	    public Object run()
-	    {
-	      return new Provider();
-	    }
-	  });
+      singleton = AccessController.doPrivileged
+        (new PrivilegedAction<Provider>()
+          {
+            public Provider run()
+            {
+              return new Provider();
+            }
+          });
     return singleton;
   }
 }

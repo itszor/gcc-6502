@@ -39,8 +39,10 @@ exception statement from your version. */
 package java.security;
 
 import gnu.classpath.SystemProperties;
+import gnu.java.lang.CPStringBuilder;
 import gnu.java.security.Engine;
 import gnu.java.security.action.GetSecurityPropertyAction;
+import gnu.java.security.jce.prng.SecureRandomAdapter;
 import gnu.java.security.jce.prng.Sha160RandomSpi;
 
 import java.io.IOException;
@@ -75,9 +77,9 @@ public class SecureRandom extends Random
   private static final long serialVersionUID = 4940670005562187L;
 
   //Serialized Field
-  long counter = 0;		//Serialized
+  long counter = 0;             //Serialized
   Provider provider = null;
-  byte[] randomBytes = null;	//Always null
+  byte[] randomBytes = null;    //Always null
   int randomBytesUsed = 0;
   SecureRandomSpi secureRandomSpi = null;
   byte[] state = null;
@@ -89,9 +91,9 @@ public class SecureRandom extends Random
   // ------------------------------------------------------------------------
 
   /**
-     Default constructor for SecureRandom. It constructs a 
-     new SecureRandom by instantating the first SecureRandom 
-     algorithm in the default security provier. 
+     Default constructor for SecureRandom. It constructs a
+     new SecureRandom by instantating the first SecureRandom
+     algorithm in the default security provier.
 
      It is not seeded and should be seeded using setSeed or else
      on the first call to getnextBytes it will force a seed.
@@ -132,9 +134,9 @@ public class SecureRandom extends Random
                         throw death;
                       }
                     catch (Throwable t)
-		      {
-			// Ignore.
-		      }
+                      {
+                        // Ignore.
+                      }
                   }
               }
           }
@@ -146,9 +148,9 @@ public class SecureRandom extends Random
   }
 
   /**
-     A constructor for SecureRandom. It constructs a new 
-     SecureRandom by instantating the first SecureRandom algorithm 
-     in the default security provier. 
+     A constructor for SecureRandom. It constructs a new
+     SecureRandom by instantating the first SecureRandom algorithm
+     in the default security provier.
 
      It is seeded with the passed function and is useful if the user
      has access to hardware random device (like a radiation detector).
@@ -165,9 +167,9 @@ public class SecureRandom extends Random
   }
 
   /**
-     A constructor for SecureRandom. It constructs a new 
+     A constructor for SecureRandom. It constructs a new
      SecureRandom using the specified SecureRandomSpi from
-     the specified security provier. 
+     the specified security provier.
 
      @param secureRandomSpi A SecureRandomSpi class
      @param provider A Provider class
@@ -181,7 +183,7 @@ public class SecureRandom extends Random
    * Private constructor called from the getInstance() method.
    */
   private SecureRandom(SecureRandomSpi secureRandomSpi, Provider provider,
-		       String algorithm)
+                       String algorithm)
   {
     this.secureRandomSpi = secureRandomSpi;
     this.provider = provider;
@@ -191,7 +193,7 @@ public class SecureRandom extends Random
   /**
    * Returns an instance of a <code>SecureRandom</code> from the first provider
    * that implements it.
-   * 
+   *
    * @param algorithm The algorithm name.
    * @return A new <code>SecureRandom</code> implementing the given algorithm.
    * @throws NoSuchAlgorithmException If no installed provider implements the
@@ -221,7 +223,7 @@ public class SecureRandom extends Random
   /**
    * Returns an instance of a <code>SecureRandom</code> for the specified
    * algorithm from the named provider.
-   * 
+   *
    * @param algorithm The algorithm name.
    * @param provider The provider name.
    * @return A new <code>SecureRandom</code> implementing the chosen
@@ -250,7 +252,7 @@ public class SecureRandom extends Random
   /**
    * Returns an instance of a <code>SecureRandom</code> for the specified
    * algorithm from the given provider.
-   * 
+   *
    * @param algorithm The <code>SecureRandom</code> algorithm to create.
    * @param provider The provider to use.
    * @throws NoSuchAlgorithmException If the algorithm cannot be found, or if
@@ -262,7 +264,7 @@ public class SecureRandom extends Random
   public static SecureRandom getInstance(String algorithm, Provider provider)
       throws NoSuchAlgorithmException
   {
-    StringBuilder sb = new StringBuilder("SecureRandom for algorithm [")
+    CPStringBuilder sb = new CPStringBuilder("SecureRandom for algorithm [")
         .append(algorithm).append("] from provider[")
         .append(provider).append("] could not be created");
     Throwable cause;
@@ -311,7 +313,7 @@ public class SecureRandom extends Random
   }
 
   /**
-     Seeds the SecureRandom. The class is re-seeded for each call and 
+     Seeds the SecureRandom. The class is re-seeded for each call and
      each seed builds on the previous seed so as not to weaken security.
 
      @param seed seed bytes to seed with
@@ -323,7 +325,7 @@ public class SecureRandom extends Random
   }
 
   /**
-     Seeds the SecureRandom. The class is re-seeded for each call and 
+     Seeds the SecureRandom. The class is re-seeded for each call and
      each seed builds on the previous seed so as not to weaken security.
 
      @param seed 8 seed bytes to seed with
@@ -338,13 +340,13 @@ public class SecureRandom extends Random
     if (secureRandomSpi != null)
       {
         byte[] tmp = { (byte) (0xff & (seed >> 56)),
-		       (byte) (0xff & (seed >> 48)),
-		       (byte) (0xff & (seed >> 40)),
-		       (byte) (0xff & (seed >> 32)),
-		       (byte) (0xff & (seed >> 24)),
-		       (byte) (0xff & (seed >> 16)),
-		       (byte) (0xff & (seed >> 8)),
-		       (byte) (0xff & seed)
+                       (byte) (0xff & (seed >> 48)),
+                       (byte) (0xff & (seed >> 40)),
+                       (byte) (0xff & (seed >> 32)),
+                       (byte) (0xff & (seed >> 24)),
+                       (byte) (0xff & (seed >> 16)),
+                       (byte) (0xff & (seed >> 8)),
+                       (byte) (0xff & seed)
         };
         secureRandomSpi.engineSetSeed(tmp);
         isSeeded = true;
@@ -392,7 +394,7 @@ public class SecureRandom extends Random
 
   /**
      Returns the given number of seed bytes. This method is
-     maintained only for backwards capability. 
+     maintained only for backwards capability.
 
      @param numBytes number of seed bytes to get
 
@@ -400,9 +402,7 @@ public class SecureRandom extends Random
    */
   public static byte[] getSeed(int numBytes)
   {
-    byte[] tmp = new byte[numBytes];
-    generateSeed(tmp);
-    return tmp;
+    return SecureRandomAdapter.getSeed(numBytes);
   }
 
   /**
@@ -417,64 +417,4 @@ public class SecureRandom extends Random
     return secureRandomSpi.engineGenerateSeed(numBytes);
   }
 
-  // Seed methods.
-
-  private static final String SECURERANDOM_SOURCE = "securerandom.source";
-  private static final String JAVA_SECURITY_EGD = "java.security.egd";
-  private static final Logger logger = Logger.getLogger(SecureRandom.class.getName());
-
-  private static int generateSeed(byte[] buffer)
-  {
-    return generateSeed(buffer, 0, buffer.length);
-  }
-
-  private static int generateSeed(byte[] buffer, int offset, int length)
-  {
-    URL sourceUrl = null;
-    String urlStr = null;
-
-    GetSecurityPropertyAction action = new GetSecurityPropertyAction(SECURERANDOM_SOURCE);
-    try
-      {
-        urlStr = (String) AccessController.doPrivileged(action);
-        if (urlStr != null)
-          sourceUrl = new URL(urlStr);
-      }
-    catch (MalformedURLException ignored)
-      {
-        logger.log(Level.WARNING, SECURERANDOM_SOURCE + " property is malformed: {0}", 
-                   urlStr);
-      }
-
-    if (sourceUrl == null)
-      {
-        try
-          {
-            urlStr = SystemProperties.getProperty(JAVA_SECURITY_EGD);
-            if (urlStr != null)
-              sourceUrl = new URL(urlStr);
-          }
-        catch (MalformedURLException mue)
-          {
-            logger.log(Level.WARNING, JAVA_SECURITY_EGD + " property is malformed: {0}",
-                       urlStr);
-          }
-      }
-
-    if (sourceUrl != null)
-      {
-        try
-          {
-            InputStream in = sourceUrl.openStream();
-            return in.read(buffer, offset, length);
-          }
-        catch (IOException ioe)
-          {
-            logger.log(Level.FINE, "error reading random bytes", ioe);
-          }
-      }
-
-    // If we get here, we did not get any seed from a property URL.
-    return VMSecureRandom.generateSeed(buffer, offset, length);
-  }
 }

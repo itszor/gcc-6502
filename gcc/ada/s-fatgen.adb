@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -54,7 +52,7 @@ package body System.Fat_Gen is
    Invrad : constant T := 1.0 / Rad;
 
    subtype Expbits is Integer range 0 .. 6;
-   --  2 ** (2 ** 7) might overflow.  how big can radix-16 exponents get?
+   --  2 ** (2 ** 7) might overflow.  How big can radix-16 exponents get?
 
    Log_Power : constant array (Expbits) of Integer := (1, 2, 4, 8, 16, 32, 64);
 
@@ -164,12 +162,11 @@ package body System.Fat_Gen is
 
    begin
       if X = 0.0 then
+
+         --  The normalized exponent of zero is zero, see RM A.5.2(15)
+
          Frac := X;
          Expo := 0;
-
-         --  More useful would be defining Expo to be T'Machine_Emin - 1 or
-         --  T'Machine_Emin - T'Machine_Mantissa, which would preserve
-         --  monotonicity of the exponent function ???
 
       --  Check for infinities, transfinites, whatnot
 
@@ -207,6 +204,7 @@ package body System.Fat_Gen is
                   end if;
 
                   --  Ax < R_Power (N)
+
                end loop;
 
                --  1 <= Ax < Rad
@@ -231,15 +229,11 @@ package body System.Fat_Gen is
                   end if;
 
                   --  R_Neg_Power (N) <= Ax < 1
+
                end loop;
             end if;
 
-            if X > 0.0 then
-               Frac := Ax;
-            else
-               Frac := -Ax;
-            end if;
-
+            Frac := (if X > 0.0 then Ax else -Ax);
             Expo := Ex;
          end;
       end if;
@@ -560,8 +554,8 @@ package body System.Fat_Gen is
    -- Scaling --
    -------------
 
-   --  Return x * rad ** adjustment quickly,
-   --  or quietly underflow to zero, or overflow naturally.
+   --  Return x * rad ** adjustment quickly, or quietly underflow to zero,
+   --  or overflow naturally.
 
    function Scaling (X : T; Adjustment : UI) return T is
    begin
@@ -569,7 +563,7 @@ package body System.Fat_Gen is
          return X;
       end if;
 
-      --  Nonzero x. essentially, just multiply repeatedly by Rad ** (+-2**n)
+      --  Nonzero x essentially, just multiply repeatedly by Rad ** (+-2**n)
 
       declare
          Y  : T  := X;
@@ -593,6 +587,7 @@ package body System.Fat_Gen is
                end if;
 
                --  -Log_Power (N) < Ex <= 0
+
             end loop;
 
             --  Ex = 0
@@ -618,6 +613,7 @@ package body System.Fat_Gen is
             end loop;
 
             --  Ex = 0
+
          end if;
 
          return Y;
@@ -655,13 +651,13 @@ package body System.Fat_Gen is
       else
          Decompose (X, X_Frac, X_Exp);
 
-         --  A special case, if the number we had was a negative power of
-         --  two, then we want to add half of what we would otherwise add,
-         --  since the exponent is going to be reduced.
+         --  A special case, if the number we had was a negative power of two,
+         --  then we want to add half of what we would otherwise add, since the
+         --  exponent is going to be reduced.
 
          --  Note that X_Frac has the same sign as X, so if X_Frac is -0.5,
-         --  then we know that we have a ngeative number (and hence a
-         --  negative power of 2).
+         --  then we know that we have a negative number (and hence a negative
+         --  power of 2).
 
          if X_Frac = -0.5 then
             return X + Gradual_Scaling (X_Exp - T'Machine_Mantissa - 1);
@@ -786,8 +782,8 @@ package body System.Fat_Gen is
       --  one read, but small enough so that all floating point object sizes
       --  are a multiple of the Float_Word'Size.
 
-      --  The following conditions must be met for all possible
-      --  instantiations of the attributes package:
+      --  The following conditions must be met for all possible instantiations
+      --  of the attributes package:
 
       --    - T'Size is an integral multiple of Float_Word'Size
 
@@ -802,21 +798,23 @@ package body System.Fat_Gen is
       type Rep_Index is range 0 .. 7;
 
       Rep_Words : constant Positive :=
-         (T'Size + Float_Word'Size - 1) / Float_Word'Size;
-      Rep_Last  : constant Rep_Index := Rep_Index'Min
-        (Rep_Index (Rep_Words - 1), (T'Mantissa + 16) / Float_Word'Size);
+                    (T'Size + Float_Word'Size - 1) / Float_Word'Size;
+      Rep_Last  : constant Rep_Index :=
+                    Rep_Index'Min
+                      (Rep_Index (Rep_Words - 1),
+                       (T'Mantissa + 16) / Float_Word'Size);
       --  Determine the number of Float_Words needed for representing the
       --  entire floating-point value. Do not take into account excessive
       --  padding, as occurs on IA-64 where 80 bits floats get padded to 128
       --  bits. In general, the exponent field cannot be larger than 15 bits,
-      --  even for 128-bit floating-poin t types, so the final format size
+      --  even for 128-bit floating-point types, so the final format size
       --  won't be larger than T'Mantissa + 16.
 
       type Float_Rep is
          array (Rep_Index range 0 .. Rep_Index (Rep_Words - 1)) of Float_Word;
 
       pragma Suppress_Initialization (Float_Rep);
-      --  This pragma supresses the generation of an initialization procedure
+      --  This pragma suppresses the generation of an initialization procedure
       --  for type Float_Rep when operating in Initialize/Normalize_Scalars
       --  mode. This is not just a matter of efficiency, but of functionality,
       --  since Valid has a pragma Inline_Always, which is not permitted if
@@ -873,8 +871,8 @@ package body System.Fat_Gen is
    begin
       if T'Denorm then
 
-         --  All denormalized numbers are valid, so only invalid numbers are
-         --  overflows and NaN's, both with exponent = Emax + 1.
+         --  All denormalized numbers are valid, so the only invalid numbers
+         --  are overflows and NaNs, both with exponent = Emax + 1.
 
          return E /= IEEE_Emax + 1;
 

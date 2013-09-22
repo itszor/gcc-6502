@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,12 +26,50 @@
 --  Pragma handling is isolated in a separate package
 --  (logically this processing belongs in chapter 4)
 
+with Namet; use Namet;
 with Types; use Types;
 
 package Sem_Prag is
 
+   -----------------
+   -- Subprograms --
+   -----------------
+
    procedure Analyze_Pragma (N : Node_Id);
    --  Analyze procedure for pragma reference node N
+
+   procedure Analyze_CTC_In_Decl_Part (N : Node_Id; S : Entity_Id);
+   --  Special analyze routine for contract-case and test-case pragmas that
+   --  appears within a declarative part where the pragma is associated with
+   --  a subprogram specification. N is the pragma node, and S is the entity
+   --  for the related subprogram. This procedure does a preanalysis of the
+   --  expressions in the pragma as "spec expressions" (see section in Sem
+   --  "Handling of Default and Per-Object Expressions...").
+
+   procedure Analyze_PPC_In_Decl_Part (N : Node_Id; S : Entity_Id);
+   --  Special analyze routine for precondition/postcondition pragma that
+   --  appears within a declarative part where the pragma is associated
+   --  with a subprogram specification. N is the pragma node, and S is the
+   --  entity for the related subprogram. This procedure does a preanalysis
+   --  of the expressions in the pragma as "spec expressions" (see section
+   --  in Sem "Handling of Default and Per-Object Expressions...").
+
+   function Check_Disabled (Nam : Name_Id) return Boolean;
+   --  This function is used in connection with pragmas Assertion, Check,
+   --  Precondition, and Postcondition, to determine if Check pragmas (or
+   --  corresponding Assert, Precondition, or Postcondition pragmas) are
+   --  currently disabled (as set by a Check_Policy or Assertion_Policy pragma
+   --  with the Disable argument).
+
+   function Check_Enabled (Nam : Name_Id) return Boolean;
+   --  This function is used in connection with pragmas Assertion, Check,
+   --  Precondition, and Postcondition, to determine if Check pragmas (or
+   --  corresponding Assert, Precondition, or Postcondition pragmas) are
+   --  currently active, as determined by the presence of -gnata on the
+   --  command line (which sets the default), and the appearance of pragmas
+   --  Check_Policy and Assertion_Policy as configuration pragmas either in
+   --  a configuration pragma file, or at the start of the current unit.
+   --  True is returned if the specified check is enabled.
 
    function Delay_Config_Pragma_Analyze (N : Node_Id) return Boolean;
    --  N is a pragma appearing in a configuration pragma file. Most such
@@ -43,12 +81,16 @@ package Sem_Prag is
    --  True have their analysis delayed until after the main program is parsed
    --  and analyzed.
 
+   procedure Initialize;
+   --  Initializes data structures used for pragma processing. Must be called
+   --  before analyzing each new main source program.
+
    function Is_Non_Significant_Pragma_Reference (N : Node_Id) return Boolean;
    --  The node N is a node for an entity and the issue is whether the
    --  occurrence is a reference for the purposes of giving warnings about
    --  unreferenced variables. This function returns True if the reference is
    --  not a reference from this point of view (e.g. the occurrence in a pragma
-   --  Pack) and False if it is a real reference (e.g. the occcurrence in a
+   --  Pack) and False if it is a real reference (e.g. the occurrence in a
    --  pragma Export);
 
    function Is_Pragma_String_Literal (Par : Node_Id) return Boolean;
@@ -69,11 +111,17 @@ package Sem_Prag is
    --  length, and then returns True. If it is not of the correct form, then an
    --  appropriate error message is posted, and False is returned.
 
+   procedure Make_Aspect_For_PPC_In_Gen_Sub_Decl (Decl : Node_Id);
+   --  This routine makes aspects from precondition or postcondition pragmas
+   --  that appear within a generic subprogram declaration. Decl is the generic
+   --  subprogram declaration node. Note that the aspects are attached to the
+   --  generic copy and also to the orginal tree.
+
    procedure Process_Compilation_Unit_Pragmas (N : Node_Id);
    --  Called at the start of processing compilation unit N to deal with any
    --  special issues regarding pragmas. In particular, we have to deal with
-   --  Suppress_All at this stage, since it appears after the unit instead of
-   --  before.
+   --  Suppress_All at this stage, since it can appear after the unit instead
+   --  of before (actually we allow it to appear anywhere).
 
    procedure Set_Encoded_Interface_Name (E : Entity_Id; S : Node_Id);
    --  This routine is used to set an encoded interface name. The node S is an

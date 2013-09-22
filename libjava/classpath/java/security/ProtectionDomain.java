@@ -39,13 +39,17 @@ package java.security;
 
 import gnu.classpath.SystemProperties;
 
+import gnu.java.lang.CPStringBuilder;
+
+import java.util.Enumeration;
+
 /**
  * This class represents a group of classes, along with their granted
  * permissions. The classes are identified by a {@link CodeSource}. Thus, any
  * class loaded from the specified {@link CodeSource} is treated as part of
  * this domain. The set of permissions is represented by an instance of
  * {@link PermissionCollection}.
- * 
+ *
  * <p>Every class in the system will belong to one and only one
  * <code>ProtectionDomain</code>.</p>
  *
@@ -69,13 +73,16 @@ public class ProtectionDomain
   /** Post 1.4 the policy may be refreshed! use false for pre 1.4. */
   private boolean staticBinding;
 
+  /** True if this protection domain has all permissions */
+  private boolean hasAllPermissions;
+
   /**
    * Initializes a new instance of <code>ProtectionDomain</code> representing
    * the specified {@link CodeSource} and set of permissions. No permissions
    * can be added later to the {@link PermissionCollection} and this contructor
    * will call the <code>setReadOnly</code> method on the specified set of
    * permissions.
-   * 
+   *
    * @param codesource
    *          The {@link CodeSource} for this domain.
    * @param permissions
@@ -91,11 +98,11 @@ public class ProtectionDomain
    * This method initializes a new instance of <code>ProtectionDomain</code>
    * given its {@link CodeSource}, granted permissions, associated
    * {@link ClassLoader} and {@link Principal}s.
-   * 
+   *
    * <p>Similar to the previous constructor, if the designated set of
    * permissions is not <code>null</code>, the <code>setReadOnly</code> method
    * is called on that set.</p>
-   * 
+   *
    * @param codesource
    *          The {@link CodeSource} for this domain.
    * @param permissions
@@ -126,6 +133,13 @@ public class ProtectionDomain
       {
         perms = permissions;
         perms.setReadOnly();
+        /* Check if this protection domain has all permissions */
+        Enumeration<Permission> e = permissions.elements();
+        while (e.hasMoreElements())
+          {
+            if (e.nextElement() instanceof AllPermission)
+              hasAllPermissions = true;
+          }
       }
 
     this.classloader = classloader;
@@ -136,7 +150,7 @@ public class ProtectionDomain
 
   /**
    * Returns the {@link CodeSource} of this domain.
-   * 
+   *
    * @return the {@link CodeSource} of this domain.
    * @since 1.2
    */
@@ -147,7 +161,7 @@ public class ProtectionDomain
 
   /**
    * Returns the {@link ClassLoader} of this domain.
-   * 
+   *
    * @return the {@link ClassLoader} of this domain.
    * @since 1.4
    */
@@ -158,7 +172,7 @@ public class ProtectionDomain
 
   /**
    * Returns a clone of the {@link Principal}s of this domain.
-   * 
+   *
    * @return a clone of the {@link Principal}s of this domain.
    * @since 1.4
    */
@@ -169,7 +183,7 @@ public class ProtectionDomain
 
   /**
    * Returns the {@link PermissionCollection} of this domain.
-   * 
+   *
    * @return The {@link PermissionCollection} of this domain.
    */
   public final PermissionCollection getPermissions()
@@ -180,7 +194,7 @@ public class ProtectionDomain
   /**
    * Tests whether or not the specified {@link Permission} is implied by the
    * set of permissions granted to this domain.
-   * 
+   *
    * @param permission
    *          the {@link Permission} to test.
    * @return <code>true</code> if the specified {@link Permission} is implied
@@ -188,6 +202,8 @@ public class ProtectionDomain
    */
   public boolean implies(Permission permission)
   {
+    if (hasAllPermissions)
+      return true;
     if (staticBinding)
       return (perms == null ? false : perms.implies(permission));
     // Else dynamically bound.  Do we have it?
@@ -198,13 +214,13 @@ public class ProtectionDomain
   /**
    * Returns a string representation of this object. It will include the
    * {@link CodeSource} and set of permissions associated with this domain.
-   * 
+   *
    * @return A string representation of this object.
    */
   public String toString()
   {
     String linesep = SystemProperties.getProperty("line.separator");
-    StringBuffer sb = new StringBuffer("ProtectionDomain (").append(linesep);
+    CPStringBuilder sb = new CPStringBuilder("ProtectionDomain (").append(linesep);
 
     if (code_source == null)
       sb.append("CodeSource:null");
@@ -239,7 +255,15 @@ public class ProtectionDomain
     sb.append(linesep);
     if (!staticBinding) // include all but dont force loading Policy.currentPolicy
       if (Policy.isLoaded())
-        sb.append(Policy.getCurrentPolicy().getPermissions(this));
+        try
+          {
+            sb.append(Policy.getPolicy().getPermissions(this));
+          }
+        catch (SecurityException e)
+          {
+            // We are not allowed access to the policy.
+            sb.append(perms);
+          }
       else // fallback on this one's permissions
         sb.append(perms);
     else

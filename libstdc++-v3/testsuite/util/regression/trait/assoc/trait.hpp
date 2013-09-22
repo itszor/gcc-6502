@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -14,19 +14,9 @@
 // General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// along with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -41,13 +31,14 @@
 
 /**
  * @file trait.hpp
- * Containsert traits for a random regression test
+ * Contains traits for a random regression test
  *    for a specific container type.
  */
 
 #ifndef PB_DS_REGRESSION_TEST_TRAIT_HPP
 #define PB_DS_REGRESSION_TEST_TRAIT_HPP
 
+#include <regression/trait/erase_if_fn.hpp>
 #include <regression/trait/assoc/to_string.hpp>
 #include <regression/trait/assoc/type_trait.hpp>
 #include <regression/trait/assoc/native_type_trait.hpp>
@@ -55,7 +46,6 @@
 #include <regression/trait/assoc/get_set_loads_trait.hpp>
 #include <regression/trait/assoc/get_set_load_trait.hpp>
 #include <regression/trait/assoc/node_update_trait.hpp>
-#include <regression/trait/erase_if_fn.hpp>
 
 namespace __gnu_pbds
 {
@@ -76,7 +66,7 @@ namespace detail
 #define PB_DS_NATIVE_TYPE_TRAITS_C_DEC \
   native_type_traits<typename PB_DS_TYPE_TRAITS_C_DEC::key_type, \
 		     typename PB_DS_TYPE_TRAITS_C_DEC::mapped_type, \
-		     typename Cntnr::allocator>
+		     typename Cntnr::allocator_type>
 
 #define PB_DS_RESIZE_TRAITS_C_DEC \
   regression_test_resize_traits<Cntnr, typename Cntnr::container_category>
@@ -104,13 +94,15 @@ namespace detail
     typedef PB_DS_TYPE_TRAITS_C_DEC type_traits_base;
 
   public:
-    typedef typename Cntnr::key_type key_type;
-    typedef typename Cntnr::const_key_reference const_key_reference;
     typedef typename Cntnr::value_type value_type;
     typedef typename Cntnr::const_reference const_reference;
     typedef typename PB_DS_NATIVE_TYPE_TRAITS_C_DEC::type native_type;
-    typedef typename native_type::key_type native_key_type;
     typedef typename native_type::value_type native_value_type;
+
+    // Only associative containers.
+    typedef typename Cntnr::key_type key_type;
+    typedef typename Cntnr::key_const_reference key_const_reference;
+    typedef typename native_type::key_type native_key_type;
 
     enum
       {
@@ -128,8 +120,7 @@ namespace detail
     static size_t
     erase_if(native_type& r_native_c)
     {
-      typedef regression_test_erase_if_fn<typename native_type::value_type> erase_if_fn;
-
+      typedef regression_test_erase_if_fn<native_value_type> erase_if_fn;
       typename native_type::iterator it = r_native_c.begin();
       size_t num_ersd = 0;
       while (it != r_native_c.end())
@@ -158,12 +149,12 @@ namespace detail
     generate_value(Gen& r_gen, size_t max)
     { return PB_DS_TYPE_TRAITS_C_DEC::generate_value(r_gen, max); }
 
-    static const_key_reference
+    static key_const_reference
     extract_key(const_reference r_val)
     { return type_traits_base::extract_key(r_val); }
 
     static native_key_type
-    native_key(const_key_reference r_key)
+    native_key(key_const_reference r_key)
     { return native_type_traits_base::native_key(r_key); }
 
     static native_value_type
@@ -183,7 +174,7 @@ namespace detail
     { return to_string(r_val); }
 
     static std::string
-    key_to_string(const_key_reference r_key)
+    key_to_string(key_const_reference r_key)
     { return to_string(r_key); }
 
     static std::string
@@ -191,15 +182,11 @@ namespace detail
     { return to_string(r_native_val); }
 
     static bool
-    prefix_match(const_key_reference r_key, const std::string& r_native_key)
+    prefix_match(key_const_reference r_key, const std::string& r_native_key)
     {
-      const size_t native_substr_len = std::min(r_key.length(), 
-						r_native_key.length());
-
-      const std::string native_substr = r_native_key.substr(0, 
-							    native_substr_len);
-
-      return native_substr == (const std::string&) r_key;
+      const size_t len = std::min(r_key.length(), r_native_key.length());
+      const std::string substr = r_native_key.substr(0, len);
+      return substr == static_cast<const std::string&>(r_key);
     }
   };
 

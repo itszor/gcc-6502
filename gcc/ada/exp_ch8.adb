@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,17 +25,22 @@
 
 with Atree;    use Atree;
 with Einfo;    use Einfo;
+with Exp_Ch4;  use Exp_Ch4;
 with Exp_Ch6;  use Exp_Ch6;
 with Exp_Dbug; use Exp_Dbug;
 with Exp_Util; use Exp_Util;
 with Freeze;   use Freeze;
+with Namet;    use Namet;
+with Nmake;    use Nmake;
 with Nlists;   use Nlists;
 with Opt;      use Opt;
 with Sem;      use Sem;
 with Sem_Ch8;  use Sem_Ch8;
+with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
+with Snames;   use Snames;
 with Stand;    use Stand;
-with Targparm; use Targparm;
+with Tbuild;   use Tbuild;
 
 package body Exp_Ch8 is
 
@@ -45,7 +50,6 @@ package body Exp_Ch8 is
 
    procedure Expand_N_Exception_Renaming_Declaration (N : Node_Id) is
       Decl : constant Node_Id := Debug_Renaming_Declaration (N);
-
    begin
       if Present (Decl) then
          Insert_Action (N, Decl);
@@ -86,114 +90,17 @@ package body Exp_Ch8 is
 
    procedure Expand_N_Object_Renaming_Declaration (N : Node_Id) is
       Nam  : constant Node_Id := Name (N);
-      T    : Entity_Id;
       Decl : Node_Id;
-
-      procedure Evaluate_Name (Fname : Node_Id);
-      --  A recursive procedure used to freeze a name in the sense described
-      --  above, i.e. any variable references or function calls are removed.
-      --  Of course the outer level variable reference must not be removed.
-      --  For example in A(J,F(K)), A is left as is, but J and F(K) are
-      --  evaluated and removed.
+      T    : Entity_Id;
 
       function Evaluation_Required (Nam : Node_Id) return Boolean;
-      --  Determines whether it is necessary to do static name evaluation
-      --  for renaming of Nam. It is considered necessary if evaluating the
-      --  name involves indexing a packed array, or extracting a component
-      --  of a record to which a component clause applies. Note that we are
-      --  only interested in these operations if they occur as part of the
-      --  name itself, subscripts are just values that are computed as part
-      --  of the evaluation, so their form is unimportant.
-
-      -------------------
-      -- Evaluate_Name --
-      -------------------
-
-      procedure Evaluate_Name (Fname : Node_Id) is
-         K : constant Node_Kind := Nkind (Fname);
-         E : Node_Id;
-
-      begin
-         --  For an explicit dereference, we simply force the evaluation
-         --  of the name expression. The dereference provides a value that
-         --  is the address for the renamed object, and it is precisely
-         --  this value that we want to preserve.
-
-         if K = N_Explicit_Dereference then
-            Force_Evaluation (Prefix (Fname));
-
-         --  For a selected component, we simply evaluate the prefix
-
-         elsif K = N_Selected_Component then
-            Evaluate_Name (Prefix (Fname));
-
-         --  For an indexed component, or an attribute reference, we evaluate
-         --  the prefix, which is itself a name, recursively, and then force
-         --  the evaluation of all the subscripts (or attribute expressions).
-
-         elsif Nkind_In (K, N_Indexed_Component, N_Attribute_Reference) then
-            Evaluate_Name (Prefix (Fname));
-
-            E := First (Expressions (Fname));
-            while Present (E) loop
-               Force_Evaluation (E);
-
-               if Original_Node (E) /= E then
-                  Set_Do_Range_Check (E, Do_Range_Check (Original_Node (E)));
-               end if;
-
-               Next (E);
-            end loop;
-
-         --  For a slice, we evaluate the prefix, as for the indexed component
-         --  case and then, if there is a range present, either directly or
-         --  as the constraint of a discrete subtype indication, we evaluate
-         --  the two bounds of this range.
-
-         elsif K = N_Slice then
-            Evaluate_Name (Prefix (Fname));
-
-            declare
-               DR     : constant Node_Id := Discrete_Range (Fname);
-               Constr : Node_Id;
-               Rexpr  : Node_Id;
-
-            begin
-               if Nkind (DR) = N_Range then
-                  Force_Evaluation (Low_Bound (DR));
-                  Force_Evaluation (High_Bound (DR));
-
-               elsif Nkind (DR) = N_Subtype_Indication then
-                  Constr := Constraint (DR);
-
-                  if Nkind (Constr) = N_Range_Constraint then
-                     Rexpr := Range_Expression (Constr);
-
-                     Force_Evaluation (Low_Bound (Rexpr));
-                     Force_Evaluation (High_Bound (Rexpr));
-                  end if;
-               end if;
-            end;
-
-         --  For a type conversion, the expression of the conversion must be
-         --  the name of an object, and we simply need to evaluate this name.
-
-         elsif K = N_Type_Conversion then
-            Evaluate_Name (Expression (Fname));
-
-         --  For a function call, we evaluate the call
-
-         elsif K = N_Function_Call then
-            Force_Evaluation (Fname);
-
-         --  The remaining cases are direct name, operator symbol and
-         --  character literal. In all these cases, we do nothing, since
-         --  we want to reevaluate each time the renamed object is used.
-
-         else
-            return;
-         end if;
-      end Evaluate_Name;
+      --  Determines whether it is necessary to do static name evaluation for
+      --  renaming of Nam. It is considered necessary if evaluating the name
+      --  involves indexing a packed array, or extracting a component of a
+      --  record to which a component clause applies. Note that we are only
+      --  interested in these operations if they occur as part of the name
+      --  itself, subscripts are just values that are computed as part of the
+      --  evaluation, so their form is unimportant.
 
       -------------------------
       -- Evaluation_Required --
@@ -254,15 +161,9 @@ package body Exp_Ch8 is
          Set_Etype (Defining_Identifier (N), Entity (Subtype_Mark (N)));
 
          --  Freeze the class-wide subtype here to ensure that the subtype
-         --  and equivalent type are frozen before the renaming. This is
-         --  required for targets where Frontend_Layout_On_Target is true.
-         --  For targets where Gigi is used, class-wide subtype should not
-         --  be frozen (in that case the subtype is marked as already frozen
-         --  when it's created).
+         --  and equivalent type are frozen before the renaming.
 
-         if Frontend_Layout_On_Target then
-            Freeze_Before (N, Entity (Subtype_Mark (N)));
-         end if;
+         Freeze_Before (N, Entity (Subtype_Mark (N)));
       end if;
 
       --  Ada 2005 (AI-318-02): If the renamed object is a call to a build-in-
@@ -272,7 +173,7 @@ package body Exp_Ch8 is
       --  eventually we plan to expand the functions that are treated as
       --  build-in-place to include other composite result types.
 
-      if Ada_Version >= Ada_05
+      if Ada_Version >= Ada_2005
         and then Is_Build_In_Place_Function_Call (Nam)
       then
          Make_Build_In_Place_Call_In_Anonymous_Context (Nam);
@@ -338,7 +239,51 @@ package body Exp_Ch8 is
    ----------------------------------------------
 
    procedure Expand_N_Subprogram_Renaming_Declaration (N : Node_Id) is
+      Loc : constant Source_Ptr := Sloc (N);
+      Id  : constant Entity_Id  := Defining_Entity (N);
+
+      function Build_Body_For_Renaming return Node_Id;
+      --  Build and return the body for the renaming declaration of an equality
+      --  or inequality operator.
+
+      -----------------------------
+      -- Build_Body_For_Renaming --
+      -----------------------------
+
+      function Build_Body_For_Renaming return Node_Id is
+         Body_Id : Entity_Id;
+         Decl    : Node_Id;
+
+      begin
+         Set_Alias (Id, Empty);
+         Set_Has_Completion (Id, False);
+         Rewrite (N,
+           Make_Subprogram_Declaration (Sloc (N),
+             Specification => Specification (N)));
+         Set_Has_Delayed_Freeze (Id);
+
+         Body_Id := Make_Defining_Identifier (Sloc (N), Chars (Id));
+         Set_Debug_Info_Needed (Body_Id);
+
+         Decl :=
+           Make_Subprogram_Body (Loc,
+             Specification              =>
+               Make_Function_Specification (Loc,
+                 Defining_Unit_Name       => Body_Id,
+                 Parameter_Specifications => Copy_Parameter_List (Id),
+                 Result_Definition        =>
+                   New_Occurrence_Of (Standard_Boolean, Loc)),
+             Declarations               => Empty_List,
+             Handled_Statement_Sequence => Empty);
+
+         return Decl;
+      end Build_Body_For_Renaming;
+
+      --  Local variables
+
       Nam : constant Node_Id := Name (N);
+
+   --  Start of processing for Expand_N_Subprogram_Renaming_Declaration
 
    begin
       --  When the prefix of the name is a function call, we must force the
@@ -356,6 +301,53 @@ package body Exp_Ch8 is
 
       elsif Nkind (Nam) = N_Explicit_Dereference then
          Force_Evaluation (Prefix (Nam));
+      end if;
+
+      --  Handle cases where we build a body for a renamed equality
+
+      if Is_Entity_Name (Nam)
+        and then Chars (Entity (Nam)) = Name_Op_Eq
+        and then Scope (Entity (Nam)) = Standard_Standard
+      then
+         declare
+            Left  : constant Entity_Id := First_Formal (Id);
+            Right : constant Entity_Id := Next_Formal (Left);
+            Typ   : constant Entity_Id := Etype (Left);
+            Decl  : Node_Id;
+
+         begin
+            --  Check whether this is a renaming of a predefined equality on an
+            --  untagged record type (AI05-0123).
+
+            if Ada_Version >= Ada_2012
+              and then Is_Record_Type (Typ)
+              and then not Is_Tagged_Type (Typ)
+              and then not Is_Frozen (Typ)
+            then
+               --  Build body for renamed equality, to capture its current
+               --  meaning. It may be redefined later, but the renaming is
+               --  elaborated where it occurs. This is technically known as
+               --  Squirreling semantics. Renaming is rewritten as a subprogram
+               --  declaration, and the body is inserted at the end of the
+               --  current declaration list to prevent premature freezing.
+
+               Decl := Build_Body_For_Renaming;
+
+               Set_Handled_Statement_Sequence (Decl,
+                 Make_Handled_Sequence_Of_Statements (Loc,
+                   Statements => New_List (
+                     Make_Simple_Return_Statement (Loc,
+                       Expression =>
+                         Expand_Record_Equality
+                           (Id,
+                            Typ    => Typ,
+                            Lhs    => Make_Identifier (Loc, Chars (Left)),
+                            Rhs    => Make_Identifier (Loc, Chars (Right)),
+                            Bodies => Declarations (Decl))))));
+
+               Append (Decl, List_Containing (N));
+            end if;
+         end;
       end if;
    end Expand_N_Subprogram_Renaming_Declaration;
 

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1998-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -49,7 +49,7 @@ package body Xr_Tabls is
    function  Get_Key (E : File_Reference) return Cst_String_Access;
    function  Hash (F : Cst_String_Access) return HTable_Headers;
    function  Equal (F1, F2 : Cst_String_Access) return Boolean;
-   --  The five subprograms above are used to instanciate the static
+   --  The five subprograms above are used to instantiate the static
    --  htable to store the files that should be processed.
 
    package File_HTable is new GNAT.HTable.Static_HTable
@@ -81,7 +81,7 @@ package body Xr_Tabls is
    function Next (E : Declaration_Reference) return Declaration_Reference;
    procedure Set_Next (E, Next : Declaration_Reference);
    function  Get_Key (E : Declaration_Reference) return Cst_String_Access;
-   --  The subprograms above are used to instanciate the static
+   --  The subprograms above are used to instantiate the static
    --  htable to store the entities that have been found in the application
 
    package Entities_HTable is new GNAT.HTable.Static_HTable
@@ -223,6 +223,7 @@ package body Xr_Tabls is
       Line         : Natural;
       Column       : Natural;
       Decl_Type    : Character;
+      Is_Parameter : Boolean := False;
       Remove_Only  : Boolean := False;
       Symbol_Match : Boolean := True)
       return         Declaration_Reference
@@ -235,7 +236,7 @@ package body Xr_Tabls is
       New_Decl : Declaration_Reference :=
                    Entities_HTable.Get (Key'Unchecked_Access);
 
-      Is_Parameter : Boolean := False;
+      Is_Param : Boolean := Is_Parameter;
 
    begin
       --  Insert the Declaration in the table. There might already be a
@@ -243,7 +244,7 @@ package body Xr_Tabls is
       --  need to check that first.
 
       if New_Decl /= null and then New_Decl.Symbol_Length = 0 then
-         Is_Parameter := New_Decl.Is_Parameter;
+         Is_Param := Is_Parameter or else New_Decl.Is_Parameter;
          Entities_HTable.Remove (Key'Unrestricted_Access);
          Entities_Count := Entities_Count - 1;
          Free (New_Decl.Key);
@@ -269,7 +270,7 @@ package body Xr_Tabls is
                                       Column        => Column,
                                       Source_Line   => null,
                                       Next          => null),
-              Is_Parameter  => Is_Parameter,
+              Is_Parameter  => Is_Param,
               Decl_Type     => Decl_Type,
               Body_Ref      => null,
               Ref_Ref       => null,
@@ -294,6 +295,10 @@ package body Xr_Tabls is
       then
          New_Decl.Match := Default_Match
            or else Match (File_Ref, Line, Column);
+         New_Decl.Is_Parameter := New_Decl.Is_Parameter or Is_Param;
+
+      elsif New_Decl /= null then
+         New_Decl.Is_Parameter := New_Decl.Is_Parameter or Is_Param;
       end if;
 
       return New_Decl;
@@ -392,10 +397,13 @@ package body Xr_Tabls is
       Labels_As_Ref : Boolean)
    is
       New_Ref : Reference;
+      New_Decl : Declaration_Reference;
+      pragma Unreferenced (New_Decl);
 
    begin
       case Ref_Type is
-         when 'b' | 'c' | 'm' | 'r' | 'R' | 'i' | ' ' | 'x' =>
+         when 'b' | 'c' | 'H' | 'm' | 'o' | 'r' | 'R' |
+              's' | 'i' | ' ' | 'x' =>
             null;
 
          when 'l' | 'w' =>
@@ -405,32 +413,23 @@ package body Xr_Tabls is
 
          when '=' | '<' | '>' | '^' =>
 
-            --  Create a dummy declaration in the table to report it as a
-            --  parameter. Note that the current declaration for the subprogram
-            --  comes before the declaration of the parameter.
+            --  Create dummy declaration in table to report it as a parameter
 
-            declare
-               Key      : constant String :=
-                            Key_From_Ref (File_Ref, Line, Column);
-               New_Decl : Declaration_Reference;
+            --  In a given ALI file, the declaration of the subprogram comes
+            --  before the declaration of the parameter. However, it is
+            --  possible that another ALI file has been parsed that also
+            --  references the parameter (for instance a named parameter in
+            --  a call), so we need to check whether there already exists a
+            --  declaration for the parameter.
 
-            begin
-               New_Decl := new Declaration_Record'
-                 (Symbol_Length => 0,
-                  Symbol        => "",
-                  Key           => new String'(Key),
-                  Decl          => null,
-                  Is_Parameter  => True,
-                  Decl_Type     => ' ',
-                  Body_Ref      => null,
-                  Ref_Ref       => null,
-                  Modif_Ref     => null,
-                  Match         => False,
-                  Par_Symbol    => null,
-                  Next          => null);
-               Entities_HTable.Set (New_Decl);
-               Entities_Count := Entities_Count + 1;
-            end;
+            New_Decl :=
+              Add_Declaration
+                (File_Ref     => File_Ref,
+                 Symbol       => "",
+                 Line         => Line,
+                 Column       => Column,
+                 Decl_Type    => ' ',
+                 Is_Parameter => True);
 
          when 'e' | 'z' | 't' | 'p' | 'P' | 'k' | 'd' =>
             return;
@@ -447,18 +446,17 @@ package body Xr_Tabls is
          Source_Line => null,
          Next        => null);
 
-      --  We can insert the reference in the list directly, since all
-      --  the references will appear only once in the ALI file
-      --  corresponding to the file where they are referenced.
-      --  This saves a lot of time compared to checking the list to check
-      --  if it exists.
+      --  We can insert the reference into the list directly, since all the
+      --  references will appear only once in the ALI file corresponding to the
+      --  file where they are referenced. This saves a lot of time compared to
+      --  checking the list to check if it exists.
 
       case Ref_Type is
          when 'b' | 'c' =>
             New_Ref.Next          := Declaration.Body_Ref;
             Declaration.Body_Ref  := New_Ref;
 
-         when 'r' | 'R' | 'i' | 'l' | ' ' | 'x' | 'w' =>
+         when 'r' | 'R' | 's' | 'H' | 'i' | 'l' | 'o' | ' ' | 'x' | 'w' =>
             New_Ref.Next          := Declaration.Ref_Ref;
             Declaration.Ref_Ref   := New_Ref;
 
@@ -495,9 +493,10 @@ package body Xr_Tabls is
 
    begin
       if Index /= 0 then
-         return Ada_File_Name (Ada_File_Name'First .. Index) & "ali";
+         return Ada_File_Name (Ada_File_Name'First .. Index)
+           & Osint.ALI_Suffix.all;
       else
-         return Ada_File_Name & ".ali";
+         return Ada_File_Name & "." & Osint.ALI_Suffix.all;
       end if;
    end ALI_File_Name;
 
@@ -823,12 +822,14 @@ package body Xr_Tabls is
       end if;
 
       if File.Dir = null then
-         if Ada.Strings.Fixed.Tail (File.File.all, 3) = "ali" then
+         if Ada.Strings.Fixed.Tail (File.File.all, 3) =
+                                               Osint.ALI_Suffix.all
+         then
             Tmp := Locate_Regular_File
-              (Internal_Strip (File.File.all), Directories.Obj_Dir);
+                     (Internal_Strip (File.File.all), Directories.Obj_Dir);
          else
             Tmp := Locate_Regular_File
-              (File.File.all, Directories.Src_Dir);
+                     (File.File.all, Directories.Src_Dir);
          end if;
 
          if Tmp = null then
@@ -1389,10 +1390,10 @@ package body Xr_Tabls is
       File_Ref.Visited := False;
 
       --  ??? Do not add a source file to the list. This is true at
-      --  least for gnatxref, and probably for gnatfind as wel
+      --  least for gnatxref, and probably for gnatfind as well
 
       if F'Length > 4
-        and then F (F'Last - 3 .. F'Last) = ".ali"
+        and then F (F'Last - 3 .. F'Last) = "." & Osint.ALI_Suffix.all
       then
          Unvisited_Files := new Unvisited_Files_Record'
            (File => File_Ref,

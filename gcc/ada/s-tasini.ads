@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -64,7 +62,7 @@ package System.Tasking.Initialization is
    -- Abort Defer/Undefer --
    -------------------------
 
-   --  Defer_Abort defers the affects of low-level abort and priority change
+   --  Defer_Abort defers the effects of low-level abort and priority change
    --  in the calling task until a matching Undefer_Abort call is executed.
 
    --  Undefer_Abort DOES MORE than just undo the effects of one call to
@@ -80,7 +78,7 @@ package System.Tasking.Initialization is
    --  nested. The symptom of over-deferring abort is that an exception may
    --  fail to be raised, or an abort may fail to take place.
 
-   --  Therefore, there are two sets of the inlinable defer/undefer routines,
+   --  Therefore, there are two sets of the inlineable defer/undefer routines,
    --  which are the ones to be used inside GNARL. One set allows nesting. The
    --  other does not. People who maintain the GNARL should try to avoid using
    --  the nested versions, or at least look very critically at the places
@@ -98,8 +96,8 @@ package System.Tasking.Initialization is
    --  internal calls to the tasking runtime system assume abort is already
    --  deferred, and do not modify the deferral level.
 
-   --  There is also a set of non-linable defer/undefer routines, for direct
-   --  call from the compiler. These are not in-lineable because they may need
+   --  There is also a set of non-inlineable defer/undefer routines, for direct
+   --  call from the compiler. These are not inlineable because they may need
    --  to be called via pointers ("soft links"). For the sake of efficiency,
    --  the version with Self_ID as parameter should used wherever possible.
    --  These are all nestable.
@@ -129,7 +127,7 @@ package System.Tasking.Initialization is
 
    function Check_Abort_Status return Integer;
    --  Returns Boolean'Pos (True) iff abort signal should raise
-   --  Standard.Abort_Signal. Only used by IRIX currently.
+   --  Standard'Abort_Signal. Only used by IRIX currently.
 
    --------------------------
    -- Change Base Priority --
@@ -137,7 +135,7 @@ package System.Tasking.Initialization is
 
    procedure Change_Base_Priority (T : Task_Id);
    --  Change the base priority of T. Has to be called with the affected
-   --  task's ATCB write-locked. May temporariliy release the lock.
+   --  task's ATCB write-locked. May temporarily release the lock.
 
    ----------------------
    -- Task Lock/Unlock --

@@ -1,4 +1,4 @@
-/* Buffer.java -- 
+/* Buffer.java --
    Copyright (C) 2002, 2003, 2004  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -45,35 +45,42 @@ import gnu.classpath.Pointer;
  */
 public abstract class Buffer
 {
-  int cap = 0;
-  int limit = 0;
-  int pos = 0;
-  int mark = -1;
-  Pointer address;
+  private final int cap;
+  int limit;
+  int pos;
+  int mark;
+  final Pointer address;
 
   /**
    * Creates a new Buffer.
    *
    * Should be package private.
    */
-  Buffer (int capacity, int limit, int position, int mark)
+  Buffer (int capacity, int limit, int position, int mark,
+          Pointer address)
   {
+    this.address = address;
+
     if (capacity < 0)
       throw new IllegalArgumentException ();
-    
+
     cap = capacity;
     limit (limit);
     position (position);
-    
+
     if (mark >= 0)
     {
       if (mark > pos)
         throw new IllegalArgumentException ();
-      
+
       this.mark = mark;
     }
+    else
+    {
+      this.mark = -1;
+    }
   }
-  
+
   /**
    * Retrieves the capacity of the buffer.
    *
@@ -96,7 +103,7 @@ public abstract class Buffer
     mark = -1;
     return this;
   }
-    
+
   /**
    * Flips the buffer.
    *
@@ -109,7 +116,7 @@ public abstract class Buffer
     mark = -1;
     return this;
   }
-    
+
   /**
    * Tells whether the buffer has remaining data to read or not.
    *
@@ -140,7 +147,7 @@ public abstract class Buffer
 
   /**
    * Sets this buffer's limit.
-   * 
+   *
    * @param newLimit The new limit value; must be non-negative and no larger
    * than this buffer's capacity.
    *
@@ -184,11 +191,11 @@ public abstract class Buffer
   {
     return pos;
   }
-    
+
   /**
    * Sets this buffer's position. If the mark is defined and larger than the
    * new position then it is discarded.
-   * 
+   *
    * @param newPosition The new position value; must be non-negative and no
    * larger than the current limit.
    *
@@ -250,7 +257,7 @@ public abstract class Buffer
 
   /**
    * Checks for underflow. This method is used internally to check
-   * whether a buffer has enough elements left to satisfy a read 
+   * whether a buffer has enough elements left to satisfy a read
    * request.
    *
    * @exception BufferUnderflowException If there are no remaining
@@ -264,12 +271,12 @@ public abstract class Buffer
 
   /**
    * Checks for underflow. This method is used internally to check
-   * whether a buffer has enough elements left to satisfy a read 
+   * whether a buffer has enough elements left to satisfy a read
    * request for a given number of elements.
    *
    * @param length The length of a sequence of elements.
    *
-   * @exception BufferUnderflowException If there are not enough 
+   * @exception BufferUnderflowException If there are not enough
    * remaining elements in this buffer.
    */
   final void checkForUnderflow(int length)
@@ -280,7 +287,7 @@ public abstract class Buffer
 
   /**
    * Checks for overflow. This method is used internally to check
-   * whether a buffer has enough space left to satisfy a write 
+   * whether a buffer has enough space left to satisfy a write
    * request.
    *
    * @exception BufferOverflowException If there is no remaining
@@ -294,12 +301,12 @@ public abstract class Buffer
 
   /**
    * Checks for overflow. This method is used internally to check
-   * whether a buffer has enough space left to satisfy a write 
+   * whether a buffer has enough space left to satisfy a write
    * request for a given number of elements.
    *
    * @param length The length of a sequence of elements.
    *
-   * @exception BufferUnderflowException If there is not enough 
+   * @exception BufferUnderflowException If there is not enough
    * remaining space in this buffer.
    */
   final void checkForOverflow(int length)
@@ -309,7 +316,7 @@ public abstract class Buffer
   }
 
   /**
-   * Checks if index is negative or not smaller than the buffer's 
+   * Checks if index is negative or not smaller than the buffer's
    * limit. This method is used internally to check whether
    * an indexed request can be fulfilled.
    *
@@ -331,7 +338,7 @@ public abstract class Buffer
    *
    * @exception ReadOnlyBufferException If this buffer is read-only.
    */
-  final void checkIfReadOnly() 
+  final void checkIfReadOnly()
   {
     if (isReadOnly())
       throw new ReadOnlyBufferException ();

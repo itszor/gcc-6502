@@ -2,13 +2,12 @@
 
 // Utility subroutines for the C++ library testsuite. 
 //
-// Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2002-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -17,18 +16,9 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 //
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 #include <testsuite_hooks.h>
 
@@ -41,7 +31,6 @@
 #include <list>
 #include <string>
 #include <stdexcept>
-#include <cstddef>
 #include <clocale>
 #include <cstdlib>
 #include <locale>
@@ -179,13 +168,13 @@ namespace __gnu_test
     locale orig = locale::global(loc_name);
 
     const char* res = setlocale(LC_ALL, name);
-    if (res != NULL)
+    if (res)
       {
 	string preLC_ALL = res;
 	const func_callback::test_type* tests = l.tests();
 	for (int i = 0; i < l.size(); ++i)
 	  (*tests[i])();
-	string postLC_ALL= setlocale(LC_ALL, NULL);
+	string postLC_ALL= setlocale(LC_ALL, 0);
 	VERIFY( preLC_ALL == postLC_ALL );
       }
     else
@@ -226,7 +215,7 @@ namespace __gnu_test
 #endif
   }
 
-  counter::size_type  counter::count = 0;
+  object_counter::size_type  object_counter::count = 0;
   unsigned int copy_constructor::count_ = 0;
   unsigned int copy_constructor::throw_on_ = 0;
   unsigned int assignment_operator::count_ = 0;
@@ -283,6 +272,7 @@ namespace __gnu_test
   {
 #ifdef _GLIBCXX_SYSV_SEM
     union semun val;
+    val.val = 0; // Avoid uninitialized variable warning.
     // Destroy the semaphore set only in the process that created it. 
     if (pid_ == getpid())
       semctl(sem_set_, 0, IPC_RMID, val);

@@ -38,8 +38,6 @@ exception statement from your version. */
 
 package java.awt;
 
-import java.awt.event.KeyEvent;
-
 /**
   * This class implements a keyboard accelerator for a menu item.
   *
@@ -172,7 +170,7 @@ equals(Object obj)
     {
       MenuShortcut ms = (MenuShortcut) obj;
       return (ms.key == key && ms.usesShift == usesShift);
-    }      
+    }
   return false;
 }
 
@@ -213,7 +211,7 @@ paramString()
   return "key=" + key + ",usesShift=" + usesShift;
 }
 
-private void 
+private void
 setKeyName(int key)
 {
   if (key == '\n')

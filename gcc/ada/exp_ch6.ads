@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,11 +29,43 @@ with Types; use Types;
 
 package Exp_Ch6 is
 
-   procedure Expand_N_Function_Call            (N : Node_Id);
-   procedure Expand_N_Subprogram_Body          (N : Node_Id);
-   procedure Expand_N_Subprogram_Body_Stub     (N : Node_Id);
-   procedure Expand_N_Subprogram_Declaration   (N : Node_Id);
-   procedure Expand_N_Procedure_Call_Statement (N : Node_Id);
+   procedure Expand_N_Extended_Return_Statement (N : Node_Id);
+   procedure Expand_N_Function_Call             (N : Node_Id);
+   procedure Expand_N_Procedure_Call_Statement  (N : Node_Id);
+   procedure Expand_N_Simple_Return_Statement   (N : Node_Id);
+   procedure Expand_N_Subprogram_Body           (N : Node_Id);
+   procedure Expand_N_Subprogram_Body_Stub      (N : Node_Id);
+   procedure Expand_N_Subprogram_Declaration    (N : Node_Id);
+
+   procedure Expand_Actuals (N : Node_Id; Subp : Entity_Id);
+   --  For each actual of an in-out or out parameter which is a numeric
+   --  (view) conversion of the form T (A), where A denotes a variable,
+   --  we insert the declaration:
+   --
+   --    Temp : T[ := T (A)];
+   --
+   --  prior to the call. Then we replace the actual with a reference to Temp,
+   --  and append the assignment:
+   --
+   --    A := TypeA (Temp);
+   --
+   --  after the call. Here TypeA is the actual type of variable A. For out
+   --  parameters, the initial declaration has no expression. If A is not an
+   --  entity name, we generate instead:
+   --
+   --    Var  : TypeA renames A;
+   --    Temp : T := Var;       --  omitting expression for out parameter.
+   --    ...
+   --    Var := TypeA (Temp);
+   --
+   --  For other in-out parameters, we emit the required constraint checks
+   --  before and/or after the call.
+   --
+   --  For all parameter modes, actuals that denote components and slices of
+   --  packed arrays are expanded into suitable temporaries.
+   --
+   --  For non-scalar objects that are possibly unaligned, add call by copy
+   --  code (copy in for IN and IN OUT, copy out for OUT and IN OUT).
 
    procedure Expand_Call (N : Node_Id);
    --  This procedure contains common processing for Expand_N_Function_Call,
@@ -41,7 +73,7 @@ package Exp_Ch6 is
 
    procedure Freeze_Subprogram (N : Node_Id);
    --  generate the appropriate expansions related to Subprogram freeze
-   --  nodes (e. g. the filling of the corresponding Dispatch Table for
+   --  nodes (e.g. the filling of the corresponding Dispatch Table for
    --  Primitive Operations)
 
    --  The following type defines the various forms of allocation used for the
@@ -56,29 +88,38 @@ package Exp_Ch6 is
 
    type BIP_Formal_Kind is
    --  Ada 2005 (AI-318-02): This type defines the kinds of implicit extra
-   --  formals created for build-in-place functions. The order of the above
+   --  formals created for build-in-place functions. The order of these
    --  enumeration literals matches the order in which the formals are
    --  declared. See Sem_Ch6.Create_Extra_Formals.
+
      (BIP_Alloc_Form,
-      --  Present if result subtype is unconstrained, or if the result type
-      --  is tagged. Indicates whether the return object is allocated by the
-      --  caller or callee, and if the callee, whether to use the secondary
-      --  stack or the heap. See Create_Extra_Formals.
-      BIP_Final_List,
-      --  Present if result type has controlled parts. Pointer to caller's
-      --  finalization list.
-      BIP_Master,
+      --  Present if result subtype is unconstrained or tagged. Indicates
+      --  whether the return object is allocated by the caller or callee, and
+      --  if the callee, whether to use the secondary stack or the heap. See
+      --  Create_Extra_Formals.
+
+      BIP_Storage_Pool,
+      --  Present if result subtype is unconstrained or tagged. If
+      --  BIP_Alloc_Form = User_Storage_Pool, this is a pointer to the pool
+      --  (of type access to Root_Storage_Pool'Class). Otherwise null.
+
+      BIP_Finalization_Master,
+      --  Present if result type needs finalization. Pointer to caller's
+      --  finalization master.
+
+      BIP_Task_Master,
       --  Present if result type contains tasks. Master associated with
       --  calling context.
+
       BIP_Activation_Chain,
       --  Present if result type contains tasks. Caller's activation chain
+
       BIP_Object_Access);
       --  Present for all build-in-place functions. Address at which to place
-      --  the return object, or null if BIP_Alloc_Form indicates
-      --  allocated by callee.
-      --  ??? We also need to be able to pass in some way to access a
-      --  user-defined storage pool at some point. And perhaps a constrained
-      --  flag.
+      --  the return object, or null if BIP_Alloc_Form indicates allocated by
+      --  callee.
+      --
+      --  ??? We might also need to be able to pass in a constrained flag.
 
    function BIP_Formal_Suffix (Kind : BIP_Formal_Kind) return String;
    --  Ada 2005 (AI-318-02): Returns a string to be used as the suffix of names
@@ -112,10 +153,13 @@ package Exp_Ch6 is
    --  that requires handling as a build-in-place call or is a qualified
    --  expression applied to such a call; otherwise returns False.
 
-   function Is_Build_In_Place_Function_Return (N : Node_Id) return Boolean;
-   --  Ada 2005 (AI-318-02): Returns True if N is an N_Simple_Return_Statement
-   --  or N_Extended_Return_Statement and it applies to a build-in-place
-   --  function or generic function.
+   function Is_Null_Procedure (Subp : Entity_Id) return Boolean;
+   --  Predicate to recognize stubbed procedures and null procedures, which
+   --  can be inlined unconditionally in all cases.
+
+   procedure List_Inlining_Info;
+   --  Generate listing of calls inlined by the frontend plus listing of
+   --  calls to inline subprograms passed to the backend.
 
    procedure Make_Build_In_Place_Call_In_Allocator
      (Allocator     : Node_Id;
@@ -160,5 +204,36 @@ package Exp_Ch6 is
    --  function call. Function_Call must denote either an N_Function_Call node
    --  for which Is_Build_In_Place_Call is True, or an N_Qualified_Expression
    --  node applied to such a function call.
+
+   procedure Make_CPP_Constructor_Call_In_Allocator
+     (Allocator     : Node_Id;
+      Function_Call : Node_Id);
+   --  Handle a call to a CPP constructor that occurs as the expression that
+   --  initializes an allocator, by passing access to the allocated object as
+   --  an additional parameter of the constructor call. A new access object is
+   --  declared that is initialized to the result of the allocator, passed to
+   --  the constructor, and the allocator is rewritten to refer to that access
+   --  object. Function_Call must denote a call to a CPP_Constructor function.
+
+   function Needs_BIP_Alloc_Form (Func_Id : Entity_Id) return Boolean;
+   --  Ada 2005 (AI-318-02): Return True if the function needs an implicit
+   --  BIP_Alloc_Form parameter (see type BIP_Formal_Kind).
+
+   function Needs_BIP_Finalization_Master (Func_Id : Entity_Id) return Boolean;
+   --  Ada 2005 (AI-318-02): Return True if the result subtype of function
+   --  Func_Id needs finalization actions.
+
+   function Needs_Result_Accessibility_Level
+     (Func_Id : Entity_Id) return Boolean;
+   --  Ada 2012 (AI05-0234): Return True if the function needs an implicit
+   --  parameter to identify the accessibility level of the function result
+   --  "determined by the point of call".
+
+   procedure Add_Extra_Actual_To_Call
+     (Subprogram_Call : Node_Id;
+      Extra_Formal    : Entity_Id;
+      Extra_Actual    : Node_Id);
+   --  Adds Extra_Actual as a named parameter association for the formal
+   --  Extra_Formal in Subprogram_Call.
 
 end Exp_Ch6;

@@ -1,12 +1,11 @@
 // Stack implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,9 +48,9 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_stack.h
+/** @file bits/stl_stack.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{stack}
  */
 
 #ifndef _STL_STACK_H
@@ -65,13 +59,17 @@
 #include <bits/concept_check.h>
 #include <debug/debug.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @brief  A standard container giving FILO behavior.
    *
-   *  @ingroup Containers
-   *  @ingroup Sequences
+   *  @ingroup sequences
+   *
+   *  @tparam _Tp  Type of element.
+   *  @tparam _Sequence  Type of underlying sequence, defaults to deque<_Tp>.
    *
    *  Meets many of the requirements of a
    *  <a href="tables.html#65">container</a>,
@@ -89,7 +87,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *  such as std::list, std::vector, or an appropriate user-defined
    *  type.
    *
-   *  Members not found in "normal" containers are @c container_type,
+   *  Members not found in @a normal containers are @c container_type,
    *  which is a typedef for the second Sequence parameter, and @c
    *  push, @c pop, and @c top, which are standard %stack/FILO
    *  operations.
@@ -127,7 +125,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       /**
        *  @brief  Default constructor creates no elements.
        */
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus < 201103L
       explicit
       stack(const _Sequence& __c = _Sequence())
       : c(__c) { }
@@ -177,23 +175,26 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Add data to the top of the %stack.
-       *  @param  x  Data to be added.
+       *  @param  __x  Data to be added.
        *
        *  This is a typical %stack operation.  The function creates an
        *  element at the top of the %stack and assigns the given data
        *  to it.  The time complexity of the operation depends on the
        *  underlying sequence.
        */
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
       void
       push(const value_type& __x)
       { c.push_back(__x); }
-#else
-      // NB: DR 756.
+
+#if __cplusplus >= 201103L
+      void
+      push(value_type&& __x)
+      { c.push_back(std::move(__x)); }
+
       template<typename... _Args>
         void
-        push(_Args&&... __args)
-	{ c.push_back(std::forward<_Args>(__args)...); }
+        emplace(_Args&&... __args)
+	{ c.emplace_back(std::forward<_Args>(__args)...); }
 #endif
 
       /**
@@ -214,17 +215,21 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	c.pop_back();
       }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       void
-      swap(stack&& __s)
-      { c.swap(__s.c); }
+      swap(stack& __s)
+      noexcept(noexcept(swap(c, __s.c)))
+      {
+	using std::swap;
+	swap(c, __s.c);
+      }
 #endif
     };
 
   /**
    *  @brief  Stack equality comparison.
-   *  @param  x  A %stack.
-   *  @param  y  A %stack of the same type as @a x.
+   *  @param  __x  A %stack.
+   *  @param  __y  A %stack of the same type as @a __x.
    *  @return  True iff the size and elements of the stacks are equal.
    *
    *  This is an equivalence relation.  Complexity and semantics
@@ -240,9 +245,9 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  Stack ordering relation.
-   *  @param  x  A %stack.
-   *  @param  y  A %stack of the same type as @a x.
-   *  @return  True iff @a x is lexicographically less than @a y.
+   *  @param  __x  A %stack.
+   *  @param  __y  A %stack of the same type as @a x.
+   *  @return  True iff @a x is lexicographically less than @a __y.
    *
    *  This is an total ordering relation.  Complexity and semantics
    *  depend on the underlying sequence type, but the expected rules
@@ -280,23 +285,19 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     operator>=(const stack<_Tp, _Seq>& __x, const stack<_Tp, _Seq>& __y)
     { return !(__x < __y); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
   template<typename _Tp, typename _Seq>
     inline void
     swap(stack<_Tp, _Seq>& __x, stack<_Tp, _Seq>& __y)
+    noexcept(noexcept(__x.swap(__y)))
     { __x.swap(__y); }
 
-  template<typename _Tp, typename _Seq>
-    inline void
-    swap(stack<_Tp, _Seq>&& __x, stack<_Tp, _Seq>& __y)
-    { __x.swap(__y); }
-
-  template<typename _Tp, typename _Seq>
-    inline void
-    swap(stack<_Tp, _Seq>& __x, stack<_Tp, _Seq>&& __y)
-    { __x.swap(__y); }
+  template<typename _Tp, typename _Seq, typename _Alloc>
+    struct uses_allocator<stack<_Tp, _Seq>, _Alloc>
+    : public uses_allocator<_Seq, _Alloc>::type { };
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _STL_STACK_H */

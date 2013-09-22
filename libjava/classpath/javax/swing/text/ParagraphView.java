@@ -38,9 +38,6 @@ exception statement from your version. */
 
 package javax.swing.text;
 
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Rectangle;
 import java.awt.Shape;
 
 import javax.swing.SizeRequirements;
@@ -300,7 +297,7 @@ public class ParagraphView extends FlowView implements TabExpander
   /**
    * Sets the justification of the paragraph.
    *
-   * @param j the justification to set 
+   * @param j the justification to set
    */
   protected void setJustification(int j)
   {

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -81,6 +81,7 @@ procedure Labl is
       --  Note that in the worst case, this is quadratic in the number
       --  of labels.  However, labels are not all that common, and this
       --  is only called for explicit labels.
+
       --  ???Nonetheless, the efficiency could be improved. For example,
       --  call Labl for each body, rather than once per compilation.
 
@@ -177,10 +178,10 @@ procedure Labl is
 
       procedure No_Header (N : Elmt_Id);
       --  The label N is known not to be a loop header. Scan forward and
-      --  remove all subsequent goto's that may have this node as a target.
+      --  remove all subsequent gotos that may have this node as a target.
 
       procedure Process_Goto (N : Elmt_Id);
-      --  N is a forward jump. Scan forward and remove all subsequent goto's
+      --  N is a forward jump. Scan forward and remove all subsequent gotos
       --  that may have the same target, to preclude spurious loops.
 
       procedure Rewrite_As_Loop
@@ -340,6 +341,7 @@ procedure Labl is
                        New_Node (N_Loop_Statement, Sloc (Loop_Header));
          Stat      : Node_Id;
          Next_Stat : Node_Id;
+
       begin
          Stat := Next (Loop_Header);
          while Stat /= Loop_End loop
@@ -355,7 +357,7 @@ procedure Labl is
          Remove (Loop_Header);
          Rewrite (Loop_End, Loop_Stmt);
          Error_Msg_N
-           ("code between label and backwards goto rewritten as loop?",
+           ("info: code between label and backwards goto rewritten as loop??",
              Loop_End);
       end Rewrite_As_Loop;
 
@@ -375,13 +377,19 @@ procedure Labl is
               and then Matches (Node (N), Node (S1))
             then
                if not Found then
-                  if Parent (Node (N)) = Parent (Node (S1)) then
+
+                  --  If the label and the goto are both in the same statement
+                  --  list, then we've found a loop. Note that labels and goto
+                  --  statements are always part of some list, so In_Same_List
+                  --  always makes sense.
+
+                  if In_Same_List (Node (N), Node (S1)) then
                      Source := S1;
                      Found  := True;
 
-                  else
-                     --  The goto is within some nested structure
+                  --  The goto is within some nested structure
 
+                  else
                      No_Header (N);
                      return;
                   end if;

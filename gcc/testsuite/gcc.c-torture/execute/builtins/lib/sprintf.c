@@ -3,8 +3,9 @@
 extern void abort (void);
 extern int inside_main;
 
+__attribute__ ((__noinline__))
 int
-sprintf (char *buf, const char *fmt, ...)
+(sprintf) (char *buf, const char *fmt, ...)
 {
   va_list ap;
   int r;

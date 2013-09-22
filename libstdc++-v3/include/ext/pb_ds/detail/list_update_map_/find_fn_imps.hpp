@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,26 +34,26 @@
 // warranty.
 
 /**
- * @file find_fn_imps.hpp
+ * @file list_update_map_/find_fn_imps.hpp
  * Contains implementations of lu_map_.
  */
 
 PB_DS_CLASS_T_DEC
 inline typename PB_DS_CLASS_C_DEC::entry_pointer
 PB_DS_CLASS_C_DEC::
-find_imp(const_key_reference r_key) const
+find_imp(key_const_reference r_key) const
 {
-  if (m_p_l == NULL)
-    return NULL;
+  if (m_p_l == 0)
+    return 0;
   if (s_eq_fn(r_key, PB_DS_V2F(m_p_l->m_value)))
     {
       apply_update(m_p_l, s_metadata_type_indicator);
-      _GLIBCXX_DEBUG_ONLY(debug_base::check_key_exists(r_key);)
+      PB_DS_CHECK_KEY_EXISTS(r_key)
       return m_p_l;
     }
 
   entry_pointer p_l = m_p_l;
-  while (p_l->m_p_next != NULL)
+  while (p_l->m_p_next != 0)
     {
       entry_pointer p_next = p_l->m_p_next;
       if (s_eq_fn(r_key, PB_DS_V2F(p_next->m_value)))
@@ -77,8 +71,8 @@ find_imp(const_key_reference r_key) const
 	p_l = p_next;
     }
 
-  _GLIBCXX_DEBUG_ONLY(debug_base::check_key_does_not_exist(r_key);)
-  return NULL;
+  PB_DS_CHECK_KEY_DOES_NOT_EXIST(r_key)
+  return 0;
 }
 
 PB_DS_CLASS_T_DEC
@@ -91,6 +85,6 @@ apply_update(entry_pointer p_l, type_to_type<Metadata>)
 PB_DS_CLASS_T_DEC
 inline bool
 PB_DS_CLASS_C_DEC::
-apply_update(entry_pointer, type_to_type<null_lu_metadata>)
-{ return s_update_policy(s_null_lu_metadata); }
+apply_update(entry_pointer, type_to_type<null_type>)
+{ return s_update_policy(s_null_type); }
 

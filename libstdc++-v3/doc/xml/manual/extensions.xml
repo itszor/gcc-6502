@@ -1,38 +1,33 @@
-<?xml version='1.0'?>
-<!DOCTYPE part PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" 
- "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" 
-[ ]>
-
-<part id="manual.ext" xreflabel="Extensions">
+<part xmlns="http://docbook.org/ns/docbook" version="5.0"
+      xml:id="manual.ext" xreflabel="Extensions">
 <?dbhtml filename="extensions.html"?>
- 
-<partinfo>
+
+<info><title>
+  Extensions
+  <indexterm><primary>Extensions</primary></indexterm>
+</title>
   <keywordset>
-    <keyword>
-      ISO C++
-    </keyword>
-    <keyword>
-      library
-    </keyword>
+    <keyword>ISO C++</keyword>
+    <keyword>library</keyword>
   </keywordset>
-</partinfo>
+</info>
 
-<title>Extensions</title>
 
-<preface>
-  <title></title>
+<preface><info><title/></info>
+<?dbhtml filename="ext_preface.html"?>
 <para>
-  Here we will make an attempt at describing the non-Standard extensions to
-  the library.  Some of these are from SGI's STL, some of these are GNU's,
-  and some just seemed to appear on the doorstep.
+  Here we will make an attempt at describing the non-Standard
+  extensions to the library.  Some of these are from older versions of
+  standard library components, namely SGI's STL, and some of these are
+  GNU's.
 </para>
 <para><emphasis>Before</emphasis> you leap in and use any of these
 extensions, be aware of two things:
 </para>
-<orderedlist>
+<orderedlist inheritnum="ignore" continuation="restarts">
    <listitem>
      <para>
-     Non-Standard means exactly that.  
+     Non-Standard means exactly that.
      </para>
      <para>
        The behavior, and the very
@@ -40,21 +35,21 @@ extensions, be aware of two things:
        warning.  (Ideally, the really good ones will appear in the next
        revision of C++.)  Also, other platforms, other compilers, other
        versions of g++ or libstdc++ may not recognize these names, or
-       treat them differently, or... 
+       treat them differently, or...
      </para>
    </listitem>
    <listitem>
      <para>
-       You should know how to <ulink url="XXX">access
-       these headers properly</ulink>. 
+       You should know how to access these headers properly.
      </para>
    </listitem>
 </orderedlist>
 </preface>
 
 <!-- Chapter 01 : Compile Time Checks -->
-<chapter id="manual.ext.compile_checks" xreflabel="Compile Time Checks">
-  <title>Compile Time Checks</title>
+<chapter xml:id="manual.ext.compile_checks" xreflabel="Compile Time Checks"><info><title>Compile Time Checks</title></info>
+<?dbhtml filename="ext_compile_checks.html"?>
+
   <para>
     Also known as concept checking.
   </para>
@@ -74,8 +69,8 @@ extensions, be aware of two things:
    <para>The primary author of the checking code, Jeremy Siek, had already
       started work on a replacement implementation.  The new code has been
       formally reviewed and accepted into
-      <ulink url="http://www.boost.org/libs/concept_check/concept_check.htm">the
-      Boost libraries</ulink>, and we are pleased to incorporate it into the
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.boost.org/libs/concept_check/concept_check.htm">the
+      Boost libraries</link>, and we are pleased to incorporate it into the
       GNU C++ library.
    </para>
    <para>The new version imposes a much smaller space overhead on the generated
@@ -85,7 +80,7 @@ extensions, be aware of two things:
    <para>They are off by default for all versions of GCC from 3.0 to 3.4 (the
       latest release at the time of writing).
       They can be enabled at configure time with
-      <ulink url="../configopts.html"><literal>--enable-concept-checks</literal></ulink>.
+      <link linkend="manual.intro.setup.configure"><literal>--enable-concept-checks</literal></link>.
       You can enable them on a per-translation-unit basis with
       <code>#define _GLIBCXX_CONCEPT_CHECKS</code> for GCC 3.4 and higher
       (or with <code>#define _GLIBCPP_CONCEPT_CHECKS</code> for versions
@@ -101,57 +96,57 @@ extensions, be aware of two things:
 </chapter>
 
 <!-- Chapter 02 : Debug Mode -->
-<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" 
-	    parse="xml" href="debug_mode.xml">
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="debug_mode.xml">
 </xi:include>
 
 <!-- Chapter 03 : Parallel Mode -->
-<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" 
-	    parse="xml" href="parallel_mode.xml">
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="parallel_mode.xml">
 </xi:include>
 
-<!-- Chapter 04 : Allocators -->
-<chapter id="manual.ext.allocator" xreflabel="Allocators">
-  <title>Allocators</title>
+<!-- Chapter 04 : Profile Mode -->
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="profile_mode.xml">
+</xi:include>
 
-  <!-- Section 01 : __mt_alloc -->
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" 
-	      parse="xml" href="mt_allocator.xml">
-  </xi:include>
 
-  <!-- Section 02 : bitmap_allocator -->
-  <xi:include xmlns:xi="http://www.w3.org/2001/XInclude" 
-	      parse="xml" href="bitmap_allocator.xml">
-  </xi:include>
+<!-- XXX -->
+<!-- Allocators -->
+<!-- Chapter 05 : __mt_alloc -->
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="mt_allocator.xml">
+</xi:include>
 
-</chapter>
+<!-- Chapter 06 : bitmap_allocator -->
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="bitmap_allocator.xml">
+</xi:include>
 
-<!-- Chapter 05 : Containers -->
-<chapter id="manual.ext.containers" xreflabel="Containers">
-  <title>Containers</title>
-  <para>
-  </para>
-  <sect1 id="manual.ext.containers.pbds" xreflabel="Policy Based Data Structures">
-    <title>Policy Based Data Structures</title>
-    <para>
-      <ulink
-      url="http://gcc.gnu.org/onlinedocs/libstdc++/ext/pb_ds/index.html">More details here</ulink>.
+<!-- Containers -->
+<!-- Chapter 07 : Policy-Based Data Structures -->
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml"
+	    href="policy_data_structures.xml">
+</xi:include>
+
+<!-- Chapter 08 : HP/SGI -->
+<chapter xml:id="manual.ext.containers" xreflabel="Containers">
+  <info><title>HP/SGI Extensions</title></info>
+<?dbhtml filename="ext_containers.html"?>
+
+  <section xml:id="manual.ext.containers.sgi" xreflabel="SGI ext">
+    <info><title>Backwards Compatibility</title></info>
+
+    <para>A few extensions and nods to backwards-compatibility have
+    been made with containers.  Those dealing with older SGI-style
+    allocators are dealt with elsewhere.  The remaining ones all deal
+    with bits:
     </para>
-  </sect1>
-
-  <sect1 id="manual.ext.containers.sgi" xreflabel="SGI ext">
-    <title>HP/SGI</title>
-    <para>
+    <para>The old pre-standard <code>bit_vector</code> class is
+    present for backwards compatibility.  It is simply a typedef for
+    the <code>vector&lt;bool&gt;</code> specialization.
     </para>
 
-<para>A few extensions and nods to backwards-compatibility have been made with
-   containers.  Those dealing with older SGI-style allocators are dealt with
-   elsewhere.  The remaining ones all deal with bits:
-</para>
-<para>The old pre-standard <code>bit_vector</code> class is present for
-   backwards compatibility.  It is simply a typedef for the
-   <code>vector&lt;bool&gt;</code> specialization.
-</para>
 <para>The <code>bitset</code> class has a number of extensions, described in the
    rest of this item.  First, we'll mention that this implementation of
    <code>bitset&lt;N&gt;</code> is specialized for cases where N number of
@@ -162,7 +157,7 @@ extensions, be aware of two things:
 <para>There are
    versions of single-bit test, set, reset, and flip member functions which
    do no range-checking.  If we call them member functions of an instantiation
-   of &quot;bitset&lt;N&gt;,&quot; then their names and signatures are:
+   of <code>bitset&lt;N&gt;</code>, then their names and signatures are:
 </para>
    <programlisting>
    bitset&lt;N&gt;&amp;   _Unchecked_set   (size_t pos);
@@ -175,35 +170,32 @@ extensions, be aware of two things:
    no present plans to do so (and there doesn't seem to be any immediate
    reason to).
 </para>
-<para>The semantics of member function <code>operator[]</code> are not specified 
-   in the C++ standard.  A long-standing defect report calls for sensible
-   obvious semantics, which are already implemented here:  <code>op[]</code>
-   on a const bitset returns a bool, and for a non-const bitset returns a
-   <code>reference</code> (a nested type).  However, this implementation does
-   no range-checking on the index argument, which is in keeping with other
-   containers' <code>op[]</code> requirements.  The defect report's proposed
-   resolution calls for range-checking to be done.  We'll just wait and see...
+<para>The member function <code>operator[]</code> on a const bitset returns
+   a bool, and for a non-const bitset returns a <code>reference</code> (a
+   nested type).  No range-checking is done on the index argument, in keeping
+   with other containers' <code>operator[]</code> requirements.
 </para>
 <para>Finally, two additional searching functions have been added.  They return
-   the index of the first &quot;on&quot; bit, and the index of the first
-   &quot;on&quot; bit that is after <code>prev</code>, respectively:
+   the index of the first "on" bit, and the index of the first
+   "on" bit that is after <code>prev</code>, respectively:
 </para>
    <programlisting>
    size_t _Find_first() const;
    size_t _Find_next (size_t prev) const;</programlisting>
 <para>The same caveat given for the _Unchecked_* functions applies here also.
 </para>
-  </sect1>
+  </section>
 
 
-  <sect1 id="manual.ext.containers.deprecated_sgi" xreflabel="SGI ext dep">
-    <title>Deprecated HP/SGI</title>
+  <section xml:id="manual.ext.containers.deprecated_sgi" xreflabel="SGI ext dep"><info><title>Deprecated</title></info>
+    <?dbhtml filename="ext_sgi.html"?>
+
 
    <para>
      The SGI hashing classes <classname>hash_set</classname> and
      <classname>hash_set</classname> have been deprecated by the
      unordered_set, unordered_multiset, unordered_map,
-     unordered_multimap containers in TR1 and the upcoming C++0x, and
+     unordered_multimap containers in TR1 and C++11, and
      may be removed in future releases.
    </para>
 
@@ -216,25 +208,29 @@ extensions, be aware of two things:
      &lt;rb_tree&gt;
    </programlisting>
    <para>are all here;
-      <code>&lt;hash_map&gt;</code> and <code>&lt;hash_set&gt;</code>
+      <filename class="headerfile">&lt;backwards/hash_map&gt;</filename> and
+      <filename class="headerfile">&lt;backwards/hash_set&gt;</filename>
       are deprecated but available as backwards-compatible extensions,
-      as discussed further below.  <code>&lt;rope&gt;</code> is the
-      SGI specialization for large strings (&quot;rope,&quot;
-      &quot;large strings,&quot; get it? Love that geeky humor.)
-      <code>&lt;slist&gt;</code> is a singly-linked list, for when the
-      doubly-linked <code>list&lt;&gt;</code> is too much space
-      overhead, and <code>&lt;rb_tree&gt;</code> exposes the red-black
-      tree classes used in the implementation of the standard maps and
-      sets.
+      as discussed further below.
+      <filename class="headerfile">&lt;ext/rope&gt;</filename> is the SGI
+      specialization for large strings ("rope," "large strings," get it? Love
+      that geeky humor.)
+      <filename class="headerfile">&lt;ext/slist&gt;</filename> (superseded in
+      C++11 by <filename class="headerfile">&lt;forward_list&gt;</filename>)
+      is a singly-linked list, for when the doubly-linked <code>list&lt;&gt;</code>
+      is too much space overhead, and
+      <filename class="headerfile">&lt;ext/rb_tree&gt;</filename> exposes the
+      red-black tree classes used in the implementation of the standard maps
+      and sets.
    </para>
    <para>Each of the associative containers map, multimap, set, and multiset
       have a counterpart which uses a
-      <ulink url="http://www.sgi.com/tech/stl/HashFunction.html">hashing
-      function</ulink> to do the arranging, instead of a strict weak ordering
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/HashFunction.html">hashing
+      function</link> to do the arranging, instead of a strict weak ordering
       function.  The classes take as one of their template parameters a
       function object that will return the hash value; by default, an
       instantiation of
-      <ulink url="http://www.sgi.com/tech/stl/hash.html">hash</ulink>.
+      <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/hash.html">hash</link>.
       You should specialize this functor for your class, or define your own,
       before trying to use one of the hashing classes.
    </para>
@@ -258,43 +254,52 @@ extensions, be aware of two things:
      </para>
    </blockquote>
 
-  </sect1>  
+   <para>
+      The deprecated hash tables are superseded by the standard unordered
+      associative containers defined in the ISO C++ 2011 standard in the
+      headers <filename class="headerfile">&lt;unordered_map&gt;</filename>
+      and <filename class="headerfile">&lt;unordered_set&gt;</filename>.
+   </para>
+
+  </section>
 </chapter>
 
-<!-- Chapter 06 : Utilities -->
-<chapter id="manual.ext.util" xreflabel="Utilities">
-  <title>Utilities</title>
+<!-- Chapter 09 : Utilities -->
+<chapter xml:id="manual.ext.util" xreflabel="Utilities"><info><title>Utilities</title></info>
+<?dbhtml filename="ext_utilities.html"?>
+
   <para>
-    The &lt;functional&gt; header contains many additional functors
+    The <filename class="headerfile">&lt;functional&gt;</filename> header
+    contains many additional functors
     and helper functions, extending section 20.3.  They are
     implemented in the file stl_function.h:
   </para>
   <itemizedlist>
   <listitem>
-  <para><code>identity_element</code> for addition and multiplication. * 
+  <para><code>identity_element</code> for addition and multiplication.
   </para>
   </listitem>
   <listitem>
     <para>The functor <code>identity</code>, whose <code>operator()</code>
-      returns the argument unchanged. * 
+      returns the argument unchanged.
   </para>
   </listitem>
   <listitem>
     <para>Composition functors <code>unary_function</code> and
       <code>binary_function</code>, and their helpers <code>compose1</code>
-      and <code>compose2</code>. * 
+      and <code>compose2</code>.
     </para>
   </listitem>
   <listitem>
-  <para><code>select1st</code> and <code>select2nd</code>, to strip pairs. * 
+  <para><code>select1st</code> and <code>select2nd</code>, to strip pairs.
   </para>
   </listitem>
-  <listitem><para><code>project1st</code> and <code>project2nd</code>. * </para></listitem>
+  <listitem><para><code>project1st</code> and <code>project2nd</code>. </para></listitem>
   <listitem><para>A set of functors/functions which always return the same result.  They
       are <code>constant_void_fun</code>, <code>constant_binary_fun</code>,
       <code>constant_unary_fun</code>, <code>constant0</code>,
-      <code>constant1</code>, and <code>constant2</code>. * </para></listitem>
-  <listitem><para>The class <code>subtractive_rng</code>. * </para></listitem>
+      <code>constant1</code>, and <code>constant2</code>. </para></listitem>
+  <listitem><para>The class <code>subtractive_rng</code>. </para></listitem>
   <listitem><para>mem_fun adaptor helpers <code>mem_fun1</code> and
       <code>mem_fun1_ref</code> are provided for backwards compatibility. </para></listitem>
 </itemizedlist>
@@ -321,18 +326,19 @@ you can also use
 get_temporary_buffer(5, (int*)0);
 </programlisting>
 <para>
-  A class <code>temporary_buffer</code> is given in stl_tempbuf.h. *
+  A class <code>temporary_buffer</code> is given in stl_tempbuf.h.
 </para>
 <para>
   The specialized algorithms of section 20.4.4 are extended with
-  <code>uninitialized_copy_n</code>. *
+  <code>uninitialized_copy_n</code>.
 </para>
 
 </chapter>
 
-<!-- Chapter 07 : Algorithms -->
-<chapter id="manual.ext.algorithms" xreflabel="Algorithms">
-  <title>Algorithms</title>
+<!-- Chapter 10 : Algorithms -->
+<chapter xml:id="manual.ext.algorithms" xreflabel="Algorithms"><info><title>Algorithms</title></info>
+<?dbhtml filename="ext_algorithms.html"?>
+
 <para>25.1.6 (count, count_if) is extended with two more versions of count
    and count_if.  The standard versions return their results.  The
    additional signatures return void, but take a final parameter by
@@ -355,45 +361,52 @@ get_temporary_buffer(5, (int*)0);
    <itemizedlist>
     <listitem><para><code>is_heap</code> tests whether or not a range is a heap.</para></listitem>
     <listitem><para><code>is_sorted</code> tests whether or not a range is sorted in
-        nondescending order.</para></listitem>
+	nondescending order.</para></listitem>
    </itemizedlist>
 <para>25.3.8 (lexicographical_compare) is extended with
 </para>
    <programlisting>
    lexicographical_compare_3way(_InputIter1 first1, _InputIter1 last1,
-                                 _InputIter2 first2, _InputIter2 last2)</programlisting>
+				 _InputIter2 first2, _InputIter2 last2)</programlisting>
 <para>which does... what?
 </para>
 
 </chapter>
 
-<!-- Chapter 08 : Numerics -->
-<chapter id="manual.ext.numerics" xreflabel="Numerics">
-  <title>Numerics</title>
-<para>26.4, the generalized numeric operations such as accumulate, are extended
-   with the following functions:
+<!-- Chapter 11 : Numerics -->
+<chapter xml:id="manual.ext.numerics" xreflabel="Numerics"><info><title>Numerics</title></info>
+<?dbhtml filename="ext_numerics.html"?>
+
+<para>26.4, the generalized numeric operations such as <code>accumulate</code>,
+   are extended with the following functions:
 </para>
    <programlisting>
    power (x, n);
-   power (x, n, moniod_operation);</programlisting>
-<para>Returns, in FORTRAN syntax, &quot;x ** n&quot; where n&gt;=0.  In the
-   case of n == 0, returns the <ulink url="#ch20">identity element</ulink> for the
+   power (x, n, monoid_operation);</programlisting>
+<para>Returns, in FORTRAN syntax, "<code>x ** n</code>" where
+   <code>n &gt;= 0</code>.  In the
+   case of <code>n == 0</code>, returns the identity element for the
    monoid operation.  The two-argument signature uses multiplication (for
-   a true &quot;power&quot; implementation), but addition is supported as well.
+   a true "power" implementation), but addition is supported as well.
    The operation functor must be associative.
 </para>
 <para>The <code>iota</code> function wins the award for Extension With the
-   Coolest Name.  It &quot;assigns sequentially increasing values to a range.
-   That is, it assigns value to *first, value + 1 to *(first + 1) and so
-   on.&quot;  Quoted from SGI documentation.
+   Coolest Name (the name comes from Ken Iverson's APL language.)  As
+   described in the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://www.sgi.com/tech/stl/iota.html">SGI
+   documentation</link>, it "assigns sequentially increasing values to a range.
+   That is, it assigns <code>value</code> to <code>*first</code>,
+   <code>value + 1</code> to<code> *(first + 1)</code> and so on."
 </para>
    <programlisting>
    void iota(_ForwardIter first, _ForwardIter last, _Tp value);</programlisting>
+<para>The <code>iota</code> function is included in the ISO C++ 2011 standard.
+</para>
 </chapter>
 
-<!-- Chapter 09 : Iterators -->
-<chapter id="manual.ext.iterators" xreflabel="Iterators">
-  <title>Iterators</title>
+<!-- Chapter 12 : Iterators -->
+<chapter xml:id="manual.ext.iterators" xreflabel="Iterators"><info><title>Iterators</title></info>
+<?dbhtml filename="ext_iterators.html"?>
+
 <para>24.3.2 describes <code>struct iterator</code>, which didn't exist in the
    original HP STL implementation (the language wasn't rich enough at the
    time).  For backwards compatibility, base classes are provided which
@@ -414,17 +427,18 @@ get_temporary_buffer(5, (int*)0);
 
 </chapter>
 
-<!-- Chapter 08 : IO -->
-<chapter id="manual.ext.io" xreflabel="IO">
-  <title>Input and Output</title>
+<!-- Chapter 13 : IO -->
+<chapter xml:id="manual.ext.io" xreflabel="IO"><info><title>Input and Output</title></info>
+<?dbhtml filename="ext_io.html"?>
+
 
   <para>
     Extensions allowing <code>filebuf</code>s to be constructed from
     "C" types like  FILE*s and file descriptors.
   </para>
 
-  <sect1 id="manual.ext.io.filebuf_derived" xreflabel="Derived filebufs">
-    <title>Derived filebufs</title>
+  <section xml:id="manual.ext.io.filebuf_derived" xreflabel="Derived filebufs"><info><title>Derived filebufs</title></info>
+
 
    <para>The v2 library included non-standard extensions to construct
       <code>std::filebuf</code>s from C stdio types such as
@@ -435,67 +449,59 @@ get_temporary_buffer(5, (int*)0);
    </para>
    <itemizedlist>
      <listitem><para>3.0.x <code>filebuf</code>s have another ctor with this signature:
-        <code>basic_filebuf(__c_file_type*, ios_base::openmode, int_type);
+	<code>basic_filebuf(__c_file_type*, ios_base::openmode, int_type);
 	</code>
-         This comes in very handy in a number of places, such as
-         attaching Unix sockets, pipes, and anything else which uses file
-         descriptors, into the IOStream buffering classes.  The three
-         arguments are as follows:
-         <itemizedlist>
-          <listitem><para><code>__c_file_type*      F   </code>
-              // the __c_file_type typedef usually boils down to stdio's FILE
-          </para></listitem>
-          <listitem><para><code>ios_base::openmode  M   </code>
-              // same as all the other uses of openmode
-          </para></listitem>
-          <listitem><para><code>int_type            B   </code>
-              // buffer size, defaults to BUFSIZ if not specified
-          </para></listitem>
-         </itemizedlist>
-         For those wanting to use file descriptors instead of FILE*'s, I
-         invite you to contemplate the mysteries of C's <code>fdopen()</code>.
+	 This comes in very handy in a number of places, such as
+	 attaching Unix sockets, pipes, and anything else which uses file
+	 descriptors, into the IOStream buffering classes.  The three
+	 arguments are as follows:
+	 <itemizedlist>
+	  <listitem><para><code>__c_file_type*      F   </code>
+	      // the __c_file_type typedef usually boils down to stdio's FILE
+	  </para></listitem>
+	  <listitem><para><code>ios_base::openmode  M   </code>
+	      // same as all the other uses of openmode
+	  </para></listitem>
+	  <listitem><para><code>int_type            B   </code>
+	      // buffer size, defaults to BUFSIZ if not specified
+	  </para></listitem>
+	 </itemizedlist>
+	 For those wanting to use file descriptors instead of FILE*'s, I
+	 invite you to contemplate the mysteries of C's <code>fdopen()</code>.
      </para></listitem>
      <listitem><para>In library snapshot 3.0.95 and later, <code>filebuf</code>s bring
-         back an old extension:  the <code>fd()</code> member function.  The
-         integer returned from this function can be used for whatever file
-         descriptors can be used for on your platform.  Naturally, the
-         library cannot track what you do on your own with a file descriptor,
-         so if you perform any I/O directly, don't expect the library to be
-         aware of it.
+	 back an old extension:  the <code>fd()</code> member function.  The
+	 integer returned from this function can be used for whatever file
+	 descriptors can be used for on your platform.  Naturally, the
+	 library cannot track what you do on your own with a file descriptor,
+	 so if you perform any I/O directly, don't expect the library to be
+	 aware of it.
      </para></listitem>
      <listitem><para>Beginning with 3.1, the extra <code>filebuf</code> constructor and
-         the <code>fd()</code> function were removed from the standard
-         filebuf.  Instead, <code>&lt;ext/stdio_filebuf.h&gt;</code> contains
-         a derived class called
-         <ulink url="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/class____gnu__cxx_1_1stdio__filebuf.html"><code>__gnu_cxx::stdio_filebuf</code></ulink>.
-         This class can be constructed from a C <code>FILE*</code> or a file
-         descriptor, and provides the <code>fd()</code> function.
+	 the <code>fd()</code> function were removed from the standard
+	 filebuf.  Instead, <code>&lt;ext/stdio_filebuf.h&gt;</code> contains
+	 a derived class called
+	 <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a00074.html"><code>__gnu_cxx::stdio_filebuf</code></link>.
+	 This class can be constructed from a C <code>FILE*</code> or a file
+	 descriptor, and provides the <code>fd()</code> function.
      </para></listitem>
    </itemizedlist>
-   <para>If you want to access a <code>filebuf</code>'s file descriptor to
-      implement file locking (e.g. using the <code>fcntl()</code> system
-      call) then you might be interested in Henry Suter's
-      <ulink url="http://suter.home.cern.ch/suter/RWLock.html">RWLock</ulink>
-      class.
-   </para>
 
-    <para>
-    </para>
-  </sect1>
+  </section>
 </chapter>
 
-<!-- Chapter 11 : Demangling -->
-<chapter id="manual.ext.demangle" xreflabel="Demangling">
-  <title>Demangling</title>
+<!-- Chapter 14 : Demangling -->
+<chapter xml:id="manual.ext.demangle" xreflabel="Demangling"><info><title>Demangling</title></info>
+<?dbhtml filename="ext_demangling.html"?>
+
   <para>
     Transforming C++ ABI identifiers (like RTTI symbols) into the
     original C++ source identifiers is called
     <quote>demangling.</quote>
   </para>
   <para>
-    If you have read the <ulink
-    url="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/namespaceabi.html">source
-    documentation for <code>namespace abi</code></ulink> then you are
+    If you have read the <link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://gcc.gnu.org/onlinedocs/libstdc++/latest-doxygen/a01115.html">source
+    documentation for <code>namespace abi</code></link> then you are
     aware of the cross-vendor C++ ABI in use by GCC.  One of the
     exposed functions is used for demangling,
     <code>abi::__cxa_demangle</code>.
@@ -556,7 +562,7 @@ int main()
    <screen>
    <computeroutput>
       St13bad_exception       =&gt; std::bad_exception   : 0
-      3barI5emptyLi17EE       =&gt; bar&lt;empty, 17&gt;       : 0 
+      3barI5emptyLi17EE       =&gt; bar&lt;empty, 17&gt;       : 0
    </computeroutput>
    </screen>
 
@@ -569,9 +575,8 @@ int main()
    </para>
 </chapter>
 
-<!-- Chapter 12 : Concurrency -->
-<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" 
-	    parse="xml" href="concurrency.xml">
+<!-- Chapter 15 : Concurrency -->
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="xml" href="concurrency_extensions.xml">
 </xi:include>
 
 </part>

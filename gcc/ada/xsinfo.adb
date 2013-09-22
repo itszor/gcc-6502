@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -35,10 +35,6 @@
 
 --       sinfo.h       Corresponding c header file
 
---  Note: this program assumes that sinfo.ads has passed the error checks
---  which are carried out by the CSinfo utility, so it does not duplicate
---  these checks and assumes the soruce is correct.
-
 --  An optional argument allows the specification of an output file name to
 --  override the default sinfo.h file name for the generated output file.
 
@@ -50,13 +46,12 @@ with Ada.Text_IO;                   use Ada.Text_IO;
 with GNAT.Spitbol;                  use GNAT.Spitbol;
 with GNAT.Spitbol.Patterns;         use GNAT.Spitbol.Patterns;
 
+with CSinfo;
+
 procedure XSinfo is
 
    Done : exception;
    Err  : exception;
-
-   pragma Warnings (Off);
-   --  Below variables are referenced using * operator
 
    A         : VString := Nul;
    Arg       : VString := Nul;
@@ -68,10 +63,8 @@ procedure XSinfo is
    Rtn       : VString := Nul;
    Term      : VString := Nul;
 
-   pragma Warnings (On);
-
-   InS       : File_Type;
-   Ofile     : File_Type;
+   InS   : File_Type;
+   Ofile : File_Type;
 
    wsp     : constant Pattern := Span (' ' & ASCII.HT);
    Wsp_For : constant Pattern := wsp & "for";
@@ -120,6 +113,11 @@ procedure XSinfo is
 --  Start of processing for XSinfo
 
 begin
+   --  First run CSinfo to check for errors. Note that CSinfo is also a
+   --  stand-alone program that can be run separately.
+
+   CSinfo;
+
    Set_Exit_Status (1);
    Anchored_Mode := True;
 
@@ -164,6 +162,11 @@ begin
    end loop;
 
    Put_Line (Ofile, "");
+
+   Put_Line (Ofile, "#ifdef __cplusplus");
+   Put_Line (Ofile, "extern ""C"" {");
+   Put_Line (Ofile, "#endif");
+
    NKV := 0;
 
    --  Loop through node kind codes
@@ -244,9 +247,16 @@ begin
       Getline;
    end loop;
 
+   --  Can't get here since above loop only left via raise
+
 exception
    when Done =>
+      Close (InS);
       Put_Line (Ofile, "");
+      Put_Line (Ofile, "#ifdef __cplusplus");
+      Put_Line (Ofile, "}");
+      Put_Line (Ofile, "#endif");
+      Close (Ofile);
       Set_Exit_Status (0);
 
 end XSinfo;

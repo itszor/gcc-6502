@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,28 +14,28 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
 
+with Ada.Iterator_Interfaces;
+
 private with Ada.Containers.Hash_Tables;
-private with Ada.Streams;
 private with Ada.Finalization;
+private with Ada.Streams;
 
 generic
    type Key_Type is private;
@@ -49,7 +49,13 @@ package Ada.Containers.Hashed_Maps is
    pragma Preelaborate;
    pragma Remote_Types;
 
-   type Map is tagged private;
+   type Map is tagged private
+   with
+      Constant_Indexing => Constant_Reference,
+      Variable_Indexing => Reference,
+      Default_Iterator  => Iterate,
+      Iterator_Element  => Element_Type;
+
    pragma Preelaborable_Initialization (Map);
 
    type Cursor is private;
@@ -62,6 +68,12 @@ package Ada.Containers.Hashed_Maps is
    No_Element : constant Cursor;
    --  Cursor objects declared without an initialization expression are
    --  initialized to the value No_Element.
+
+   function Has_Element (Position : Cursor) return Boolean;
+   --  Equivalent to Position /= No_Element
+
+   package Map_Iterator_Interfaces is new
+     Ada.Iterator_Interfaces (Cursor, Has_Element);
 
    function "=" (Left, Right : Map) return Boolean;
    --  For each key/element pair in Left, equality attempts to find the key in
@@ -81,7 +93,7 @@ package Ada.Containers.Hashed_Maps is
    procedure Reserve_Capacity (Container : in out Map; Capacity : Count_Type);
    --  Adjusts the current capacity, by allocating a new buckets array. If the
    --  requested capacity is less than the current capacity, then the capacity
-   --  is contracted (to a value not less than the curent length). If the
+   --  is contracted (to a value not less than the current length). If the
    --  requested capacity is greater than the current capacity, then the
    --  capacity is expanded (to a value not less than what is requested). In
    --  either case, the nodes are rehashed from the old buckets array onto the
@@ -123,6 +135,39 @@ package Ada.Containers.Hashed_Maps is
                     procedure (Key : Key_Type; Element : in out Element_Type));
    --  Calls Process with the key (with only a constant view) and element (with
    --  a variable view) of the node designed by the cursor.
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   type Reference_Type (Element : not null access Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Position  : Cursor) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Map;
+      Position  : Cursor) return Reference_Type;
+   pragma Inline (Reference);
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Key       : Key_Type) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Map;
+      Key       : Key_Type) return Reference_Type;
+   pragma Inline (Reference);
+
+   procedure Assign (Target : in out Map; Source : Map);
+
+   function Copy (Source : Map; Capacity : Count_Type := 0) return Map;
 
    procedure Move (Target : in out Map; Source : in out Map);
    --  Clears Target (if it's not empty), and then moves (not copies) the
@@ -199,7 +244,7 @@ package Ada.Containers.Hashed_Maps is
    procedure Delete (Container : in out Map; Key : Key_Type);
    --  Searches for Key in the map (which involves calling both Hash and
    --  Equivalent_Keys). If the search fails, then the operation raises
-   --  Constraint_Eror. Otherwise it removes the node from the map and then
+   --  Constraint_Error. Otherwise it removes the node from the map and then
    --  deallocates it. (This is the deletion analog of non-conditional
    --  Insert. It is intended for use when you want to assert that the item is
    --  already in the map.)
@@ -237,9 +282,6 @@ package Ada.Containers.Hashed_Maps is
    function Element (Container : Map; Key : Key_Type) return Element_Type;
    --  Equivalent to Element (Find (Container, Key))
 
-   function Has_Element (Position : Cursor) return Boolean;
-   --  Equivalent to Position /= No_Element
-
    function Equivalent_Keys (Left, Right : Cursor) return Boolean;
    --  Returns the result of calling Equivalent_Keys with the keys of the nodes
    --  designated by cursors Left and Right.
@@ -256,6 +298,9 @@ package Ada.Containers.Hashed_Maps is
      (Container : Map;
       Process   : not null access procedure (Position : Cursor));
    --  Calls Process for each node in the map
+
+   function Iterate
+     (Container : Map) return Map_Iterator_Interfaces.Forward_Iterator'class;
 
 private
    pragma Inline ("=");
@@ -277,27 +322,23 @@ private
 
    type Node_Type is limited record
       Key     : Key_Type;
-      Element : Element_Type;
+      Element : aliased Element_Type;
       Next    : Node_Access;
    end record;
 
-   package HT_Types is new Hash_Tables.Generic_Hash_Table_Types
-     (Node_Type,
-      Node_Access);
+   package HT_Types is
+     new Hash_Tables.Generic_Hash_Table_Types (Node_Type, Node_Access);
 
    type Map is new Ada.Finalization.Controlled with record
       HT : HT_Types.Hash_Table_Type;
    end record;
 
+   overriding procedure Adjust (Container : in out Map);
+
+   overriding procedure Finalize (Container : in out Map);
+
    use HT_Types;
    use Ada.Finalization;
-
-   overriding
-   procedure Adjust (Container : in out Map);
-
-   overriding
-   procedure Finalize (Container : in out Map);
-
    use Ada.Streams;
 
    procedure Write
@@ -312,14 +353,13 @@ private
 
    for Map'Read use Read;
 
-   type Map_Access is access constant Map;
+   type Map_Access is access all Map;
    for Map_Access'Storage_Size use 0;
 
-   type Cursor is
-      record
-         Container : Map_Access;
-         Node      : Node_Access;
-      end record;
+   type Cursor is record
+      Container : Map_Access;
+      Node      : Node_Access;
+   end record;
 
    procedure Read
      (Stream : not null access Root_Stream_Type'Class;
@@ -332,6 +372,53 @@ private
       Item   : Cursor);
 
    for Cursor'Write use Write;
+
+   type Reference_Control_Type is
+      new Controlled with record
+         Container : Map_Access;
+      end record;
+
+   overriding procedure Adjust (Control : in out Reference_Control_Type);
+   pragma Inline (Adjust);
+
+   overriding procedure Finalize (Control : in out Reference_Control_Type);
+   pragma Inline (Finalize);
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type);
+
+   for Constant_Reference_Type'Write use Write;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type);
+
+   for Constant_Reference_Type'Read use Read;
+
+   type Reference_Type
+      (Element : not null access Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Reference_Type);
+
+   for Reference_Type'Write use Write;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Reference_Type);
+
+   for Reference_Type'Read use Read;
 
    Empty_Map : constant Map := (Controlled with HT => (null, 0, 0, 0));
 

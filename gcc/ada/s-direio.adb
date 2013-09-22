@@ -6,38 +6,36 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.IO_Exceptions;      use Ada.IO_Exceptions;
-with Interfaces.C_Streams;   use Interfaces.C_Streams;
-with System;                 use System;
+with Ada.IO_Exceptions;          use Ada.IO_Exceptions;
+with Ada.Unchecked_Deallocation;
+with Interfaces.C_Streams;       use Interfaces.C_Streams;
+with System;                     use System;
 with System.CRTL;
 with System.File_IO;
 with System.Soft_Links;
-with Ada.Unchecked_Deallocation;
 
 package body System.Direct_IO is
 
@@ -63,7 +61,6 @@ package body System.Direct_IO is
 
    function AFCB_Allocate (Control_Block : Direct_AFCB) return FCB.AFCB_Ptr is
       pragma Unreferenced (Control_Block);
-
    begin
       return new Direct_AFCB;
    end AFCB_Allocate;
@@ -76,7 +73,6 @@ package body System.Direct_IO is
 
    procedure AFCB_Close (File : not null access Direct_AFCB) is
       pragma Unreferenced (File);
-
    begin
       null;
    end AFCB_Close;
@@ -110,8 +106,8 @@ package body System.Direct_IO is
    is
       Dummy_File_Control_Block : Direct_AFCB;
       pragma Warnings (Off, Dummy_File_Control_Block);
-      --  Yes, we know this is never assigned a value, only the tag
-      --  is used for dispatching purposes, so that's expected.
+      --  Yes, we know this is never assigned a value, only the tag is used for
+      --  dispatching purposes, so that's expected.
 
    begin
       FIO.Open (File_Ptr  => AP (File),
@@ -131,7 +127,7 @@ package body System.Direct_IO is
    function End_Of_File (File : File_Type) return Boolean is
    begin
       FIO.Check_Read_Status (AP (File));
-      return Count (File.Index) > Size (File);
+      return File.Index > Size (File);
    end End_Of_File;
 
    -----------
@@ -141,7 +137,7 @@ package body System.Direct_IO is
    function Index (File : File_Type) return Positive_Count is
    begin
       FIO.Check_File_Open (AP (File));
-      return Count (File.Index);
+      return File.Index;
    end Index;
 
    ----------
@@ -156,8 +152,8 @@ package body System.Direct_IO is
    is
       Dummy_File_Control_Block : Direct_AFCB;
       pragma Warnings (Off, Dummy_File_Control_Block);
-      --  Yes, we know this is never assigned a value, only the tag
-      --  is used for dispatching purposes, so that's expected.
+      --  Yes, we know this is never assigned a value, only the tag is used for
+      --  dispatching purposes, so that's expected.
 
    begin
       FIO.Open (File_Ptr  => AP (File),
@@ -227,11 +223,7 @@ package body System.Direct_IO is
       --  last operation as other, to force the file position to be reset
       --  on the next read.
 
-      if File.Bytes = Size then
-         File.Last_Op := Op_Read;
-      else
-         File.Last_Op := Op_Other;
-      end if;
+      File.Last_Op := (if File.Bytes = Size then Op_Read else Op_Other);
    end Read;
 
    --  The following is the required overriding for Stream.Read, which is
@@ -251,15 +243,23 @@ package body System.Direct_IO is
    -----------
 
    procedure Reset (File : in out File_Type; Mode : FCB.File_Mode) is
+      pragma Warnings (Off, File);
+      --  File is actually modified via Unrestricted_Access below, but
+      --  GNAT will generate a warning anyway.
+      --
+      --  Note that we do not use pragma Unmodified here, since in -gnatc mode,
+      --  GNAT will complain that File is modified for "File.Index := 1;"
    begin
-      FIO.Reset (AP (File), Mode);
+      FIO.Reset (AP (File)'Unrestricted_Access, Mode);
       File.Index := 1;
       File.Last_Op := Op_Read;
    end Reset;
 
    procedure Reset (File : in out File_Type) is
+      pragma Warnings (Off, File);
+      --  See above (other Reset procedure) for explanations on this pragma
    begin
-      FIO.Reset (AP (File));
+      FIO.Reset (AP (File)'Unrestricted_Access);
       File.Index := 1;
       File.Last_Op := Op_Read;
    end Reset;
@@ -280,11 +280,20 @@ package body System.Direct_IO is
    ------------------
 
    procedure Set_Position (File : File_Type) is
+      use type System.CRTL.ssize_t;
+      R : int;
    begin
-      if fseek
+      if Standard'Address_Size = 64 then
+         R := fseek64
+           (File.Stream, ssize_t (File.Bytes) *
+              ssize_t (File.Index - 1), SEEK_SET);
+      else
+         R := fseek
            (File.Stream, long (File.Bytes) *
-              long (File.Index - 1), SEEK_SET) /= 0
-      then
+              long (File.Index - 1), SEEK_SET);
+      end if;
+
+      if R /= 0 then
          raise Use_Error;
       end if;
    end Set_Position;
@@ -294,6 +303,7 @@ package body System.Direct_IO is
    ----------
 
    function Size (File : File_Type) return Count is
+      use type System.CRTL.ssize_t;
    begin
       FIO.Check_File_Open (AP (File));
       File.Last_Op := Op_Other;
@@ -302,7 +312,11 @@ package body System.Direct_IO is
          raise Device_Error;
       end if;
 
-      return Count (ftell (File.Stream) / long (File.Bytes));
+      if Standard'Address_Size = 64 then
+         return Count (ftell64 (File.Stream) / ssize_t (File.Bytes));
+      else
+         return Count (ftell (File.Stream) / long (File.Bytes));
+      end if;
    end Size;
 
    -----------
@@ -372,11 +386,7 @@ package body System.Direct_IO is
       --  last operation as other, to force the file position to be reset
       --  on the next write.
 
-      if File.Bytes = Size then
-         File.Last_Op := Op_Write;
-      else
-         File.Last_Op := Op_Other;
-      end if;
+      File.Last_Op := (if File.Bytes = Size then Op_Write else Op_Other);
    end Write;
 
    --  The following is the required overriding for Stream.Write, which is

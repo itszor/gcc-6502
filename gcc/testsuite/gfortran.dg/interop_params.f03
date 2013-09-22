@@ -1,4 +1,5 @@
 ! { dg-do compile }
+! { dg-options "-Wc-binding-type" }
 module interop_params
 use, intrinsic :: iso_c_binding
 
@@ -13,8 +14,8 @@ contains
     integer, value :: my_f90_int 
   end subroutine test_0
 
-  subroutine test_1(my_f90_real) bind(c) ! { dg-error "is for type INTEGER" } 
-    real(c_int), value :: my_f90_real 
+  subroutine test_1(my_f90_real) bind(c)
+    real(c_int), value :: my_f90_real    ! { dg-warning "is for type INTEGER" }
   end subroutine test_1
 
   subroutine test_2(my_type) bind(c) ! { dg-error "is not C interoperable" }

@@ -1,5 +1,5 @@
 ! { dg-require-effective-target fortran_large_real }
-! { dg-do run { xfail powerpc*-apple-darwin* *-*-freebsd* powerpc*-*-linux* } }
+! { dg-do run { xfail powerpc*-apple-darwin* powerpc*-*-linux* } }
 ! Test XFAILed on these platforms because the system's printf() lacks
 ! proper support for denormalized long doubles. See PR24685
 !
@@ -7,6 +7,8 @@
 ! wide enough and have enough precision, by checking that values can
 ! be written and read back.
 !
+! { dg-add-options ieee }
+
 include "default_format_2.inc"
 
 program main
@@ -16,4 +18,3 @@ program main
   if (test (-tiny(0.0_kl), 1) /= 0) call abort
 end program main
 !
-! { dg-final { cleanup-modules "test_default_format" } }

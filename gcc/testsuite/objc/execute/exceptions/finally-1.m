@@ -1,6 +1,6 @@
-#include <objc/Object.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../../../objc-obj-c++-shared/TestsuiteObject.m"
 
 static int made_try = 0;
 
@@ -26,7 +26,7 @@ thrower()
   @try
   {
     thrower_try_body();
-    @throw [Object new];
+    @throw [TestsuiteObject new];
   }
   @finally
   {
@@ -57,3 +57,4 @@ main(int ac, char *av[])
     abort ();
   return 0;
 }
+

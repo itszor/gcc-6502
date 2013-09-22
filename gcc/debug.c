@@ -1,5 +1,5 @@
 /* Do-nothing debug hooks for GCC.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -19,6 +19,7 @@
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "tree.h"
 #include "debug.h"
 
 /* The do-nothing debug hooks.  */
@@ -26,6 +27,7 @@ const struct gcc_debug_hooks do_nothing_debug_hooks =
 {
   debug_nothing_charstar,
   debug_nothing_charstar,
+  debug_nothing_void,
   debug_nothing_int_charstar,
   debug_nothing_int_charstar,
   debug_nothing_int_charstar,
@@ -33,23 +35,26 @@ const struct gcc_debug_hooks do_nothing_debug_hooks =
   debug_nothing_int_int,	         /* begin_block */
   debug_nothing_int_int,	         /* end_block */
   debug_true_const_tree,	         /* ignore_block */
-  debug_nothing_int_charstar,	         /* source_line */
+  debug_nothing_int_charstar_int_bool,	 /* source_line */
   debug_nothing_int_charstar,	         /* begin_prologue */
   debug_nothing_int_charstar,	         /* end_prologue */
+  debug_nothing_int_charstar,	         /* begin_epilogue */
   debug_nothing_int_charstar,	         /* end_epilogue */
   debug_nothing_tree,		         /* begin_function */
   debug_nothing_int,		         /* end_function */
   debug_nothing_tree,		         /* function_decl */
   debug_nothing_tree,		         /* global_decl */
   debug_nothing_tree_int,		 /* type_decl */
-  debug_nothing_tree_tree,               /* imported_module_or_decl */
+  debug_nothing_tree_tree_tree_bool,	 /* imported_module_or_decl */
   debug_nothing_tree,		         /* deferred_inline_function */
   debug_nothing_tree,		         /* outlining_inline_function */
   debug_nothing_rtx,		         /* label */
   debug_nothing_int,		         /* handle_pch */
   debug_nothing_rtx,		         /* var_location */
   debug_nothing_void,                    /* switch_text_section */
-  0                                      /* start_end_main_source_file */
+  debug_nothing_tree_tree,		 /* set_name */
+  0,                                     /* start_end_main_source_file */
+  TYPE_SYMTAB_IS_ADDRESS                 /* tree_type_symtab_field */
 };
 
 /* This file contains implementations of each debug hook that do
@@ -71,6 +76,14 @@ debug_nothing_tree_tree (tree t1 ATTRIBUTE_UNUSED,
 {
 }
 
+void
+debug_nothing_tree_tree_tree_bool (tree t1 ATTRIBUTE_UNUSED,
+				   tree t2 ATTRIBUTE_UNUSED,
+				   tree t3 ATTRIBUTE_UNUSED,
+				   bool b1 ATTRIBUTE_UNUSED)
+{
+}
+
 bool
 debug_true_const_tree (const_tree block ATTRIBUTE_UNUSED)
 {
@@ -83,6 +96,12 @@ debug_nothing_rtx (rtx insn ATTRIBUTE_UNUSED)
 }
 
 void
+debug_nothing_rtx_rtx (rtx insn ATTRIBUTE_UNUSED,
+		       rtx new_insn ATTRIBUTE_UNUSED)
+{
+}
+
+void
 debug_nothing_charstar (const char *main_filename ATTRIBUTE_UNUSED)
 {
 }
@@ -90,6 +109,14 @@ debug_nothing_charstar (const char *main_filename ATTRIBUTE_UNUSED)
 void
 debug_nothing_int_charstar (unsigned int line ATTRIBUTE_UNUSED,
 			    const char *text ATTRIBUTE_UNUSED)
+{
+}
+
+void
+debug_nothing_int_charstar_int_bool (unsigned int line ATTRIBUTE_UNUSED,
+			             const char *text ATTRIBUTE_UNUSED,
+			             int discriminator ATTRIBUTE_UNUSED,
+			             bool is_stmt ATTRIBUTE_UNUSED)
 {
 }
 

@@ -1,12 +1,11 @@
 // Stream buffer classes -*- C++ -*-
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,21 +13,16 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file streambuf
+/** @file include/streambuf
  *  This is a Standard C++ Library header.
  */
 
@@ -48,7 +42,9 @@
 #include <bits/cpp_type_traits.h>
 #include <ext/type_traits.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits>
     streamsize
@@ -57,6 +53,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   /**
    *  @brief  The actual work of input and output (interface).
+   *  @ingroup io
+   *
+   *  @tparam _CharT  Type of character stream.
+   *  @tparam _Traits  Traits for character type, defaults to
+   *                   char_traits<_CharT>.
    *
    *  This is a base class.  Derived stream buffers each control a
    *  pair of character sequences:  one for input, and one for output.
@@ -84,7 +85,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
    *     represents, at any moment, a (sub)sequence of characters from the
    *     sequence.  Operations performed on a sequence alter the values
    *     stored in these pointers, perform reads and writes directly to or
-   *     from associated sequences, and alter "the stream position" and
+   *     from associated sequences, and alter <em>the stream position</em> and
    *     conversion state as needed to maintain this subsequence relationship.
    *     The three pointers are:
    *     - the <em>beginning pointer</em>, or lowest element address in the
@@ -122,7 +123,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       //@{
       /**
        *  These are standard types.  They permit a standardized way of
-       *  referring to names of (or names dependant on) the template
+       *  referring to names of (or names dependent on) the template
        *  parameters, which are specific to the implementation.
       */
       typedef _CharT 					char_type;
@@ -144,7 +145,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       friend class ostreambuf_iterator<char_type, traits_type>;
 
       friend streamsize
-      __copy_streambufs_eof<>(__streambuf_type*, __streambuf_type*, bool&);
+      __copy_streambufs_eof<>(basic_streambuf*, basic_streambuf*, bool&);
 
       template<bool _IsMove, typename _CharT2>
         friend typename __gnu_cxx::__enable_if<__is_char<_CharT2>::__value, 
@@ -173,20 +174,19 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		basic_string<_CharT2, _Traits2, _Alloc>&, _CharT2);
 
     protected:
-      //@{
-      /**
+      /*
        *  This is based on _IO_FILE, just reordered to be more consistent,
        *  and is intended to be the most minimal abstraction for an
        *  internal buffer.
        *  -  get == input == read
        *  -  put == output == write
       */
-      char_type* 		_M_in_beg;     // Start of get area. 
-      char_type* 		_M_in_cur;     // Current read area. 
-      char_type* 		_M_in_end;     // End of get area. 
-      char_type* 		_M_out_beg;    // Start of put area. 
-      char_type* 		_M_out_cur;    // Current put area. 
-      char_type* 		_M_out_end;    // End of put area.
+      char_type* 		_M_in_beg;     ///< Start of get area.
+      char_type* 		_M_in_cur;     ///< Current read area.
+      char_type* 		_M_in_end;     ///< End of get area.
+      char_type* 		_M_out_beg;    ///< Start of put area.
+      char_type* 		_M_out_cur;    ///< Current put area.
+      char_type* 		_M_out_end;    ///< End of put area.
 
       /// Current locale setting.
       locale 			_M_buf_locale;	
@@ -200,13 +200,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // [27.5.2.2.1] locales
       /**
        *  @brief  Entry point for imbue().
-       *  @param  loc  The new locale.
+       *  @param  __loc  The new locale.
        *  @return  The previous locale.
        *
-       *  Calls the derived imbue(loc).
+       *  Calls the derived imbue(__loc).
       */
       locale 
-      pubimbue(const locale &__loc)
+      pubimbue(const locale& __loc)
       {
 	locale __tmp(this->getloc());
 	this->imbue(__loc);
@@ -235,20 +235,38 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  derived @c foo member functions, passing the arguments (if any)
        *  and returning the result unchanged.
       */
-      __streambuf_type* 
+      basic_streambuf*
       pubsetbuf(char_type* __s, streamsize __n) 
       { return this->setbuf(__s, __n); }
 
+      /**
+       *  @brief  Alters the stream position.
+       *  @param  __off  Offset.
+       *  @param  __way  Value for ios_base::seekdir.
+       *  @param  __mode Value for ios_base::openmode.
+       *
+       *  Calls virtual seekoff function.
+      */
       pos_type 
       pubseekoff(off_type __off, ios_base::seekdir __way, 
 		 ios_base::openmode __mode = ios_base::in | ios_base::out)
       { return this->seekoff(__off, __way, __mode); }
 
+      /**
+       *  @brief  Alters the stream position.
+       *  @param  __sp  Position
+       *  @param  __mode Value for ios_base::openmode.
+       *
+       *  Calls virtual seekpos function.
+      */
       pos_type 
       pubseekpos(pos_type __sp,
 		 ios_base::openmode __mode = ios_base::in | ios_base::out)
       { return this->seekpos(__sp, __mode); }
 
+      /**
+       *  @brief  Calls virtual sync function.
+      */
       int 
       pubsync() { return this->sync(); }
       //@}
@@ -329,11 +347,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Entry point for xsgetn.
-       *  @param  s  A buffer area.
-       *  @param  n  A count.
+       *  @param  __s  A buffer area.
+       *  @param  __n  A count.
        *
-       *  Returns xsgetn(s,n).  The effect is to fill @a s[0] through
-       *  @a s[n-1] with characters from the input sequence, if possible.
+       *  Returns xsgetn(__s,__n).  The effect is to fill @a __s[0] through
+       *  @a __s[__n-1] with characters from the input sequence, if possible.
       */
       streamsize 
       sgetn(char_type* __s, streamsize __n)
@@ -342,12 +360,13 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // [27.5.2.2.4] putback
       /**
        *  @brief  Pushing characters back into the input stream.
-       *  @param  c  The character to push back.
+       *  @param  __c  The character to push back.
        *  @return  The previous character, if possible.
        *
-       *  Similar to sungetc(), but @a c is pushed onto the stream instead
-       *  of "the previous character".  If successful, the next character
-       *  fetched from the input stream will be @a c.
+       *  Similar to sungetc(), but @a __c is pushed onto the stream
+       *  instead of <em>the previous character.</em> If successful,
+       *  the next character fetched from the input stream will be @a
+       *  __c.
       */
       int_type 
       sputbackc(char_type __c)
@@ -369,10 +388,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @brief  Moving backwards in the input stream.
        *  @return  The previous character, if possible.
        *
-       *  If a putback position is available, this function decrements the
-       *  input pointer and returns that character.  Otherwise, calls and
-       *  returns pbackfail().  The effect is to "unget" the last character
-       *  "gotten".
+       *  If a putback position is available, this function decrements
+       *  the input pointer and returns that character.  Otherwise,
+       *  calls and returns pbackfail().  The effect is to @a unget
+       *  the last character @a gotten.
       */
       int_type 
       sungetc()
@@ -391,15 +410,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // [27.5.2.2.5] put area
       /**
        *  @brief  Entry point for all single-character output functions.
-       *  @param  c  A character to output.
-       *  @return  @a c, if possible.
+       *  @param  __c  A character to output.
+       *  @return  @a __c, if possible.
        *
        *  One of two public output functions.
        *
        *  If a write position is available for the output sequence (i.e.,
-       *  the buffer is not full), stores @a c in that position, increments
-       *  the position, and returns @c traits::to_int_type(c).  If a write
-       *  position is not available, returns @c overflow(c).
+       *  the buffer is not full), stores @a __c in that position, increments
+       *  the position, and returns @c traits::to_int_type(__c).  If a write
+       *  position is not available, returns @c overflow(__c).
       */
       int_type 
       sputc(char_type __c)
@@ -418,14 +437,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Entry point for all single-character output functions.
-       *  @param  s  A buffer read area.
-       *  @param  n  A count.
+       *  @param  __s  A buffer read area.
+       *  @param  __n  A count.
        *
        *  One of two public output functions.
        *
        *
-       *  Returns xsputn(s,n).  The effect is to write @a s[0] through
-       *  @a s[n-1] to the output sequence, if possible.
+       *  Returns xsputn(__s,__n).  The effect is to write @a __s[0] through
+       *  @a __s[__n-1] to the output sequence, if possible.
       */
       streamsize 
       sputn(const char_type* __s, streamsize __n)
@@ -471,7 +490,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Moving the read position.
-       *  @param  n  The delta by which to move.
+       *  @param  __n  The delta by which to move.
        *
        *  This just advances the read position without returning any data.
       */
@@ -480,11 +499,11 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Setting the three read area pointers.
-       *  @param  gbeg  A pointer.
-       *  @param  gnext  A pointer.
-       *  @param  gend  A pointer.
-       *  @post  @a gbeg == @c eback(), @a gnext == @c gptr(), and
-       *         @a gend == @c egptr()
+       *  @param  __gbeg  A pointer.
+       *  @param  __gnext  A pointer.
+       *  @param  __gend  A pointer.
+       *  @post  @a __gbeg == @c eback(), @a __gnext == @c gptr(), and
+       *         @a __gend == @c egptr()
       */
       void 
       setg(char_type* __gbeg, char_type* __gnext, char_type* __gend)
@@ -518,7 +537,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Moving the write position.
-       *  @param  n  The delta by which to move.
+       *  @param  __n  The delta by which to move.
        *
        *  This just advances the write position without returning any data.
       */
@@ -527,10 +546,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Setting the three write area pointers.
-       *  @param  pbeg  A pointer.
-       *  @param  pend  A pointer.
-       *  @post  @a pbeg == @c pbase(), @a pbeg == @c pptr(), and
-       *         @a pend == @c epptr()
+       *  @param  __pbeg  A pointer.
+       *  @param  __pend  A pointer.
+       *  @post  @a __pbeg == @c pbase(), @a __pbeg == @c pptr(), and
+       *         @a __pend == @c epptr()
       */
       void 
       setp(char_type* __pbeg, char_type* __pend)
@@ -543,18 +562,18 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // [27.5.2.4.1] locales
       /**
        *  @brief  Changes translations.
-       *  @param  loc  A new locale.
+       *  @param  __loc  A new locale.
        *
-       *  Translations done during I/O which depend on the current locale
-       *  are changed by this call.  The standard adds, "Between invocations
-       *  of this function a class derived from streambuf can safely cache
-       *  results of calls to locale functions and to members of facets
-       *  so obtained."
+       *  Translations done during I/O which depend on the current
+       *  locale are changed by this call.  The standard adds,
+       *  <em>Between invocations of this function a class derived
+       *  from streambuf can safely cache results of calls to locale
+       *  functions and to members of facets so obtained.</em>
        *
        *  @note  Base class version does nothing.
       */
       virtual void 
-      imbue(const locale&) 
+      imbue(const locale& __loc) 
       { }
 
       // [27.5.2.4.2] buffer management and positioning
@@ -563,8 +582,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *
        *  Each derived class provides its own appropriate behavior.  See
        *  the next-to-last paragraph of 
-       *  http://gcc.gnu.org/onlinedocs/libstdc++/27_io/howto.html#2 for
-       *  more on this function.
+       *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt11ch25s02.html
+       *  for more on this function.
        *
        *  @note  Base class version does nothing, returns @c this.
       */
@@ -601,7 +620,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @return  -1 on failure.
        *
        *  Each derived class provides its own appropriate behavior,
-       *  including the definition of "failure".
+       *  including the definition of @a failure.
        *  @note  Base class version does nothing, returns zero.
       */
       virtual int 
@@ -613,30 +632,30 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @return  An estimate of the number of characters available in the
        *           input sequence, or -1.
        *
-       *  "If it returns a positive value, then successive calls to
-       *  @c underflow() will not return @c traits::eof() until at least that
-       *  number of characters have been supplied.  If @c showmanyc()
-       *  returns -1, then calls to @c underflow() or @c uflow() will fail."
-       *  [27.5.2.4.3]/1
+       *  <em>If it returns a positive value, then successive calls to
+       *  @c underflow() will not return @c traits::eof() until at
+       *  least that number of characters have been supplied.  If @c
+       *  showmanyc() returns -1, then calls to @c underflow() or @c
+       *  uflow() will fail.</em> [27.5.2.4.3]/1
        *
        *  @note  Base class version does nothing, returns zero.
-       *  @note  The standard adds that "the intention is not only that the
+       *  @note  The standard adds that <em>the intention is not only that the
        *         calls [to underflow or uflow] will not return @c eof() but
-       *         that they will return "immediately".
-       *  @note  The standard adds that "the morphemes of @c showmanyc are
-       *         "es-how-many-see", not "show-manic".
+       *         that they will return immediately.</em>
+       *  @note  The standard adds that <em>the morphemes of @c showmanyc are
+       *         @b es-how-many-see, not @b show-manic.</em>
       */
       virtual streamsize 
       showmanyc() { return 0; }
 
       /**
        *  @brief  Multiple character extraction.
-       *  @param  s  A buffer area.
-       *  @param  n  Maximum number of characters to assign.
+       *  @param  __s  A buffer area.
+       *  @param  __n  Maximum number of characters to assign.
        *  @return  The number of characters assigned.
        *
-       *  Fills @a s[0] through @a s[n-1] with characters from the input
-       *  sequence, as if by @c sbumpc().  Stops when either @a n characters
+       *  Fills @a __s[0] through @a __s[__n-1] with characters from the input
+       *  sequence, as if by @c sbumpc().  Stops when either @a __n characters
        *  have been copied, or when @c traits::eof() would be copied.
        *
        *  It is expected that derived classes provide a more efficient
@@ -651,7 +670,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *
        *  Informally, this function is called when the input buffer is
        *  exhausted (or does not exist, as buffering need not actually be
-       *  done).  If a buffer exists, it is "refilled".  In either case, the
+       *  done).  If a buffer exists, it is @a refilled.  In either case, the
        *  next available character is returned, or @c traits::eof() to
        *  indicate a null pending sequence.
        *
@@ -660,7 +679,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *
        *  A functioning input streambuf can be created by overriding only
        *  this function (no buffer area will be used).  For an example, see
-       *  http://gcc.gnu.org/onlinedocs/libstdc++/27_io/howto.html#6
+       *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/bk01pt11ch25.html
        *
        *  @note  Base class version does nothing, returns eof().
       */
@@ -694,25 +713,25 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // [27.5.2.4.4] putback
       /**
        *  @brief  Tries to back up the input sequence.
-       *  @param  c  The character to be inserted back into the sequence.
-       *  @return  eof() on failure, "some other value" on success
+       *  @param  __c  The character to be inserted back into the sequence.
+       *  @return  eof() on failure, <em>some other value</em> on success
        *  @post  The constraints of @c gptr(), @c eback(), and @c pptr()
        *         are the same as for @c underflow().
        *
        *  @note  Base class version does nothing, returns eof().
       */
       virtual int_type 
-      pbackfail(int_type /* __c */  = traits_type::eof())
+      pbackfail(int_type __c  = traits_type::eof())
       { return traits_type::eof(); }
 
       // Put area:
       /**
        *  @brief  Multiple character insertion.
-       *  @param  s  A buffer area.
-       *  @param  n  Maximum number of characters to write.
+       *  @param  __s  A buffer area.
+       *  @param  __n  Maximum number of characters to write.
        *  @return  The number of characters written.
        *
-       *  Writes @a s[0] through @a s[n-1] to the output sequence, as if
+       *  Writes @a __s[0] through @a __s[__n-1] to the output sequence, as if
        *  by @c sputc().  Stops when either @a n characters have been
        *  copied, or when @c sputc() would return @c traits::eof().
        *
@@ -725,16 +744,17 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       /**
        *  @brief  Consumes data from the buffer; writes to the
        *          controlled sequence.
-       *  @param  c  An additional character to consume.
+       *  @param  __c  An additional character to consume.
        *  @return  eof() to indicate failure, something else (usually
-       *           @a c, or not_eof())
+       *           @a __c, or not_eof())
        *
-       *  Informally, this function is called when the output buffer is full
-       *  (or does not exist, as buffering need not actually be done).  If a
-       *  buffer exists, it is "consumed", with "some effect" on the
-       *  controlled sequence.  (Typically, the buffer is written out to the
-       *  sequence verbatim.)  In either case, the character @a c is also
-       *  written out, if @a c is not @c eof().
+       *  Informally, this function is called when the output buffer
+       *  is full (or does not exist, as buffering need not actually
+       *  be done).  If a buffer exists, it is @a consumed, with
+       *  <em>some effect</em> on the controlled sequence.
+       *  (Typically, the buffer is written out to the sequence
+       *  verbatim.)  In either case, the character @a c is also
+       *  written out, if @a __c is not @c eof().
        *
        *  For a formal definition of this function, see a good text
        *  such as Langer & Kreft, or [27.5.2.4.5]/3-7.
@@ -745,10 +765,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @note  Base class version does nothing, returns eof().
       */
       virtual int_type 
-      overflow(int_type /* __c */ = traits_type::eof())
+      overflow(int_type __c  = traits_type::eof())
       { return traits_type::eof(); }
 
-#if _GLIBCXX_DEPRECATED
+#if _GLIBCXX_USE_DEPRECATED
     // Annex D.6
     public:
       /**
@@ -769,18 +789,25 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       }
 #endif
 
+      // Also used by specializations for char and wchar_t in src.
+      void 
+      __safe_gbump(streamsize __n) { _M_in_cur += __n; }
+
+      void
+      __safe_pbump(streamsize __n) { _M_out_cur += __n; }
+
     private:
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // Side effect of DR 50. 
-      basic_streambuf(const __streambuf_type& __sb)
+      basic_streambuf(const basic_streambuf& __sb)
       : _M_in_beg(__sb._M_in_beg), _M_in_cur(__sb._M_in_cur), 
       _M_in_end(__sb._M_in_end), _M_out_beg(__sb._M_out_beg), 
       _M_out_cur(__sb._M_out_cur), _M_out_end(__sb._M_out_cur),
       _M_buf_locale(__sb._M_buf_locale) 
       { }
 
-      __streambuf_type& 
-      operator=(const __streambuf_type&) { return *this; };
+      basic_streambuf&
+      operator=(const basic_streambuf&) { return *this; };
     };
 
   // Explicit specialization declarations, defined in src/streambuf.cc.
@@ -795,10 +822,9 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 			  basic_streambuf<wchar_t>* __sbout, bool& __ineof);
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
-#ifndef _GLIBCXX_EXPORT_TEMPLATE
-# include <bits/streambuf.tcc>
-#endif
+#include <bits/streambuf.tcc>
 
 #endif /* _GLIBCXX_STREAMBUF */

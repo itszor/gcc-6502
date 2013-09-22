@@ -107,7 +107,7 @@
 # undef GC_AMIGA_DEF
 #endif
 
-#if defined(MSWIN32) || defined(MSWINCE)
+#if defined(MSWIN32) || defined(MSWINCE) || defined(CYGWIN32)
 # define WIN32_LEAN_AND_MEAN
 # define NOSERVICE
 # include <windows.h>
@@ -312,7 +312,7 @@ char *GC_parse_map_entry(char *buf_ptr, word *start, word *end,
   /* for recent Linux versions.  This seems to be the easiest way to	*/
   /* cover all versions.						*/
 
-# ifdef LINUX
+# if defined(LINUX) || defined(HURD)
     /* Some Linux distributions arrange to define __data_start.  Some	*/
     /* define data_start as a weak symbol.  The latter is technically	*/
     /* broken, since the user program may define data_start, in which	*/
@@ -331,7 +331,7 @@ char *GC_parse_map_entry(char *buf_ptr, word *start, word *end,
   {
     extern ptr_t GC_find_limit();
 
-#   ifdef LINUX
+#   if defined(LINUX) || defined(HURD)
       /* Try the easy approaches first:	*/
       if ((ptr_t)__data_start != 0) {
 	  GC_data_start = (ptr_t)(__data_start);
@@ -501,7 +501,13 @@ void GC_enable_signals(void)
       && !defined(MACOS) && !defined(DJGPP) && !defined(DOS4GW) \
       && !defined(NOSYS) && !defined(ECOS)
 
-#   if defined(sigmask) && !defined(UTS4) && !defined(HURD)
+#   if defined(SIG_BLOCK)
+	/* Use POSIX/SYSV interface */
+#	define SIGSET_T sigset_t
+#	define SIG_DEL(set, signal) sigdelset(&(set), (signal))
+#	define SIG_FILL(set) sigfillset(&set)
+#	define SIGSETMASK(old, new) sigprocmask(SIG_SETMASK, &(new), &(old))
+#   elif defined(sigmask) && !defined(UTS4) && !defined(HURD)
 	/* Use the traditional BSD interface */
 #	define SIGSET_T int
 #	define SIG_DEL(set, signal) (set) &= ~(sigmask(signal))
@@ -511,11 +517,7 @@ void GC_enable_signals(void)
     	  /* a signal 32.						*/
 #	define SIGSETMASK(old, new) (old) = sigsetmask(new)
 #   else
-	/* Use POSIX/SYSV interface	*/
-#	define SIGSET_T sigset_t
-#	define SIG_DEL(set, signal) sigdelset(&(set), (signal))
-#	define SIG_FILL(set) sigfillset(&set)
-#	define SIGSETMASK(old, new) sigprocmask(SIG_SETMASK, &(new), &(old))
+#       error undetectable signal API
 #   endif
 
 static GC_bool mask_initialized = FALSE;
@@ -582,7 +584,7 @@ void GC_enable_signals()
 /* Find the page size */
 word GC_page_size;
 
-# if defined(MSWIN32) || defined(MSWINCE)
+# if defined(MSWIN32) || defined(MSWINCE) || defined (CYGWIN32)
   void GC_setpagesize()
   {
     GetSystemInfo(&GC_sysinfo);
@@ -1006,13 +1008,62 @@ ptr_t GC_get_stack_base()
 
 #endif /* FREEBSD_STACKBOTTOM */
 
+#ifdef SOLARIS_STACKBOTTOM
+
+# include <thread.h>
+# include <signal.h>
+# include <pthread.h>
+
+  /* These variables are used to cache ss_sp value for the primordial   */
+  /* thread (it's better not to call thr_stksegment() twice for this    */
+  /* thread - see JDK bug #4352906).                                    */
+  static pthread_t stackbase_main_self = 0;
+                        /* 0 means stackbase_main_ss_sp value is unset. */
+  static void *stackbase_main_ss_sp = NULL;
+
+  ptr_t GC_solaris_stack_base(void)
+  {
+    stack_t s;
+    pthread_t self = pthread_self();
+    if (self == stackbase_main_self)
+      {
+        /* If the client calls GC_get_stack_base() from the main thread */
+        /* then just return the cached value.                           */
+        GC_ASSERT(stackbase_main_ss_sp != NULL);
+        return stackbase_main_ss_sp;
+      }
+
+    if (thr_stksegment(&s)) {
+      /* According to the manual, the only failure error code returned  */
+      /* is EAGAIN meaning "the information is not available due to the */
+      /* thread is not yet completely initialized or it is an internal  */
+      /* thread" - this shouldn't happen here.                          */
+      ABORT("thr_stksegment failed");
+    }
+    /* s.ss_sp holds the pointer to the stack bottom. */
+    GC_ASSERT((void *)&s HOTTER_THAN s.ss_sp);
+
+    if (!stackbase_main_self)
+      {
+        /* Cache the stack base value for the primordial thread (this   */
+        /* is done during GC_init, so there is no race).                */
+        stackbase_main_ss_sp = s.ss_sp;
+        stackbase_main_self = self;
+      }
+
+    return s.ss_sp;
+  }
+
+#endif /* GC_SOLARIS_THREADS */
+
 #if !defined(BEOS) && !defined(AMIGA) && !defined(MSWIN32) \
     && !defined(MSWINCE) && !defined(OS2) && !defined(NOSYS) && !defined(ECOS)
 
 ptr_t GC_get_stack_base()
 {
 #   if defined(HEURISTIC1) || defined(HEURISTIC2) || \
-       defined(LINUX_STACKBOTTOM) || defined(FREEBSD_STACKBOTTOM)
+       defined(LINUX_STACKBOTTOM) || defined(FREEBSD_STACKBOTTOM) || \
+       defined(SOLARIS_STACKBOTTOM)       
     word dummy;
     ptr_t result;
 #   endif
@@ -1037,6 +1088,9 @@ ptr_t GC_get_stack_base()
 #	endif
 #	ifdef FREEBSD_STACKBOTTOM
 	   result = GC_freebsd_stack_base();
+#	endif
+#	ifdef SOLARIS_STACKBOTTOM
+	   result = GC_solaris_stack_base();
 #	endif
 #	ifdef HEURISTIC2
 #	    ifdef STACK_GROWS_DOWN
@@ -1167,7 +1221,11 @@ void GC_register_data_segments()
 
 # else /* !OS2 */
 
-# if defined(MSWIN32) || defined(MSWINCE)
+# if defined(MSWIN32) || defined(MSWINCE) || defined (CYGWIN32)
+
+# ifdef CYGWIN32
+#    define GC_no_win32_dlls (FALSE)
+# endif
 
 # ifdef MSWIN32
   /* Unfortunately, we have to handle win32s very differently from NT, 	*/
@@ -1662,11 +1720,13 @@ void * os2_alloc(size_t bytes)
 # endif /* OS2 */
 
 
-# if defined(MSWIN32) || defined(MSWINCE)
+# if defined(MSWIN32) || defined(MSWINCE) || defined(CYGWIN32)
 SYSTEM_INFO GC_sysinfo;
 # endif
 
-# ifdef MSWIN32
+# if defined(MSWIN32) || defined(CYGWIN32)
+
+word GC_n_heap_bases = 0;
 
 # ifdef USE_GLOBAL_ALLOC
 #   define GLOBAL_ALLOC_TEST 1
@@ -1674,13 +1734,14 @@ SYSTEM_INFO GC_sysinfo;
 #   define GLOBAL_ALLOC_TEST GC_no_win32_dlls
 # endif
 
-word GC_n_heap_bases = 0;
-
 ptr_t GC_win32_get_mem(bytes)
 word bytes;
 {
     ptr_t result;
 
+# ifdef CYGWIN32
+    result = GC_unix_get_mem (bytes);
+# else
     if (GLOBAL_ALLOC_TEST) {
     	/* VirtualAlloc doesn't like PAGE_EXECUTE_READWRITE.	*/
     	/* There are also unconfirmed rumors of other		*/
@@ -1700,6 +1761,7 @@ word bytes;
     				      MEM_COMMIT | MEM_RESERVE,
     				      PAGE_EXECUTE_READWRITE);
     }
+#endif
     if (HBLKDISPL(result) != 0) ABORT("Bad VirtualAlloc result");
     	/* If I read the documentation correctly, this can	*/
     	/* only happen if HBLKSIZE > 64k or not a power of 2.	*/
@@ -1712,7 +1774,11 @@ void GC_win32_free_heap ()
 {
     if (GC_no_win32_dlls) {
  	while (GC_n_heap_bases > 0) {
+# ifdef CYGWIN32
+ 	    free (GC_heap_bases[--GC_n_heap_bases]);
+# else
  	    GlobalFree (GC_heap_bases[--GC_n_heap_bases]);
+# endif
  	    GC_heap_bases[GC_n_heap_bases] = 0;
  	}
     }

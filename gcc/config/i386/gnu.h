@@ -1,29 +1,28 @@
 /* Configuration for an i386 running GNU with ELF as the target machine.  */
 
-#undef TARGET_VERSION
-#define TARGET_VERSION fprintf (stderr, " (i386 GNU)");
+/*
+Copyright (C) 1994-2013 Free Software Foundation, Inc.
 
-#undef TARGET_OS_CPP_BUILTINS /* config.gcc includes i386/linux.h.  */
-#define TARGET_OS_CPP_BUILTINS()		\
-  do						\
-    {						\
-	HURD_TARGET_OS_CPP_BUILTINS();		\
-    }						\
-  while (0)
+This file is part of GCC.
 
-#undef CPP_SPEC
-#define CPP_SPEC "%{pthread:-D_REENTRANT} %{posix:-D_POSIX_SOURCE} %{bsd:-D_BSD_SOURCE}"
+GCC is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-#undef CC1_SPEC
-#define CC1_SPEC "%(cc1_cpu)"
+GCC is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-#undef	LINK_SPEC
-#define LINK_SPEC "-m elf_i386 %{shared:-shared} \
-  %{!shared: \
-    %{!static: \
-      %{rdynamic:-export-dynamic} \
-      %{!dynamic-linker:-dynamic-linker /lib/ld.so}} \
-    %{static:-static}}"
+You should have received a copy of the GNU General Public License
+along with GCC.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#define GNU_USER_LINK_EMULATION "elf_i386"
+
+#undef GNU_USER_DYNAMIC_LINKER
+#define GNU_USER_DYNAMIC_LINKER "/lib/ld.so"
 
 #undef	STARTFILE_SPEC
 #if defined HAVE_LD_PIE
@@ -36,9 +35,7 @@
    crti.o%s %{static:crtbeginT.o%s;shared|pie:crtbeginS.o%s;:crtbegin.o%s}"
 #endif
 
-#undef	ENDFILE_SPEC
-#define ENDFILE_SPEC \
-  "%{shared|pie:crtendS.o%s;:crtend.o%s} crtn.o%s"
-
-/* FIXME: Is a Hurd-specific fallback mechanism necessary?  */
-#undef MD_UNWIND_SUPPORT
+#ifdef TARGET_LIBC_PROVIDES_SSP
+/* Not supported yet.  */
+#undef TARGET_THREAD_SSP_OFFSET
+#endif

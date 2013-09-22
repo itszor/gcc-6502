@@ -1,5 +1,5 @@
 /* Prototypes for Blackfin functions used in the md file & elsewhere.
-   Copyright (C) 2005, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2005-2013 Free Software Foundation, Inc.
 
    This file is part of GNU CC.
 
@@ -22,39 +22,6 @@
 #ifndef GCC_BFIN_PROTOS_H
 #define GCC_BFIN_PROTOS_H
 
-/* CPU type.  */
-typedef enum bfin_cpu_type
-{
-  BFIN_CPU_BF522,
-  BFIN_CPU_BF523,
-  BFIN_CPU_BF524,
-  BFIN_CPU_BF525,
-  BFIN_CPU_BF526,
-  BFIN_CPU_BF527,
-  BFIN_CPU_BF531,
-  BFIN_CPU_BF532,
-  BFIN_CPU_BF533,
-  BFIN_CPU_BF534,
-  BFIN_CPU_BF536,
-  BFIN_CPU_BF537,
-  BFIN_CPU_BF538,
-  BFIN_CPU_BF539,
-  BFIN_CPU_BF542,
-  BFIN_CPU_BF544,
-  BFIN_CPU_BF547,
-  BFIN_CPU_BF548,
-  BFIN_CPU_BF549,
-  BFIN_CPU_BF561
-} bfin_cpu_t;
-
-/* Value of -mcpu= */
-extern bfin_cpu_t bfin_cpu_type;
-
-/* Value of -msi-revision= */
-extern int bfin_si_revision;
-
-extern unsigned int bfin_workarounds;
-
 /* For the anomaly 05-00-0245 */
 #define WA_SPECULATIVE_LOADS 0x00000001
 #define ENABLE_WA_SPECULATIVE_LOADS \
@@ -70,11 +37,32 @@ extern unsigned int bfin_workarounds;
 #define ENABLE_WA_RETS \
   (bfin_workarounds & WA_RETS)
 
+/* For the anomaly 05-00-0426 */
+#define WA_INDIRECT_CALLS 0x00000008
+#define ENABLE_WA_INDIRECT_CALLS \
+  ((bfin_workarounds & WA_INDIRECT_CALLS) && !TARGET_ICPLB)
 
-#define Mmode enum machine_mode
+#define WA_05000257 0x00000010
+#define ENABLE_WA_05000257 \
+  (bfin_workarounds & WA_05000257)
 
-extern rtx function_arg (CUMULATIVE_ARGS *, Mmode, tree, int);
-extern void function_arg_advance (CUMULATIVE_ARGS *, Mmode, tree, int);
+#define WA_05000283 0x00000020
+#define ENABLE_WA_05000283 \
+  (bfin_workarounds & WA_05000283)
+
+#define WA_05000315 0x00000040
+#define ENABLE_WA_05000315 \
+  (bfin_workarounds & WA_05000315)
+
+/* For the anomaly 05-00-0312 */
+#define WA_LOAD_LCREGS 0x00000080
+#define ENABLE_WA_LOAD_LCREGS \
+  (bfin_workarounds & WA_LOAD_LCREGS)
+
+#define WA_05000074 0x00000100
+#define ENABLE_WA_05000074 \
+  (bfin_workarounds & WA_05000074)
+
 extern bool function_arg_regno_p (int);
 
 extern const char *output_load_immediate (rtx *);
@@ -83,58 +71,47 @@ extern char *bfin_asm_long (void);
 extern char *bfin_asm_short (void);
 extern int log2constp (unsigned HOST_WIDE_INT);
 
-extern rtx legitimize_address (rtx, rtx, Mmode);
-extern bool bfin_legitimate_constant_p (rtx);
-extern int hard_regno_mode_ok (int, Mmode);
+extern int hard_regno_mode_ok (int, enum machine_mode);
 extern void init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx);	  
-extern int bfin_frame_pointer_required (void);
 extern HOST_WIDE_INT bfin_initial_elimination_offset (int, int);
 
-extern int effective_address_32bit_p (rtx, Mmode);
+extern int effective_address_32bit_p (rtx, enum machine_mode);
 extern int symbolic_reference_mentioned_p (rtx);
-extern rtx bfin_gen_compare (rtx, Mmode);
-extern bool expand_move (rtx *, Mmode);
+extern rtx bfin_gen_compare (rtx, enum machine_mode);
+extern bool expand_move (rtx *, enum machine_mode);
 extern void bfin_expand_call (rtx, rtx, rtx, rtx, int);
 extern bool bfin_longcall_p (rtx, int);
 extern bool bfin_dsp_memref_p (rtx);
 extern bool bfin_expand_movmem (rtx, rtx, rtx, rtx);
 
-extern void conditional_register_usage (void);
-extern int bfin_register_move_cost (enum machine_mode, enum reg_class,
-				    enum reg_class);
-extern int bfin_memory_move_cost (enum machine_mode, enum reg_class, int in);
-extern enum reg_class secondary_input_reload_class (enum reg_class, Mmode,
+extern enum reg_class secondary_input_reload_class (enum reg_class,
+						    enum machine_mode,
 						    rtx);
-extern enum reg_class secondary_output_reload_class (enum reg_class, Mmode,
+extern enum reg_class secondary_output_reload_class (enum reg_class,
+						     enum machine_mode,
 						     rtx);
 extern char *section_asm_op_1 (SECT_ENUM_T);
 extern char *section_asm_op (SECT_ENUM_T);
-extern void override_options (void);
 extern void print_operand (FILE *,  rtx, char);
 extern void print_address_operand (FILE *, rtx);
 extern void split_di (rtx [], int, rtx [], rtx []);
 extern int split_load_immediate (rtx []);
-extern void emit_pic_move (rtx *, Mmode);
-extern void override_options (void);
+extern void emit_pic_move (rtx *, enum machine_mode);
 extern void asm_conditional_branch (rtx, rtx *, int, int);
-extern rtx bfin_gen_compare (rtx, Mmode);
+extern rtx bfin_gen_compare (rtx, enum machine_mode);
 
-extern int bfin_local_alignment (tree, int);
-extern int bfin_return_in_memory (const_tree);
-extern void initialize_trampoline (rtx, rtx, rtx);
-extern bool bfin_legitimate_address_p (Mmode, rtx, int);
+extern unsigned bfin_local_alignment (tree, unsigned);
 extern rtx bfin_va_arg (tree, tree);
 
 extern void bfin_expand_prologue (void);
 extern void bfin_expand_epilogue (int, int, bool);
-extern int push_multiple_operation (rtx, Mmode);
-extern int pop_multiple_operation (rtx, Mmode);
+extern int push_multiple_operation (rtx, enum machine_mode);
+extern int pop_multiple_operation (rtx, enum machine_mode);
 extern void output_push_multiple (rtx, rtx *);
 extern void output_pop_multiple (rtx, rtx *);
 extern int bfin_hard_regno_rename_ok (unsigned int, unsigned int);
 extern rtx bfin_return_addr_rtx (int);
 extern void bfin_hardware_loop (void);
-#undef  Mmode 
 
 #endif
 

@@ -226,7 +226,7 @@ public final class Boolean implements Serializable, Comparable<Boolean>
    * Compares this Boolean to another.
    *
    * @param other the Boolean to compare this Boolean to
-   * @return 0 if both Booleans represent the same value, a positive number 
+   * @return 0 if both Booleans represent the same value, a positive number
    * if this Boolean represents true and the other false, and a negative
    * number otherwise.
    * @since 1.5
@@ -234,6 +234,21 @@ public final class Boolean implements Serializable, Comparable<Boolean>
   public int compareTo(Boolean other)
   {
     return value == other.value ? 0 : (value ? 1 : -1);
+  }
+
+  /**
+   * Compares two unboxed boolean values.
+   *
+   * @param x First value to compare.
+   * @param y Second value to compare.
+   * @return 0 if both Booleans represent the same value, a positive number
+   * if this Boolean represents true and the other false, and a negative
+   * number otherwise.
+   * @since 1.7
+   */
+  public static int compare(boolean x, boolean y)
+  {
+    return Boolean.valueOf(x).compareTo(Boolean.valueOf(y));
   }
 
   /**
@@ -247,5 +262,5 @@ public final class Boolean implements Serializable, Comparable<Boolean>
   {
     return "true".equalsIgnoreCase(b) ? true : false;
   }
-  
+
 }

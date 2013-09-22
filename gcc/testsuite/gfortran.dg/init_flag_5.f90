@@ -1,5 +1,6 @@
 ! { dg-do run }
 ! { dg-options "-finit-real=-inf" }
+! { dg-add-options ieee }
 
 program init_flag_5
   call real_test

@@ -1,4 +1,6 @@
 ! { dg-do compile }
+! { dg-options "-std=legacy" }
+!
 ! This tests the patch for PR26787 in which it was found that setting
 ! the result of one module procedure from within another produced an
 ! ICE rather than an error.
@@ -30,11 +32,11 @@ contains
         end subroutine foobar
     end function foo
     subroutine bar()         ! This was the original bug.
-        foo = 10             ! { dg-error "is not a VALUE" }
+        foo = 10             ! { dg-error "is not a variable" }
     end subroutine bar
     integer function oh_no ()
         oh_no = 1
-        foo = 5              ! { dg-error "is not a VALUE" }
+        foo = 5              ! { dg-error "is not a variable" }
     end function oh_no
 end module simple
 
@@ -59,20 +61,19 @@ end module simpler
     stmt_fcn (w) = sin (w)     
     call x (y ())
     x = 10                   ! { dg-error "is not a variable" }
-    y = 20                   ! { dg-error "is not a VALUE" }
-    foo_er = 8               ! { dg-error "is not a VALUE" }
-    ext1 = 99                ! { dg-error "is not a VALUE" }
-    ext2 = 99                ! { dg-error "is not a VALUE" }
+    y = 20                   ! { dg-error "is not a variable" }
+    foo_er = 8               ! { dg-error "is not a variable" }
+    ext1 = 99                ! { dg-error "is not a variable" }
+    ext2 = 99                ! { dg-error "is not a variable" }
     stmt_fcn = 1.0           ! { dg-error "is not a variable" }
     w = stmt_fcn (1.0)
 contains
     subroutine x (i)
         integer i
-        y = i                ! { dg-error "is not a VALUE" }
+        y = i                ! { dg-error "is not a variable" }
     end subroutine x
     function y ()
         integer y
         y = 2                ! OK - function result
     end function y
 end
-! { dg-final { cleanup-modules "simple simpler" } }

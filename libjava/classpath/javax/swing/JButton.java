@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package javax.swing;
 
+import gnu.java.lang.CPStringBuilder;
+
 import javax.accessibility.Accessible;
 import javax.accessibility.AccessibleContext;
 import javax.accessibility.AccessibleRole;
@@ -89,9 +91,9 @@ public class JButton extends AbstractButton
 
   /**
    * Creates a new button from the specified action.
-   * 
+   *
    * @param a  the action (<code>null</code> permitted).
-   * 
+   *
    * @see AbstractButton#setAction(Action)
    */
   public JButton(Action a)
@@ -103,7 +105,7 @@ public class JButton extends AbstractButton
   /**
    * Creates a new button with the specified icon (and an empty string for
    * the button text).
-   * 
+   *
    * @param icon  the icon (<code>null</code> permitted).
    */
   public JButton(Icon icon)
@@ -113,7 +115,7 @@ public class JButton extends AbstractButton
 
   /**
    * Creates a new button with the specified text and no icon.
-   * 
+   *
    * @param text  the button text (<code>null</code> permitted, will be
    *     substituted by an empty string).
    */
@@ -124,7 +126,7 @@ public class JButton extends AbstractButton
 
   /**
    * Creates a new button with the specified text and icon.
-   * 
+   *
    * @param text  the button text (<code>null</code> permitted, will be
    *     substituted by an empty string).
    * @param icon  the icon (<code>null</code> permitted).
@@ -138,7 +140,7 @@ public class JButton extends AbstractButton
   }
 
   protected void configurePropertiesFromAction(Action a)
-  { 
+  {
     super.configurePropertiesFromAction(a);
   }
 
@@ -156,8 +158,8 @@ public class JButton extends AbstractButton
   }
 
   /**
-   * Returns the suffix (<code>"ButtonUI"</code> in this case) used to 
-   * determine the class name for a UI delegate that can provide the look and 
+   * Returns the suffix (<code>"ButtonUI"</code> in this case) used to
+   * determine the class name for a UI delegate that can provide the look and
    * feel for a <code>JButton</code>.
    *
    * @return <code>"ButtonUI"</code>.
@@ -165,7 +167,7 @@ public class JButton extends AbstractButton
   public String getUIClassID()
   {
     // Returns a string that specifies the name of the L&F class that renders
-    // this component.  
+    // this component.
     return "ButtonUI";
   }
 
@@ -209,7 +211,7 @@ public class JButton extends AbstractButton
   public boolean isDefaultCapable()
   {
     // Returns whether or not this button is capable of being the default
-    // button on the RootPane. 
+    // button on the RootPane.
     return defaultCapable;
   }
 
@@ -225,7 +227,7 @@ public class JButton extends AbstractButton
     String superParam = super.paramString();
 
     // 41 is the maximum number of chars which may be needed.
-    StringBuffer sb = new StringBuffer(41);
+    CPStringBuilder sb = new CPStringBuilder(41);
     sb.append(",defaultButton=").append(isDefaultButton());
     sb.append(",defaultCapable=").append(defaultCapable);
 

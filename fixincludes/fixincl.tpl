@@ -2,7 +2,10 @@
 x=fixincl.x =]
 [= (dne " * " "/* ")=]
  */
-/* DO NOT SVN-MERGE THIS FILE, EITHER [=`date`=]
+/* DO NOT SVN-MERGE THIS FILE, EITHER [=
+   (define re-ct 0) (define max-mach 0) (define ct 0)
+   (define HACK "") (define Hack "")    (define tmp "") 
+   (shell "date") =]
  *
  * You must regenerate it.  Use the ./genfixes script.
  *
@@ -15,13 +18,27 @@ x=fixincl.x =]
  *
  * See README for more information.
  *
- *  inclhack copyright (c) 1998, 1999, 2000, 2001
+ *  inclhack copyright (c) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
+ *                         2006, 2007, 2008
  *  The Free Software Foundation, Inc.
  *
- [=(define re-ct 0) (define max-mach 0) (define ct 0)
-   (define HACK "") (define Hack "")    (define tmp "")
-   (gpl "inclhack" " *  ")=]
+ *  inclhack is free software: you can redistribute it and/or modify it
+ *  under the terms of the GNU General Public License as published by the
+ *  Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *  
+ *  inclhack is distributed in the hope that it will be useful, but
+ *  WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *  See the GNU General Public License for more details.
+ *  
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef SED_PROGRAM
+#define SED_PROGRAM "/usr/bin/sed"
+#endif
+static char const sed_cmd_z[] = SED_PROGRAM;
 [=
 
 FOR fix =]
@@ -152,7 +169,7 @@ static tTestDesc a[=(. Hack)=]Tests[] = {[=
  *  Fix Command Arguments for [=(. Hack)=]
  */
 static const char* apz[=(. Hack)=]Patch[] = {[=
-    IF   (exist? "sed")=] "sed"[=
+    IF   (exist? "sed")=] sed_cmd_z[=
       FOR sed=],
     "-e", [=(kr-string (get "sed"))=][=
       ENDFOR sed=],[=

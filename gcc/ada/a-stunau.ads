@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -39,9 +37,23 @@
 package Ada.Strings.Unbounded.Aux is
    pragma Preelaborate;
 
+   subtype Big_String is String (1 .. Positive'Last);
+   pragma Suppress_Initialization (Big_String);
+   --  Type used to obtain string access to given address. Initialization is
+   --  suppressed, since we never want to have variables of this type, and
+   --  we never want to attempt initialiazation of virtual variables of this
+   --  type (e.g. when pragma Normalize_Scalars is used).
+
+   type Big_String_Access is access all Big_String;
+   for Big_String_Access'Storage_Size use 0;
+   --  We use this access type to pass a pointer to an area of storage to be
+   --  accessed as a string. Of course when this pointer is used, it is the
+   --  responsibility of the accessor to ensure proper bounds. The storage
+   --  size clause ensures we do not allocate variables of this type.
+
    procedure Get_String
      (U : Unbounded_String;
-      S : out String_Access;
+      S : out Big_String_Access;
       L : out Natural);
    pragma Inline (Get_String);
    --  This procedure returns the internal string pointer used in the
@@ -56,18 +68,10 @@ package Ada.Strings.Unbounded.Aux is
    --  referenced string returned by this call is always one, so the actual
    --  string data is always accessible as S (1 .. L).
 
-   procedure Set_String (UP : in out Unbounded_String; S : String);
-   pragma Inline (Set_String);
-   --  This function sets the string contents of the referenced unbounded
-   --  string to the given string value. It is significantly more efficient
-   --  than the use of To_Unbounded_String with an assignment, since it
-   --  avoids the necessity of messing with finalization chains. The lower
-   --  bound of the string S is not required to be one.
-
    procedure Set_String (UP : in out Unbounded_String; S : String_Access);
    pragma Inline (Set_String);
-   --  This version of Set_String takes a string access value, rather than a
-   --  string. The lower bound of the string value is required to be one, and
-   --  this requirement is not checked.
+   --  This version of Set_Unbounded_String takes a string access value, rather
+   --  than a string. The lower bound of the string value is required to be
+   --  one, and this requirement is not checked.
 
 end Ada.Strings.Unbounded.Aux;

@@ -1,7 +1,9 @@
 if [info exists lang_library_path] then {
     unset lang_library_path
-    unset lang_test_file
     unset lang_link_flags
+}
+if [info exists lang_test_file] then {
+    unset lang_test_file
 }
 
 load_lib libgomp-dg.exp
@@ -18,6 +20,7 @@ dg-init
 set tests [lsort [find $srcdir/$subdir *.c]]
 
 set ld_library_path $always_ld_library_path
+append ld_library_path [gcc-set-multilib-library-path $GCC_UNDER_TEST]
 set_ld_library_path_env_vars
 
 # Main loop.

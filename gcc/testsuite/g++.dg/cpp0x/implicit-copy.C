@@ -10,6 +10,6 @@ private:
 void f()
 {
   S a;
-  S b(a);
-  a = b;
+  S b(a);			// { dg-error "deleted" }
+  a = b;			// { dg-error "deleted" }
 }

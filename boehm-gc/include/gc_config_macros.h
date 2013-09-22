@@ -6,7 +6,8 @@
 		             || defined(GC_SOLARIS_PTHREADS) \
 			     || defined(GC_HPUX_THREADS) \
 			     || defined(GC_AIX_THREADS) \
-			     || defined(GC_LINUX_THREADS))
+			     || defined(GC_LINUX_THREADS) \
+			     || defined(GC_GNU_THREADS))
 # define _REENTRANT
 	/* Better late than never.  This fails if system headers that	*/
 	/* depend on this were previously included.			*/
@@ -18,6 +19,7 @@
 
 # if defined(GC_SOLARIS_PTHREADS) || defined(GC_FREEBSD_THREADS) || \
 	defined(GC_IRIX_THREADS) || defined(GC_LINUX_THREADS) || \
+	defined(GC_GNU_THREADS) || \
 	defined(GC_HPUX_THREADS) || defined(GC_OSF1_THREADS) || \
 	defined(GC_DGUX386_THREADS) || defined(GC_DARWIN_THREADS) || \
 	defined(GC_AIX_THREADS) || \
@@ -81,7 +83,9 @@
     typedef long ptrdiff_t;	/* ptrdiff_t is not defined */
 # endif
 
-#if defined(_DLL) && !defined(GC_NOT_DLL) && !defined(GC_DLL)
+#if ((defined(_DLL) && !defined (__MINGW32__)) \
+     || (defined (DLL_EXPORT) && defined (GC_BUILD))) \
+    && !defined(GC_DLL)
 # define GC_DLL
 #endif
 

@@ -1,4 +1,4 @@
-/* HexBinaryType.java -- 
+/* HexBinaryType.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,8 +37,6 @@ exception statement from your version. */
 
 package gnu.xml.validation.datatype;
 
-import java.util.Collections;
-import java.util.Set;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import org.relaxng.datatype.DatatypeException;
@@ -87,6 +85,5 @@ final class HexBinaryType
           throw new DatatypeException(i, "invalid hexBinary value");
       }
   }
-  
-}
 
+}

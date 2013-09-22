@@ -1,37 +1,39 @@
 /* Implementation of the STOP statement.
-   Copyright 2002, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-/* A numeric or blank STOP statement.  */
+/* A numeric STOP statement.  */
+
+extern void stop_numeric (GFC_INTEGER_4)
+  __attribute__ ((noreturn));
+export_proto(stop_numeric);
+
 void
 stop_numeric (GFC_INTEGER_4 code)
 {
@@ -40,21 +42,68 @@ stop_numeric (GFC_INTEGER_4 code)
   else
     st_printf ("STOP %d\n", (int)code);
 
-  sys_exit (code);
+  exit (code);
 }
-iexport(stop_numeric);
 
 
-extern void stop_string (const char *string, GFC_INTEGER_4 len);
-export_proto(stop_string);
+/* A Fortran 2008 numeric STOP statement.  */
+
+extern void stop_numeric_f08 (GFC_INTEGER_4)
+  __attribute__ ((noreturn));
+export_proto(stop_numeric_f08);
+
+void
+stop_numeric_f08 (GFC_INTEGER_4 code)
+{
+  st_printf ("STOP %d\n", (int)code);
+  exit (code);
+}
+
+
+/* A character string or blank STOP statement.  */
 
 void
 stop_string (const char *string, GFC_INTEGER_4 len)
 {
-  st_printf ("STOP ");
-  while (len--)
-    st_printf ("%c", *(string++));
-  st_printf ("\n");
+  if (string)
+    {
+      estr_write ("STOP ");
+      (void) write (STDERR_FILENO, string, len);
+      estr_write ("\n");
+    }
+  exit (0);
+}
 
-  sys_exit (0);
+
+/* Per Fortran 2008, section 8.4:  "Execution of a STOP statement initiates
+   normal termination of execution. Execution of an ERROR STOP statement
+   initiates error termination of execution."  Thus, error_stop_string returns
+   a nonzero exit status code.  */
+
+extern void error_stop_string (const char *, GFC_INTEGER_4)
+  __attribute__ ((noreturn));
+export_proto(error_stop_string);
+
+void
+error_stop_string (const char *string, GFC_INTEGER_4 len)
+{
+  estr_write ("ERROR STOP ");
+  (void) write (STDERR_FILENO, string, len);
+  estr_write ("\n");
+
+  exit (1);
+}
+
+
+/* A numeric ERROR STOP statement.  */
+
+extern void error_stop_numeric (GFC_INTEGER_4)
+  __attribute__ ((noreturn));
+export_proto(error_stop_numeric);
+
+void
+error_stop_numeric (GFC_INTEGER_4 code)
+{
+  st_printf ("ERROR STOP %d\n", (int) code);
+  exit (code);
 }

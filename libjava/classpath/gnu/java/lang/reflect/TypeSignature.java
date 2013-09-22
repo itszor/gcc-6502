@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.java.lang.reflect;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
@@ -174,7 +176,7 @@ public class TypeSignature
    * @see #getClassForEncoding(String, boolean)
    */
   public static Class getClassForEncoding(String type_code, boolean descriptor,
-		 			  ClassLoader loader)
+                                          ClassLoader loader)
     throws ClassNotFoundException
   {
     if (descriptor)
@@ -239,7 +241,7 @@ public class TypeSignature
   public static String getEncodingOfMethod(Method m)
   {
     Class[] paramTypes = m.getParameterTypes();
-    StringBuffer buf = new StringBuffer().append('(');
+    CPStringBuilder buf = new CPStringBuilder("(");
     for (int i = 0; i < paramTypes.length; i++)
       buf.append(getEncodingOfClass(paramTypes[i].getName(), true));
     buf.append(')').append(getEncodingOfClass(m.getReturnType().getName(),
@@ -261,7 +263,7 @@ public class TypeSignature
   public static String getEncodingOfConstructor(Constructor c)
   {
     Class[] paramTypes = c.getParameterTypes();
-    StringBuffer buf = new StringBuffer().append('(');
+    CPStringBuilder buf = new CPStringBuilder("(");
     for (int i = 0; i < paramTypes.length; i++)
       buf.append(getEncodingOfClass(paramTypes[i].getName(), true));
     buf.append(")V");

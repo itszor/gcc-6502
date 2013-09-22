@@ -1,4 +1,4 @@
-/* NumberFunction.java -- 
+/* NumberFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -68,9 +68,9 @@ final class NumberFunction
 
   final Expr arg;
 
-  NumberFunction(List args)
+  NumberFunction(List<Expr> args)
   {
-    this(args.size() > 0 ? (Expr) args.get(0) : null);
+    this(args.size() > 0 ? args.get(0) : null);
   }
 
   NumberFunction(Expr arg)
@@ -78,6 +78,7 @@ final class NumberFunction
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = (arg == null) ? null : arg.evaluate(context, pos, len);
@@ -98,5 +99,5 @@ final class NumberFunction
   {
     return "number(" + arg + ")";
   }
-  
+
 }

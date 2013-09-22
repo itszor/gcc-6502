@@ -1,5 +1,5 @@
 # GCC Objective-C++ testsuite that uses the `dg.exp' driver.
-#   Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,10 +28,15 @@ if ![info exists DEFAULT_OBJCXXFLAGS] then {
 dg-init
 
 # Gather a list of all tests.
-set tests [lsort [find $srcdir/$subdir *.mm]]
+set tests [lsort [glob -nocomplain $srcdir/$subdir/*.mm]]
 
 # Main loop.
-dg-runtest $tests "" $DEFAULT_OBJCXXFLAGS
+dg-runtest $tests "-fgnu-runtime" $DEFAULT_OBJCXXFLAGS
+
+# darwin targets can also run code with the NeXT runtime.
+if [istarget "*-*-darwin*" ] {
+dg-runtest $tests "-fnext-runtime" $DEFAULT_OBJCXXFLAGS
+}
 
 # All done.
 dg-finish

@@ -1,6 +1,5 @@
 /* Definitions of target machine GNU compiler.  IA-64 version.
-   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
    Contributed by James E. Wilson <wilson@cygnus.com> and
    		  David Mosberger <davidm@hpl.hp.com>.
 
@@ -73,6 +72,8 @@ extern unsigned int ia64_section_threshold;
 #define TARGET_HPUX		0
 #define TARGET_HPUX_LD		0
 
+#define TARGET_ABI_OPEN_VMS 0
+
 #ifndef TARGET_ILP32
 #define TARGET_ILP32 0
 #endif
@@ -100,34 +101,6 @@ enum ia64_inline_type
 #ifndef TARGET_CPU_DEFAULT
 #define TARGET_CPU_DEFAULT 0
 #endif
-
-/* Which processor to schedule for. The cpu attribute defines a list
-   that mirrors this list, so changes to ia64.md must be made at the
-   same time.  */
-
-enum processor_type
-{
-  PROCESSOR_ITANIUM,			/* Original Itanium.  */
-  PROCESSOR_ITANIUM2,
-  PROCESSOR_max
-};
-
-extern enum processor_type ia64_tune;
-
-/* Sometimes certain combinations of command options do not make sense on a
-   particular target machine.  You can define a macro `OVERRIDE_OPTIONS' to
-   take account of this.  This macro, if defined, is executed once just after
-   all the command options have been parsed.  */
-
-#define OVERRIDE_OPTIONS ia64_override_options ()
-
-/* Some machines may desire to change what optimizations are performed for
-   various optimization levels.  This macro, if defined, is executed once just
-   after the optimization level is determined and before the remainder of the
-   command options have been parsed.  Values set in this macro are used as the
-   default values for the other command line options.  */
-
-/* #define OPTIMIZATION_OPTIONS(LEVEL,SIZE) */
 
 /* Driver configuration */
 
@@ -157,12 +130,6 @@ extern enum processor_type ia64_tune;
    significant word has the lowest number.  */
 
 #define WORDS_BIG_ENDIAN (TARGET_BIG_ENDIAN != 0)
-
-#if defined(__BIG_ENDIAN__)
-#define LIBGCC2_WORDS_BIG_ENDIAN 1
-#else
-#define LIBGCC2_WORDS_BIG_ENDIAN 0
-#endif
 
 #define UNITS_PER_WORD 8
 
@@ -279,11 +246,17 @@ while (0)
 
 #define DOUBLE_TYPE_SIZE 64
 
-/* long double is XFmode normally, TFmode for HPUX.  */
-#define LONG_DOUBLE_TYPE_SIZE (TARGET_HPUX ? 128 : 80)
+/* long double is XFmode normally, and TFmode for HPUX.  It should be
+   TFmode for VMS as well but we only support up to DFmode now.  */
+#define LONG_DOUBLE_TYPE_SIZE \
+  (TARGET_HPUX ? 128 \
+   : TARGET_ABI_OPEN_VMS ? 64 \
+   : 80)
 
-/* We always want the XFmode operations from libgcc2.c.  */
-#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE 80
+/* We always want the XFmode operations from libgcc2.c, except on VMS
+   where this yields references to unimplemented "insns".  */
+#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE  (TARGET_ABI_OPEN_VMS ? 64 : 80)
+
 
 /* On HP-UX, we use the l suffix for TFmode in libgcc2.c.  */
 #define LIBGCC2_TF_CEXT l
@@ -408,7 +381,7 @@ while (0)
   /* Branch registers.  */				\
   0, 0, 0, 0, 0, 0, 0, 0,				\
   /*FP CCV UNAT PFS LC EC */				\
-     1,  1,   1,  1, 0, 1				\
+     1,  1,   1,  1, 1, 1				\
  }
 
 /* Like `FIXED_REGISTERS' but has 1 for each register that is clobbered
@@ -443,7 +416,7 @@ while (0)
   /* Branch registers.  */				\
   1, 0, 0, 0, 0, 0, 1, 1,				\
   /*FP CCV UNAT PFS LC EC */				\
-     1,  1,   1,  1, 0, 1				\
+     1,  1,   1,  1, 1, 1				\
 }
 
 /* Like `CALL_USED_REGISTERS' but used to overcome a historical
@@ -642,7 +615,7 @@ while (0)
 #define HARD_REGNO_NREGS(REGNO, MODE)					\
   ((REGNO) == PR_REG (0) && (MODE) == DImode ? 64			\
    : PR_REGNO_P (REGNO) && (MODE) == BImode ? 2				\
-   : PR_REGNO_P (REGNO) && (MODE) == CCImode ? 1			\
+   : (PR_REGNO_P (REGNO) || GR_REGNO_P (REGNO)) && (MODE) == CCImode ? 1\
    : FR_REGNO_P (REGNO) && (MODE) == XFmode ? 1				\
    : FR_REGNO_P (REGNO) && (MODE) == RFmode ? 1				\
    : FR_REGNO_P (REGNO) && (MODE) == XCmode ? 2				\
@@ -660,7 +633,7 @@ while (0)
    : PR_REGNO_P (REGNO) ?					\
      (MODE) == BImode || GET_MODE_CLASS (MODE) == MODE_CC	\
    : GR_REGNO_P (REGNO) ?					\
-     (MODE) != CCImode && (MODE) != XFmode && (MODE) != XCmode && (MODE) != RFmode \
+     (MODE) != XFmode && (MODE) != XCmode && (MODE) != RFmode	\
    : AR_REGNO_P (REGNO) ? (MODE) == DImode			\
    : BR_REGNO_P (REGNO) ? (MODE) == DImode			\
    : 0)
@@ -840,14 +813,6 @@ enum reg_class
    This is needed for POST_MODIFY.  */
 #define REGNO_OK_FOR_INDEX_P(NUM) REGNO_OK_FOR_BASE_P (NUM)
 
-/* A C expression that places additional restrictions on the register class to
-   use when it is necessary to copy value X into a register in class CLASS.
-   The value is a register class; perhaps CLASS, or perhaps another, smaller
-   class.  */
-
-#define PREFERRED_RELOAD_CLASS(X, CLASS) \
-  ia64_preferred_reload_class (X, CLASS)
-
 /* You should define this macro to indicate to the reload phase that it may
    need to allocate at least one register for a reload in addition to the
    register to contain the data.  Specifically, if copying X to a register
@@ -982,7 +947,7 @@ enum reg_class
 #define INIT_EXPANDERS					\
   do {							\
     ia64_init_expanders ();                             \
-    if (cfun && cfun->emit->regno_pointer_align)	\
+    if (crtl->emit.regno_pointer_align)	\
       REGNO_POINTER_ALIGN (ARG_POINTER_REGNUM) = 64;	\
   } while (0)
 
@@ -991,14 +956,6 @@ enum reg_class
 #define STATIC_CHAIN_REGNUM 15
 
 /* Eliminating the Frame Pointer and the Arg Pointer */
-
-/* A C expression which is nonzero if a function must have and use a frame
-   pointer.  This expression is evaluated in the reload pass.  If its value is
-   nonzero the function will have a frame pointer.  */
-#define FRAME_POINTER_REQUIRED 0
-
-/* Show we can debug even without a frame pointer.  */
-#define CAN_DEBUG_WITHOUT_FP
 
 /* If defined, this macro specifies a table of register pairs used to eliminate
    unneeded registers that point into the stack frame.  */
@@ -1011,13 +968,6 @@ enum reg_class
   {FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM},			\
 }
 
-/* A C expression that returns nonzero if the compiler is allowed to try to
-   replace register number FROM with register number TO.  The frame pointer
-   is automatically handled.  */
-
-#define CAN_ELIMINATE(FROM, TO) \
-  (TO == BR_REG (0) ? current_function_is_leaf : 1)
-
 /* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
    specifies the initial difference between the specified pair of
    registers.  This macro must be defined if `ELIMINABLE_REGS' is
@@ -1029,15 +979,9 @@ enum reg_class
 
 /* If defined, the maximum amount of space required for outgoing arguments will
    be computed and placed into the variable
-   `current_function_outgoing_args_size'.  */
+   `crtl->outgoing_args_size'.  */
 
 #define ACCUMULATE_OUTGOING_ARGS 1
-
-/* A C expression that should indicate the number of bytes of its own arguments
-   that a function pops on returning, or 0 if the function pops no arguments
-   and the caller must therefore pop them all after the function returns.  */
-
-#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACK_SIZE) 0
 
 
 /* Function Arguments in Registers */
@@ -1052,22 +996,12 @@ enum reg_class
 #define FR_RET_LAST  FR_REG (15)
 #define AR_ARG_FIRST OUT_REG (0)
 
-/* A C expression that controls whether a function argument is passed in a
-   register, and which register.  */
-
-#define FUNCTION_ARG(CUM, MODE, TYPE, NAMED) \
-  ia64_function_arg (&CUM, MODE, TYPE, NAMED, 0)
-
-/* Define this macro if the target machine has "register windows", so that the
-   register in which a function sees an arguments is not necessarily the same
-   as the one in which the caller passed the argument.  */
-
-#define FUNCTION_INCOMING_ARG(CUM, MODE, TYPE, NAMED) \
-  ia64_function_arg (&CUM, MODE, TYPE, NAMED, 1)
-
 /* A C type for declaring a variable that is used as the first argument of
    `FUNCTION_ARG' and other related values.  For some target machines, the type
    `int' suffices and can hold the number of bytes of argument so far.  */
+
+enum ivms_arg_type {I64, FF, FD, FG, FS, FT};
+/* VMS floating point formats VAX F, VAX D, VAX G, IEEE S, IEEE T.  */
 
 typedef struct ia64_args
 {
@@ -1075,6 +1009,7 @@ typedef struct ia64_args
   int int_regs;			/* # GR registers used so far  */
   int fp_regs;			/* # FR registers used so far  */
   int prototype;		/* whether function prototyped  */
+  enum ivms_arg_type atypes[8]; /* which VMS float type or if not float */
 } CUMULATIVE_ARGS;
 
 /* A C statement (sans semicolon) for initializing the variable CUM for the
@@ -1085,7 +1020,10 @@ do {									\
   (CUM).words = 0;							\
   (CUM).int_regs = 0;							\
   (CUM).fp_regs = 0;							\
-  (CUM).prototype = ((FNTYPE) && TYPE_ARG_TYPES (FNTYPE)) || (LIBNAME);	\
+  (CUM).prototype = ((FNTYPE) && prototype_p (FNTYPE)) || (LIBNAME);	\
+  (CUM).atypes[0] = (CUM).atypes[1] = (CUM).atypes[2] = I64;	        \
+  (CUM).atypes[3] = (CUM).atypes[4] = (CUM).atypes[5] = I64;            \
+  (CUM).atypes[6] = (CUM).atypes[7] = I64;                              \
 } while (0)
 
 /* Like `INIT_CUMULATIVE_ARGS' but overrides it for the purposes of finding the
@@ -1100,24 +1038,10 @@ do {									\
   (CUM).int_regs = 0;							\
   (CUM).fp_regs = 0;							\
   (CUM).prototype = 1;							\
+  (CUM).atypes[0] = (CUM).atypes[1] = (CUM).atypes[2] = I64;	        \
+  (CUM).atypes[3] = (CUM).atypes[4] = (CUM).atypes[5] = I64;            \
+  (CUM).atypes[6] = (CUM).atypes[7] = I64;                              \
 } while (0)
-
-/* A C statement (sans semicolon) to update the summarizer variable CUM to
-   advance past an argument in the argument list.  The values MODE, TYPE and
-   NAMED describe that argument.  Once this is done, the variable CUM is
-   suitable for analyzing the *following* argument with `FUNCTION_ARG'.  */
-
-#define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED) \
- ia64_function_arg_advance (&CUM, MODE, TYPE, NAMED)
-
-/* If defined, a C expression that gives the alignment boundary, in bits, of an
-   argument with the specified mode and type.  */
-
-/* Return the alignment boundary in bits for an argument with a specified
-   mode and type.  */
-
-#define FUNCTION_ARG_BOUNDARY(MODE, TYPE) \
-  ia64_function_arg_boundary (MODE, TYPE)
 
 /* A C expression that is nonzero if REGNO is the number of a hard register in
    which function arguments are sometimes passed.  This does *not* include
@@ -1127,31 +1051,6 @@ do {									\
 #define FUNCTION_ARG_REGNO_P(REGNO) \
 (((REGNO) >= AR_ARG_FIRST && (REGNO) < (AR_ARG_FIRST + MAX_ARGUMENT_SLOTS)) \
  || ((REGNO) >= FR_ARG_FIRST && (REGNO) < (FR_ARG_FIRST + MAX_ARGUMENT_SLOTS)))
-
-/* How Scalar Function Values are Returned */
-
-/* A C expression to create an RTX representing the place where a function
-   returns a value of data type VALTYPE.  */
-
-#define FUNCTION_VALUE(VALTYPE, FUNC) \
-  ia64_function_value (VALTYPE, FUNC)
-
-/* A C expression to create an RTX representing the place where a library
-   function returns a value of mode MODE.  */
-
-#define LIBCALL_VALUE(MODE) \
-  gen_rtx_REG (MODE,							\
-	       (((GET_MODE_CLASS (MODE) == MODE_FLOAT			\
-		 || GET_MODE_CLASS (MODE) == MODE_COMPLEX_FLOAT) &&	\
-		      (MODE) != TFmode)	\
-		? FR_RET_FIRST : GR_RET_FIRST))
-
-/* A C expression that is nonzero if REGNO is the number of a hard register in
-   which the values of called function may come back.  */
-
-#define FUNCTION_VALUE_REGNO_P(REGNO)				\
-  (((REGNO) >= GR_RET_FIRST && (REGNO) <= GR_RET_LAST)		\
-   || ((REGNO) >= FR_RET_FIRST && (REGNO) <= FR_RET_LAST))
 
 
 /* How Large Values are Returned */
@@ -1228,31 +1127,6 @@ do {									\
 #define STACK_SAVEAREA_MODE(LEVEL) \
   ((LEVEL) == SAVE_NONLOCAL ? OImode : Pmode)
 
-/* Output assembler code for a block containing the constant parts of
-   a trampoline, leaving space for the variable parts.
-
-   The trampoline should set the static chain pointer to value placed
-   into the trampoline and should branch to the specified routine.
-   To make the normal indirect-subroutine calling convention work,
-   the trampoline must look like a function descriptor; the first
-   word being the target address and the second being the target's
-   global pointer.
-
-   We abuse the concept of a global pointer by arranging for it
-   to point to the data we need to load.  The complete trampoline
-   has the following form:
-
-		+-------------------+ \
-	TRAMP:	| __ia64_trampoline | |
-		+-------------------+  > fake function descriptor
-		| TRAMP+16          | |
-		+-------------------+ /
-		| target descriptor |
-		+-------------------+
-		| static link	    |
-		+-------------------+
-*/
-
 /* A C expression for the size in bytes of the trampoline, as an integer.  */
 
 #define TRAMPOLINE_SIZE		32
@@ -1260,11 +1134,6 @@ do {									\
 /* Alignment required for trampolines, in bits.  */
 
 #define TRAMPOLINE_ALIGNMENT	64
-
-/* A C statement to initialize the variable parts of a trampoline.  */
-
-#define INITIALIZE_TRAMPOLINE(ADDR, FNADDR, STATIC_CHAIN) \
-  ia64_initialize_trampoline((ADDR), (FNADDR), (STATIC_CHAIN))
 
 /* Addressing Modes */
 
@@ -1284,64 +1153,6 @@ do {									\
 
 #define MAX_REGS_PER_ADDRESS 2
 
-/* A C compound statement with a conditional `goto LABEL;' executed if X (an
-   RTX) is a legitimate memory address on the target machine for a memory
-   operand of mode MODE.  */
-
-#define LEGITIMATE_ADDRESS_REG(X)					\
-  ((GET_CODE (X) == REG && REG_OK_FOR_BASE_P (X))			\
-   || (GET_CODE (X) == SUBREG && GET_CODE (XEXP (X, 0)) == REG		\
-       && REG_OK_FOR_BASE_P (XEXP (X, 0))))
-
-#define LEGITIMATE_ADDRESS_DISP(R, X)					\
-  (GET_CODE (X) == PLUS							\
-   && rtx_equal_p (R, XEXP (X, 0))					\
-   && (LEGITIMATE_ADDRESS_REG (XEXP (X, 1))				\
-       || (GET_CODE (XEXP (X, 1)) == CONST_INT				\
-	   && INTVAL (XEXP (X, 1)) >= -256				\
-	   && INTVAL (XEXP (X, 1)) < 256)))
-
-#define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL) 			\
-do {									\
-  if (LEGITIMATE_ADDRESS_REG (X))					\
-    goto LABEL;								\
-  else if ((GET_CODE (X) == POST_INC || GET_CODE (X) == POST_DEC)	\
-	   && LEGITIMATE_ADDRESS_REG (XEXP (X, 0))			\
-	   && XEXP (X, 0) != arg_pointer_rtx)				\
-    goto LABEL;								\
-  else if (GET_CODE (X) == POST_MODIFY					\
-	   && LEGITIMATE_ADDRESS_REG (XEXP (X, 0))			\
-	   && XEXP (X, 0) != arg_pointer_rtx				\
-	   && LEGITIMATE_ADDRESS_DISP (XEXP (X, 0), XEXP (X, 1)))	\
-    goto LABEL;								\
-} while (0)
-
-/* A C expression that is nonzero if X (assumed to be a `reg' RTX) is valid for
-   use as a base register.  */
-
-#ifdef REG_OK_STRICT
-#define REG_OK_FOR_BASE_P(X) REGNO_OK_FOR_BASE_P (REGNO (X))
-#else
-#define REG_OK_FOR_BASE_P(X) \
-  (GENERAL_REGNO_P (REGNO (X)) || (REGNO (X) >= FIRST_PSEUDO_REGISTER))
-#endif
-
-/* A C expression that is nonzero if X (assumed to be a `reg' RTX) is valid for
-   use as an index register.  This is needed for POST_MODIFY.  */
-
-#define REG_OK_FOR_INDEX_P(X) REG_OK_FOR_BASE_P (X)
-
-/* A C statement or compound statement with a conditional `goto LABEL;'
-   executed if memory address X (an RTX) can have different meanings depending
-   on the machine mode of the memory reference it is used for or if the address
-   is valid for some modes but not others.  */
-
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)
-
-/* A C expression that is nonzero if X is a legitimate constant for an
-   immediate operand on the target machine.  */
-
-#define LEGITIMATE_CONSTANT_P(X) ia64_legitimate_constant_p (X)
 
 /* Condition Code Status */
 
@@ -1353,17 +1164,6 @@ do {									\
 
 /* Describing Relative Costs of Operations */
 
-/* A C expression for the cost of moving data from a register in class FROM to
-   one in class TO, using MODE.  */
-
-#define REGISTER_MOVE_COST  ia64_register_move_cost
-
-/* A C expression for the cost of moving data of mode M between a
-   register and memory.  */
-#define MEMORY_MOVE_COST(MODE,CLASS,IN) \
-  ((CLASS) == GENERAL_REGS || (CLASS) == FR_REGS || (CLASS) == FP_REGS \
-   || (CLASS) == GR_AND_FR_REGS ? 4 : 10)
-
 /* A C expression for the cost of a branch instruction.  A value of 1 is the
    default; other values are interpreted relative to that.  Used by the
    if-conversion code as max instruction count.  */
@@ -1371,7 +1171,7 @@ do {									\
    many additional insn groups we run into, vs how good the dynamic
    branch predictor is.  */
 
-#define BRANCH_COST 6
+#define BRANCH_COST(speed_p, predictable_p) 6
 
 /* Define this macro as a C expression which is nonzero if accessing less than
    a word of memory (i.e. a `char' or a `short') is no faster than accessing a
@@ -1423,7 +1223,7 @@ do {									\
 /* Define this macro if the register defined by `PIC_OFFSET_TABLE_REGNUM' is
    clobbered by calls.  */
 
-#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED
+#define PIC_OFFSET_TABLE_REG_CALL_CLOBBERED 1
 
 
 /* The Overall Framework of an Assembler File.  */
@@ -1443,11 +1243,6 @@ do {									\
    group of consecutive ones.  */
 
 #define ASM_APP_OFF (TARGET_GNU_AS ? "#NO_APP\n" : "//NO_APP\n")
-
-/* Output of Uninitialized Variables.  */
-
-/* This is all handled by svr4.h.  */
-
 
 /* Output and Generation of Labels.  */
 
@@ -1495,14 +1290,17 @@ do {									\
 do {									\
   assemble_name (STREAM, NAME);						\
   fputs (" = ", STREAM);						\
+  if (ISDIGIT (*VALUE))							\
+    ia64_asm_output_label = 1;						\
   assemble_name (STREAM, VALUE);					\
   fputc ('\n', STREAM);							\
+  ia64_asm_output_label = 0;						\
 } while (0)
 
 
 /* Macros Controlling Initialization Routines.  */
 
-/* This is handled by svr4.h and sysv4.h.  */
+/* This is handled by sysv4.h.  */
 
 
 /* Output of Assembler Instructions.  */
@@ -1667,27 +1465,6 @@ do {									\
   { "loc79", LOC_REG (79) }, 						\
 }
 
-/* A C compound statement to output to stdio stream STREAM the assembler syntax
-   for an instruction operand X.  X is an RTL expression.  */
-
-#define PRINT_OPERAND(STREAM, X, CODE) \
-  ia64_print_operand (STREAM, X, CODE)
-
-/* A C expression which evaluates to true if CODE is a valid punctuation
-   character for use in the `PRINT_OPERAND' macro.  */
-
-/* ??? Keep this around for now, as we might need it later.  */
-
-#define PRINT_OPERAND_PUNCT_VALID_P(CODE) \
-  ((CODE) == '+' || (CODE) == ',')
-
-/* A C compound statement to output to stdio stream STREAM the assembler syntax
-   for an instruction operand that is a memory reference whose address is X.  X
-   is an RTL expression.  */
-
-#define PRINT_OPERAND_ADDRESS(STREAM, X) \
-  ia64_print_operand_address (STREAM, X)
-
 /* If defined, C string expressions to be used for the `%R', `%L', `%U', and
    `%I' options of `asm_fprintf' (see `final.c').  */
 
@@ -1706,15 +1483,15 @@ do {									\
 
 #define ASM_OUTPUT_ADDR_DIFF_ELT(STREAM, BODY, VALUE, REL)	\
   do {								\
-  if (TARGET_ILP32)						\
+  if (CASE_VECTOR_MODE == SImode)				\
     fprintf (STREAM, "\tdata4 @pcrel(.L%d)\n", VALUE);		\
   else								\
     fprintf (STREAM, "\tdata8 @pcrel(.L%d)\n", VALUE);		\
   } while (0)
 
-/* Jump tables only need 8 byte alignment.  */
+/* Jump tables only need 4 or 8 byte alignment.  */
 
-#define ADDR_VEC_ALIGN(ADDR_VEC) 3
+#define ADDR_VEC_ALIGN(ADDR_VEC) (CASE_VECTOR_MODE == SImode ? 2 : 3)
 
 
 /* Assembler Commands for Exception Regions.  */
@@ -1775,12 +1552,12 @@ do {									\
 
 /* Macros Affecting all Debug Formats.  */
 
-/* This is handled in svr4.h and sysv4.h.  */
+/* This is handled in sysv4.h.  */
 
 
 /* Specific Options for DBX Output.  */
 
-/* This is handled by dbxelf.h which is included by svr4.h.  */
+/* This is handled by dbxelf.h.  */
 
 
 /* Open ended Hooks for DBX Output.  */
@@ -1799,12 +1576,6 @@ do {									\
    output in response to the `-g' option.  */
 
 #define DWARF2_DEBUGGING_INFO 1
-
-/* We do not want call-frame info to be output, since debuggers are
-   supposed to use the target unwind info.  Leave this undefined it
-   TARGET_UNWIND_INFO might ever be false.  */
-
-#define DWARF2_FRAME_INFO 0
 
 #define DWARF2_ASM_LINE_DEBUG_INFO (TARGET_DWARF2_ASM)
 
@@ -1903,12 +1674,6 @@ do {									\
 
 #define FUNCTION_MODE Pmode
 
-/* Define this macro to handle System V style pragmas: #pragma pack and
-   #pragma weak.  Note, #pragma weak will only be supported if SUPPORT_WEAK is
-   defined.  */
-
-#define HANDLE_SYSV_PRAGMA 1
-
 /* A C expression for the maximum number of instructions to execute via
    conditional execution instructions instead of a branch.  A value of
    BRANCH_COST+1 is the default if the machine does not use
@@ -1918,14 +1683,12 @@ do {									\
 
 extern int ia64_final_schedule;
 
-#define TARGET_UNWIND_INFO	1
-
 #define TARGET_UNWIND_TABLES_DEFAULT true
 
 #define EH_RETURN_DATA_REGNO(N) ((N) < 4 ? (N) + 15 : INVALID_REGNUM)
 
 /* This function contains machine specific function data.  */
-struct machine_function GTY(())
+struct GTY(()) machine_function
 {
   /* The new stack pointer when unwinding from EH.  */
   rtx ia64_eh_epilogue_sp;
@@ -1957,9 +1720,5 @@ struct machine_function GTY(())
 
 /* Switch on code for querying unit reservations.  */
 #define CPU_UNITS_QUERY 1
-
-/* Define this to change the optimizations performed by default.  */
-#define OPTIMIZATION_OPTIONS(LEVEL, SIZE) \
-  ia64_optimization_options ((LEVEL), (SIZE))
 
 /* End of ia64.h */

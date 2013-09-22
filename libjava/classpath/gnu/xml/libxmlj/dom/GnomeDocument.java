@@ -1,4 +1,4 @@
-/* GnomeDocument.java - 
+/* GnomeDocument.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,9 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+import gnu.xml.dom.DomNodeIterator;
+
 import java.util.Iterator;
 
 import org.w3c.dom.Attr;
@@ -65,8 +68,6 @@ import org.w3c.dom.xpath.XPathEvaluator;
 import org.w3c.dom.xpath.XPathException;
 import org.w3c.dom.xpath.XPathExpression;
 import org.w3c.dom.xpath.XPathNSResolver;
-
-import gnu.xml.dom.DomNodeIterator;
 
 /**
  * A DOM document node implemented in libxml2.
@@ -101,18 +102,18 @@ public class GnomeDocument
   boolean validate = false;
   boolean validateIfSchema = false;
   boolean wellFormed = true;
-  
+
   GnomeDocument(Object id)
   {
     super(id);
     strictErrorChecking = true;
   }
-  
+
   protected void finalize()
   {
     free(id);
   }
-  
+
   private native void free(Object id);
 
   public native DocumentType getDoctype();
@@ -176,7 +177,7 @@ public class GnomeDocument
   public native Element createElementNS(String namespaceURI, String
                                         qualifiedName)
     throws DOMException;
-  
+
   public native Attr createAttributeNS(String namespaceURI, String
                                        qualifiedName)
     throws DOMException;
@@ -210,7 +211,7 @@ public class GnomeDocument
       }
     return element;
   }
-  
+
   private native Element xmljGetElementById(String elementId);
 
   // DOM Level 3 methods
@@ -236,7 +237,7 @@ public class GnomeDocument
   {
     this.strictErrorChecking = strictErrorChecking;
   }
-  
+
   public native String getDocumentURI();
 
   public native void setDocumentURI(String documentURI);
@@ -409,14 +410,14 @@ public class GnomeDocument
     else if ("infoset".equals(name))
       {
         return Boolean.valueOf(!validateIfSchema &&
-			       !entities &&
-			       !datatypeNormalization &&
-			       !cdataSections &&
-			       namespaceDeclarations &&
-			       wellFormed &&
-			       elementContentWhitespace &&
-			       comments &&
-			       namespaces);
+                               !entities &&
+                               !datatypeNormalization &&
+                               !cdataSections &&
+                               namespaceDeclarations &&
+                               wellFormed &&
+                               elementContentWhitespace &&
+                               comments &&
+                               namespaces);
       }
     else if ("namespaces".equals(name))
       {
@@ -465,7 +466,7 @@ public class GnomeDocument
             "namespace-declarations".equals(name) ||
             "split-cdata-sections".equals(name));
   }
-  
+
   public DOMStringList getParameterNames()
   {
     String[] names = new String[] {
@@ -546,10 +547,10 @@ public class GnomeDocument
   }
 
   // -- Debugging --
-  
+
   public String toString()
   {
-    StringBuffer buffer = new StringBuffer(getClass().getName());
+    CPStringBuilder buffer = new CPStringBuilder(getClass().getName());
     buffer.append("[version=");
     buffer.append(getXmlVersion());
     buffer.append(",standalone=");

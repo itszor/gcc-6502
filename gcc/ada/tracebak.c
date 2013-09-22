@@ -1,29 +1,28 @@
 /****************************************************************************
  *                                                                          *
- *                         GNAT COMPILER COMPONENTS                         *
+ *                         GNAT RUN-TIME COMPONENTS                         *
  *                                                                          *
  *                            T R A C E B A C K                             *
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *                     Copyright (C) 2000-2007, AdaCore                     *
+ *            Copyright (C) 2000-2012, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -36,6 +35,7 @@
    PowerPC/AiX
    PowerPC/Darwin
    PowerPC/VxWorks
+   PowerPC/LynxOS-178
    SPARC/Solaris
    i386/GNU/Linux
    i386/Solaris
@@ -45,6 +45,10 @@
    Alpha/VxWorks
    Alpha/VMS
 */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifdef __alpha_vxworks
 #include "vxWorks.h"
@@ -103,6 +107,76 @@ extern void (*Unlock_Task) (void);
 
 #include "tb-ivms.c"
 
+#elif defined (_WIN64) && defined (__SEH__)
+
+#include <windows.h>
+
+int
+__gnat_backtrace (void **array,
+                  int size,
+                  void *exclude_min,
+                  void *exclude_max,
+                  int skip_frames)
+{
+  CONTEXT context;
+  UNWIND_HISTORY_TABLE history;
+  int i;
+
+  /* Get the context.  */
+  RtlCaptureContext (&context);
+
+  /* Setup unwind history table (a cached to speed-up unwinding).  */
+  memset (&history, 0, sizeof (history));
+
+  i = 0;
+  while (1)
+    {
+      PRUNTIME_FUNCTION RuntimeFunction;
+      KNONVOLATILE_CONTEXT_POINTERS NvContext;
+      ULONG64 ImageBase;
+      VOID *HandlerData;
+      ULONG64 EstablisherFrame;
+
+      /* Get function metadata.  */
+      RuntimeFunction = RtlLookupFunctionEntry
+	(context.Rip, &ImageBase, &history);
+
+      if (!RuntimeFunction)
+	{
+	  /* In case of failure, assume this is a leaf function.  */
+	  context.Rip = *(ULONG64 *) context.Rsp;
+	  context.Rsp += 8;
+	}
+      else
+	{
+	  /* Unwind.  */
+	  memset (&NvContext, 0, sizeof (KNONVOLATILE_CONTEXT_POINTERS));
+	  RtlVirtualUnwind (0, ImageBase, context.Rip, RuntimeFunction,
+			    &context, &HandlerData, &EstablisherFrame,
+			    &NvContext);
+	}
+
+      /* 0 means bottom of the stack.  */
+      if (context.Rip == 0)
+	break;
+
+      /* Skip frames.  */
+      if (skip_frames > 1)
+	{
+	  skip_frames--;
+	  continue;
+	}
+      /* Excluded frames.  */
+      if ((void *)context.Rip >= exclude_min
+	  && (void *)context.Rip <= exclude_max)
+	continue;
+
+      array[i++] = (void *)(context.Rip - 2);
+      if (i >= size)
+	break;
+    }
+  return i;
+}
 #else
 
 /* No target specific implementation.  */
@@ -147,7 +221,7 @@ extern void (*Unlock_Task) (void);
      of a call instruction), which is what we want in the output array, and
      the associated return address, which is what we retrieve from the stack.
 
-   o STOP_FRAME, to decide wether we reached the top of the call chain, and
+   o STOP_FRAME, to decide whether we reached the top of the call chain, and
      thus if the process shall stop.
 
 	   :
@@ -199,10 +273,25 @@ extern void (*Unlock_Task) (void);
 
   */
 
-/*--------------------------- PPC AIX/Darwin ----------------------------*/
+/*------------------- Darwin 8 (OSX 10.4) or newer ----------------------*/
+#if defined (__APPLE__) \
+    && defined (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) \
+    && __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1040
 
-#if ((defined (_POWER) && defined (_AIX)) || \
-(defined (__ppc__) && defined (__APPLE__)))
+#define USE_GCC_UNWINDER
+
+#if defined (__i386__) || defined (__x86_64__)
+#define PC_ADJUST -2
+#elif defined (__ppc__) || defined (__ppc64__)
+#define PC_ADJUST -4
+#else
+#error Unhandled darwin architecture.
+#endif
+
+/*---------------------- PPC AIX/PPC Lynx 178/Older Darwin ------------------*/
+#elif ((defined (_POWER) && defined (_AIX)) || \
+       (defined (__powerpc__) && defined (__Lynx__) && !defined(__ELF__)) || \
+       (defined (__ppc__) && defined (__APPLE__)))
 
 #define USE_GENERIC_UNWINDER
 
@@ -215,7 +304,31 @@ struct layout
 
 #define FRAME_OFFSET(FP) 0
 #define PC_ADJUST -4
-#define STOP_FRAME(CURRENT, TOP_STACK) ((void *) (CURRENT) < (TOP_STACK))
+
+/* Eventhough the base PPC ABI states that a toplevel frame entry
+   should to feature a null backchain, AIX might expose a null return
+   address instead.  */
+
+/* Then LynxOS-178 features yet another variation, with return_address
+   == &<entrypoint>, with two possible entry points (one for the main
+   process and one for threads). Beware that &bla returns the address
+   of a descriptor when "bla" is a function.  Getting the code address
+   requires an extra dereference.  */
+
+#if defined (__Lynx__)
+extern void __start();  /* process entry point.  */
+extern void __runnit(); /* thread entry point.  */
+#define EXTRA_STOP_CONDITION(CURRENT)                 \
+  ((CURRENT)->return_address == *(void**)&__start     \
+   || (CURRENT)->return_address == *(void**)&__runnit)
+#else
+#define EXTRA_STOP_CONDITION(CURRENT) (0)
+#endif
+
+#define STOP_FRAME(CURRENT, TOP_STACK) \
+  (((void *) (CURRENT) < (TOP_STACK)) \
+   || (CURRENT)->return_address == NULL \
+   || EXTRA_STOP_CONDITION(CURRENT))
 
 /* The PPC ABI has an interesting specificity: the return address saved by a
    function is located in it's caller's frame, and the save operation only
@@ -229,9 +342,10 @@ struct layout
 
 #define BASE_SKIP 1
 
-/*---------------------------- PPC VxWorks------------------------------*/
+/*-------------------- PPC ELF (GNU/Linux & VxWorks) ---------------------*/
 
-#elif defined (_ARCH_PPC) && defined (__vxworks)
+#elif (defined (_ARCH_PPC) && defined (__vxworks)) ||  \
+  (defined (linux) && defined (__powerpc__))
 
 #define USE_GENERIC_UNWINDER
 
@@ -247,7 +361,13 @@ struct layout
 
 #define FRAME_OFFSET(FP) 0
 #define PC_ADJUST -4
-#define STOP_FRAME(CURRENT, TOP_STACK) ((CURRENT)->next == 0)
+
+/* According to the base PPC ABI, a toplevel frame entry should feature
+   a null backchain.  What happens at signal handler frontiers isn't so
+   well specified, so we add a safety guard on top.  */
+
+#define STOP_FRAME(CURRENT, TOP_STACK) \
+ ((CURRENT)->next == 0 || ((long)(CURRENT)->next % __alignof__(void*)) != 0)
 
 #define BASE_SKIP 1
 
@@ -293,14 +413,23 @@ struct layout
 
 #elif defined (i386)
 
-#ifdef __WIN32
+#if defined (__WIN32)
 #include <windows.h>
-#define IS_BAD_PTR(ptr) (IsBadCodePtr((void *)ptr))
+#define IS_BAD_PTR(ptr) (IsBadCodePtr((FARPROC)ptr))
+#elif defined (sun)
+#define IS_BAD_PTR(ptr) ((unsigned long)ptr == -1UL)
 #else
 #define IS_BAD_PTR(ptr) 0
 #endif
 
+/* Starting with GCC 4.6, -fomit-frame-pointer is turned on by default for
+   32-bit x86/Linux as well and DWARF 2 unwind tables are emitted instead.
+   See the x86-64 case below for the drawbacks with this approach.  */
+#if defined (linux) && (__GNUC__ * 10 + __GNUC_MINOR__ > 45)
+#define USE_GCC_UNWINDER
+#else
 #define USE_GENERIC_UNWINDER
+#endif
 
 struct layout
 {
@@ -316,8 +445,10 @@ struct layout
 #define FRAME_OFFSET(FP) 0
 #define PC_ADJUST -2
 #define STOP_FRAME(CURRENT, TOP_STACK) \
-  (IS_BAD_PTR((long)(CURRENT)->return_address) \
-   || (CURRENT)->return_address == 0|| (CURRENT)->next == 0  \
+  (IS_BAD_PTR((long)(CURRENT)) \
+   || IS_BAD_PTR((long)(CURRENT)->return_address) \
+   || (CURRENT)->return_address == 0 \
+   || (void *) ((CURRENT)->next) < (TOP_STACK)  \
    || (void *) (CURRENT) < (TOP_STACK))
 
 #define BASE_SKIP (1+FRAME_LEVEL)
@@ -431,7 +562,7 @@ __gnat_backtrace (void **array,
 {
   struct layout *current;
   void *top_frame;
-  void *top_stack;
+  void *top_stack ATTRIBUTE_UNUSED;
   int cnt = 0;
 
   if (FORCE_CALL)
@@ -467,12 +598,12 @@ __gnat_backtrace (void **array,
   while (cnt < size)
     {
       if (STOP_FRAME (current, top_stack) ||
-	  !VALID_STACK_FRAME((char *)(current->return_address + PC_ADJUST)))
+	  !VALID_STACK_FRAME(((char *) current->return_address) + PC_ADJUST))
         break;
 
       if (current->return_address < exclude_min
 	  || current->return_address > exclude_max)
-        array[cnt++] = current->return_address + PC_ADJUST;
+        array[cnt++] = ((char *) current->return_address) + PC_ADJUST;
 
       current = (struct layout *) ((size_t) current->next + FRAME_OFFSET (1));
     }
@@ -482,24 +613,27 @@ __gnat_backtrace (void **array,
 
 #else
 
-/* No target specific implementation and neither USE_GCC_UNWINDER not
-   USE_GCC_UNWINDER defined.  */
+/* No target specific implementation and neither USE_GCC_UNWINDER nor
+   USE_GENERIC_UNWINDER defined.  */
 
 /*------------------------------*
  *-- The dummy implementation --*
  *------------------------------*/
 
 int
-__gnat_backtrace (array, size, exclude_min, exclude_max, skip_frames)
-     void **array ATTRIBUTE_UNUSED;
-     int size ATTRIBUTE_UNUSED;
-     void *exclude_min ATTRIBUTE_UNUSED;
-     void *exclude_max ATTRIBUTE_UNUSED;
-     int skip_frames ATTRIBUTE_UNUSED;
+__gnat_backtrace (void **array ATTRIBUTE_UNUSED,
+                  int size ATTRIBUTE_UNUSED,
+                  void *exclude_min ATTRIBUTE_UNUSED,
+                  void *exclude_max ATTRIBUTE_UNUSED,
+                  int skip_frames ATTRIBUTE_UNUSED)
 {
   return 0;
 }
 
 #endif
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif

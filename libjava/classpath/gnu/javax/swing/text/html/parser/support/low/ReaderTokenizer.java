@@ -240,7 +240,7 @@ public class ReaderTokenizer
   /**
    * Read the given number of the tokens. Add the needed number of EOF
    * tokens if there are no more data in the stream.
-   * @param amount The number of additional tokens to read.
+   * @param numberOfTokens The number of additional tokens to read.
    */
   void read(int numberOfTokens)
      throws IOException
@@ -248,7 +248,6 @@ public class ReaderTokenizer
     if (numberOfTokens <= 0)
       return;
 
-    reading: 
     for (int i = 0; i < numberOfTokens; i++)
       readToken();
   }
@@ -262,7 +261,7 @@ public class ReaderTokenizer
     Token t;
     int ch;
 
-    enlarging: 
+    enlarging:
     while (true)
       {
         t = tokenMatches();

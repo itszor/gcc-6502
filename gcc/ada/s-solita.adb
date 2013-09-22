@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -32,31 +30,20 @@
 ------------------------------------------------------------------------------
 
 pragma Style_Checks (All_Checks);
---  Turn off subprogram alpha ordering check, since we group soft link
---  bodies and dummy soft link bodies together separately in this unit.
+--  Turn off subprogram alpha ordering check, since we group soft link bodies
+--  and dummy soft link bodies together separately in this unit.
 
 pragma Polling (Off);
---  Turn polling off for this package. We don't need polling during any
---  of the routines in this package, and more to the point, if we try
---  to poll it can cause infinite loops.
-
-with System.Task_Primitives.Operations;
---  Used for Self
---           Timed_Delay
-
-with System.Tasking;
---  Used for Task_Id
---           Cause_Of_Termination
-
-with System.Stack_Checking;
---  Used for Stack_Access
+--  Turn polling off for this package. We don't need polling during any of the
+--  routines in this package, and more to the point, if we try to poll it can
+--  cause infinite loops.
 
 with Ada.Exceptions;
---  Used for Exception_Id
---           Exception_Occurrence
---           Save_Occurrence
-
 with Ada.Exceptions.Is_Null_Occurrence;
+
+with System.Task_Primitives.Operations;
+with System.Tasking;
+with System.Stack_Checking;
 
 package body System.Soft_Links.Tasking is
 
@@ -164,8 +151,12 @@ package body System.Soft_Links.Tasking is
 
    begin
       --  We can only be here because we are terminating the environment task.
-      --  Task termination for the rest of the tasks is handled in the
-      --  Task_Wrapper.
+      --  Task termination for all other tasks is handled in the Task_Wrapper.
+
+      --  We do not want to enable this check and e.g. call System.OS_Lib.Abort
+      --  here because some restricted run-times may not have System.OS_Lib
+      --  (e.g. JVM), and calling abort may do more harm than good to the
+      --  main application.
 
       pragma Assert (Self_Id = STPO.Environment_Task);
 
@@ -188,9 +179,9 @@ package body System.Soft_Links.Tasking is
          Ada.Exceptions.Save_Occurrence (EO, Excep);
       end if;
 
-      --  There is no need for explicit protection against race conditions
-      --  for this part because it can only be executed by the environment
-      --  task after all the other tasks have been finalized.
+      --  There is no need for explicit protection against race conditions for
+      --  this part because it can only be executed by the environment task
+      --  after all the other tasks have been finalized.
 
       if Self_Id.Common.Specific_Handler /= null then
          Self_Id.Common.Specific_Handler.all (Cause, Self_Id, EO);
@@ -224,8 +215,8 @@ package body System.Soft_Links.Tasking is
          SSL.Timed_Delay              := Timed_Delay_T'Access;
          SSL.Task_Termination_Handler := Task_Termination_Handler_T'Access;
 
-         --  No need to create a new Secondary Stack, since we will use the
-         --  default one created in s-secsta.adb
+         --  No need to create a new secondary stack, since we will use the
+         --  default one created in s-secsta.adb.
 
          SSL.Set_Sec_Stack_Addr     (SSL.Get_Sec_Stack_Addr_NT);
          SSL.Set_Jmpbuf_Address     (SSL.Get_Jmpbuf_Address_NT);

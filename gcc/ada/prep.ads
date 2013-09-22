@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2002-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -95,20 +95,25 @@ package Prep is
 
    type New_EOL_Proc is access procedure;
 
-   procedure Initialize
+   procedure Initialize;
+   --  Initialize the preprocessor's global structures
+
+   procedure Setup_Hooks
      (Error_Msg         : Error_Msg_Proc;
       Scan              : Scan_Proc;
       Set_Ignore_Errors : Set_Ignore_Errors_Proc;
       Put_Char          : Put_Char_Proc;
       New_EOL           : New_EOL_Proc);
+   --  Set the i/o hooks used by the preprocessor
 
    procedure Parse_Def_File;
    --  Parse the definition file. The definition file must have already been
    --  loaded and the scanner initialized.
 
-   procedure Preprocess;
+   procedure Preprocess (Source_Modified : out Boolean);
    --  Preprocess the input file. The input file must have already been loaded
-   --  and the scanner initialized.
+   --  and the scanner initialized. Source_Modified is set to True iff the
+   --  preprocessor modified the source text.
 
    procedure Check_Command_Line_Symbol_Definition
      (Definition  : String;
@@ -124,7 +129,7 @@ package Prep is
    --  Tok_Identifier with the corresponding Token_Name.
 
    procedure List_Symbols (Foreword : String);
-   --  List the symbols used por preprocessing a file, with their values.
+   --  List the symbols used for preprocessing a file, with their values.
    --  If Foreword is not empty, Output Foreword before the list.
 
 end Prep;

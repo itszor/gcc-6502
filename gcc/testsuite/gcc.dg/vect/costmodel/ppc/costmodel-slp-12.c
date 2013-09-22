@@ -1,7 +1,6 @@
 /* { dg-require-effective-target vect_int } */
 
 #include <stdarg.h>
-#include <stdio.h>
 #include "../../tree-vect.h"
 
 #define N 8 
@@ -114,7 +113,7 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect"  {target { vect_strided && vect_int_mult } } } } */
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 1 "vect" {target { vect_strided && vect_int_mult } } } } */
+/* { dg-final { scan-tree-dump-times "vectorized 3 loops" 1 "vect"  {target { vect_strided8 && vect_int_mult } } } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 3 "vect" {target { vect_strided8 && vect_int_mult } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
   

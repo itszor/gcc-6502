@@ -2,6 +2,7 @@
 /* { dg-require-alias "" } */
 /* { dg-require-weak "" } */
 /* { dg-options "-fno-common -Waddress" } */
+/* { dg-skip-if "" { x86_64-*-mingw* } { "*" } { "" } } */
 
 /* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?ffoo1a" } } */
 /* { dg-final { scan-assembler "weak\[^ \t\]*\[ \t\]_?ffoo1b" } } */
@@ -34,7 +35,7 @@ void * foo1c (void)
 {
   return (void *)ffoo1c;
 }
-extern void * ffoo1c (void) __attribute__((weak)); /* { dg-warning "weak declaration" "weak declaration" } */
+extern void * ffoo1c (void) __attribute__((weak));
 
 
 int ffoo1d (void);
@@ -59,7 +60,7 @@ void * foo1f (void)
   return 0;
 }
 void * ffoox1f (void) { return (void *)0; }
-extern void * ffoo1f (void)  __attribute__((weak, alias ("ffoox1f"))); /* { dg-warning "weak declaration" "weak declaration" } */
+extern void * ffoo1f (void)  __attribute__((weak, alias ("ffoox1f")));
 
 
 extern void * ffoo1g (void);

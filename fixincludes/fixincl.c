@@ -2,24 +2,24 @@
    files which are fixed to work correctly with ANSI C and placed in a
    directory that GCC will search.
 
-   Copyright (C) 1997, 1998, 1999, 2000, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1997, 1998, 1999, 2000, 2004, 2009, 2012
+   Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "fixlib.h"
 
@@ -53,21 +53,7 @@ static const char z_std_preamble[] =
     original, manufacturer supplied header file.  */\n\n";
 
 int find_base_len = 0;
-
-typedef enum {
-  VERB_SILENT = 0,
-  VERB_FIXES,
-  VERB_APPLIES,
-  VERB_PROGRESS,
-  VERB_TESTS,
-  VERB_EVERYTHING
-} te_verbose;
-
-te_verbose  verbose_level = VERB_PROGRESS;
 int have_tty = 0;
-
-#define VLEVEL(l)  ((unsigned int) verbose_level >= (unsigned int) l)
-#define NOT_SILENT VLEVEL(VERB_FIXES)
 
 pid_t process_chain_head = (pid_t) -1;
 
@@ -412,8 +398,17 @@ run_compiles (void)
   /* FOR every fixup, ...  */
   do
     {
-      tTestDesc *p_test = p_fixd->p_test_desc;
-      int test_ct = p_fixd->test_ct;
+      tTestDesc *p_test;
+      int test_ct;
+
+      if (fixinc_mode && (p_fixd->fd_flags & FD_REPLACEMENT))
+        {
+          p_fixd->fd_flags |= FD_SKIP_TEST;
+          continue;
+        }
+
+      p_test = p_fixd->p_test_desc;
+      test_ct = p_fixd->test_ct;
 
       /*  IF the machine type pointer is not NULL (we are not in test mode)
              AND this test is for or not done on particular machines
@@ -829,7 +824,7 @@ fix_with_system (tFixDesc* p_fixd,
       /*
        *  Now add the fix number and file names that may be needed
        */
-      sprintf (pz_scan, " %ld '%s' '%s' '%s'", p_fixd - fixDescList,
+      sprintf (pz_scan, " %ld '%s' '%s' '%s'", (long) (p_fixd - fixDescList),
 	       pz_fix_file, pz_file_source, pz_temp_file);
     }
   else /* NOT an "internal" fix: */
@@ -1046,11 +1041,8 @@ fix_applies (tFixDesc* p_fixd)
 
   if (pz_scan != (char *) NULL)
     {
-      size_t name_len;
-
       while ((pz_fname[0] == '.') && (pz_fname[1] == '/'))
         pz_fname += 2;
-      name_len = strlen (pz_fname);
 
       for (;;)
         {

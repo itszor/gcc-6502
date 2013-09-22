@@ -1,16 +1,391 @@
-2008-06-06  Release Manager
+2013-05-31  Release Manager
 
-	* GCC 4.3.1 released.
+	* GCC 4.8.1 released.
 
-2008-03-05  Release Manager
+2013-03-22  Release Manager
 
-	* GCC 4.3.0 released.
+	* GCC 4.8.0 released.
+
+2013-03-14  Jakub Jelinek  <jakub@redhat.com>
+
+	PR tree-optimization/53265
+	* testsuite/libmudflap.c/fail37-frag.c: Add optimization barrier.
+
+2013-02-03  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years.
+
+2013-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2012-12-15  Alexandre Oliva <aoliva@redhat.com>
+
+	* mf-hooks1.c (free): Return on NULL before any logging.
+
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
+
+	* configure: Regenerated.
+
+2012-07-13  Richard Guenther  <rguenther@suse.de>
+
+	* testsuite/libmudflap.c++/ctors.exp: Explicitely specify -O0.
+	* testsuite/libmudflap.c++/c++frags.exp: Likewise.
+	* testsuite/libmudflap.cth/cthfrags.exp: Likewise.
+	* testsuite/libmudflap.c/cfrags.exp: Likewise.
+	* testsuite/libmudflap.c/externs.exp: Likewise.
+
+2012-07-13  Richard Guenther  <rguenther@suse.de>
+
+	* testsuite/libmudflap.c/fail11-frag.c: Adjust to not look like memset.
+	* testsuite/libmudflap.c/fail12-frag.c: Likewise.
+
+2012-05-29  Joseph Myers  <joseph@codesourcery.com>
+
+	* mf-impl.h: Fix typo.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2012-04-11  Manuel López-Ibáñez  <manu@gcc.gnu.org>
+
+	PR 24985
+	* testsuite/lib/libmudflap.exp: Handle caret.
+
+2012-01-19  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libmudflap/40778
+	* testsuite/libmudflap.c/fail68-frag.c: New test.
+
+2012-01-01  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* configure: Regenerate.
+
+2011-07-31  Tom de Vries  <tom@codesourcery.com>
+
+	PR middle-end/43513
+	* testsuite/libmudflap.c/fail31-frag.c: Adapt testcase to prevent
+	folding of alloca.
+
+2011-07-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	Revert:
+	2011-07-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/49753
+	PR tree-optimization/49309
+	* testsuite/libmudflap.c++/pass68-frag.cxx: New test.
+
+2011-07-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR testsuite/49753
+	PR tree-optimization/49309
+	* testsuite/libmudflap.c++/pass68-frag.cxx: New test.
+
+2011-07-13  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Don't create pth.
+	Check for library containing sched_yield.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+
+	* testsuite/lib/libmudflap.exp (libmudflap-init): Use
+	mfconfig_libs in -static check.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libmudflap/49550
+	* mf-runtime.c (__wrap_main) [__sun__ && __svr4__]: Don't register
+	stdin, stdout, stderr.
+	Register __ctype, __ctype_mask.
+
+	* configure.ac: Check for mmap64.
+	Check for rawmemchr, stpcpy, mempcpy.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+	* mf-hooks1.c [HAVE_MMAP64] (__mf_0fn_mmap64): New function.
+	(mmap64): New wrapper function.
+	* mf-impl.h (__mf_dynamic_index) [HAVE_MMAP64]: Add dyn_mmap64.
+	* mf-runtime.c (__mf_dynamic) [HAVE_MMAP64]: Handle mmap64.
+
+	* mf-hooks2.c [HAVE_GETMNTENT && HAVE_SYS_MNTTAB_H]: Implement
+	getmntent wrapper.
+
+	* mf-hooks3.c (_REENTRANT): Define.
+
+	* testsuite/libmudflap.c/heap-scalestress.c (SCALE): Reduce to 10000.
+
+	* testsuite/libmudflap.c/pass-stratcliff.c: Include ../config.h.
+	(MIN): Define.
+	Use HAVE_RAWMEMCHR, HAVE_STPCPY, HAVE_MEMPCPY as guards.
+
+	* testsuite/libmudflap.c/pass47-frag.c: Expect __ctype warning on
+	*-*-solaris2.*.
+
+2011-07-01  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libmudflap/49549
+	* testsuite/lib/libmudflap.exp (load_gcc_lib): Load
+	target-supports.exp.
+	* testsuite/libmudflap.cth/cthfrags.exp: Only pass
+	--noinhibit-exec to GNU ld.
+
+2011-06-27  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libmudflap/38738
+	* configure.ac: Check for sys/mnttab.h.
+	Check for library containing connect.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+	* mf-hooks2.c [HAVE_SYS_MNTTAB_H]: Include <sys/mnttab.h>.
+	* testsuite/libmudflap.c/pass-stratcliff.c (main) [__sun__ &&
+	__svr4__]: Disable rawmemchr, stpcpy, mempcpy tests.
+
+2011-02-13  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2011-01-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2010-10-31  Jason Merrill  <jason@redhat.com>
+
+	PR testsuite/20003
+	* testsuite/libmudflap.cth/pass40-frag.c: Increase timeout to 30.
+
+2010-08-20  Uros Bizjak  <ubizjak@gmail.com>
+
+	* testsuite/libmudflap.c++/pass41-frag.cxx (dg-prune-output):
+	New dg directive.
+
+2010-06-09  Iain Sandoe  <iains@gcc.gnu.org>
+
+	PR bootstrap/43170
+	* configure: Regenerate.
+
+2010-05-16  Uros Bizjak  <ubizjak@gmail.com>
+
+	* testsuite/libmudflap.c/pass46-frag.c (dg-options): Remove -Wall.
+
+2010-05-15  Uros Bizjak  <ubizjak@gmail.com>
+
+	* testsuite/lib/mfdg.exp (additional_prunes): New global.
+	(dg-test): Clear additional_prunes before test is run.
+	(dg-prune-output): New procedure.
+	* testsuite/lib/libmudflap.exp (libmudflap-dg-test): Do not call
+	prune_gcc_output.
+	(libmudflap-dg-prune): New procedure.
+	* testsuite/libmudflap.c++/pass57-frag.cxx (dg-prune-output):
+	New dg directive.
+
+2010-05-04  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	PR other/43620
+	* configure.ac (AM_INIT_AUTOMAKE): Add no-dist.
+	* Makefile.in: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2010-03-15  David S. Miller  <davem@davemloft.net>
+
+	* testsuite/libmudflap.c/pass54-frag.c: Add explicit return from
+	main.
+
+2010-01-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2009-12-05  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2009-09-22  Frank Ch. Eigler  <fche@redhat.com>
+
+	PR libmudflap/41433
+	* mf-runtime.c (__mf_init): Ignore $MUDFLAP_OPTIONS if
+	running setuid or setgid.
+
+2009-09-01  Loren J. Rittle  <ljrittle@acm.org>
+
+	* mf-runtime.c (__mf_init): Support FreeBSD.
+	Prime mutex which calls calloc upon first lock to avoid deadlock.
+	* mf-hooks1.c (__mf_0fn_mmap): Support FreeBSD.
+	Ignore red zone allocation request for initial thread's stack.
+
+2009-09-01  Loren J. Rittle  <ljrittle@acm.org>
+	    Andreas Schwab  <schwab@linux-m68k.org>
+
+	* testsuite/libmudflap.c/pass51-frag.c (MAP_FAILED): Define,
+	if not in system header; use it.  On FreeBSD, must pass fd==-1
+	with MAP_ANON flag.  Correct mmap error check.
+	* testsuite/libmudflap.c/fail40-frag.c: Ditto.
+
+2009-08-24  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac (AC_PREREQ): Bump to 2.64.
+
+2009-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.am (install-html, install-pdf): Remove.
+	* Makefile.in: Regenerate.
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2009-07-30  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac (_AC_ARG_VAR_PRECIOUS): Use m4_rename_force.
+
+2009-07-16  Joseph Myers  <joseph@codesourcery.com>
+
+	* configure: Regenerate.
+
+2009-07-11  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	PR testsuite/40699
+	PR testsuite/40707
+	PR testsuite/40709
+	* testsuite/lib/libmudflap.exp: Revert 2009-06-30 commit.
+
+2009-07-01  Richard Guenther  <rguenther@suse.de>
+
+	PR tree-optimization/19831
+	* testsuite/libmudflap.c/fail11-frag.c: Make allocated memory
+	escape.
+	* testsuite/libmudflap.c/fail12-frag.c: Likewise.
+	* testsuite/libmudflap.c/fail16-frag.c: Likewise.
+	* testsuite/libmudflap.c/fail31-frag.c: Likewise.
+
+2009-06-30  Richard Sandiford  <r.sandiford@uk.ibm.com>
+
+	* testsuite/lib/libmudflap.exp (libmudflap-init): Don't add "."
+	to ld_library_path.  Use add_path.  Add just find_libgcc_s to
+	ld_library_path, not every libgcc multilib directory.
+
+2009-04-09  Nick Clifton  <nickc@redhat.com>
+
+	* mf-hooks1.c: Change copyright header to refer to version 3
+	of the GNU General Public License with version 3.1 of the GCC
+	Runtime Library Exception and to point readers at the COPYING3
+	and COPYING3.RUNTIME files and the FSF's license web page.
+	* mf-heuristics.c: Likewise.
+	* mf-hooks2.c: Likewise.
+	* mf-hooks3.c: Likewise.
+	* mf-impl.h: Likewise.
+	* mf-runtime.c: Likewise.
+	* mf-runtime.h: Likewise.
+
+2009-04-09  Jakub Jelinek  <jakub@redhat.com>
+
+	* testsuite/lib/mfdg.exp: Change copyright header to refer to
+	version 3 of the GNU General Public License and to point readers
+	at the COPYING3 file and the FSF's license web page.
+	* testsuite/lib/libmudflap.exp: Likewise.
+
+2009-03-31  Ben Elliston  <bje@au.ibm.com>
+
+	PR libmudflap/38462
+	* testsuite/libmudflap.c/fail27-frag.c: Match `mudflap dead
+	object', not `mudflap object'.
+
+2009-03-01  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2009-02-03  Jakub Jelinek  <jakub@redhat.com>
+
+	* mf-runtime.c (__mf_usage): Update copyright notice dates.
+
+2009-01-23  Jie Zhang  <jie.zhang@analog.com>
+
+	* mf-impl.h (__mf_get_state, __mf_set_state): Don't use
+	__thread when TLS support is emulated.
+	* mf-hooks3.c (__mf_get_state, __mf_set_state): Likewise.
+	* mf-runtime.c (__mf_state_1): Likewise.
+	* configure.ac: Use GCC_CHECK_EMUTLS.
+	* configure: Regenerate.
+	* config.h.in: Regenerate.
+
+2008-12-18  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2008-11-26  Janis Johnson  <janis187@us.ibm.com>
+
+	PR testsuite/28870
+	* testsuite/lib/mfdg.exp (dg-test): Use new timeout support.
+	(dg-timeout): Remove.
+	(standard-wait): Remove.
+	* testsuite/lib/libmudflap.exp: Include new timeout library files.
+	(libmudflap_target_compile): Set timeout value from new proc.
+
+2008-11-10  Jakub Jelinek  <jakub@redhat.com>
+
+	PR middle-end/35314
+	* testsuite/libmudflap.c/pass67-frag.c: New test.
+
+2008-10-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c++/37568
+	* testsuite/libmudflap.c++/pass66-frag.cxx: New test.
+
+2008-09-26  Peter O'Gorman  <pogma@thewrittenword.com>
+            Steve Ellcey  <sje@cup.hp.com>
+
+	* configure: Regenerate for new libtool.
+	* Makefile.in: Ditto.
+	* testsuite/Makefile.in: Ditto.
+
+2008-09-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libmudflap/36397
+	* testsuite/libmudflap.c/pass64-frag.c: New test.
+
+2008-06-17  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* config.h.in: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.in: Regenerate.
+
+2008-04-18  Paolo Bonzini  <bonzini@gnu.org>
+
+	PR bootstrap/35457
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2008-03-20  Volker Reichelt  <v.reichelt@netcologne.de>
+
+	* testsuite/libmudflap.c/pass63-frag.c: New test.
+
+2008-03-16  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* aclocal.m4: Regenerate.
+	* configure: Likewise.
+	* Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
 
 2008-03-02  Jakub Jelinek  <jakub@redhat.com>
 
 	* mf-runtime.c (__mf_usage): Update copyright notice dates.
 
-2008-02-28  Uros Bizjak  <ubizjak@gmail.com>
+2008-02-21  Uros Bizjak  <ubizjak@gmail.com>
 
 	* testsuite/libmudflap.c/fail8-frag.c: Adjust scan pattern for
 	mudflap dead object.

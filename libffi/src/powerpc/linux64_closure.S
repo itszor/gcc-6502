@@ -1,3 +1,29 @@
+/* -----------------------------------------------------------------------
+   sysv.h - Copyright (c) 2003 Jakub Jelinek <jakub@redhat.com>
+	    Copyright (c) 2008 Red Hat, Inc.
+
+   PowerPC64 Assembly glue.
+
+   Permission is hereby granted, free of charge, to any person obtaining
+   a copy of this software and associated documentation files (the
+   ``Software''), to deal in the Software without restriction, including
+   without limitation the rights to use, copy, modify, merge, publish,
+   distribute, sublicense, and/or sell copies of the Software, and to
+   permit persons to whom the Software is furnished to do so, subject to
+   the following conditions:
+
+   The above copyright notice and this permission notice shall be included
+   in all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+   ----------------------------------------------------------------------- */
 #define LIBFFI_ASM
 #include <fficonfig.h>
 #include <ffi.h>
@@ -6,16 +32,24 @@
 
 #ifdef __powerpc64__
 	FFI_HIDDEN (ffi_closure_LINUX64)
-	FFI_HIDDEN (.ffi_closure_LINUX64)
-	.globl  ffi_closure_LINUX64, .ffi_closure_LINUX64
+	.globl  ffi_closure_LINUX64
 	.section        ".opd","aw"
 	.align  3
 ffi_closure_LINUX64:
+#ifdef _CALL_LINUX
+	.quad   .L.ffi_closure_LINUX64,.TOC.@tocbase,0
+	.type   ffi_closure_LINUX64,@function
+	.text
+.L.ffi_closure_LINUX64:
+#else
+	FFI_HIDDEN (.ffi_closure_LINUX64)
+	.globl  .ffi_closure_LINUX64
 	.quad   .ffi_closure_LINUX64,.TOC.@tocbase,0
 	.size   ffi_closure_LINUX64,24
 	.type   .ffi_closure_LINUX64,@function
 	.text
 .ffi_closure_LINUX64:
+#endif
 .LFB1:
 	# save general regs into parm save area
 	std	%r3, 48(%r1)
@@ -65,7 +99,11 @@ ffi_closure_LINUX64:
 	addi %r6, %r1, 128
 
 	# make the call
+#ifdef _CALL_LINUX
+	bl ffi_closure_helper_LINUX64
+#else
 	bl .ffi_closure_helper_LINUX64
+#endif
 .Lret:
 
 	# now r3 contains the return type
@@ -168,7 +206,11 @@ ffi_closure_LINUX64:
 .LFE1:
 	.long	0
 	.byte	0,12,0,1,128,0,0,0
+#ifdef _CALL_LINUX
+	.size	ffi_closure_LINUX64,.-.L.ffi_closure_LINUX64
+#else
 	.size	.ffi_closure_LINUX64,.-.ffi_closure_LINUX64
+#endif
 
 	.section	.eh_frame,EH_FRAME_FLAGS,@progbits
 .Lframe1:
@@ -203,4 +245,8 @@ ffi_closure_LINUX64:
 	.sleb128 -2
 	.align 3
 .LEFDE1:
+#endif
+
+#if defined __ELF__ && defined __linux__
+	.section	.note.GNU-stack,"",@progbits
 #endif

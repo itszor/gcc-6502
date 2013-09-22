@@ -3,15 +3,15 @@
    message sends (so that proper C/C++ argument conversions may
    take place).  */
 /* { dg-do run } */
-
-#include <objc/Object.h>
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdlib.h>
 
 #define CHECK_IF(expr) if(!(expr)) abort()
 
 static double d = 4.5920234e2;
 
-@interface Foo : Object
+@interface Foo : TestsuiteObject
 -(void) brokenType: (int)x floatingPoint: (double)y;
 @end
 
@@ -30,3 +30,4 @@ int main(void)
 	[foo brokenType: (int)d floatingPoint: d];
 	return 0;
 }
+

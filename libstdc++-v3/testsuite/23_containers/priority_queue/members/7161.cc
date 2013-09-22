@@ -1,11 +1,11 @@
 // 2002-06-28 pme
 
-// Copyright (C) 2002, 2004, 2005 Free Software Foundation, Inc.
+// Copyright (C) 2002-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 23.2.3 container adaptros
 
@@ -29,12 +28,10 @@ test03()
 {
   int data[] = {1, 2, 3};
   std::priority_queue<int> pq;
-  std::size_t size = pq.size();
 
   for (int i = 0; i < 3; ++i)
     pq.push(data[i]);
 
-  size = pq.size();
   pq.top();
   for (int i = 0; i < 2; ++i)
     pq.pop();

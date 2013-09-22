@@ -7446,7 +7446,7 @@
 
 	* config/xtensa/lib1funcs.asm: Use C-style comments.
 
-2006-10-23 Rafael Avila de Espindola  <rafael.espindola@gmail.com>
+2006-10-23 Rafael √Åvila de Esp√≠ndola  <rafael.espindola@gmail.com>
 
 	* tree.c (local_define_builtin): Replace calls to
 	lang_hooks.builtin_function with add_builtin_function.
@@ -12092,7 +12092,7 @@
 	pass_linear_transform, pass_empty_loop, pass_complete_unroll,
 	pass_loop_prefetch and pass_stdarg.
 
-2005-05-29  Bernd Schmidt  <bernd.schmidt@analog.com>
+2006-05-29  Bernd Schmidt  <bernd.schmidt@analog.com>
 
 	* config/bfin/bfin.opt (mfdpic): New option.
 	* config/bfin/t-bfin-elf (EXTRA_PARTS): Add crtbeginS.o and crtendS.o.
@@ -12771,7 +12771,7 @@
 	(perfect_nestify): Remove the test for can_convert_to_perfect_nest.
 	Fix formating.
 
-2005-05-17  Bernd Schmidt  <bernd.schmidt@analog.com>
+2006-05-17  Bernd Schmidt  <bernd.schmidt@analog.com>
 
 	PR bootstrap/22541
 	From Dan Kegel <dank@kegel.com>:
@@ -12796,7 +12796,7 @@
 	* tree-ssa-loop-ivopts.c (contains_abnormal_ssa_name_p): Export.
 	* tree-flow.h (contains_abnormal_ssa_name_p): Declare.
 
-2005-05-17  Bernd Schmidt  <bernd.schmidt@analog.com>
+2006-05-17  Bernd Schmidt  <bernd.schmidt@analog.com>
 
 	PR middle-end/27620
 	* expr.c (safe_from_p): Handle CONSTRUCTOR again.
@@ -14307,7 +14307,7 @@
 	* config/sparc/sparc.c (emit_and_preserve): Allocate space for the
 	register save area.
 
-2005-04-13  Uros Bizjak  <uros@kss-loka.si>
+2006-04-13  Uros Bizjak  <uros@kss-loka.si>
 
 	PR middle-end/27134
 	* builtins.c (expand_builtin_int_roundingfn): Use expand_normal()
@@ -18422,7 +18422,7 @@
 	(dump_decl_name): Do not walk the decl tree chains.
 	* tree-pass.h (TDF_CHAIN): Remove.
 
-2006-02-20  Rafael ¡vila de EspÌndola  <rafael.espindola@gmail.com>
+2006-02-20  Rafael √Åvila de Esp√≠ndola  <rafael.espindola@gmail.com>
 
 	* Makefile.in (C): Remove
 	(PROTO): Remove
@@ -18918,7 +18918,7 @@
 	* loop-invariant.c: Include except.h.
 	(find_invariant_insn): Ignore insns satisfying can_throw_internal.
 
-2005-02-16  Paul Brook  <paul@codesourcery.com>
+2006-02-16  Paul Brook  <paul@codesourcery.com>
 
 	* reload1.c (emit_reload_insns): Invalidate dead input registers used
 	for reloads.
@@ -18982,7 +18982,7 @@
 	* opts.c (common_handle_option): Free new_option pointer.
 	* df-core.c (df_analyze): Free postorder pointer.
 
-2006-02-15  Rafael ¡vila de EspÌndola <rafael.espindola@gmail.com>
+2006-02-15  Rafael √Åvila de Esp√≠ndola <rafael.espindola@gmail.com>
 
 	* Makefile.in: Fix the examples about the use of stamps
 
@@ -21081,7 +21081,7 @@
 
 	PR tree-opt/25315
 	PR tree-opt/25857
-	* tree-ssa-pre.c (insert_extra_phis): If an incomming edge is abnormal
+	* tree-ssa-pre.c (insert_extra_phis): If an incoming edge is abnormal
 	return from the function.
 
 2006-01-22  Zack Weinberg  <zackw@panix.com>
@@ -22671,7 +22671,7 @@
 	* basic-block.h: Remove the prototype for
 	partition_hot_cold_basic_blocks.
 
-2006-01-16  Rafael √vila de Esp√ÔøΩ≠ndola <rafael.espindola@gmail.com>
+2006-01-16  Rafael √Åvila de Esp√≠ndola <rafael.espindola@gmail.com>
 
 	* cppspec.c (lang_specific_spec_functions): Remove.
 	* gcc.c (lookup_spec_function): Use static_spec_functions directly.
@@ -23808,3 +23808,10 @@
 	* config/rs6000/sync.md (sync_compare_and_swap{hi,qi}): New.
 	(sync_compare_and_swapqhi_internal): New.
 	* config/rs6000/rs6000-protos.h: Declare.
+
+
+Copyright (C) 2006 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

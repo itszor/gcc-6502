@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -47,63 +41,53 @@
 #ifndef PB_DS_EXCEPTION_HPP
 #define PB_DS_EXCEPTION_HPP
 
+#include <bits/c++config.h>
 #include <stdexcept>
 #include <cstdlib>
 
 namespace __gnu_pbds
 {
-  // Base class for exceptions.
+  /**
+   *  @defgroup exceptions-pbds Exceptions
+   *  @ingroup pbds
+   *  @{
+   */
+
+  /// Base class for exceptions.
   struct container_error : public std::logic_error
   {
-    container_error() 
+    container_error()
     : std::logic_error(__N("__gnu_pbds::container_error")) { }
   };
 
-  // An entry cannot be inserted into a container object for logical
-  // reasons (not, e.g., if memory is unabvailable, in which case
-  // the allocator's exception will be thrown).
+  /// An entry cannot be inserted into a container object for logical
+  /// reasons (not, e.g., if memory is unabvailable, in which case
+  /// the allocator_type's exception will be thrown).
   struct insert_error : public container_error { };
 
-  // A join cannot be performed logical reasons (i.e., the ranges of
-  // the two container objects being joined overlaps.
+  /// A join cannot be performed logical reasons (i.e., the ranges of
+  /// the two container objects being joined overlaps.
   struct join_error : public container_error { };
 
-  // A container cannot be resized.
+  /// A container cannot be resized.
   struct resize_error : public container_error { };
 
-#if __EXCEPTIONS
-  void
-  __throw_container_error(void)
-  { throw container_error(); }
+  inline void
+  __throw_container_error()
+  { _GLIBCXX_THROW_OR_ABORT(container_error()); }
 
-  void
-  __throw_insert_error(void)
-  { throw insert_error(); }
+  inline void
+  __throw_insert_error()
+  { _GLIBCXX_THROW_OR_ABORT(insert_error()); }
 
-  void
-  __throw_join_error(void)
-  { throw join_error(); }
+  inline void
+  __throw_join_error()
+  { _GLIBCXX_THROW_OR_ABORT(join_error()); }
 
-  void
-  __throw_resize_error(void)
-  { throw resize_error(); }
-#else
-  void
-  __throw_container_error(void)
-  { std::abort(); }
-
-  void
-  __throw_insert_error(void)
-  { std::abort(); }
-
-  void
-  __throw_join_error(void)
-  { std::abort(); }
-
-  void
-  __throw_resize_error(void)
-  { std::abort(); }
-#endif
+  inline void
+  __throw_resize_error()
+  { _GLIBCXX_THROW_OR_ABORT(resize_error()); }
+  //@}
 } // namespace __gnu_pbds
 
 #endif

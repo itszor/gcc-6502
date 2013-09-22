@@ -10,15 +10,15 @@ private:
   const A& operator =(const A &) { abort(); }
 };
 
-class B : public A { // { dg-error "within" }
+class B : public A { // { dg-error "" }
 public:
   B(void) {}
 };
 
-void f(B b) {
+void f(B b) {			// { dg-error "initializing" }
 }
 
 void g() {
   B h;
-  f(h); // { dg-error "synthesized|argument" } 
+  f(h);  // { dg-message "synthesized|deleted" "synth" }
 }

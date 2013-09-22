@@ -39,6 +39,8 @@ exception statement from your version. */
 
 package java.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -343,7 +345,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
           }
       }
 
-    return false;  
+    return false;
   }
 
   /**
@@ -360,7 +362,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
    */
   public boolean containsValue(Object value)
   {
-    // Delegate to older method to make sure code overriding it continues 
+    // Delegate to older method to make sure code overriding it continues
     // to work.
     return contains(value);
   }
@@ -509,12 +511,12 @@ public class Hashtable<K, V> extends Dictionary<K, V>
     final Iterator<Map.Entry<K,V>> it = addMap.entrySet().iterator();
     while (it.hasNext())
       {
-	final Map.Entry<K,V> e = it.next();
+        final Map.Entry<K,V> e = it.next();
         // Optimize in case the Entry is one of our own.
         if (e instanceof AbstractMap.SimpleEntry)
           {
             AbstractMap.SimpleEntry<? extends K, ? extends V> entry
-	      = (AbstractMap.SimpleEntry<? extends K, ? extends V>) e;
+              = (AbstractMap.SimpleEntry<? extends K, ? extends V>) e;
             put(entry.key, entry.value);
           }
         else
@@ -579,7 +581,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
     // would repeatedly re-lock/release the monitor, we directly use the
     // unsynchronized EntryIterator instead.
     Iterator<Map.Entry<K, V>> entries = new EntryIterator();
-    StringBuffer r = new StringBuffer("{");
+    CPStringBuilder r = new CPStringBuilder("{");
     for (int pos = size; pos > 0; pos--)
       {
         r.append(entries.next());
@@ -848,8 +850,8 @@ public class Hashtable<K, V> extends Dictionary<K, V>
   }
 
   /**
-   * A simplified, more efficient internal implementation of putAll(). clone() 
-   * should not call putAll or put, in order to be compatible with the JDK 
+   * A simplified, more efficient internal implementation of putAll(). clone()
+   * should not call putAll or put, in order to be compatible with the JDK
    * implementation with respect to subclasses.
    *
    * @param m the map to initialize this from
@@ -861,13 +863,13 @@ public class Hashtable<K, V> extends Dictionary<K, V>
     size = 0;
     while (it.hasNext())
       {
-	final Map.Entry<K,V> e = it.next();
+        final Map.Entry<K,V> e = it.next();
         size++;
-	K key = e.getKey();
-	int idx = hash(key);
-	HashEntry<K, V> he = new HashEntry<K, V>(key, e.getValue());
-	he.next = buckets[idx];
-	buckets[idx] = he;
+        K key = e.getKey();
+        int idx = hash(key);
+        HashEntry<K, V> he = new HashEntry<K, V>(key, e.getValue());
+        he.next = buckets[idx];
+        buckets[idx] = he;
       }
   }
 
@@ -989,7 +991,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
    * @author Jon Zeppieri
    * @author Fridjof Siebert
    */
-  private class EntryIterator 
+  private class EntryIterator
       implements Iterator<Entry<K,V>>
   {
     /**
@@ -1042,10 +1044,10 @@ public class Hashtable<K, V> extends Dictionary<K, V>
       HashEntry<K, V> e = next;
 
       while (e == null)
-	if (idx <= 0)
-	  return null;
-	else
-	  e = buckets[--idx];
+        if (idx <= 0)
+          return null;
+        else
+          e = buckets[--idx];
 
       next = e.next;
       last = e;
@@ -1079,7 +1081,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
    * @author Fridtjof Siebert
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    */
-  private class KeyIterator 
+  private class KeyIterator
       implements Iterator<K>
   {
 
@@ -1088,14 +1090,14 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      * <code>next()</code> gives a different result, by returning just
      * the key rather than the whole element.
      */
-    private EntryIterator iterator;
+    private final EntryIterator iterator;
 
     /**
      * Construct a new KeyIterator
      */
     KeyIterator()
     {
-	iterator = new EntryIterator();
+        iterator = new EntryIterator();
     }
 
 
@@ -1107,7 +1109,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      */
     public boolean hasNext()
     {
-	return iterator.hasNext();
+        return iterator.hasNext();
     }
 
     /**
@@ -1135,7 +1137,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
       iterator.remove();
     }
   } // class KeyIterator
- 
+
   /**
    * A class which implements the Iterator interface and is used for
    * iterating over values in Hashtables.  This class uses an
@@ -1153,14 +1155,14 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      * <code>next()</code> gives a different result, by returning just
      * the value rather than the whole element.
      */
-    private EntryIterator iterator;
+    private final EntryIterator iterator;
 
     /**
      * Construct a new KeyIterator
      */
     ValueIterator()
     {
-	iterator = new EntryIterator();
+        iterator = new EntryIterator();
     }
 
 
@@ -1172,7 +1174,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      */
     public boolean hasNext()
     {
-	return iterator.hasNext();
+        return iterator.hasNext();
     }
 
     /**
@@ -1216,7 +1218,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
    * @author Jon Zeppieri
    * @author Fridjof Siebert
    */
-  private class EntryEnumerator 
+  private class EntryEnumerator
       implements Enumeration<Entry<K,V>>
   {
     /** The number of elements remaining to be returned by next(). */
@@ -1294,7 +1296,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      * <code>nextElement()</code> gives a different result, by returning just
      * the key rather than the whole element.
      */
-    private EntryEnumerator enumerator;
+    private final EntryEnumerator enumerator;
 
     /**
      * Construct a new KeyEnumerator
@@ -1313,7 +1315,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      */
     public boolean hasMoreElements()
     {
-	return enumerator.hasMoreElements();
+        return enumerator.hasMoreElements();
     }
 
     /**
@@ -1355,7 +1357,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      * <code>nextElement()</code> gives a different result, by returning just
      * the value rather than the whole element.
      */
-    private EntryEnumerator enumerator;
+    private final EntryEnumerator enumerator;
 
     /**
      * Construct a new ValueEnumerator
@@ -1374,7 +1376,7 @@ public class Hashtable<K, V> extends Dictionary<K, V>
      */
     public boolean hasMoreElements()
     {
-	return enumerator.hasMoreElements();
+        return enumerator.hasMoreElements();
     }
 
     /**

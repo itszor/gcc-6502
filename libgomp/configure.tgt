@@ -27,12 +27,24 @@ config_path="posix"
 if test $enable_linux_futex = yes; then
   case "${target}" in
 
+    aarch64*-*-linux*)
+	config_path="linux posix"
+	;;
+
     alpha*-*-linux*)
 	config_path="linux/alpha linux posix"
 	;;
 
+    arm*-*-linux*)
+	config_path="linux posix"
+	;;
+
     ia64*-*-linux*)
 	config_path="linux/ia64 linux posix"
+	;;
+
+    mips*-*-linux*)
+	config_path="linux/mips linux posix"
 	;;
 
     powerpc*-*-linux*)
@@ -43,11 +55,15 @@ if test $enable_linux_futex = yes; then
 	config_path="linux/s390 linux posix"
 	;;
 
+    tile*-*-linux*)
+	config_path="linux/tile linux posix"
+	;;
+
     # Note that bare i386 is not included here.  We need cmpxchg.
     i[456]86-*-linux*)
 	config_path="linux/x86 linux posix"
 	case " ${CC} ${CFLAGS} " in
-	  *" -m64 "*)
+	  *" -m64 "*|*" -mx32 "*)
 	    ;;
 	  *)
 	    if test -z "$with_arch"; then
@@ -93,18 +109,32 @@ fi
 # Other system configury
 case "${target}" in
 
-  *-*-hpux11*)
-	# HPUX v11.x requires -lrt to resolve sem_init in libgomp.la
-	XLDFLAGS="${XLDFLAGS} -lrt"
+  *-*-hpux*)
+	case "${target}" in
+	  *-*-hpux11*)
+	     # HPUX v11.x requires -lrt to resolve sem_init in libgomp.la
+	     XLDFLAGS="${XLDFLAGS} -lrt"
+	     ;;
+	esac
+	case "${target}" in
+	  hppa[12]*-*-hpux*)
+	    # PA 32 HP-UX needs -frandom-seed for bootstrap compare.
+	    XCFLAGS="${XCFLAGS} -frandom-seed=fixed-seed"
+	    ;;
+	esac
 	;;
 
   *-*-mingw32*)
 	config_path="mingw32 posix"
 	;;
 
-  *-*-solaris2.[56]*)
-	config_path="posix95 posix"
-	XLDFLAGS="${XLDFLAGS} -lposix4"
+  *-*-darwin*)
+	config_path="bsd posix"
+	;;
+
+  *-*-freebsd*)
+	# Need to link with -lpthread so libgomp.so is self-contained.
+	XLDFLAGS="${XLDFLAGS} -lpthread"
 	;;
 
   *)

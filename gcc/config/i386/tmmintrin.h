@@ -1,10 +1,10 @@
-/* Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2013 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    GCC is distributed in the hope that it will be useful,
@@ -12,17 +12,14 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Implemented from the specification included in the Intel C++ Compiler
    User Guide and Reference, version 9.1.  */
@@ -192,8 +189,8 @@ _mm_alignr_epi8(__m128i __X, __m128i __Y, const int __N)
 extern __inline __m64 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_alignr_pi8(__m64 __X, __m64 __Y, const int __N)
 {
-  return (__m64) __builtin_ia32_palignr ((long long)__X,
-					 (long long)__Y, __N * 8);
+  return (__m64) __builtin_ia32_palignr ((__v1di)__X,
+					 (__v1di)__Y, __N * 8);
 }
 #else
 #define _mm_alignr_epi8(X, Y, N)					\
@@ -201,8 +198,8 @@ _mm_alignr_pi8(__m64 __X, __m64 __Y, const int __N)
 					(__v2di)(__m128i)(Y),		\
 					(int)(N) * 8))
 #define _mm_alignr_pi8(X, Y, N)						\
-  ((__m64) __builtin_ia32_palignr ((long long)(__m64)(X),		\
-				   (long long)(__m64)(Y),		\
+  ((__m64) __builtin_ia32_palignr ((__v1di)(__m64)(X),			\
+				   (__v1di)(__m64)(Y),			\
 				   (int)(N) * 8))
 #endif
 

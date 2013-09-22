@@ -7,8 +7,8 @@
 
 #define DOT1 43680
 
-signed char X[N] __attribute__ ((__aligned__(16)));
-signed char Y[N] __attribute__ ((__aligned__(16)));
+signed char X[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
+signed char Y[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 
 /* char->short->int dot product.
    The dot-product pattern should be detected.
@@ -40,6 +40,7 @@ int main (void)
   for (i=0; i<N; i++) {
     X[i] = i;
     Y[i] = 64-i;
+    __asm__ volatile ("");
   }
 
   dot1 = foo1 (N);

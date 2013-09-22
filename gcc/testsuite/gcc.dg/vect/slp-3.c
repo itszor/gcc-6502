@@ -1,17 +1,17 @@
 /* { dg-require-effective-target vect_int } */
 
 #include <stdarg.h>
-#include <stdio.h>
 #include "tree-vect.h"
 
-#define N 8 
+#define N 12
+
+unsigned short in[N*8] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 
 int
 main1 ()
 {
   int i;
   unsigned short out[N*8];
-  unsigned short in[N*8] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63};
 
   for (i = 0; i < N; i++)
     {
@@ -100,7 +100,7 @@ main1 ()
     }
 
   /* SLP with unrolling by 8.  */
-  for (i = 0; i < N/2; i++)
+  for (i = 0; i < N/4; i++)
     {
       out[i*9] = in[i*9];
       out[i*9 + 1] = in[i*9 + 1];
@@ -114,7 +114,7 @@ main1 ()
     }
 
   /* check results:  */
-  for (i = 0; i < N/2; i++)
+  for (i = 0; i < N/4; i++)
     {
       if (out[i*9] !=  in[i*9]
          || out[i*9 + 1] != in[i*9 + 1]
@@ -141,7 +141,7 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 3 loops" 1 "vect"  } } */
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 3 "vect"  } } */
+/* { dg-final { scan-tree-dump-times "vectorized 3 loops" 1 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 3 "vect" } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
   

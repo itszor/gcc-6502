@@ -6,37 +6,49 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *           Copyright (C) 2001-2006, Free Software Foundation, Inc.        *
+ *           Copyright (C) 2001-2012, Free Software Foundation, Inc.        *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
  *                                                                          *
  ****************************************************************************/
 
-#ifdef IN_GCC
+
+#if defined(IN_RTS)
+#include "tconfig.h"
+#include "tsystem.h"
+#elif defined(IN_GCC)
 #include "config.h"
 #include "system.h"
-#else
+#endif
+
+#include <string.h>
 #include <stdio.h>
 #include <ctype.h>
+
+#include "adaint.h"  /* for a macro version of xstrdup.  */
+
+#ifndef ISDIGIT
 #define ISDIGIT(c) isdigit(c)
+#endif
+
+#ifndef PARMS
 #define PARMS(ARGS) ARGS
 #endif
 
@@ -150,8 +162,20 @@ __gnat_decode (const char *coded_name, char *ada_name, int verbose)
   int in_task = 0;
   int body_nested = 0;
 
+  /* Deal with empty input early.  This allows assuming non-null length
+     later on, simplifying coding.  In principle, it should be our callers
+     business not to call here for empty inputs.  It is easy enough to
+     allow it, however, and might allow simplifications upstream so is not
+     a bad thing per se.  We need a guard in any case.  */
+
+  if (*coded_name == '\0')
+    {
+      *ada_name = '\0';
+      return;
+    }
+
   /* Check for library level subprogram.  */
-  if (has_prefix (coded_name, "_ada_"))
+  else if (has_prefix (coded_name, "_ada_"))
     {
       strcpy (ada_name, coded_name + 5);
       lib_subprog = 1;
@@ -234,6 +258,21 @@ __gnat_decode (const char *coded_name, char *ada_name, int verbose)
       {
 	ada_name[len - 1 - n_digits - 1] = '\0';
 	overloaded = 1;
+      }
+  }
+
+  /* Check for nested subprogram ending in .nnnn and strip suffix. */
+  {
+    int last = strlen (ada_name) - 1;
+
+    while (ISDIGIT (ada_name[last]) && last > 0)
+      {
+        last--;
+      }
+
+    if (ada_name[last] == '.')
+      {
+        ada_name[last] = (char) 0;
       }
   }
 
@@ -325,6 +364,11 @@ __gnat_decode (const char *coded_name, char *ada_name, int verbose)
     }
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef IN_GCC
 char *
 ada_demangle (const char *coded_name)
 {
@@ -333,6 +377,7 @@ ada_demangle (const char *coded_name)
   __gnat_decode (coded_name, ada_name, 0);
   return xstrdup (ada_name);
 }
+#endif
 
 void
 get_encoding (const char *coded_name, char *encoding)
@@ -373,3 +418,7 @@ get_encoding (const char *coded_name, char *encoding)
 
   *dest_index = '\0';
 }
+
+#ifdef __cplusplus
+}
+#endif

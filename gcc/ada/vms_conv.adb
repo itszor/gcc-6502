@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -44,7 +44,7 @@ package body VMS_Conv is
    --  kept in a more conveniently accessible form described in this
    --  section.
 
-   --  Commands, command qualifers and options have a similar common format
+   --  Commands, command qualifiers and options have a similar common format
    --  so that searching for matching names can be done in a common manner.
 
    type Item_Id is (Id_Command, Id_Switch, Id_Option);
@@ -274,7 +274,7 @@ package body VMS_Conv is
 
    procedure Place_Unix_Switches (S : VMS_Data.String_Ptr);
    --  Given a unix switch string, place corresponding switches in Buffer,
-   --  updating Ptr appropriatelly. Note that in the case of use of ! the
+   --  updating Ptr appropriately. Note that in the case of use of ! the
    --  result may be to remove a previously placed switch.
 
    procedure Preprocess_Command_Data;
@@ -314,16 +314,16 @@ package body VMS_Conv is
       loop
          declare
             Dir : constant String_Access :=
-                    String_Access (Get_Next_Dir_In_Path (Object_Dir_Name));
+                    Get_Next_Dir_In_Path (Object_Dir_Name);
          begin
             exit when Dir = null;
             Object_Dirs := Object_Dirs + 1;
             Object_Dir (Object_Dirs) :=
               new String'("-L" &
                           To_Canonical_Dir_Spec
-                          (To_Host_Dir_Spec
-                           (Normalize_Directory_Name (Dir.all).all,
-                            True).all, True).all);
+                            (To_Host_Dir_Spec
+                              (Normalize_Directory_Name (Dir.all).all,
+                               True).all, True).all);
          end;
       end loop;
 
@@ -394,6 +394,16 @@ package body VMS_Conv is
             Unixcmd  => new S'("gnatcheck"),
             Unixsws  => null,
             Switches => Check_Switches'Access,
+            Params   => new Parameter_Array'(1 => Unlimited_Files),
+            Defext   => "   "),
+
+         Sync =>
+           (Cname    => new S'("SYNC"),
+            Usage    => new S'("GNAT SYNC name /qualifiers"),
+            VMS_Only => False,
+            Unixcmd  => new S'("gnatsync"),
+            Unixsws  => null,
+            Switches => Sync_Switches'Access,
             Params   => new Parameter_Array'(1 => Unlimited_Files),
             Defext   => "   "),
 
@@ -534,6 +544,16 @@ package body VMS_Conv is
             Unixsws  => null,
             Switches => Stub_Switches'Access,
             Params   => new Parameter_Array'(1 => File, 2 => Optional_File),
+            Defext   => "   "),
+
+         Test =>
+           (Cname    => new S'("TEST"),
+            Usage    => new S'("GNAT TEST file(s) /qualifiers"),
+            VMS_Only => False,
+            Unixcmd  => new S'("gnattest"),
+            Unixsws  => null,
+            Switches => Make_Switches'Access,
+            Params   => new Parameter_Array'(1 => Unlimited_Files),
             Defext   => "   "),
 
          Xref =>
@@ -804,7 +824,12 @@ package body VMS_Conv is
 
    procedure Output_Version is
    begin
-      Put ("GNAT ");
+      if AAMP_On_Target then
+         Put ("GNAAMP ");
+      else
+         Put ("GNAT ");
+      end if;
+
       Put_Line (Gnatvsn.Gnat_Version_String);
       Put_Line ("Copyright 1996-" &
                 Current_Year &
@@ -1016,7 +1041,7 @@ package body VMS_Conv is
 
                   --  Process switch string, first get name
 
-                  while SS (P) /= ' ' and SS (P) /= '=' loop
+                  while SS (P) /= ' ' and then SS (P) /= '=' loop
                      P := P + 1;
                   end loop;
 
@@ -1784,6 +1809,16 @@ package body VMS_Conv is
                          (Arg (Arg'First .. SwP),
                           Command.Switches,
                           Quiet => False);
+
+                     --  Special case for GNAT COMPILE /UNCHECKED...
+                     --  because the corresponding switch --unchecked... is
+                     --  for gnatmake, not for the compiler.
+
+                     if Cargs
+                       and then Sw.Name.all = "/UNCHECKED_SHARED_LIB_IMPORTS"
+                     then
+                        Cargs := False;
+                     end if;
                   end if;
 
                   if Sw /= null then
@@ -1800,6 +1835,7 @@ package body VMS_Conv is
                      case Sw.Translation is
                         when T_Direct =>
                            Place_Unix_Switches (Sw.Unix_String);
+
                            if SwP < Arg'Last
                              and then Arg (SwP + 1) = '='
                            then
@@ -1838,8 +1874,8 @@ package body VMS_Conv is
                                  Arg_Idx := Argv'First;
                                  Next_Arg_Idx :=
                                    Get_Arg_End (Argv.all, Arg_Idx);
-                                 Arg := new String'
-                                   (Argv (Arg_Idx .. Next_Arg_Idx));
+                                 Arg :=
+                                   new String'(Argv (Arg_Idx .. Next_Arg_Idx));
                                  goto Tryagain_After_Coalesce;
                               end if;
 
@@ -1867,9 +1903,8 @@ package body VMS_Conv is
                                  while P2 < Endp
                                    and then Arg (P2 + 1) /= ','
                                  loop
-                                    --  A wildcard directory spec on
-                                    --  VMS will contain either * or
-                                    --  % or ...
+                                    --  A wildcard directory spec on VMS will
+                                    --  contain either * or % or ...
 
                                     if Arg (P2) = '*' then
                                        Dir_Is_Wild := True;
@@ -1903,15 +1938,12 @@ package body VMS_Conv is
                                         (Arg (SwP .. P2), True);
 
                                     for J in Dir_List.all'Range loop
-                                       Place_Unix_Switches
-                                         (Sw.Unix_String);
-                                       Place_Lower
-                                         (Dir_List.all (J).all);
+                                       Place_Unix_Switches (Sw.Unix_String);
+                                       Place_Lower (Dir_List.all (J).all);
                                     end loop;
 
                                  else
-                                    Place_Unix_Switches
-                                      (Sw.Unix_String);
+                                    Place_Unix_Switches (Sw.Unix_String);
                                     Place_Lower
                                       (To_Canonical_Dir_Spec
                                          (Arg (SwP .. P2), False).all);
@@ -1931,37 +1963,33 @@ package body VMS_Conv is
                            else
                               Place_Unix_Switches (Sw.Unix_String);
 
-                              --  Some switches end in "=". No space
-                              --  here
+                              --  Some switches end in "=", no space here
 
                               if Sw.Unix_String
-                                (Sw.Unix_String'Last) /= '='
+                                      (Sw.Unix_String'Last) /= '='
                               then
                                  Place (' ');
                               end if;
 
                               Place_Lower
                                 (To_Canonical_Dir_Spec
-                                   (Arg (SwP + 2 .. Arg'Last),
-                                    False).all);
+                                   (Arg (SwP + 2 .. Arg'Last), False).all);
                            end if;
 
                         when T_File | T_No_Space_File =>
-                           if SwP + 1 > Arg'Last then
-                              Put (Standard_Error,
-                                   "missing file for: ");
+                           if SwP + 2 > Arg'Last then
+                              Put (Standard_Error, "missing file for: ");
                               Put_Line (Standard_Error, Arg.all);
                               Errors := Errors + 1;
 
                            else
                               Place_Unix_Switches (Sw.Unix_String);
 
-                              --  Some switches end in "=". No space
-                              --  here.
+                              --  Some switches end in "=", no space here.
 
                               if Sw.Translation = T_File
                                 and then Sw.Unix_String
-                                  (Sw.Unix_String'Last) /= '='
+                                           (Sw.Unix_String'Last) /= '='
                               then
                                  Place (' ');
                               end if;
@@ -1979,14 +2007,13 @@ package body VMS_Conv is
                            else
                               Put (Standard_Error, "argument for ");
                               Put (Standard_Error, Sw.Name.all);
-                              Put_Line
-                                (Standard_Error, " must be numeric");
+                              Put_Line (Standard_Error, " must be numeric");
                               Errors := Errors + 1;
                            end if;
 
                         when T_Alphanumplus =>
                            if OK_Alphanumerplus
-                             (Arg (SwP + 2 .. Arg'Last))
+                                (Arg (SwP + 2 .. Arg'Last))
                            then
                               Place_Unix_Switches (Sw.Unix_String);
                               Place (Arg (SwP + 2 .. Arg'Last));
@@ -2001,28 +2028,28 @@ package body VMS_Conv is
 
                         when T_String =>
 
-                           --  A String value must be extended to the
-                           --  end of the Argv, otherwise strings like
-                           --  "foo/bar" get split at the slash.
+                           --  A String value must be extended to the end of
+                           --  the Argv, otherwise strings like "foo/bar" get
+                           --  split at the slash.
 
-                           --  The begining and ending of the string
-                           --  are flagged with embedded nulls which
-                           --  are removed when building the Spawn
-                           --  call. Nulls are use because they won't
-                           --  show up in a /? output. Quotes aren't
-                           --  used because that would make it
+                           --  The beginning and ending of the string are
+                           --  flagged with embedded nulls which are removed
+                           --  when building the Spawn call. Nulls are use
+                           --  because they won't show up in a /? output.
+                           --  Quotes aren't used because that would make it
                            --  difficult to embed them.
 
                            Place_Unix_Switches (Sw.Unix_String);
 
                            if Next_Arg_Idx /= Argv'Last then
                               Next_Arg_Idx := Argv'Last;
-                              Arg := new String'
-                                (Argv (Arg_Idx .. Next_Arg_Idx));
+                              Arg :=
+                                new String'(Argv (Arg_Idx .. Next_Arg_Idx));
 
                               SwP := Arg'First;
-                              while SwP < Arg'Last and then
-                              Arg (SwP + 1) /= '=' loop
+                              while SwP < Arg'Last
+                                and then Arg (SwP + 1) /= '='
+                              loop
                                  SwP := SwP + 1;
                               end loop;
                            end if;
@@ -2047,10 +2074,9 @@ package body VMS_Conv is
                               Make_Commands_Active := null;
 
                            else
-                              --  Set source of new commands, also
-                              --  setting this non-null indicates that
-                              --  we are in the special commands mode
-                              --  for processing the -xargs case.
+                              --  Set source of new commands, also setting this
+                              --  non-null indicates that we are in the special
+                              --  commands mode for processing the -xargs case.
 
                               Make_Commands_Active :=
                                 Matching_Name
@@ -2062,8 +2088,7 @@ package body VMS_Conv is
 
                         when T_Options =>
                            if SwP + 1 > Arg'Last then
-                              Place_Unix_Switches
-                                (Sw.Options.Unix_String);
+                              Place_Unix_Switches (Sw.Options.Unix_String);
                               SwP := Endp + 1;
 
                            elsif Arg (SwP + 2) /= '(' then
@@ -2084,7 +2109,6 @@ package body VMS_Conv is
 
                            while SwP <= Endp loop
                               P2 := SwP;
-
                               while P2 < Endp
                                 and then Arg (P2 + 1) /= ','
                               loop
@@ -2097,8 +2121,7 @@ package body VMS_Conv is
                                                     Sw.Options);
 
                               if Opt /= null then
-                                 Place_Unix_Switches
-                                   (Opt.Unix_String);
+                                 Place_Unix_Switches (Opt.Unix_String);
                               end if;
 
                               SwP := P2 + 2;
@@ -2106,8 +2129,7 @@ package body VMS_Conv is
 
                         when T_Other =>
                            Place_Unix_Switches
-                             (new String'(Sw.Unix_String.all &
-                                          Arg.all));
+                             (new String'(Sw.Unix_String.all & Arg.all));
 
                      end case;
                   end if;
@@ -2259,9 +2281,15 @@ package body VMS_Conv is
          New_Line;
 
          while Commands /= null loop
-            Put (Commands.Usage.all);
-            Set_Col (53);
-            Put_Line (Commands.Unix_String.all);
+
+            --  No usage for GNAT SYNC
+
+            if Commands.Command /= Sync then
+               Put (Commands.Usage.all);
+               Set_Col (53);
+               Put_Line (Commands.Unix_String.all);
+            end if;
+
             Commands := Commands.Next;
          end loop;
 

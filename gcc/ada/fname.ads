@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -68,12 +66,14 @@ package Fname is
      (Fname              : File_Name_Type;
       Renamings_Included : Boolean := True) return Boolean;
    --  This function determines if the given file name (which must be a simple
-   --  file name with no directory information) is the file name for one of
-   --  the predefined library units. On return, Name_Buffer contains the
-   --  file name. The Renamings_Included parameter indicates whether annex
-   --  J renamings such as Text_IO are to be considered as predefined. If
-   --  Renamings_Included is True, then Text_IO will return True, otherwise
-   --  only children of Ada, Interfaces and System return True.
+   --  file name with no directory information) is the file name for one of the
+   --  predefined library units (i.e. part of the Ada, System, or Interface
+   --  hierarchies). Note that units in the GNAT hierarchy are not considered
+   --  predefined (see Is_Internal_File_Name below). On return, Name_Buffer
+   --  contains the file name. The Renamings_Included parameter indicates
+   --  whether annex J renamings such as Text_IO are to be considered as
+   --  predefined. If Renamings_Included is True, then Text_IO will return
+   --  True, otherwise only children of Ada, Interfaces and System return True.
 
    function Is_Predefined_File_Name
      (Renamings_Included : Boolean := True) return Boolean;
@@ -82,9 +82,9 @@ package Fname is
    function Is_Internal_File_Name
      (Fname              : File_Name_Type;
       Renamings_Included : Boolean := True) return Boolean;
-   --  Similar to Is_Predefined_File_Name. The internal file set is a
-   --  superset of the predefined file set including children of GNAT,
-   --  and also children of DEC for the VMS case.
+   --  Similar to Is_Predefined_File_Name. The internal file set is a superset
+   --  of the predefined file set including children of GNAT, and also children
+   --  of DEC for the VMS case.
 
    procedure Tree_Read;
    --  Dummy procedure (reads dummy table values from tree file)

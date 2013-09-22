@@ -53,14 +53,13 @@ int main (void)
       arr[i] = i;
       iarr[i].a = i;
       iarr[i].b = i * 3;
-      if (arr[i] == 178)
-         abort();
+      __asm__ volatile ("");
     }
   main1 (arr, iarr); 
     
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect"  { target { vect_interleave && vect_extract_even_odd } } } } */
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect"  { target vect_strided2 } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
 

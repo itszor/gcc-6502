@@ -7,48 +7,45 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2012, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This is a OpenVMS/Alpha version of this package
+--  This is the OpenVMS version of this package
 
 --  This package encapsulates all direct interfaces to OS services
---  that are needed by children of System.
+--  that are needed by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Preelaborate. This package is designed to be a bottom-level (leaf) package.
 
 with Interfaces.C;
+
 with Ada.Unchecked_Conversion;
+
 with System.Aux_DEC;
 
 package System.OS_Interface is
    pragma Preelaborate;
-
-   pragma Linker_Options ("--for-linker=sys$library:pthread$rtl.exe");
-   --  Link in the DEC threads library
 
    --  pragma Linker_Options ("--for-linker=/threads_enable");
    --  Enable upcalls and multiple kernel threads.
@@ -128,7 +125,7 @@ package System.OS_Interface is
       Acmode : unsigned_short := 0;
       Mbxnam : String := String'Null_Parameter;
       Flags  : unsigned_long := 0);
-   pragma Interface (External, Sys_Assign);
+   pragma Import (External, Sys_Assign);
    pragma Import_Valued_Procedure
      (Sys_Assign, "SYS$ASSIGN",
       (Cond_Value_Type, String,         unsigned_short,
@@ -151,7 +148,7 @@ package System.OS_Interface is
      (Status : out Cond_Value_Type;
       Reqidt : Address;
       Acmode : unsigned);
-   pragma Interface (External, Sys_Cantim);
+   pragma Import (External, Sys_Cantim);
    pragma Import_Valued_Procedure
      (Sys_Cantim, "SYS$CANTIM",
       (Cond_Value_Type, Address, unsigned),
@@ -183,7 +180,7 @@ package System.OS_Interface is
       Acmode : unsigned_short := 0;
       Lognam : String;
       Flags  : unsigned_long := 0);
-   pragma Interface (External, Sys_Crembx);
+   pragma Import (External, Sys_Crembx);
    pragma Import_Valued_Procedure
      (Sys_Crembx, "SYS$CREMBX",
       (Cond_Value_Type, unsigned_char,  unsigned_short,
@@ -238,7 +235,7 @@ package System.OS_Interface is
       P5     : unsigned_long := 0;
       P6     : unsigned_long := 0);
 
-   pragma Interface (External, Sys_QIO);
+   pragma Import (External, Sys_QIO);
    pragma Import_Valued_Procedure
      (Sys_QIO, "SYS$QIO",
       (Cond_Value_Type,      unsigned_long, unsigned_short, unsigned_long,
@@ -281,7 +278,7 @@ package System.OS_Interface is
       AST    : AST_Handler;
       Reqidt : Address;
       Flags  : unsigned_long);
-   pragma Interface (External, Sys_Setimr);
+   pragma Import (External, Sys_Setimr);
    pragma Import_Valued_Procedure
      (Sys_Setimr, "SYS$SETIMR",
       (Cond_Value_Type, unsigned_long,     Long_Integer,
@@ -452,6 +449,12 @@ package System.OS_Interface is
    function pthread_mutex_unlock (mutex : access pthread_mutex_t) return int;
    pragma Import (C, pthread_mutex_unlock, "PTHREAD_MUTEX_UNLOCK");
 
+   function pthread_mutex_setname_np
+     (attr : access pthread_mutex_t;
+      name : System.Address;
+      mbz  : System.Address) return int;
+   pragma Import (C, pthread_mutex_setname_np, "PTHREAD_MUTEX_SETNAME_NP");
+
    function pthread_condattr_init
      (attr : access pthread_condattr_t) return int;
    pragma Import (C, pthread_condattr_init, "PTHREAD_CONDATTR_INIT");
@@ -523,6 +526,12 @@ package System.OS_Interface is
       sched_param : int) return int;
    pragma Import (C, pthread_attr_setschedparam, "PTHREAD_ATTR_SETSCHEDPARAM");
 
+   function pthread_attr_setname_np
+     (attr : access pthread_attr_t;
+      name : System.Address;
+      mbz  : System.Address) return int;
+   pragma Import (C, pthread_attr_setname_np, "PTHREAD_ATTR_SETNAME_NP");
+
    function sched_yield return int;
 
    --------------------------
@@ -558,6 +567,7 @@ package System.OS_Interface is
    pragma Import (C, pthread_exit, "PTHREAD_EXIT");
 
    function pthread_self return pthread_t;
+   pragma Import (C, pthread_self, "PTHREAD_SELF");
 
    --------------------------
    -- POSIX.1c  Section 17 --

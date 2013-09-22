@@ -1,7 +1,7 @@
 // natClass.cc - Implementation of java.lang.Class native methods.
 
-/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation
+/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
+   2010 Free Software Foundation
 
    This file is part of libgcj.
 
@@ -661,14 +661,22 @@ java::lang::Class::newInstance (void)
     throw new java::lang::InstantiationException (getName());
 
   jobject r = _Jv_AllocObject (this);
+  /* Class constructors/destructors have __thiscall calling
+     convention for 32-bit native Windows ABI.  */
+#if defined (__MINGW32__) && defined (__i386__)
+  ((void (__thiscall *) (jobject)) meth->ncode) (r);
+#else
   ((void (*) (jobject)) meth->ncode) (r);
+#endif
   return r;
 }
 
 void
 java::lang::Class::finalize (void)
 {
-  engine->unregister(this);
+  // Array classes don't have an engine, and don't need to be finalized.
+   if (engine)
+     engine->unregister(this);
 }
 
 #ifdef INTERPRETER
@@ -689,9 +697,12 @@ void
 _Jv_ClosureList::registerClosure (jclass klass, void *ptr)
 {
   _Jv_ClosureList **closures = klass->engine->get_closure_list (klass);
-  this->ptr = ptr;
-  this->next = *closures;
-  *closures = this;
+  if (closures)
+    {
+      this->ptr = ptr;
+      this->next = *closures;
+      *closures = this;
+    }
 }
 #endif
 

@@ -1,4 +1,4 @@
-/* FIPS186.java -- 
+/* FIPS186.java --
    Copyright 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -173,7 +173,7 @@ public class FIPS186
         // 6. Let counter = 0 and offset = 2.
         counter = 0;
         offset = 2;
-        step7: while (true)
+        while (true)
           {
             OFFSET = BigInteger.valueOf(offset & 0xFFFFFFFFL);
             SEED_PLUS_OFFSET = SEED.add(OFFSET);
@@ -241,7 +241,7 @@ public class FIPS186
 
   /**
    * Fills the designated byte array with random data.
-   * 
+   *
    * @param buffer the byte array to fill with random data.
    */
   private void nextRandomBytes(byte[] buffer)

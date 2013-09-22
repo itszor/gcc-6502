@@ -1,6 +1,5 @@
 /* Basic error reporting routines.
-   Copyright (C) 1999, 2000, 2001, 2003, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -41,7 +40,7 @@ int have_error = 0;
 /* Print a warning message - output produced, but there may be problems.  */
 
 void
-warning (int opt ATTRIBUTE_UNUSED, const char *format, ...)
+warning (const char *format, ...)
 {
   va_list ap;
 
@@ -104,7 +103,8 @@ internal_error (const char *format, ...)
    shares no directory elements with the pathname of __FILE__.  This
    is used by fancy_abort() to print `Internal compiler error in expr.c'
    instead of `Internal compiler error in ../../GCC/gcc/expr.c'.  This
-   version if for the gen* programs and so needn't handle subdirectories.  */
+   version is meant to be used for the gen* programs and therefor need not
+   handle subdirectories.  */
 
 const char *
 trim_filename (const char *name)

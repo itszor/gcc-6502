@@ -66,6 +66,7 @@ public class _DynAnyStub
   /**
    * The purpose and value of this field are not documented.
    */
+  @SuppressWarnings("rawtypes") // Needed for API compatibility
   public static final Class _opsClass = DynAnyOperations.class;
 
   /**

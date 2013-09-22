@@ -1,4 +1,4 @@
-/* StyleSheet.java -- 
+/* StyleSheet.java --
    Copyright (C) 2005 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -86,17 +86,17 @@ import javax.swing.text.View;
 /**
  * This class adds support for defining the visual characteristics of HTML views
  * being rendered. This enables views to be customized by a look-and-feel, mulitple
- * views over the same model can be rendered differently. Each EditorPane has its 
+ * views over the same model can be rendered differently. Each EditorPane has its
  * own StyleSheet, but by default one sheet will be shared by all of the HTMLEditorKit
  * instances. An HTMLDocument can also have a StyleSheet, which holds specific CSS
- * specs. 
- * 
- *  In order for Views to store less state and therefore be more lightweight, 
- *  the StyleSheet can act as a factory for painters that handle some of the 
+ * specs.
+ *
+ *  In order for Views to store less state and therefore be more lightweight,
+ *  the StyleSheet can act as a factory for painters that handle some of the
  *  rendering tasks. Since the StyleSheet may be used by views over multiple
  *  documents the HTML attributes don't effect the selector being used.
- *  
- *  The rules are stored as named styles, and other information is stored to 
+ *
+ *  The rules are stored as named styles, and other information is stored to
  *  translate the context of an element to a rule.
  *
  * @author Lillian Angel (langel@redhat.com)
@@ -182,7 +182,7 @@ public class StyleSheet extends StyleContext
    */
   private class CSSStyle
     extends SimpleAttributeSet
-    implements Style, Comparable
+    implements Style, Comparable<CSSStyle>
   {
 
     static final int PREC_UA = 0;
@@ -229,36 +229,35 @@ public class StyleSheet extends StyleContext
      * Sorts the rule according to the style's precedence and the
      * selectors specificity.
      */
-    public int compareTo(Object o)
+    public int compareTo(CSSStyle other)
     {
-      CSSStyle other = (CSSStyle) o;
       return other.precedence + other.selector.getSpecificity()
              - precedence - selector.getSpecificity();
     }
-    
+
   }
 
   /** The base URL */
   URL base;
-  
+
   /** Base font size (int) */
   int baseFontSize;
-  
+
   /**
    * The linked style sheets stored.
    */
-  private ArrayList linked;
+  private ArrayList<StyleSheet> linked;
 
   /**
    * Maps element names (selectors) to AttributSet (the corresponding style
    * information).
    */
-  ArrayList css = new ArrayList();
+  ArrayList<CSSStyle> css = new ArrayList<CSSStyle>();
 
   /**
    * Maps selectors to their resolved styles.
    */
-  private HashMap resolvedStyles;
+  private HashMap<String,Style> resolvedStyles;
 
   /**
    * Constructs a StyleSheet.
@@ -267,14 +266,14 @@ public class StyleSheet extends StyleContext
   {
     super();
     baseFontSize = 4; // Default font size from CSS
-    resolvedStyles = new HashMap();
+    resolvedStyles = new HashMap<String,Style>();
   }
 
   /**
    * Gets the style used to render the given tag. The element represents the tag
    * and can be used to determine the nesting, where the attributes will differ
    * if there is nesting inside of elements.
-   * 
+   *
    * @param t - the tag to translate to visual attributes
    * @param e - the element representing the tag
    * @return the set of CSS attributes to use to render the tag.
@@ -283,7 +282,7 @@ public class StyleSheet extends StyleContext
   {
     // Create list of the element and all of its parents, starting
     // with the bottommost element.
-    ArrayList path = new ArrayList();
+    ArrayList<Element> path = new ArrayList<Element>();
     Element el;
     AttributeSet atts;
     for (el = e; el != null; el = el.getParentElement())
@@ -295,7 +294,7 @@ public class StyleSheet extends StyleContext
     // We append the actual element after this loop.
     for (int i = count - 1; i > 0; i--)
       {
-        el = (Element) path.get(i);
+        el = path.get(i);
         atts = el.getAttributes();
         Object name = atts.getAttribute(StyleConstants.NameAttribute);
         selector.append(name.toString());
@@ -322,7 +321,7 @@ public class StyleSheet extends StyleContext
         selector.append(' ');
       }
     selector.append(t.toString());
-    el = (Element) path.get(0);
+    el = path.get(0);
     atts = el.getAttributes();
     // For leaf elements, we have to fetch the tag specific attributes.
     if (el.isLeaf())
@@ -363,16 +362,16 @@ public class StyleSheet extends StyleContext
    * Fetches a resolved style. If there is no resolved style for the
    * specified selector, the resolve the style using
    * {@link #resolveStyle(String, List, HTML.Tag)}.
-   * 
+   *
    * @param selector the selector for which to resolve the style
    * @param path the Element path, used in the resolving algorithm
    * @param tag the tag for which to resolve
    *
    * @return the resolved style
    */
-  private Style getResolvedStyle(String selector, List path, HTML.Tag tag)
+  private Style getResolvedStyle(String selector, List<Element> path, HTML.Tag tag)
   {
-    Style style = (Style) resolvedStyles.get(selector);
+    Style style = resolvedStyles.get(selector);
     if (style == null)
       style = resolveStyle(selector, path, tag);
     return style;
@@ -381,7 +380,7 @@ public class StyleSheet extends StyleContext
   /**
    * Resolves a style. This creates arrays that hold the tag names,
    * class and id attributes and delegates the work to
-   * {@link #resolveStyle(String, String[], Map[])}.
+   * {@link #resolveStyle(String, String[], List<Map<String,String>>)}.
    *
    * @param selector the selector
    * @param path the Element path
@@ -389,14 +388,15 @@ public class StyleSheet extends StyleContext
    *
    * @return the resolved style
    */
-  private Style resolveStyle(String selector, List path, HTML.Tag tag)
+  private Style resolveStyle(String selector, List<Element> path, HTML.Tag tag)
   {
     int count = path.size();
     String[] tags = new String[count];
-    Map[] attributes = new Map[count];
+    List<Map<String,String>> attributes =
+      new ArrayList<Map<String,String>>(count);
     for (int i = 0; i < count; i++)
       {
-        Element el = (Element) path.get(i);
+        Element el = path.get(i);
         AttributeSet atts = el.getAttributes();
         if (i == 0 && el.isLeaf())
           {
@@ -414,12 +414,12 @@ public class StyleSheet extends StyleContext
               tags[i] = t.toString();
             else
               tags[i] = null;
-            attributes[i] = attributeSetToMap(atts);
+            attributes.add(attributeSetToMap(atts));
           }
         else
           {
             tags[i] = null;
-            attributes[i] = null;
+            attributes.add(null);
           }
       }
     tags[0] = tag.toString();
@@ -435,15 +435,14 @@ public class StyleSheet extends StyleContext
    *
    * @return the resolved style
    */
-  private Style resolveStyle(String selector, String[] tags, Map[] attributes)
+  private Style resolveStyle(String selector, String[] tags,
+                             List<Map<String,String>> attributes)
   {
     // FIXME: This style resolver is not correct. But it works good enough for
     // the default.css.
-    int count = tags.length;
-    ArrayList styles = new ArrayList();
-    for (Iterator i = css.iterator(); i.hasNext();)
+    ArrayList<CSSStyle> styles = new ArrayList<CSSStyle>();
+    for (CSSStyle style : css)
       {
-        CSSStyle style = (CSSStyle) i.next();
         if (style.selector.matches(tags, attributes))
           styles.add(style);
       }
@@ -453,10 +452,10 @@ public class StyleSheet extends StyleContext
       {
         for (int i = linked.size() - 1; i >= 0; i--)
           {
-            StyleSheet ss = (StyleSheet) linked.get(i);
+            StyleSheet ss = linked.get(i);
             for (int j = ss.css.size() - 1; j >= 0; j--)
               {
-                CSSStyle style = (CSSStyle) ss.css.get(j);
+                CSSStyle style = ss.css.get(j);
                 if (style.selector.matches(tags, attributes))
                   styles.add(style);
               }
@@ -465,38 +464,36 @@ public class StyleSheet extends StyleContext
 
     // Sort selectors.
     Collections.sort(styles);
-    Style[] styleArray = new Style[styles.size()];
-    styleArray = (Style[]) styles.toArray(styleArray);
-    Style resolved = new MultiStyle(selector,
-                                    (Style[]) styles.toArray(styleArray));
+    Style[] styleArray = styles.toArray(new Style[styles.size()]);
+    Style resolved = new MultiStyle(selector, styleArray);
     resolvedStyles.put(selector, resolved);
     return resolved;
   }
 
   /**
    * Gets the rule that best matches the selector. selector is a space
-   * separated String of element names. The attributes of the returned 
+   * separated String of element names. The attributes of the returned
    * Style will change as rules are added and removed.
-   * 
+   *
    * @param selector - the element names separated by spaces
    * @return the set of CSS attributes to use to render
    */
   public Style getRule(String selector)
   {
     CSSStyle best = null;
-    for (Iterator i = css.iterator(); i.hasNext();)
+    for (Iterator<CSSStyle> i = css.iterator(); i.hasNext();)
       {
-        CSSStyle style = (CSSStyle) i.next();
+        CSSStyle style = i.next();
         if (style.compareTo(best) < 0)
           best = style;
       }
     return best;
   }
-  
+
   /**
    * Adds a set of rules to the sheet. The rules are expected to be in valid
    * CSS format. This is called as a result of parsing a <style> tag
-   * 
+   *
    * @param rule - the rule to add to the sheet
    */
   public void addRule(String rule)
@@ -518,11 +515,11 @@ public class StyleSheet extends StyleContext
     // on next stylesheet request.
     resolvedStyles.clear();
   }
-  
+
   /**
    * Translates a CSS declaration into an AttributeSet. This is called
    * as a result of encountering an HTML style attribute.
-   * 
+   *
    * @param decl - the declaration to get
    * @return the AttributeSet representing the declaration
    */
@@ -531,13 +528,13 @@ public class StyleSheet extends StyleContext
     if (decl == null)
       return SimpleAttributeSet.EMPTY;
     // FIXME: Not implemented.
-    return null;     
+    return null;
   }
-  
+
   /**
    * Loads a set of rules that have been specified in terms of CSS grammar.
    * If there are any conflicts with existing rules, the new rule is added.
-   * 
+   *
    * @param in - the stream to read the CSS grammar from.
    * @param ref - the reference URL. It is the location of the stream, it may
    * be null. All relative URLs specified in the stream will be based upon this
@@ -553,11 +550,11 @@ public class StyleSheet extends StyleContext
     CSSParser parser = new CSSParser(in, cb);
     parser.parse();
   }
-  
+
   /**
    * Gets a set of attributes to use in the view. This is a set of
    * attributes that can be used for View.getAttributes
-   * 
+   *
    * @param v - the view to get the set for
    * @return the AttributeSet to use in the view.
    */
@@ -565,10 +562,10 @@ public class StyleSheet extends StyleContext
   {
     return new ViewAttributeSet(v, this);
   }
-  
+
   /**
    * Removes a style previously added.
-   * 
+   *
    * @param nm - the name of the style to remove
    */
   public void removeStyle(String nm)
@@ -576,24 +573,24 @@ public class StyleSheet extends StyleContext
     // FIXME: Not implemented.
     super.removeStyle(nm);
   }
-  
+
   /**
    * Adds the rules from ss to those of the receiver. ss's rules will
    * override the old rules. An added StyleSheet will never override the rules
    * of the receiving style sheet.
-   * 
+   *
    * @param ss - the new StyleSheet.
    */
   public void addStyleSheet(StyleSheet ss)
   {
     if (linked == null)
-      linked = new ArrayList();
+      linked = new ArrayList<StyleSheet>();
     linked.add(ss);
   }
-  
+
   /**
    * Removes ss from those of the receiver
-   * 
+   *
    * @param ss - the StyleSheet to remove.
    */
   public void removeStyleSheet(StyleSheet ss)
@@ -603,10 +600,10 @@ public class StyleSheet extends StyleContext
         linked.remove(ss);
       }
   }
-  
+
   /**
    * Returns an array of the linked StyleSheets. May return null.
-   * 
+   *
    * @return - An array of the linked StyleSheets.
    */
   public StyleSheet[] getStyleSheets()
@@ -615,7 +612,7 @@ public class StyleSheet extends StyleContext
     if (linked != null)
       {
         linkedSS = new StyleSheet[linked.size()];
-        linkedSS = (StyleSheet[]) linked.toArray(linkedSS);
+        linkedSS = linked.toArray(linkedSS);
       }
     else
       {
@@ -623,12 +620,12 @@ public class StyleSheet extends StyleContext
       }
     return linkedSS;
   }
-  
+
   /**
    * Imports a style sheet from the url. The rules are directly added to the
    * receiver. This is usually called when a <link> tag is resolved in an
    * HTML document.
-   * 
+   *
    * @param url the URL to import the StyleSheet from
    */
   public void importStyleSheet(URL url)
@@ -647,11 +644,11 @@ public class StyleSheet extends StyleContext
         // We can't do anything about it I guess.
       }
   }
-  
+
   /**
    * Sets the base url. All import statements that are relative, will be
    * relative to base.
-   * 
+   *
    * @param base -
    *          the base URL.
    */
@@ -659,20 +656,20 @@ public class StyleSheet extends StyleContext
   {
     this.base = base;
   }
-  
+
   /**
    * Gets the base url.
-   * 
+   *
    * @return - the base
    */
   public URL getBase()
   {
     return base;
   }
-  
+
   /**
    * Adds a CSS attribute to the given set.
-   * 
+   *
    * @param attr - the attribute set
    * @param key - the attribute to add
    * @param value - the value of the key
@@ -684,13 +681,13 @@ public class StyleSheet extends StyleContext
     CSS.addInternal(attr, key, value);
     attr.addAttribute(key, val);
   }
-  
+
   /**
    * Adds a CSS attribute to the given set.
-   * This method parses the value argument from HTML based on key. 
-   * Returns true if it finds a valid value for the given key, 
+   * This method parses the value argument from HTML based on key.
+   * Returns true if it finds a valid value for the given key,
    * and false otherwise.
-   * 
+   *
    * @param attr - the attribute set
    * @param key - the attribute to add
    * @param value - the value of the key
@@ -703,10 +700,10 @@ public class StyleSheet extends StyleContext
     attr.addAttribute(key, value);
     return attr.containsAttribute(key, value);
   }
-  
+
   /**
    * Converts a set of HTML attributes to an equivalent set of CSS attributes.
-   * 
+   *
    * @param htmlAttrSet - the set containing the HTML attributes.
    * @return the set of CSS attributes
    */
@@ -776,7 +773,7 @@ public class StyleSheet extends StyleContext
    * Translates a HTML border attribute to a corresponding set of CSS
    * attributes.
    *
-   * @param cssAttr the original set of CSS attributes to add to 
+   * @param cssAttr the original set of CSS attributes to add to
    * @param o the value of the border attribute
    *
    * @return the new set of CSS attributes
@@ -803,24 +800,24 @@ public class StyleSheet extends StyleContext
    * to convert StyleConstants attributes to CSS before forwarding them to the superclass.
    * The StyleConstants attribute do not have corresponding CSS entry, the attribute
    * is stored (but will likely not be used).
-   * 
+   *
    * @param old - the old set
    * @param key - the non-null attribute key
    * @param value - the attribute value
-   * @return the updated set 
+   * @return the updated set
    */
   public AttributeSet addAttribute(AttributeSet old, Object key,
                                    Object value)
   {
     // FIXME: Not implemented.
-    return super.addAttribute(old, key, value);       
+    return super.addAttribute(old, key, value);
   }
-  
+
   /**
    * Adds a set of attributes to the element. If any of these attributes are
-   * StyleConstants, they will be converted to CSS before forwarding to the 
+   * StyleConstants, they will be converted to CSS before forwarding to the
    * superclass.
-   * 
+   *
    * @param old - the old set
    * @param attr - the attributes to add
    * @return the updated attribute set
@@ -828,44 +825,44 @@ public class StyleSheet extends StyleContext
   public AttributeSet addAttributes(AttributeSet old, AttributeSet attr)
   {
     // FIXME: Not implemented.
-    return super.addAttributes(old, attr);           
+    return super.addAttributes(old, attr);
   }
-  
+
   /**
    * Removes an attribute from the set. If the attribute is a
-   * StyleConstants, it will be converted to CSS before forwarding to the 
+   * StyleConstants, it will be converted to CSS before forwarding to the
    * superclass.
-   * 
+   *
    * @param old - the old set
    * @param key - the non-null attribute key
-   * @return the updated set 
+   * @return the updated set
    */
   public AttributeSet removeAttribute(AttributeSet old, Object key)
   {
     // FIXME: Not implemented.
-    return super.removeAttribute(old, key);    
+    return super.removeAttribute(old, key);
   }
-  
+
   /**
    * Removes an attribute from the set. If any of the attributes are
-   * StyleConstants, they will be converted to CSS before forwarding to the 
+   * StyleConstants, they will be converted to CSS before forwarding to the
    * superclass.
-   * 
+   *
    * @param old - the old set
    * @param attrs - the attributes to remove
-   * @return the updated set 
+   * @return the updated set
    */
   public AttributeSet removeAttributes(AttributeSet old, AttributeSet attrs)
   {
     // FIXME: Not implemented.
-    return super.removeAttributes(old, attrs);    
+    return super.removeAttributes(old, attrs);
   }
-  
+
   /**
    * Removes a set of attributes for the element. If any of the attributes is a
-   * StyleConstants, they will be converted to CSS before forwarding to the 
+   * StyleConstants, they will be converted to CSS before forwarding to the
    * superclass.
-   * 
+   *
    * @param old - the old attribute set
    * @param names - the attribute names
    * @return the update attribute set
@@ -875,35 +872,35 @@ public class StyleSheet extends StyleContext
     // FIXME: Not implemented.
     return super.removeAttributes(old, names);
   }
-  
+
   /**
    * Creates a compact set of attributes that might be shared. This is a hook
    * for subclasses that want to change the behaviour of SmallAttributeSet.
-   * 
+   *
    * @param a - the set of attributes to be represented in the compact form.
    * @return the set of attributes created
    */
   protected StyleContext.SmallAttributeSet createSmallAttributeSet(AttributeSet a)
   {
-    return super.createSmallAttributeSet(a);     
+    return super.createSmallAttributeSet(a);
   }
-  
+
   /**
    * Creates a large set of attributes. This set is not shared. This is a hook
    * for subclasses that want to change the behaviour of the larger attribute
    * storage format.
-   * 
+   *
    * @param a - the set of attributes to be represented in the larger form.
    * @return the large set of attributes.
    */
   protected MutableAttributeSet createLargeAttributeSet(AttributeSet a)
   {
-    return super.createLargeAttributeSet(a);     
+    return super.createLargeAttributeSet(a);
   }
-  
+
   /**
    * Gets the font to use for the given set.
-   * 
+   *
    * @param a - the set to get the font for.
    * @return the font for the set
    */
@@ -982,7 +979,7 @@ public class StyleSheet extends StyleContext
             AttributeSet resolver = atts.getResolveParent();
             if (resolver != null)
               parSize = getFontSize(resolver);
-            size = fs.getValue(parSize); 
+            size = fs.getValue(parSize);
           }
         else
           {
@@ -1002,7 +999,7 @@ public class StyleSheet extends StyleContext
    * Takes a set of attributes and turns it into a foreground
    * color specification. This is used to specify things like, brigher, more hue
    * etc.
-   * 
+   *
    * @param a - the set to get the foreground color for
    * @return the foreground color for the set
    */
@@ -1012,14 +1009,14 @@ public class StyleSheet extends StyleContext
     Color color = null;
     if (c != null)
       color = c.getValue();
-    return color;     
+    return color;
   }
-  
+
   /**
    * Takes a set of attributes and turns it into a background
    * color specification. This is used to specify things like, brigher, more hue
    * etc.
-   * 
+   *
    * @param a - the set to get the background color for
    * @return the background color for the set
    */
@@ -1029,34 +1026,34 @@ public class StyleSheet extends StyleContext
     Color color = null;
     if (c != null)
       color = c.getValue();
-    return color;     
+    return color;
   }
-  
+
   /**
    * Gets the box formatter to use for the given set of CSS attributes.
-   * 
+   *
    * @param a - the given set
    * @return the box formatter
    */
   public BoxPainter getBoxPainter(AttributeSet a)
   {
-    return new BoxPainter(a, this);     
+    return new BoxPainter(a, this);
   }
-  
+
   /**
    * Gets the list formatter to use for the given set of CSS attributes.
-   * 
+   *
    * @param a - the given set
    * @return the list formatter
    */
   public ListPainter getListPainter(AttributeSet a)
   {
-    return new ListPainter(a, this);         
+    return new ListPainter(a, this);
   }
-  
+
   /**
    * Sets the base font size between 1 and 7.
-   * 
+   *
    * @param sz - the new font size for the base.
    */
   public void setBaseFontSize(int sz)
@@ -1064,17 +1061,17 @@ public class StyleSheet extends StyleContext
     if (sz <= 7 && sz >= 1)
       baseFontSize = sz;
   }
-  
+
   /**
    * Sets the base font size from the String. It can either identify
    * a specific font size (between 1 and 7) or identify a relative
    * font size such as +1 or -2.
-   * 
+   *
    * @param size - the new font size as a String.
    */
   public void setBaseFontSize(String size)
   {
-    size.trim();
+    size = size.trim();
     int temp = 0;
     try
       {
@@ -1097,10 +1094,10 @@ public class StyleSheet extends StyleContext
         // Do nothing here
       }
   }
-  
+
   /**
    * TODO
-   * 
+   *
    * @param pt - TODO
    * @return TODO
    */
@@ -1109,35 +1106,35 @@ public class StyleSheet extends StyleContext
     // FIXME: Not implemented.
     return 0;
   }
-  
+
   /**
    * Gets the point size, given a size index.
-   * 
+   *
    * @param index - the size index
    * @return the point size.
    */
   public float getPointSize(int index)
   {
     // FIXME: Not implemented.
-    return 0;    
+    return 0;
   }
-  
+
   /**
    * Given the string of the size, returns the point size value.
-   * 
+   *
    * @param size - the string representation of the size.
    * @return - the point size value.
    */
   public float getPointSize(String size)
   {
     // FIXME: Not implemented.
-    return 0;    
+    return 0;
   }
-  
+
   /**
    * Convert the color string represenation into java.awt.Color. The valid
    * values are like "aqua" , "#00FFFF" or "rgb(1,6,44)".
-   * 
+   *
    * @param colorName the color to convert.
    * @return the matching java.awt.color
    */
@@ -1145,14 +1142,14 @@ public class StyleSheet extends StyleContext
   {
     return CSSColor.convertValue(colorName);
   }
-  
+
   /**
    * This class carries out some of the duties of CSS formatting. This enables views
    * to present the CSS formatting while not knowing how the CSS values are cached.
-   * 
+   *
    * This object is reponsible for the insets of a View and making sure
    * the background is maintained according to the CSS attributes.
-   * 
+   *
    * @author Lillian Angel (langel@redhat.com)
    */
   public static class BoxPainter extends Object implements Serializable
@@ -1195,7 +1192,7 @@ public class StyleSheet extends StyleContext
 
     /**
      * Package-private constructor.
-     * 
+     *
      * @param as - AttributeSet for painter
      */
     BoxPainter(AttributeSet as, StyleSheet ss)
@@ -1261,12 +1258,12 @@ public class StyleSheet extends StyleContext
       background = ss.getBackground(as);
 
     }
-    
-    
+
+
     /**
      * Gets the inset needed on a given side to account for the margin, border
      * and padding.
-     * 
+     *
      * @param size - the size of the box to get the inset for. View.TOP, View.LEFT,
      * View.BOTTOM or View.RIGHT.
      * @param v - the view making the request. This is used to get the AttributeSet,
@@ -1308,11 +1305,11 @@ public class StyleSheet extends StyleContext
       }
       return inset;
     }
-    
+
     /**
      * Paints the CSS box according to the attributes given. This should
      * paint the border, padding and background.
-     * 
+     *
      * @param g - the graphics configuration
      * @param x - the x coordinate
      * @param y - the y coordinate
@@ -1337,12 +1334,12 @@ public class StyleSheet extends StyleContext
         }
     }
   }
-  
+
   /**
    * This class carries out some of the CSS list formatting duties. Implementations
    * of this class enable views to present the CSS formatting while not knowing anything
    * about how the CSS values are being cached.
-   * 
+   *
    * @author Lillian Angel (langel@redhat.com)
    */
   public static class ListPainter implements Serializable
@@ -1365,7 +1362,7 @@ public class StyleSheet extends StyleContext
 
     /**
      * Package-private constructor.
-     * 
+     *
      * @param as - AttributeSet for painter
      */
     ListPainter(AttributeSet as, StyleSheet ss)
@@ -1382,7 +1379,7 @@ public class StyleSheet extends StyleContext
 
     /**
      * Paints the CSS list decoration according to the attributes given.
-     * 
+     *
      * @param g - the graphics configuration
      * @param x - the x coordinate
      * @param y - the y coordinate
@@ -1414,7 +1411,7 @@ public class StyleSheet extends StyleContext
             {
               View v1 = itemView.getView(0);
               if (v1 instanceof ParagraphView && v1.getViewCount() > 0)
-                {             
+                {
                   Shape a1 = itemView.getChildAllocation(0, tmpRect);
                   Rectangle r1 = a1 instanceof Rectangle ? (Rectangle) a1
                                                          : a1.getBounds();
@@ -1444,10 +1441,10 @@ public class StyleSheet extends StyleContext
    *
    * @return the converted map
    */
-  private Map attributeSetToMap(AttributeSet atts)
+  private Map<String,String> attributeSetToMap(AttributeSet atts)
   {
-    HashMap map = new HashMap();
-    Enumeration keys = atts.getAttributeNames();
+    HashMap<String,String> map = new HashMap<String,String>();
+    Enumeration<?> keys = atts.getAttributeNames();
     while (keys.hasMoreElements())
       {
         Object key = keys.nextElement();

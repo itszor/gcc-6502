@@ -1,5 +1,5 @@
 ! { dg-do compile }
-! { dg-require-effective-target tls_native }
+! { dg-require-effective-target tls }
 
       MODULE M
         REAL, POINTER, SAVE :: WORK(:)
@@ -22,4 +22,3 @@
         ALLOCATE(WORK(SIZE))
         WORK = TOL
       END SUBROUTINE BUILD
-! { dg-final { cleanup-modules "M" } }

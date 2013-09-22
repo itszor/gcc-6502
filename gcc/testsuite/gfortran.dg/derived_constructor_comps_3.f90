@@ -1,4 +1,4 @@
-! { dg-compile }
+! { dg-do compile }
 ! 
 ! gfortran was ICEing for the constructor of
 ! componentfree types.
@@ -19,4 +19,3 @@ program bug4_structure
    t = bug4()
    write(*,*) t
 end program bug4_structure
-! { dg-final { cleanup-modules "bug4_mod" } }

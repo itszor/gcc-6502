@@ -1,10 +1,13 @@
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 
 AC_INIT(fixincludes, [ ])
 AC_CONFIG_SRCDIR(inclhack.def)
 AC_CONFIG_AUX_DIR(..)
+m4_sinclude(../libtool.m4)
 AC_CANONICAL_SYSTEM
 AC_PROG_CC
+AC_USE_SYSTEM_EXTENSIONS
+AC_PROG_SED
 
 # Figure out what compiler warnings we can enable.
 # See config/warnings.m4 for details.
@@ -50,7 +53,8 @@ fi],
 	i?86-*-msdosdjgpp* | \
 	i?86-*-mingw32* | \
 	x86_64-*-mingw32* | \
-	*-*-beos* )
+	*-*-beos* | \
+        *-*-*vms*)
 		TARGET=twoprocess
 		;;
 
@@ -85,13 +89,14 @@ define(fixincludes_UNLOCKED_FUNCS, clearerr_unlocked feof_unlocked dnl
   fread_unlocked fwrite_unlocked getchar_unlocked getc_unlocked dnl
   putchar_unlocked putc_unlocked)
 AC_CHECK_FUNCS(fixincludes_UNLOCKED_FUNCS)
-AC_CHECK_DECLS(m4_split(m4_normalize(abort asprintf basename errno vasprintf fixincludes_UNLOCKED_FUNCS)))
+AC_CHECK_DECLS([abort, asprintf, basename(char *), errno, vasprintf])
+AC_CHECK_DECLS(m4_split(m4_normalize(fixincludes_UNLOCKED_FUNCS)))
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
 
 # Checks for library functions.
-gcc_AC_FUNC_MMAP_BLACKLIST
+GCC_AC_FUNC_MMAP_BLACKLIST
 
 AC_MSG_CHECKING([whether to enable maintainer-specific portions of Makefiles])
 AC_ARG_ENABLE(maintainer-mode,
@@ -106,6 +111,8 @@ else
   MAINT='#'
 fi	
 AC_SUBST(MAINT)
+AC_DEFINE_UNQUOTED([SED_PROGRAM], "${SED}",
+   [Defined to the best working sed program on the host system])
 
 AC_CONFIG_HEADERS(config.h, [echo timestamp > stamp-h])
 AC_CONFIG_FILES(Makefile mkheaders.almost:mkheaders.in)

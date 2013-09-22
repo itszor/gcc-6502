@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 if the target assembler supports .symver directive. */
+#undef HAVE_AS_SYMVER_DIRECTIVE
+
 /* Define to 1 if the target supports __attribute__((alias(...))). */
 #undef HAVE_ATTRIBUTE_ALIAS
 
@@ -12,8 +15,14 @@
 /* Define if the POSIX Semaphores do not work on your system. */
 #undef HAVE_BROKEN_POSIX_SEMAPHORES
 
+/* Define to 1 if the target assembler supports thread-local storage. */
+#undef HAVE_CC_TLS
+
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
 
 /* Define to 1 if you have the `getloadavg' function. */
 #undef HAVE_GETLOADAVG
@@ -42,6 +51,13 @@
 /* Define to 1 if you have the <string.h> header file. */
 #undef HAVE_STRING_H
 
+/* Define to 1 if you have the `strtoull' function. */
+#undef HAVE_STRTOULL
+
+/* Define to 1 if the target runtime linker supports binding the same symbol
+   to different versions. */
+#undef HAVE_SYMVER_SYMBOL_RENAMING_RUNTIME_SUPPORT
+
 /* Define to 1 if the target supports __sync_*_compare_and_swap */
 #undef HAVE_SYNC_BUILTINS
 
@@ -63,6 +79,13 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if GNU symbol versioning is used for libgomp. */
+#undef LIBGOMP_GNU_SYMBOL_VERSIONING
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
+
 /* Name of package */
 #undef PACKAGE
 
@@ -77,6 +100,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
@@ -98,6 +124,9 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
+
+/* Define if you can safely include both <string.h> and <strings.h>. */
+#undef STRING_WITH_STRINGS
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #undef TIME_WITH_SYS_TIME

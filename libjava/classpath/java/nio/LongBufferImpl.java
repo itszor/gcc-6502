@@ -1,4 +1,4 @@
-/* LongBufferImpl.java -- 
+/* LongBufferImpl.java --
    Copyright (C) 2002, 2003, 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -43,41 +43,43 @@ package java.nio;
  */
 final class LongBufferImpl extends LongBuffer
 {
-  private boolean readOnly;
+  private final boolean readOnly;
 
   LongBufferImpl (int capacity)
   {
     this (new long [capacity], 0, capacity, capacity, 0, -1, false);
   }
-  
-  LongBufferImpl (long[] buffer, int offset, int capacity, int limit, int position, int mark, boolean readOnly)
+
+  LongBufferImpl (long[] buffer, int offset, int capacity, int limit,
+                  int position, int mark, boolean readOnly)
   {
-    super (capacity, limit, position, mark);
-    this.backing_buffer = buffer;
-    this.array_offset = offset;
+    super (capacity, limit, position, mark, null, buffer, offset);
     this.readOnly = readOnly;
   }
-  
+
   public boolean isReadOnly ()
   {
     return readOnly;
   }
-  
+
   public LongBuffer slice ()
   {
-    return new LongBufferImpl (backing_buffer, array_offset + position (), remaining (), remaining (), 0, -1, isReadOnly ());
+    return new LongBufferImpl (backing_buffer, array_offset + position (),
+                               remaining (), remaining (), 0, -1, isReadOnly ());
   }
-  
+
   public LongBuffer duplicate ()
   {
-    return new LongBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, isReadOnly ());
+    return new LongBufferImpl (backing_buffer, array_offset, capacity (), limit (),
+                               position (), mark, isReadOnly ());
   }
-  
+
   public LongBuffer asReadOnlyBuffer ()
   {
-    return new LongBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, true);
+    return new LongBufferImpl (backing_buffer, array_offset, capacity (), limit (),
+                               position (), mark, true);
   }
-  
+
   public LongBuffer compact ()
   {
     checkIfReadOnly();
@@ -93,7 +95,7 @@ final class LongBufferImpl extends LongBuffer
     limit(capacity());
     return this;
   }
-  
+
   public boolean isDirect ()
   {
     return false;
@@ -114,7 +116,7 @@ final class LongBufferImpl extends LongBuffer
     position (position () + 1);
     return result;
   }
-  
+
   /**
    * Relative put method. Writes <code>value</code> to the next position
    * in the buffer.
@@ -132,7 +134,7 @@ final class LongBufferImpl extends LongBuffer
     position (position () + 1);
     return this;
   }
-  
+
   /**
    * Absolute get method. Reads the <code>long</code> at position
    * <code>index</code>.
@@ -146,7 +148,7 @@ final class LongBufferImpl extends LongBuffer
 
     return backing_buffer [index];
   }
-  
+
   /**
    * Absolute put method. Writes <code>value</code> to position
    * <code>index</code> in the buffer.
@@ -163,7 +165,7 @@ final class LongBufferImpl extends LongBuffer
     backing_buffer [index] = value;
     return this;
   }
-  
+
   public ByteOrder order ()
   {
     return ByteOrder.nativeOrder ();

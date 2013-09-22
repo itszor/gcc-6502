@@ -60,7 +60,11 @@ test1 (void *q, int x)
     r = malloc (30);
   else
     r = calloc (2, 16);
-  if (__builtin_object_size (r, 1) != 2 * 16)
+  /* We may duplicate this test onto the two exit paths.  On one path
+     the size will be 32, the other it will be 30.  If we don't duplicate
+     this test, then the size will be 32.  */
+  if (__builtin_object_size (r, 1) != 2 * 16
+      && __builtin_object_size (r, 1) != 30)
     abort ();
   if (x < 20)
     r = malloc (30);
@@ -130,15 +134,15 @@ test1 (void *q, int x)
     abort ();    
   if (__builtin_object_size (&vara[5], 1) != (size_t) -1)
     abort ();
-  if (__builtin_object_size (&vara[0].a, 1) != (size_t) -1)
+  if (__builtin_object_size (&vara[0].a, 1) != sizeof (vara[0].a))
     abort ();
-  if (__builtin_object_size (&vara[10].a[0], 1) != (size_t) -1)
+  if (__builtin_object_size (&vara[10].a[0], 1) != sizeof (vara[0].a))
     abort ();
-  if (__builtin_object_size (&vara[5].a[4], 1) != (size_t) -1)
+  if (__builtin_object_size (&vara[5].a[4], 1) != sizeof (vara[0].a) - 4)
     abort ();
-  if (__builtin_object_size (&vara[5].b, 1) != (size_t) -1)
+  if (__builtin_object_size (&vara[5].b, 1) != sizeof (vara[0].b))
     abort ();
-  if (__builtin_object_size (&vara[7].c[7], 1) != (size_t) -1)
+  if (__builtin_object_size (&vara[7].c[7], 1) != sizeof (vara[0].c) - 7)
     abort ();
   if (__builtin_object_size (zerol, 1) != 0)
     abort ();

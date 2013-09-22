@@ -1,5 +1,5 @@
 /* VMGarbageCollectorMXBeanImpl.java - VM interface for a GC bean
-   Copyright (C) 2006 Free Software Foundation
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -52,6 +52,8 @@ package gnu.java.lang.management;
 final class VMGarbageCollectorMXBeanImpl
 {
 
+  private VMGarbageCollectorMXBeanImpl() {} // Prohibits instantiation.
+
   /**
    * Returns the number of collections the garbage collector
    * represented by this bean has made.  -1 is returned if the
@@ -70,7 +72,7 @@ final class VMGarbageCollectorMXBeanImpl
    * Note that the accumulated time may not change, even when the
    * collection count increases, if the time taken is sufficiently
    * short; this depends on the resolution of the timer used.
-   * 
+   *
    * @param name the name of the garbage collector.
    * @return the accumulated number of milliseconds spent collecting,
    *         or -1 if this is undefined.

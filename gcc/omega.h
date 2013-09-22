@@ -1,11 +1,11 @@
-/* Source code for an implementation of the Omega test, an integer 
-   programming algorithm for dependence analysis, by William Pugh, 
+/* Source code for an implementation of the Omega test, an integer
+   programming algorithm for dependence analysis, by William Pugh,
    appeared in Supercomputing '91 and CACM Aug 92.
 
    This code has no license restrictions, and is considered public
    domain.
 
-   Changes copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
+   Changes copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <sebastian.pop@inria.fr>
 
 This file is part of GCC.
@@ -52,13 +52,13 @@ enum omega_result {
 
 /* Values used for labeling equations.  Private (not used outside the
    solver).  */
-enum omega_eqn_color { 
+enum omega_eqn_color {
   omega_black = 0,
   omega_red = 1
 };
 
 /* Structure for equations.  */
-typedef struct eqn
+typedef struct eqn_d
 {
   int key;
   int touched;
@@ -72,11 +72,11 @@ typedef struct eqn
   int *coef;
 } *eqn;
 
-typedef struct omega_pb
+typedef struct omega_pb_d
 {
   /* The number of variables in the system of equations.  */
   int num_vars;
-  
+
   /* Safe variables are not eliminated during the Fourier-Motzkin
      simplification of the system.  Safe variables are all those
      variables that are placed at the beginning of the array of
@@ -215,7 +215,7 @@ static inline eqn
 omega_alloc_eqns (int s, int n)
 {
   int i;
-  eqn res = (eqn) (xcalloc (n, sizeof (struct eqn)));
+  eqn res = (eqn) (xcalloc (n, sizeof (struct eqn_d)));
 
   for (i = n - 1; i >= 0; i--)
     {

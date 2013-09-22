@@ -1,9 +1,10 @@
-! { dg-do run }
+! { dg-do run { target fd_truncate } }
+!
 ! pr19314 inquire(..position=..) segfaults
 ! test by Thomas.Koenig@online.de
 !         bdavis9659@comcast.net
       implicit none
-      character*20 chr
+      character(len=20) chr
       open(7,STATUS='SCRATCH')
       inquire(7,position=chr)
       if (chr.NE.'ASIS') CALL ABORT
@@ -29,7 +30,7 @@
       write(7,*)'this is another record'
       backspace(7)
       inquire(7,position=chr)
-      if (chr.NE.'ASIS') CALL ABORT
+      if (chr .NE. 'UNSPECIFIED') CALL ABORT
       rewind(7)
       inquire(7,position=chr)
       if (chr.NE.'REWIND') CALL ABORT

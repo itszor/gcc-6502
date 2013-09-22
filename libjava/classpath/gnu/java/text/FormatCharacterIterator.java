@@ -1,6 +1,6 @@
-/* FormatCharacter.java -- Implementation of AttributedCharacterIterator for 
+/* FormatCharacter.java -- Implementation of AttributedCharacterIterator for
    formatters.
-   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -8,7 +8,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -38,12 +38,15 @@ exception statement from your version. */
 package gnu.java.text;
 
 import java.text.AttributedCharacterIterator;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
+
+import static java.text.AttributedCharacterIterator.Attribute;
 
 /**
  * This class should not be put public and it is only intended to the
@@ -62,7 +65,7 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   private int charIndex;
   private int attributeIndex;
   private int[] ranges;
-  private HashMap[] attributes;
+  private List<Map<Attribute,Object>> attributes;
   private static final boolean DEBUG = false;
 
   /**
@@ -74,11 +77,11 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   {
     formattedString = "";
     ranges = new int[0];
-    attributes = new HashMap[0];
+    attributes = new ArrayList<Map<Attribute,Object>>(0);
   }
 
   /**
-   * This constructor take a string <code>s</code>, a set of ranges 
+   * This constructor take a string <code>s</code>, a set of ranges
    * and the corresponding attributes. This is used to build an iterator.
    * The array <code>ranges</code> should be formatted as follow:
    * each element of <code>ranges</code> specifies the index in the string
@@ -87,72 +90,75 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
    * <pre>
    *   s = "hello";
    *   ranges = new int[] { 2, 6 };
-   *   attributes = new HashMap[2];
+   *   attributes = new ArrayList<Map<Attribute,Object>>(2);
    * </pre>
-   * <code>"he"</code> will have the attributes <code>attributes[0]</code>,
-   * <code>"llo"</code> the <code>attributes[1]</code>.
+   * <code>"he"</code> will have the attributes <code>attributes.get(0)</code>,
+   * <code>"llo"</code> the <code>attributes.get(1)</code>.
    */
-  public FormatCharacterIterator (String s, int[] ranges, HashMap[] attributes)
+  public FormatCharacterIterator (String s, int[] ranges,
+                                  List<Map<Attribute,Object>> attributes)
   {
     formattedString = s;
     this.ranges = ranges;
     this.attributes = attributes;
   }
-  
-  /* 
+
+  /*
    * The following methods are inherited from AttributedCharacterIterator,
-   * and thus are already documented. 
+   * and thus are already documented.
    */
 
-  public Set getAllAttributeKeys()
+  public Set<Attribute> getAllAttributeKeys()
   {
-    if (attributes != null && attributes[attributeIndex] != null)
-      return attributes[attributeIndex].keySet();
+    if (attributes != null && attributes.get(attributeIndex) != null)
+      return attributes.get(attributeIndex).keySet();
     else
-      return new HashSet();
+      return new HashSet<Attribute>();
   }
-  
-  public Map getAttributes()
+
+  public Map<Attribute,Object> getAttributes()
   {
-    if (attributes != null && attributes[attributeIndex] != null)
-      return attributes[attributeIndex];
+    if (attributes != null && attributes.get(attributeIndex) != null)
+      return attributes.get(attributeIndex);
     else
-      return new HashMap();
+      return new HashMap<Attribute,Object>();
   }
-  
-  public Object getAttribute (AttributedCharacterIterator.Attribute attrib)
+
+  public Object getAttribute (Attribute attrib)
   {
-    if (attributes != null && attributes[attributeIndex] != null)
-      return attributes[attributeIndex].get (attrib);
+    if (attributes != null && attributes.get(attributeIndex) != null)
+      return attributes.get(attributeIndex).get (attrib);
     else
       return null;
   }
-  
-  public int getRunLimit(Set reqAttrs)
+
+  public int getRunLimit(Set<? extends Attribute> reqAttrs)
   {
     if (attributes == null)
       return formattedString.length();
 
     int currentAttrIndex = attributeIndex;
-    Set newKeys;
+    Set<Attribute> newKeys;
 
     do
       {
-	currentAttrIndex++;
-	if (currentAttrIndex == attributes.length)
-	  return formattedString.length();
-	if (attributes[currentAttrIndex] == null)
-	  break;
-	newKeys = attributes[currentAttrIndex].keySet();
+        currentAttrIndex++;
+        if (currentAttrIndex == attributes.size())
+          return formattedString.length();
+        Map<Attribute,Object> currentAttr =
+          attributes.get(currentAttrIndex);
+        if (currentAttr == null)
+          break;
+        newKeys = currentAttr.keySet();
       }
     while (newKeys.containsAll (reqAttrs));
 
     return ranges[currentAttrIndex-1];
   }
-  
-  public int getRunLimit (AttributedCharacterIterator.Attribute attribute) 
+
+  public int getRunLimit (Attribute attribute)
   {
-    Set s = new HashSet();
+    Set<Attribute> s = new HashSet<Attribute>();
 
     s.add (attribute);
     return getRunLimit (s);
@@ -162,60 +168,63 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   {
     if (attributes == null)
       return formattedString.length();
-    if (attributes[attributeIndex] == null)
+    if (attributes.get(attributeIndex) == null)
       {
-	for (int i=attributeIndex+1;i<attributes.length;i++)
-	  if (attributes[i] != null)
-	    return ranges[i-1];
-	return formattedString.length();
+        for (int i=attributeIndex+1;i<attributes.size();i++)
+          if (attributes.get(i) != null)
+            return ranges[i-1];
+        return formattedString.length();
       }
 
-    return getRunLimit (attributes[attributeIndex].keySet());
+    return getRunLimit (attributes.get(attributeIndex).keySet());
   }
-  
-  public int getRunStart (Set reqAttrs)
+
+  public int getRunStart (Set<? extends Attribute> reqAttrs)
   {
     if (attributes == null)
       return formattedString.length();
-  
+
     int currentAttrIndex = attributeIndex;
-    Set newKeys = null;
+    Set<Attribute> newKeys = null;
 
     do
       {
-	if (currentAttrIndex == 0)
-	  return 0;
+        if (currentAttrIndex == 0)
+          return 0;
 
-	currentAttrIndex--;
-	if (attributes[currentAttrIndex] == null)
-	  break;
-	newKeys = attributes[currentAttrIndex].keySet();
+        currentAttrIndex--;
+        Map<Attribute,Object> currentAttr =
+          attributes.get(currentAttrIndex);
+        if (currentAttr == null)
+          break;
+        newKeys = currentAttr.keySet();
       }
     while (newKeys.containsAll (reqAttrs));
-   
+
     return (currentAttrIndex > 0) ? ranges[currentAttrIndex-1] : 0;
-  } 
-    
+  }
+
   public int getRunStart()
   {
     if (attributes == null)
       return 0;
 
-    if (attributes[attributeIndex] == null)
+    Map<Attribute,Object> attrib = attributes.get(attributeIndex);
+    if (attrib == null)
       {
-	for (int i=attributeIndex;i>0;i--)
-	  if (attributes[i] != null)
-	    return ranges[attributeIndex-1];
-	return 0;
+        for (int i=attributeIndex;i>0;i--)
+          if (attributes.get(i) != null)
+            return ranges[attributeIndex-1];
+        return 0;
       }
 
-    return getRunStart (attributes[attributeIndex].keySet());
+    return getRunStart (attrib.keySet());
   }
-  
-  public int getRunStart (AttributedCharacterIterator.Attribute attribute) 
+
+  public int getRunStart (Attribute attribute)
   {
-    Set s = new HashSet();
-    
+    Set<Attribute> s = new HashSet<Attribute>();
+
     s.add (attribute);
     return getRunStart (s);
   }
@@ -224,7 +233,7 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   {
     return new FormatCharacterIterator (formattedString, ranges, attributes);
   }
-  
+
   /*
    * The following methods are inherited from CharacterIterator and thus
    * are already documented.
@@ -234,83 +243,83 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   {
     return formattedString.charAt (charIndex);
   }
-  
+
   public char first()
   {
     charIndex = 0;
     attributeIndex = 0;
     return formattedString.charAt (0);
   }
-  
+
   public int getBeginIndex()
   {
     return 0;
   }
-  
+
   public int getEndIndex()
   {
     return formattedString.length();
   }
-  
+
   public int getIndex()
   {
     return charIndex;
   }
-  
+
   public char last()
   {
     charIndex = formattedString.length()-1;
     if (attributes != null)
-      attributeIndex = attributes.length-1;
+      attributeIndex = attributes.size()-1;
     return formattedString.charAt (charIndex);
   }
-  
+
   public char next()
   {
     charIndex++;
     if (charIndex >= formattedString.length())
       {
-	charIndex = getEndIndex();
-	return DONE;
+        charIndex = getEndIndex();
+        return DONE;
       }
     if (attributes != null)
       {
-	if (charIndex >= ranges[attributeIndex])
-	  attributeIndex++;
+        if (charIndex >= ranges[attributeIndex])
+          attributeIndex++;
       }
     return formattedString.charAt (charIndex);
   }
-  
+
   public char previous()
   {
     charIndex--;
     if (charIndex < 0)
       {
-	charIndex = 0;
-	return DONE;
+        charIndex = 0;
+        return DONE;
       }
-    
+
     if (attributes != null)
       {
-	if (charIndex < ranges[attributeIndex])
-	  attributeIndex--;
+        if (charIndex < ranges[attributeIndex])
+          attributeIndex--;
       }
     return formattedString.charAt (charIndex);
   }
-  
+
   public char setIndex (int position)
   {
     if (position < 0 || position > formattedString.length())
       throw new IllegalArgumentException ("position is out of range");
-    
+
     charIndex = position;
     if (attributes != null)
       {
-	for (attributeIndex=0;attributeIndex<attributes.length;
-	     attributeIndex++)
-	  if (ranges[attributeIndex] > charIndex)
-	    break;
-	attributeIndex--;
+        for (attributeIndex=0;attributeIndex<attributes.size();
+             attributeIndex++)
+          if (ranges[attributeIndex] > charIndex)
+            break;
+        attributeIndex--;
       }
     if (charIndex == formattedString.length())
       return DONE;
@@ -327,71 +336,71 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
    *
    * @param attributes the new array attributes to apply to the string.
    */
-  public void mergeAttributes (HashMap[] attributes, int[] ranges)
+  public void mergeAttributes (List<Map<Attribute,Object>> attributes,
+                               int[] ranges)
   {
-    Vector new_ranges = new Vector();
-    Vector new_attributes = new Vector();
+    List<Integer> newRanges = new ArrayList<Integer>();
+    List<Map<Attribute,Object>> newAttributes =
+      new ArrayList<Map<Attribute,Object>>();
     int i = 0, j = 0;
 
-    debug("merging " + attributes.length + " attrs");
-    
+    debug("merging " + attributes.size() + " attrs");
+
     while (i < this.ranges.length && j < ranges.length)
       {
-	if (this.attributes[i] != null)
-	  {
-	    new_attributes.add (this.attributes[i]);
-	    if (attributes[j] != null)
-	      this.attributes[i].putAll (attributes[j]);
-	  }
-	else
-	  {
-	    new_attributes.add (attributes[j]);
-	  }
-	if (this.ranges[i] == ranges[j])
-	  {
-	    new_ranges.add (new Integer (ranges[j]));
-	    i++;
-	    j++;
-	  }
-	else if (this.ranges[i] < ranges[j])
-	  {
-	    new_ranges.add (new Integer (this.ranges[i]));
-	    i++;
-	  }
-	else
-	  {
-	    new_ranges.add (new Integer (ranges[j]));
-	    j++;
-	  }
+        if (this.attributes.get(i) != null)
+          {
+            newAttributes.add (this.attributes.get(i));
+            if (attributes.get(j) != null)
+              this.attributes.get(i).putAll (attributes.get(j));
+          }
+        else
+          {
+            newAttributes.add (attributes.get(j));
+          }
+        if (this.ranges[i] == ranges[j])
+          {
+            newRanges.add (Integer.valueOf (ranges[j]));
+            i++;
+            j++;
+          }
+        else if (this.ranges[i] < ranges[j])
+          {
+            newRanges.add (Integer.valueOf (this.ranges[i]));
+            i++;
+          }
+        else
+          {
+            newRanges.add (Integer.valueOf (ranges[j]));
+            j++;
+          }
      }
-    
+
     if (i != this.ranges.length)
       {
-	for (;i<this.ranges.length;i++)
-	  {
-	    new_attributes.add (this.attributes[i]);
-	    new_ranges.add (new Integer (this.ranges[i]));
-	  }
+        for (;i<this.ranges.length;i++)
+          {
+            newAttributes.add (this.attributes.get(i));
+            newRanges.add (Integer.valueOf (this.ranges[i]));
+          }
       }
     if (j != ranges.length)
       {
-	for (;j<ranges.length;j++)
-	  {
-	    new_attributes.add (attributes[j]);
-	    new_ranges.add (new Integer (ranges[j]));
-	  }
+        for (;j<ranges.length;j++)
+          {
+            newAttributes.add (attributes.get(j));
+            newRanges.add (Integer.valueOf (ranges[j]));
+          }
       }
 
-    this.attributes = new HashMap[new_attributes.size()];
-    this.ranges = new int[new_ranges.size()];
-    System.arraycopy (new_attributes.toArray(), 0, this.attributes,
-		      0, this.attributes.length);
+    this.attributes = newAttributes;
+    this.ranges = new int[newRanges.size()];
 
-    for (i=0;i<new_ranges.size();i++)
+    for (i=0;i<newRanges.size();i++)
       {
-	this.ranges[i] = ((Integer)new_ranges.elementAt (i)).intValue();
+        this.ranges[i] = newRanges.get (i).intValue();
       }
-    
+
     dumpTable();
   }
 
@@ -405,35 +414,35 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   public void append (AttributedCharacterIterator iterator)
   {
     char c = iterator.first();
-    Vector more_ranges = new Vector();
-    Vector more_attributes = new Vector();
+    List<Integer> moreRanges = new ArrayList<Integer>();
+    List<Map<Attribute,Object>> moreAttributes =
+      new ArrayList<Map<Attribute,Object>>();
 
     do
       {
-	formattedString = formattedString + String.valueOf (c);
-	// TODO: Reduce the size of the output array.
-	more_attributes.add (iterator.getAttributes());
-	more_ranges.add (new Integer (formattedString.length()));
-	// END TOOD
-	c = iterator.next();
-      } 
+        formattedString = formattedString + String.valueOf (c);
+        // TODO: Reduce the size of the output array.
+        moreAttributes.add (iterator.getAttributes());
+        moreRanges.add (Integer.valueOf (formattedString.length()));
+        // END TOOD
+        c = iterator.next();
+      }
     while (c != DONE);
 
-    HashMap[] new_attributes = new HashMap[attributes.length
-					   + more_attributes.size()];
-    int[] new_ranges = new int[ranges.length + more_ranges.size()];
-    
-    System.arraycopy (attributes, 0, new_attributes, 0, attributes.length);
-    System.arraycopy (more_attributes.toArray(), 0, new_attributes,
-		      attributes.length, more_attributes.size());
+    List<Map<Attribute,Object>> newAttributes =
+      new ArrayList<Map<Attribute,Object>>(attributes.size() + moreAttributes.size());
+    int[] newRanges = new int[ranges.length + moreRanges.size()];
 
-    System.arraycopy (ranges, 0, new_ranges, 0, ranges.length);
-    Object[] new_ranges_array = more_ranges.toArray();
-    for (int i = 0; i < more_ranges.size();i++)
-      new_ranges[i+ranges.length] = ((Integer) new_ranges_array[i]).intValue();
+    newAttributes.addAll(attributes);
+    newAttributes.addAll(moreAttributes);
 
-    attributes = new_attributes;
-    ranges = new_ranges;
+    System.arraycopy (ranges, 0, newRanges, 0, ranges.length);
+    Integer[] newRangesArray = moreRanges.toArray(new Integer[moreRanges.size()]);
+    for (int i = 0; i < moreRanges.size();i++)
+      newRanges[i+ranges.length] = newRangesArray[i].intValue();
+
+    attributes = newAttributes;
+    ranges = newRanges;
   }
 
   /**
@@ -441,28 +450,29 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
    * directly in the calling parameters.
    *
    * @param text The string to append.
-   * @param local_attributes The attributes to put on this string in the
+   * @param localAttributes The attributes to put on this string in the
    * iterator. If it is <code>null</code> the string will simply have no
    * attributes.
    */
-  public void append (String text, HashMap local_attributes)
+  public void append (String text, HashMap<? extends Attribute,? extends Object> localAttributes)
   {
-    int[] new_ranges = new int[ranges.length+1];
-    HashMap[] new_attributes = new HashMap[attributes.length+1];
+    int[] newRanges = new int[ranges.length+1];
+    List<Map<Attribute,Object>> newAttributes =
+      new ArrayList<Map<Attribute,Object>>(attributes.size()+1);
 
     formattedString += text;
-    System.arraycopy (attributes, 0, new_attributes, 0, attributes.length);
-    System.arraycopy (ranges, 0, new_ranges, 0, ranges.length);
-    new_ranges[ranges.length] = formattedString.length();
-    new_attributes[attributes.length] = local_attributes;
+    newAttributes.addAll(attributes);
+    System.arraycopy (ranges, 0, newRanges, 0, ranges.length);
+    newRanges[ranges.length] = formattedString.length();
+    newAttributes.add(new HashMap<Attribute,Object>(localAttributes));
 
-    ranges = new_ranges;
-    attributes = new_attributes;
-  }  
+    ranges = newRanges;
+    attributes = newAttributes;
+  }
 
   /**
    * This method appends a string without attributes. It is completely
-   * equivalent to call {@link #append(String,HashMap)} with local_attributes
+   * equivalent to call {@link #append(String,HashMap)} with localAttributes
    * equal to <code>null</code>.
    *
    * @param text The string to append to the iterator.
@@ -470,27 +480,36 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
   public void append (String text)
   {
     append (text, null);
-  }  
+  }
 
   /**
    * This method adds a set of attributes to a range of character. The
    * bounds are always inclusive. In the case many attributes have to
-   * be added it is advised to directly use {@link #mergeAttributes([Ljava.util.HashMap;[I}
+   * be added it is advised to directly use {@link #mergeAttributes(java.util.List;[I}
    *
    * @param attributes Attributes to merge into the iterator.
-   * @param range_start Lower bound of the range of characters which will receive the
+   * @param rangeStart Lower bound of the range of characters which will receive the
    * attribute.
-   * @param range_end Upper bound of the range of characters which will receive the
-   * attribute. 
+   * @param rangeEnd Upper bound of the range of characters which will receive the
+   * attribute.
    *
    * @throws IllegalArgumentException if ranges are out of bounds.
    */
-  public void addAttributes(HashMap attributes, int range_start, int range_end)
+  public void addAttributes(Map<? extends Attribute,? extends Object> attributes,
+                            int rangeStart, int rangeEnd)
   {
-    if (range_start == 0)
-      mergeAttributes(new HashMap[] { attributes }, new int[] { range_end });
+    List<Map<Attribute,Object>> mergeAttribs = new ArrayList<Map<Attribute,Object>>();
+    int[] mergeRanges;
+
+    if (rangeStart == 0)
+        mergeRanges = new int[] { rangeEnd };
     else
-      mergeAttributes(new HashMap[] { null, attributes }, new int[] { range_start, range_end });
+      {
+        mergeRanges = new int[] { rangeStart, rangeEnd };
+        mergeAttribs.add(null);
+      }
+    mergeAttribs.add(new HashMap<Attribute,Object>(attributes));
+    mergeAttributes(mergeAttribs, mergeRanges);
   }
 
   private void debug(String s)
@@ -501,31 +520,31 @@ public class FormatCharacterIterator implements AttributedCharacterIterator
 
   private void dumpTable()
   {
-    int start_range = 0;
-    
+    int startRange = 0;
+
     if (!DEBUG)
       return;
 
     System.out.println("Dumping internal table:");
     for (int i = 0; i < ranges.length; i++)
       {
-	System.out.print("\t" + start_range + " => " + ranges[i] + ":");
-	if (attributes[i] == null)
-	  System.out.println("null");
-	else
-	  {
-	    Set keyset = attributes[i].keySet();
-	    if (keyset != null)
-	      {
-		Iterator keys = keyset.iterator();
-		
-		while (keys.hasNext())
-		  System.out.print(" " + keys.next());
-	      }
-	    else
-	      System.out.println("keySet null");
-	    System.out.println();
-	  }
+        System.out.print("\t" + startRange + " => " + ranges[i] + ":");
+        if (attributes.get(i) == null)
+          System.out.println("null");
+        else
+          {
+            Set<Attribute> keyset = attributes.get(i).keySet();
+            if (keyset != null)
+              {
+                Iterator<Attribute> keys = keyset.iterator();
+
+                while (keys.hasNext())
+                  System.out.print(" " + keys.next());
+              }
+            else
+              System.out.println("keySet null");
+            System.out.println();
+          }
       }
     System.out.println();
     System.out.flush();

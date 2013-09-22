@@ -11,12 +11,12 @@ template<> struct A<void>
     template<typename T> void foo()
     {
         A<T> a;
-        a.template foo<int>();	// { dg-error "no member" }
+        a.template foo<int>();	// { dg-error "member" }
     }
 };
 
 void bar()
 {
     A<void> a;
-    a.foo<int>();		// { dg-error "instantiated" }
+    a.foo<int>();		// { dg-message "required" }
 }

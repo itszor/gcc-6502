@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -65,10 +65,6 @@ package Eval_Fat is
 
    function Leading_Part      (RT : R; X : T; Radix_Digits : UI)    return T;
 
-   function Machine_Mantissa  (RT : R)                              return Nat;
-
-   function Machine_Radix     (RT : R)                              return Nat;
-
    function Model             (RT : R; X : T)                       return T;
 
    function Pred              (RT : R; X : T)                       return T;
@@ -102,5 +98,19 @@ package Eval_Fat is
       X     : T;
       Mode  : Rounding_Mode;
       Enode : Node_Id) return T;
+
+   procedure Decompose_Int
+     (RT       : R;
+      X        : T;
+      Fraction : out UI;
+      Exponent : out UI;
+      Mode     : Rounding_Mode);
+   --  Decomposes a floating-point number into fraction and exponent parts.
+   --  The Fraction value returned is an integer representing the value
+   --  Fraction * Scale, where Scale is the value (Machine_Radix_Value (RT) **
+   --  Machine_Mantissa_Value (RT)). The value is obtained by using biased
+   --  rounding (halfway cases round away from zero), round to even, a floor
+   --  operation or a ceiling operation depending on the setting of Mode (see
+   --  corresponding descriptions in Urealp).
 
 end Eval_Fat;

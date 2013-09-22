@@ -1,12 +1,11 @@
 // Functional extensions -*- C++ -*-
 
-// Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2002-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -65,9 +59,10 @@
 #pragma GCC system_header
 
 #include <functional>
-#include <cstddef>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   using std::size_t;
   using std::unary_function;
@@ -108,7 +103,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *
    *  @c binary_compose is constructed from three functors, @c f, @c g1,
    *  and @c g2.  Its @c operator() returns @c f(g1(x),g2(x)).  The function
-   *  @compose2 takes f, g1, and g2, and constructs the @c binary_compose
+   *  compose2 takes f, g1, and g2, and constructs the @c binary_compose
    *  instance for you.  For example, if @c f returns an int, then
    *  \code
    *  int answer = (compose2(f,g1,g2))(x);
@@ -187,13 +182,14 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  @addtogroup SGIextensions
    */
   template <class _Tp>
-    struct identity : public std::_Identity<_Tp> {};
+    struct identity
+    : public std::_Identity<_Tp> {};
 
   /** @c select1st and @c select2nd are extensions provided by SGI.  Their
    *  @c operator()s
    *  take a @c std::pair as an argument, and return either the first member
    *  or the second member, respectively.  They can be used (especially with
-   *  the composition functors) to "strip" data from a sequence before
+   *  the composition functors) to @a strip data from a sequence before
    *  performing the remainder of an algorithm.
    *
    *  @addtogroup SGIextensions
@@ -201,11 +197,14 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    */
   /// An \link SGIextensions SGI extension \endlink.
   template <class _Pair>
-    struct select1st : public std::_Select1st<_Pair> {};
+    struct select1st
+    : public std::_Select1st<_Pair> {};
 
   /// An \link SGIextensions SGI extension \endlink.
   template <class _Pair>
-    struct select2nd : public std::_Select2nd<_Pair> {};
+    struct select2nd
+    : public std::_Select2nd<_Pair> {};
+
   /** @}  */
 
   // extension documented next
@@ -293,7 +292,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
    *  - @c constant_binary_fun's @c operator() takes two arguments (ignored)
    *
    *  The helper creator functions @c constant0, @c constant1, and
-   *  @c constant2 each take a "result" argument and construct variables of
+   *  @c constant2 each take a @a result argument and construct variables of
    *  the appropriate functor type.
    *
    *  @addtogroup SGIextensions
@@ -424,7 +423,8 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     mem_fun1_ref(_Ret (_Tp::*__f)(_Arg) const)
     { return const_mem_fun1_ref_t<_Ret, _Tp, _Arg>(__f); }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif
 

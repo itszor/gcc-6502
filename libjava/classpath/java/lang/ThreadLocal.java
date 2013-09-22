@@ -37,9 +37,6 @@ exception statement from your version. */
 
 package java.lang;
 
-import java.util.Map;
-
-
 /**
  * ThreadLocal objects have a different state associated with every
  * Thread that accesses them. Every access to the ThreadLocal object
@@ -96,10 +93,29 @@ public class ThreadLocal<T>
   static final Object sentinel = new Object();
 
   /**
+   * The base for the computation of the next hash for a thread local.
+   */
+  private static int nextHashBase = 1;
+
+  /**
+   * Allocate a new hash.
+   */
+  private synchronized int computeNextHash()
+  {
+    return nextHashBase++ * 6709;
+  }
+
+  /**
+   * Hash code computed for ThreadLocalMap
+   */
+  final int fastHash;
+
+  /**
    * Creates a ThreadLocal object without associating any value to it yet.
    */
   public ThreadLocal()
   {
+    fastHash = computeNextHash();
   }
 
   /**
@@ -125,16 +141,16 @@ public class ThreadLocal<T>
    */
   public T get()
   {
-    Map<ThreadLocal<T>,T> map = (Map<ThreadLocal<T>,T>) Thread.getThreadLocals();
+    ThreadLocalMap map = Thread.getThreadLocals();
     // Note that we don't have to synchronize, as only this thread will
     // ever modify the map.
-    T value = map.get(this);
-    if (value == null)
+    T value = (T) map.get(this);
+    if (value == sentinel)
       {
         value = initialValue();
-        map.put(this, (T) (value == null ? sentinel : value));
+        map.set(this, value);
       }
-    return value == (T) sentinel ? null : value;
+    return value;
   }
 
   /**
@@ -147,10 +163,10 @@ public class ThreadLocal<T>
    */
   public void set(T value)
   {
-    Map map = Thread.getThreadLocals();
+    ThreadLocalMap map = Thread.getThreadLocals();
     // Note that we don't have to synchronize, as only this thread will
     // ever modify the map.
-    map.put(this, value == null ? sentinel : value);
+    map.set(this, value);
   }
 
   /**
@@ -160,7 +176,7 @@ public class ThreadLocal<T>
    */
   public void remove()
   {
-    Map map = Thread.getThreadLocals();
+    ThreadLocalMap map = Thread.getThreadLocals();
     map.remove(this);
   }
 }

@@ -1,12 +1,11 @@
 // List implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,52 +48,72 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_list.h
+/** @file bits/stl_list.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{list}
  */
 
 #ifndef _STL_LIST_H
 #define _STL_LIST_H 1
 
 #include <bits/concept_check.h>
+#if __cplusplus >= 201103L
+#include <initializer_list>
+#endif
 
-_GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
-
-  // Supporting structures are split into common and templated types; the
-  // latter publicly inherits from the former in an effort to reduce code
-  // duplication.  This results in some "needless" static_cast'ing later on,
-  // but it's all safe downcasting.
-
-  /// Common part of a node in the %list. 
-  struct _List_node_base
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+  namespace __detail
   {
-    _List_node_base* _M_next;
-    _List_node_base* _M_prev;
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
-    static void
-    swap(_List_node_base& __x, _List_node_base& __y);
+    // Supporting structures are split into common and templated
+    // types; the latter publicly inherits from the former in an
+    // effort to reduce code duplication.  This results in some
+    // "needless" static_cast'ing later on, but it's all safe
+    // downcasting.
 
-    void
-    transfer(_List_node_base * const __first,
-	     _List_node_base * const __last);
+    /// Common part of a node in the %list. 
+    struct _List_node_base
+    {
+      _List_node_base* _M_next;
+      _List_node_base* _M_prev;
 
-    void
-    reverse();
+      static void
+      swap(_List_node_base& __x, _List_node_base& __y) _GLIBCXX_USE_NOEXCEPT;
 
-    void
-    hook(_List_node_base * const __position);
+      void
+      _M_transfer(_List_node_base* const __first,
+		  _List_node_base* const __last) _GLIBCXX_USE_NOEXCEPT;
 
-    void
-    unhook();
-  };
+      void
+      _M_reverse() _GLIBCXX_USE_NOEXCEPT;
+
+      void
+      _M_hook(_List_node_base* const __position) _GLIBCXX_USE_NOEXCEPT;
+
+      void
+      _M_unhook() _GLIBCXX_USE_NOEXCEPT;
+    };
+
+  _GLIBCXX_END_NAMESPACE_VERSION
+  } // namespace detail
+
+_GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   /// An actual node in the %list.
   template<typename _Tp>
-    struct _List_node : public _List_node_base
+    struct _List_node : public __detail::_List_node_base
     {
       ///< User's data.
       _Tp _M_data;
+
+#if __cplusplus >= 201103L
+      template<typename... _Args>
+        _List_node(_Args&&... __args)
+	: __detail::_List_node_base(), _M_data(std::forward<_Args>(__args)...) 
+        { }
+#endif
     };
 
   /**
@@ -123,17 +137,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       : _M_node() { }
 
       explicit
-      _List_iterator(_List_node_base* __x)
+      _List_iterator(__detail::_List_node_base* __x)
       : _M_node(__x) { }
 
-      // Must downcast from List_node_base to _List_node to get to _M_data.
+      // Must downcast from _List_node_base to _List_node to get to _M_data.
       reference
       operator*() const
       { return static_cast<_Node*>(_M_node)->_M_data; }
 
       pointer
       operator->() const
-      { return &static_cast<_Node*>(_M_node)->_M_data; }
+      { return std::__addressof(static_cast<_Node*>(_M_node)->_M_data); }
 
       _Self&
       operator++()
@@ -174,7 +188,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       { return _M_node != __x._M_node; }
 
       // The only member points to the %list element.
-      _List_node_base* _M_node;
+      __detail::_List_node_base* _M_node;
     };
 
   /**
@@ -199,7 +213,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       : _M_node() { }
 
       explicit
-      _List_const_iterator(const _List_node_base* __x)
+      _List_const_iterator(const __detail::_List_node_base* __x)
       : _M_node(__x) { }
 
       _List_const_iterator(const iterator& __x)
@@ -213,7 +227,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       pointer
       operator->() const
-      { return &static_cast<_Node*>(_M_node)->_M_data; }
+      { return std::__addressof(static_cast<_Node*>(_M_node)->_M_data); }
 
       _Self&
       operator++()
@@ -254,7 +268,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       { return _M_node != __x._M_node; }
 
       // The only member points to the %list element.
-      const _List_node_base* _M_node;
+      const __detail::_List_node_base* _M_node;
     };
 
   template<typename _Val>
@@ -293,10 +307,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       typedef typename _Alloc::template rebind<_Tp>::other _Tp_alloc_type;
 
-      struct _List_impl 
+      struct _List_impl
       : public _Node_alloc_type
       {
-	_List_node_base _M_node;
+	__detail::_List_node_base _M_node;
 
 	_List_impl()
 	: _Node_alloc_type(), _M_node()
@@ -305,6 +319,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	_List_impl(const _Node_alloc_type& __a)
 	: _Node_alloc_type(__a), _M_node()
 	{ }
+
+#if __cplusplus >= 201103L
+	_List_impl(_Node_alloc_type&& __a)
+	: _Node_alloc_type(std::move(__a)), _M_node()
+	{ }
+#endif
       };
 
       _List_impl _M_impl;
@@ -312,49 +332,49 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _List_node<_Tp>*
       _M_get_node()
       { return _M_impl._Node_alloc_type::allocate(1); }
-      
+
       void
       _M_put_node(_List_node<_Tp>* __p)
       { _M_impl._Node_alloc_type::deallocate(__p, 1); }
-      
+
   public:
       typedef _Alloc allocator_type;
 
       _Node_alloc_type&
-      _M_get_Node_allocator()
-      { return *static_cast<_Node_alloc_type*>(&this->_M_impl); }
+      _M_get_Node_allocator() _GLIBCXX_NOEXCEPT
+      { return *static_cast<_Node_alloc_type*>(&_M_impl); }
 
       const _Node_alloc_type&
-      _M_get_Node_allocator() const
-      { return *static_cast<const _Node_alloc_type*>(&this->_M_impl); }
+      _M_get_Node_allocator() const _GLIBCXX_NOEXCEPT
+      { return *static_cast<const _Node_alloc_type*>(&_M_impl); }
 
       _Tp_alloc_type
-      _M_get_Tp_allocator() const
+      _M_get_Tp_allocator() const _GLIBCXX_NOEXCEPT
       { return _Tp_alloc_type(_M_get_Node_allocator()); }
 
       allocator_type
-      get_allocator() const
+      get_allocator() const _GLIBCXX_NOEXCEPT
       { return allocator_type(_M_get_Node_allocator()); }
 
       _List_base()
       : _M_impl()
       { _M_init(); }
 
-      _List_base(const allocator_type& __a)
+      _List_base(const _Node_alloc_type& __a)
       : _M_impl(__a)
       { _M_init(); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       _List_base(_List_base&& __x)
-      : _M_impl(__x._M_get_Node_allocator())
+      : _M_impl(std::move(__x._M_get_Node_allocator()))
       {
 	_M_init();
-	_List_node_base::swap(this->_M_impl._M_node, __x._M_impl._M_node);	
+	__detail::_List_node_base::swap(_M_impl._M_node, __x._M_impl._M_node);
       }
 #endif
 
       // This is what actually destroys the list.
-      ~_List_base()
+      ~_List_base() _GLIBCXX_NOEXCEPT
       { _M_clear(); }
 
       void
@@ -372,8 +392,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
    *  @brief A standard container with linear time access to elements,
    *  and fixed time insertion/deletion at any point in the sequence.
    *
-   *  @ingroup Containers
-   *  @ingroup Sequences
+   *  @ingroup sequences
+   *
+   *  @tparam _Tp  Type of element.
+   *  @tparam _Alloc  Allocator type, defaults to allocator<_Tp>.
    *
    *  Meets the requirements of a <a href="tables.html#65">container</a>, a
    *  <a href="tables.html#66">reversible container</a>, and a
@@ -422,6 +444,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       typedef _List_base<_Tp, _Alloc>                    _Base;
       typedef typename _Base::_Tp_alloc_type		 _Tp_alloc_type;
+      typedef typename _Base::_Node_alloc_type		 _Node_alloc_type;
 
     public:
       typedef _Tp                                        value_type;
@@ -449,20 +472,22 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       using _Base::_M_get_Node_allocator;
 
       /**
-       *  @param  x  An instance of user data.
+       *  @param  __args  An instance of user data.
        *
-       *  Allocates space for a new node and constructs a copy of @a x in it.
+       *  Allocates space for a new node and constructs a copy of
+       *  @a __args in it.
        */
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus < 201103L
       _Node*
       _M_create_node(const value_type& __x)
       {
 	_Node* __p = this->_M_get_node();
-	try
+	__try
 	  {
-	    _M_get_Tp_allocator().construct(&__p->_M_data, __x);
+	    _M_get_Tp_allocator().construct
+	      (std::__addressof(__p->_M_data), __x);
 	  }
-	catch(...)
+	__catch(...)
 	  {
 	    _M_put_node(__p);
 	    __throw_exception_again;
@@ -475,12 +500,12 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
         _M_create_node(_Args&&... __args)
 	{
 	  _Node* __p = this->_M_get_node();
-	  try
+	  __try
 	    {
-	      _M_get_Tp_allocator().construct(&__p->_M_data,
-					      std::forward<_Args>(__args)...);
+	      _M_get_Node_allocator().construct(__p,
+						std::forward<_Args>(__args)...);
 	    }
-	  catch(...)
+	  __catch(...)
 	    {
 	      _M_put_node(__p);
 	      __throw_exception_again;
@@ -500,68 +525,117 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Creates a %list with no elements.
-       *  @param  a  An allocator object.
+       *  @param  __a  An allocator object.
        */
       explicit
       list(const allocator_type& __a)
-      : _Base(__a) { }
+      : _Base(_Node_alloc_type(__a)) { }
+
+#if __cplusplus >= 201103L
+      /**
+       *  @brief  Creates a %list with default constructed elements.
+       *  @param  __n  The number of elements to initially create.
+       *
+       *  This constructor fills the %list with @a __n default
+       *  constructed elements.
+       */
+      explicit
+      list(size_type __n)
+      : _Base()
+      { _M_default_initialize(__n); }
 
       /**
        *  @brief  Creates a %list with copies of an exemplar element.
-       *  @param  n  The number of elements to initially create.
-       *  @param  value  An element to copy.
-       *  @param  a  An allocator object.
+       *  @param  __n  The number of elements to initially create.
+       *  @param  __value  An element to copy.
+       *  @param  __a  An allocator object.
        *
-       *  This constructor fills the %list with @a n copies of @a value.
+       *  This constructor fills the %list with @a __n copies of @a __value.
+       */
+      list(size_type __n, const value_type& __value,
+	   const allocator_type& __a = allocator_type())
+      : _Base(_Node_alloc_type(__a))
+      { _M_fill_initialize(__n, __value); }
+#else
+      /**
+       *  @brief  Creates a %list with copies of an exemplar element.
+       *  @param  __n  The number of elements to initially create.
+       *  @param  __value  An element to copy.
+       *  @param  __a  An allocator object.
+       *
+       *  This constructor fills the %list with @a __n copies of @a __value.
        */
       explicit
       list(size_type __n, const value_type& __value = value_type(),
 	   const allocator_type& __a = allocator_type())
-      : _Base(__a)
+      : _Base(_Node_alloc_type(__a))
       { _M_fill_initialize(__n, __value); }
+#endif
 
       /**
        *  @brief  %List copy constructor.
-       *  @param  x  A %list of identical element and allocator types.
+       *  @param  __x  A %list of identical element and allocator types.
        *
        *  The newly-created %list uses a copy of the allocation object used
-       *  by @a x.
+       *  by @a __x.
        */
       list(const list& __x)
       : _Base(__x._M_get_Node_allocator())
       { _M_initialize_dispatch(__x.begin(), __x.end(), __false_type()); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       /**
        *  @brief  %List move constructor.
-       *  @param  x  A %list of identical element and allocator types.
+       *  @param  __x  A %list of identical element and allocator types.
        *
-       *  The newly-created %list contains the exact contents of @a x.
-       *  The contents of @a x are a valid, but unspecified %list.
+       *  The newly-created %list contains the exact contents of @a __x.
+       *  The contents of @a __x are a valid, but unspecified %list.
        */
-      list(list&& __x)
-      : _Base(std::forward<_Base>(__x)) { }
+      list(list&& __x) noexcept
+      : _Base(std::move(__x)) { }
+
+      /**
+       *  @brief  Builds a %list from an initializer_list
+       *  @param  __l  An initializer_list of value_type.
+       *  @param  __a  An allocator object.
+       *
+       *  Create a %list consisting of copies of the elements in the
+       *  initializer_list @a __l.  This is linear in __l.size().
+       */
+      list(initializer_list<value_type> __l,
+           const allocator_type& __a = allocator_type())
+      : _Base(_Node_alloc_type(__a))
+      { _M_initialize_dispatch(__l.begin(), __l.end(), __false_type()); }
 #endif
 
       /**
        *  @brief  Builds a %list from a range.
-       *  @param  first  An input iterator.
-       *  @param  last  An input iterator.
-       *  @param  a  An allocator object.
+       *  @param  __first  An input iterator.
+       *  @param  __last  An input iterator.
+       *  @param  __a  An allocator object.
        *
        *  Create a %list consisting of copies of the elements from
-       *  [@a first,@a last).  This is linear in N (where N is
-       *  distance(@a first,@a last)).
+       *  [@a __first,@a __last).  This is linear in N (where N is
+       *  distance(@a __first,@a __last)).
        */
+#if __cplusplus >= 201103L
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        list(_InputIterator __first, _InputIterator __last,
+	     const allocator_type& __a = allocator_type())
+	: _Base(_Node_alloc_type(__a))
+        { _M_initialize_dispatch(__first, __last, __false_type()); }
+#else
       template<typename _InputIterator>
         list(_InputIterator __first, _InputIterator __last,
 	     const allocator_type& __a = allocator_type())
-        : _Base(__a)
+	: _Base(_Node_alloc_type(__a))
         { 
 	  // Check whether it's an integral type.  If so, it's not an iterator.
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_initialize_dispatch(__first, __last, _Integral());
 	}
+#endif
 
       /**
        *  No explicit dtor needed as the _Base dtor takes care of
@@ -573,38 +647,53 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  %List assignment operator.
-       *  @param  x  A %list of identical element and allocator types.
+       *  @param  __x  A %list of identical element and allocator types.
        *
-       *  All the elements of @a x are copied, but unlike the copy
+       *  All the elements of @a __x are copied, but unlike the copy
        *  constructor, the allocator object is not copied.
        */
       list&
       operator=(const list& __x);
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       /**
        *  @brief  %List move assignment operator.
-       *  @param  x  A %list of identical element and allocator types.
+       *  @param  __x  A %list of identical element and allocator types.
        *
-       *  The contents of @a x are moved into this %list (without copying).
-       *  @a x is a valid, but unspecified %list
+       *  The contents of @a __x are moved into this %list (without copying).
+       *  @a __x is a valid, but unspecified %list
        */
       list&
       operator=(list&& __x)
       {
+	// NB: DR 1204.
 	// NB: DR 675.
 	this->clear();
-	this->swap(__x); 
+	this->swap(__x);
+	return *this;
+      }
+
+      /**
+       *  @brief  %List initializer list assignment operator.
+       *  @param  __l  An initializer_list of value_type.
+       *
+       *  Replace the contents of the %list with copies of the elements
+       *  in the initializer_list @a __l.  This is linear in l.size().
+       */
+      list&
+      operator=(initializer_list<value_type> __l)
+      {
+	this->assign(__l.begin(), __l.end());
 	return *this;
       }
 #endif
 
       /**
        *  @brief  Assigns a given value to a %list.
-       *  @param  n  Number of elements to be assigned.
-       *  @param  val  Value to be assigned.
+       *  @param  __n  Number of elements to be assigned.
+       *  @param  __val  Value to be assigned.
        *
-       *  This function fills a %list with @a n copies of the given
+       *  This function fills a %list with @a __n copies of the given
        *  value.  Note that the assignment completely changes the %list
        *  and that the resulting %list's size is the same as the number
        *  of elements assigned.  Old data may be lost.
@@ -615,16 +704,23 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Assigns a range to a %list.
-       *  @param  first  An input iterator.
-       *  @param  last   An input iterator.
+       *  @param  __first  An input iterator.
+       *  @param  __last   An input iterator.
        *
        *  This function fills a %list with copies of the elements in the
-       *  range [@a first,@a last).
+       *  range [@a __first,@a __last).
        *
        *  Note that the assignment completely changes the %list and
        *  that the resulting %list's size is the same as the number of
        *  elements assigned.  Old data may be lost.
        */
+#if __cplusplus >= 201103L
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+        void
+        assign(_InputIterator __first, _InputIterator __last)
+        { _M_assign_dispatch(__first, __last, __false_type()); }
+#else
       template<typename _InputIterator>
         void
         assign(_InputIterator __first, _InputIterator __last)
@@ -633,10 +729,24 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	  typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	  _M_assign_dispatch(__first, __last, _Integral());
 	}
+#endif
+
+#if __cplusplus >= 201103L
+      /**
+       *  @brief  Assigns an initializer_list to a %list.
+       *  @param  __l  An initializer_list of value_type.
+       *
+       *  Replace the contents of the %list with copies of the elements
+       *  in the initializer_list @a __l.  This is linear in __l.size().
+       */
+      void
+      assign(initializer_list<value_type> __l)
+      { this->assign(__l.begin(), __l.end()); }
+#endif
 
       /// Get a copy of the memory allocation object.
       allocator_type
-      get_allocator() const
+      get_allocator() const _GLIBCXX_NOEXCEPT
       { return _Base::get_allocator(); }
 
       // iterators
@@ -645,7 +755,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  %list.  Iteration is done in ordinary element order.
        */
       iterator
-      begin()
+      begin() _GLIBCXX_NOEXCEPT
       { return iterator(this->_M_impl._M_node._M_next); }
 
       /**
@@ -654,7 +764,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_iterator
-      begin() const
+      begin() const _GLIBCXX_NOEXCEPT
       { return const_iterator(this->_M_impl._M_node._M_next); }
 
       /**
@@ -663,7 +773,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  order.
        */
       iterator
-      end()
+      end() _GLIBCXX_NOEXCEPT
       { return iterator(&this->_M_impl._M_node); }
 
       /**
@@ -672,7 +782,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_iterator
-      end() const
+      end() const _GLIBCXX_NOEXCEPT
       { return const_iterator(&this->_M_impl._M_node); }
 
       /**
@@ -681,7 +791,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  order.
        */
       reverse_iterator
-      rbegin()
+      rbegin() _GLIBCXX_NOEXCEPT
       { return reverse_iterator(end()); }
 
       /**
@@ -690,7 +800,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_reverse_iterator
-      rbegin() const
+      rbegin() const _GLIBCXX_NOEXCEPT
       { return const_reverse_iterator(end()); }
 
       /**
@@ -699,7 +809,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  reverse element order.
        */
       reverse_iterator
-      rend()
+      rend() _GLIBCXX_NOEXCEPT
       { return reverse_iterator(begin()); }
 
       /**
@@ -708,17 +818,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_reverse_iterator
-      rend() const
+      rend() const _GLIBCXX_NOEXCEPT
       { return const_reverse_iterator(begin()); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       /**
        *  Returns a read-only (constant) iterator that points to the
        *  first element in the %list.  Iteration is done in ordinary
        *  element order.
        */
       const_iterator
-      cbegin() const
+      cbegin() const noexcept
       { return const_iterator(this->_M_impl._M_node._M_next); }
 
       /**
@@ -727,7 +837,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_iterator
-      cend() const
+      cend() const noexcept
       { return const_iterator(&this->_M_impl._M_node); }
 
       /**
@@ -736,7 +846,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_reverse_iterator
-      crbegin() const
+      crbegin() const noexcept
       { return const_reverse_iterator(end()); }
 
       /**
@@ -745,7 +855,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  element order.
        */
       const_reverse_iterator
-      crend() const
+      crend() const noexcept
       { return const_reverse_iterator(begin()); }
 #endif
 
@@ -755,23 +865,49 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  end().)
        */
       bool
-      empty() const
+      empty() const _GLIBCXX_NOEXCEPT
       { return this->_M_impl._M_node._M_next == &this->_M_impl._M_node; }
 
       /**  Returns the number of elements in the %list.  */
       size_type
-      size() const
+      size() const _GLIBCXX_NOEXCEPT
       { return std::distance(begin(), end()); }
 
       /**  Returns the size() of the largest possible %list.  */
       size_type
-      max_size() const
-      { return _M_get_Tp_allocator().max_size(); }
+      max_size() const _GLIBCXX_NOEXCEPT
+      { return _M_get_Node_allocator().max_size(); }
+
+#if __cplusplus >= 201103L
+      /**
+       *  @brief Resizes the %list to the specified number of elements.
+       *  @param __new_size Number of elements the %list should contain.
+       *
+       *  This function will %resize the %list to the specified number
+       *  of elements.  If the number is smaller than the %list's
+       *  current size the %list is truncated, otherwise default
+       *  constructed elements are appended.
+       */
+      void
+      resize(size_type __new_size);
 
       /**
        *  @brief Resizes the %list to the specified number of elements.
-       *  @param new_size Number of elements the %list should contain.
-       *  @param x Data with which new elements should be populated.
+       *  @param __new_size Number of elements the %list should contain.
+       *  @param __x Data with which new elements should be populated.
+       *
+       *  This function will %resize the %list to the specified number
+       *  of elements.  If the number is smaller than the %list's
+       *  current size the %list is truncated, otherwise the %list is
+       *  extended and new elements are populated with given data.
+       */
+      void
+      resize(size_type __new_size, const value_type& __x);
+#else
+      /**
+       *  @brief Resizes the %list to the specified number of elements.
+       *  @param __new_size Number of elements the %list should contain.
+       *  @param __x Data with which new elements should be populated.
        *
        *  This function will %resize the %list to the specified number
        *  of elements.  If the number is smaller than the %list's
@@ -780,6 +916,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        */
       void
       resize(size_type __new_size, value_type __x = value_type());
+#endif
 
       // element access
       /**
@@ -825,7 +962,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       // [23.2.2.3] modifiers
       /**
        *  @brief  Add data to the front of the %list.
-       *  @param  x  Data to be added.
+       *  @param  __x  Data to be added.
        *
        *  This is a typical stack operation.  The function creates an
        *  element at the front of the %list and assigns the given data
@@ -833,15 +970,19 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  done in constant time, and does not invalidate iterators and
        *  references.
        */
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
       void
       push_front(const value_type& __x)
       { this->_M_insert(begin(), __x); }
-#else
+
+#if __cplusplus >= 201103L
+      void
+      push_front(value_type&& __x)
+      { this->_M_insert(begin(), std::move(__x)); }
+
       template<typename... _Args>
         void
-        push_front(_Args&&... __args)
-	{ this->_M_insert(begin(), std::forward<_Args>(__args)...); }
+        emplace_front(_Args&&... __args)
+        { this->_M_insert(begin(), std::forward<_Args>(__args)...); }
 #endif
 
       /**
@@ -862,7 +1003,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Add data to the end of the %list.
-       *  @param  x  Data to be added.
+       *  @param  __x  Data to be added.
        *
        *  This is a typical stack operation.  The function creates an
        *  element at the end of the %list and assigns the given data to
@@ -870,15 +1011,19 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  in constant time, and does not invalidate iterators and
        *  references.
        */
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
       void
       push_back(const value_type& __x)
       { this->_M_insert(end(), __x); }
-#else
+
+#if __cplusplus >= 201103L
+      void
+      push_back(value_type&& __x)
+      { this->_M_insert(end(), std::move(__x)); }
+
       template<typename... _Args>
         void
-        push_back(_Args&&... __args)
-	{ this->_M_insert(end(), std::forward<_Args>(__args)...); }
+        emplace_back(_Args&&... __args)
+        { this->_M_insert(end(), std::forward<_Args>(__args)...); }
 #endif
 
       /**
@@ -896,11 +1041,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       pop_back()
       { this->_M_erase(iterator(this->_M_impl._M_node._M_prev)); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       /**
        *  @brief  Constructs object in %list before specified iterator.
-       *  @param  position  A const_iterator into the %list.
-       *  @param  args  Arguments.
+       *  @param  __position  A const_iterator into the %list.
+       *  @param  __args  Arguments.
        *  @return  An iterator that points to the inserted data.
        *
        *  This function will insert an object of type T constructed
@@ -916,8 +1061,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Inserts given value into %list before specified iterator.
-       *  @param  position  An iterator into the %list.
-       *  @param  x  Data to be inserted.
+       *  @param  __position  An iterator into the %list.
+       *  @param  __x  Data to be inserted.
        *  @return  An iterator that points to the inserted data.
        *
        *  This function will insert a copy of the given value before
@@ -928,11 +1073,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       iterator
       insert(iterator __position, const value_type& __x);
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       /**
        *  @brief  Inserts given rvalue into %list before specified iterator.
-       *  @param  position  An iterator into the %list.
-       *  @param  x  Data to be inserted.
+       *  @param  __position  An iterator into the %list.
+       *  @param  __x  Data to be inserted.
        *  @return  An iterator that points to the inserted data.
        *
        *  This function will insert a copy of the given rvalue before
@@ -943,13 +1088,30 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       iterator
       insert(iterator __position, value_type&& __x)
       { return emplace(__position, std::move(__x)); }
+
+      /**
+       *  @brief  Inserts the contents of an initializer_list into %list
+       *          before specified iterator.
+       *  @param  __p  An iterator into the %list.
+       *  @param  __l  An initializer_list of value_type.
+       *
+       *  This function will insert copies of the data in the
+       *  initializer_list @a l into the %list before the location
+       *  specified by @a p.
+       *
+       *  This operation is linear in the number of elements inserted and
+       *  does not invalidate iterators and references.
+       */
+      void
+      insert(iterator __p, initializer_list<value_type> __l)
+      { this->insert(__p, __l.begin(), __l.end()); }
 #endif
 
       /**
        *  @brief  Inserts a number of copies of given data into the %list.
-       *  @param  position  An iterator into the %list.
-       *  @param  n  Number of elements to be inserted.
-       *  @param  x  Data to be inserted.
+       *  @param  __position  An iterator into the %list.
+       *  @param  __n  Number of elements to be inserted.
+       *  @param  __x  Data to be inserted.
        *
        *  This function will insert a specified number of copies of the
        *  given data before the location specified by @a position.
@@ -959,16 +1121,16 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        */
       void
       insert(iterator __position, size_type __n, const value_type& __x)
-      {  
-	list __tmp(__n, __x, _M_get_Node_allocator());
+      {
+	list __tmp(__n, __x, get_allocator());
 	splice(__position, __tmp);
       }
 
       /**
        *  @brief  Inserts a range into the %list.
-       *  @param  position  An iterator into the %list.
-       *  @param  first  An input iterator.
-       *  @param  last   An input iterator.
+       *  @param  __position  An iterator into the %list.
+       *  @param  __first  An input iterator.
+       *  @param  __last   An input iterator.
        *
        *  This function will insert copies of the data in the range [@a
        *  first,@a last) into the %list before the location specified by
@@ -977,18 +1139,23 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  This operation is linear in the number of elements inserted and
        *  does not invalidate iterators and references.
        */
+#if __cplusplus >= 201103L
+      template<typename _InputIterator,
+	       typename = std::_RequireInputIter<_InputIterator>>
+#else
       template<typename _InputIterator>
+#endif
         void
         insert(iterator __position, _InputIterator __first,
 	       _InputIterator __last)
         {
-	  list __tmp(__first, __last, _M_get_Node_allocator());
+	  list __tmp(__first, __last, get_allocator());
 	  splice(__position, __tmp);
 	}
 
       /**
        *  @brief  Remove element at given position.
-       *  @param  position  Iterator pointing to element to be erased.
+       *  @param  __position  Iterator pointing to element to be erased.
        *  @return  An iterator pointing to the next element (or end()).
        *
        *  This function will erase the element at the given position and thus
@@ -1006,8 +1173,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Remove a range of elements.
-       *  @param  first  Iterator pointing to the first element to be erased.
-       *  @param  last  Iterator pointing to one past the last element to be
+       *  @param  __first  Iterator pointing to the first element to be erased.
+       *  @param  __last  Iterator pointing to one past the last element to be
        *                erased.
        *  @return  An iterator pointing to the element pointed to by @a last
        *           prior to erasing (or end()).
@@ -1032,7 +1199,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Swaps data with another %list.
-       *  @param  x  A %list of the same element and allocator types.
+       *  @param  __x  A %list of the same element and allocator types.
        *
        *  This exchanges the elements between two lists in constant
        *  time.  Note that the global std::swap() function is
@@ -1040,13 +1207,10 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  function.
        */
       void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      swap(list&& __x)
-#else
       swap(list& __x)
-#endif
       {
-	_List_node_base::swap(this->_M_impl._M_node, __x._M_impl._M_node);
+	__detail::_List_node_base::swap(this->_M_impl._M_node, 
+					__x._M_impl._M_node);
 
 	// _GLIBCXX_RESOLVE_LIB_DEFECTS
 	// 431. Swapping containers with unequal allocators.
@@ -1061,7 +1225,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  Managing the pointer is the user's responsibility.
        */
       void
-      clear()
+      clear() _GLIBCXX_NOEXCEPT
       {
         _Base::_M_clear();
         _Base::_M_init();
@@ -1070,17 +1234,17 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       // [23.2.2.4] list operations
       /**
        *  @brief  Insert contents of another %list.
-       *  @param  position  Iterator referencing the element to insert before.
-       *  @param  x  Source list.
+       *  @param  __position  Iterator referencing the element to insert before.
+       *  @param  __x  Source list.
        *
-       *  The elements of @a x are inserted in constant time in front of
-       *  the element referenced by @a position.  @a x becomes an empty
+       *  The elements of @a __x are inserted in constant time in front of
+       *  the element referenced by @a __position.  @a __x becomes an empty
        *  list.
        *
-       *  Requires this != @a x.
+       *  Requires this != @a __x.
        */
       void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       splice(iterator __position, list&& __x)
 #else
       splice(iterator __position, list& __x)
@@ -1094,17 +1258,23 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	  }
       }
 
+#if __cplusplus >= 201103L
+      void
+      splice(iterator __position, list& __x)
+      { splice(__position, std::move(__x)); }
+#endif
+
       /**
        *  @brief  Insert element from another %list.
-       *  @param  position  Iterator referencing the element to insert before.
-       *  @param  x  Source list.
-       *  @param  i  Iterator referencing the element to move.
+       *  @param  __position  Iterator referencing the element to insert before.
+       *  @param  __x  Source list.
+       *  @param  __i  Iterator referencing the element to move.
        *
-       *  Removes the element in list @a x referenced by @a i and
-       *  inserts it into the current list before @a position.
+       *  Removes the element in list @a __x referenced by @a __i and
+       *  inserts it into the current list before @a __position.
        */
       void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       splice(iterator __position, list&& __x, iterator __i)
 #else
       splice(iterator __position, list& __x, iterator __i)
@@ -1121,20 +1291,26 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	this->_M_transfer(__position, __i, __j);
       }
 
+#if __cplusplus >= 201103L
+      void
+      splice(iterator __position, list& __x, iterator __i)
+      { splice(__position, std::move(__x), __i); }
+#endif
+
       /**
        *  @brief  Insert range from another %list.
-       *  @param  position  Iterator referencing the element to insert before.
-       *  @param  x  Source list.
-       *  @param  first  Iterator referencing the start of range in x.
-       *  @param  last  Iterator referencing the end of range in x.
+       *  @param  __position  Iterator referencing the element to insert before.
+       *  @param  __x  Source list.
+       *  @param  __first  Iterator referencing the start of range in x.
+       *  @param  __last  Iterator referencing the end of range in x.
        *
-       *  Removes elements in the range [first,last) and inserts them
-       *  before @a position in constant time.
+       *  Removes elements in the range [__first,__last) and inserts them
+       *  before @a __position in constant time.
        *
-       *  Undefined if @a position is in [first,last).
+       *  Undefined if @a __position is in [__first,__last).
        */
       void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       splice(iterator __position, list&& __x, iterator __first,
 	     iterator __last)
 #else
@@ -1151,9 +1327,15 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	  }
       }
 
+#if __cplusplus >= 201103L
+      void
+      splice(iterator __position, list& __x, iterator __first, iterator __last)
+      { splice(__position, std::move(__x), __first, __last); }
+#endif
+
       /**
        *  @brief  Remove all elements equal to value.
-       *  @param  value  The value to remove.
+       *  @param  __value  The value to remove.
        *
        *  Removes every element in the list equal to @a value.
        *  Remaining elements stay in list order.  Note that this
@@ -1167,7 +1349,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Remove all elements satisfying a predicate.
-       *  @param  Predicate  Unary predicate function or object.
+       *  @tparam  _Predicate  Unary predicate function or object.
        *
        *  Removes every element in the list for which the predicate
        *  returns true.  Remaining elements stay in list order.  Note
@@ -1195,7 +1377,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Remove consecutive elements satisfying a predicate.
-       *  @param  BinaryPredicate  Binary predicate function or object.
+       *  @tparam _BinaryPredicate  Binary predicate function or object.
        *
        *  For each consecutive set of elements [first,last) that
        *  satisfy predicate(first,i) where i is an iterator in
@@ -1211,38 +1393,51 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       /**
        *  @brief  Merge sorted lists.
-       *  @param  x  Sorted list to merge.
+       *  @param  __x  Sorted list to merge.
        *
-       *  Assumes that both @a x and this list are sorted according to
-       *  operator<().  Merges elements of @a x into this list in
-       *  sorted order, leaving @a x empty when complete.  Elements in
-       *  this list precede elements in @a x that are equal.
+       *  Assumes that both @a __x and this list are sorted according to
+       *  operator<().  Merges elements of @a __x into this list in
+       *  sorted order, leaving @a __x empty when complete.  Elements in
+       *  this list precede elements in @a __x that are equal.
        */
+#if __cplusplus >= 201103L
       void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
       merge(list&& __x);
+
+      void
+      merge(list& __x)
+      { merge(std::move(__x)); }
 #else
+      void
       merge(list& __x);
 #endif
 
       /**
        *  @brief  Merge sorted lists according to comparison function.
-       *  @param  x  Sorted list to merge.
-       *  @param StrictWeakOrdering Comparison function defining
+       *  @tparam _StrictWeakOrdering Comparison function defining
        *  sort order.
+       *  @param  __x  Sorted list to merge.
+       *  @param  __comp  Comparison functor.
        *
-       *  Assumes that both @a x and this list are sorted according to
-       *  StrictWeakOrdering.  Merges elements of @a x into this list
-       *  in sorted order, leaving @a x empty when complete.  Elements
-       *  in this list precede elements in @a x that are equivalent
+       *  Assumes that both @a __x and this list are sorted according to
+       *  StrictWeakOrdering.  Merges elements of @a __x into this list
+       *  in sorted order, leaving @a __x empty when complete.  Elements
+       *  in this list precede elements in @a __x that are equivalent
        *  according to StrictWeakOrdering().
        */
+#if __cplusplus >= 201103L
       template<typename _StrictWeakOrdering>
         void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-        merge(list&&, _StrictWeakOrdering);
+        merge(list&& __x, _StrictWeakOrdering __comp);
+
+      template<typename _StrictWeakOrdering>
+        void
+        merge(list& __x, _StrictWeakOrdering __comp)
+        { merge(std::move(__x), __comp); }
 #else
-        merge(list&, _StrictWeakOrdering);
+      template<typename _StrictWeakOrdering>
+        void
+        merge(list& __x, _StrictWeakOrdering __comp);
 #endif
 
       /**
@@ -1251,8 +1446,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        *  Reverse the order of elements in the list in linear time.
        */
       void
-      reverse()
-      { this->_M_impl._M_node.reverse(); }
+      reverse() _GLIBCXX_NOEXCEPT
+      { this->_M_impl._M_node._M_reverse(); }
 
       /**
        *  @brief  Sort the elements.
@@ -1292,7 +1487,11 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 			       __false_type)
         {
 	  for (; __first != __last; ++__first)
+#if __cplusplus >= 201103L
+	    emplace_back(*__first);
+#else
 	    push_back(*__first);
+#endif
 	}
 
       // Called by list(n,v,a), and the range constructor when it turns out
@@ -1300,10 +1499,23 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       void
       _M_fill_initialize(size_type __n, const value_type& __x)
       {
-	for (; __n > 0; --__n)
+	for (; __n; --__n)
 	  push_back(__x);
       }
 
+#if __cplusplus >= 201103L
+      // Called by list(n).
+      void
+      _M_default_initialize(size_type __n)
+      {
+	for (; __n; --__n)
+	  emplace_back();
+      }
+
+      // Called by resize(sz).
+      void
+      _M_default_append(size_type __n);
+#endif
 
       // Internal assign functions follow.
 
@@ -1331,15 +1543,15 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       // Moves the elements from [first,last) before position.
       void
       _M_transfer(iterator __position, iterator __first, iterator __last)
-      { __position._M_node->transfer(__first._M_node, __last._M_node); }
+      { __position._M_node->_M_transfer(__first._M_node, __last._M_node); }
 
       // Inserts new element at position given and with value given.
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus < 201103L
       void
       _M_insert(iterator __position, const value_type& __x)
       {
         _Node* __tmp = _M_create_node(__x);
-        __tmp->hook(__position._M_node);
+        __tmp->_M_hook(__position._M_node);
       }
 #else
      template<typename... _Args>
@@ -1347,7 +1559,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
        _M_insert(iterator __position, _Args&&... __args)
        {
 	 _Node* __tmp = _M_create_node(std::forward<_Args>(__args)...);
-	 __tmp->hook(__position._M_node);
+	 __tmp->_M_hook(__position._M_node);
        }
 #endif
 
@@ -1355,9 +1567,13 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       void
       _M_erase(iterator __position)
       {
-        __position._M_node->unhook();
+        __position._M_node->_M_unhook();
         _Node* __n = static_cast<_Node*>(__position._M_node);
-        _M_get_Tp_allocator().destroy(&__n->_M_data);
+#if __cplusplus >= 201103L
+        _M_get_Node_allocator().destroy(__n);
+#else
+	_M_get_Tp_allocator().destroy(std::__addressof(__n->_M_data));
+#endif
         _M_put_node(__n);
       }
 
@@ -1373,8 +1589,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
   /**
    *  @brief  List equality comparison.
-   *  @param  x  A %list.
-   *  @param  y  A %list of the same type as @a x.
+   *  @param  __x  A %list.
+   *  @param  __y  A %list of the same type as @a __x.
    *  @return  True iff the size and elements of the lists are equal.
    *
    *  This is an equivalence relation.  It is linear in the size of
@@ -1401,9 +1617,9 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
   /**
    *  @brief  List ordering relation.
-   *  @param  x  A %list.
-   *  @param  y  A %list of the same type as @a x.
-   *  @return  True iff @a x is lexicographically less than @a y.
+   *  @param  __x  A %list.
+   *  @param  __y  A %list of the same type as @a __x.
+   *  @return  True iff @a __x is lexicographically less than @a __y.
    *
    *  This is a total ordering relation.  It is linear in the size of the
    *  lists.  The elements must be comparable with @c <.
@@ -1446,18 +1662,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     swap(list<_Tp, _Alloc>& __x, list<_Tp, _Alloc>& __y)
     { __x.swap(__y); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-  template<typename _Tp, typename _Alloc>
-    inline void
-    swap(list<_Tp, _Alloc>&& __x, list<_Tp, _Alloc>& __y)
-    { __x.swap(__y); }
-
-  template<typename _Tp, typename _Alloc>
-    inline void
-    swap(list<_Tp, _Alloc>& __x, list<_Tp, _Alloc>&& __y)
-    { __x.swap(__y); }
-#endif
-
-_GLIBCXX_END_NESTED_NAMESPACE
+_GLIBCXX_END_NAMESPACE_CONTAINER
+} // namespace std
 
 #endif /* _STL_LIST_H */

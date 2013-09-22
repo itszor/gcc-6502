@@ -2,12 +2,12 @@
 
 // 2006-02-26  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006 Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -16,9 +16,8 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 8.16 Additions to header <cmath>
 
@@ -38,6 +37,7 @@ template<typename T>
     ret = std::tr1::signbit(x);
     
     iret = std::tr1::fpclassify(x);
+    iret = iret; // Suppress unused warning.
     
     ret = std::tr1::isfinite(x);
     ret = std::tr1::isinf(x);
@@ -50,6 +50,7 @@ template<typename T>
     ret = std::tr1::islessequal(x, x);
     ret = std::tr1::islessgreater(x, x);
     ret = std::tr1::isunordered(x, x);
+    ret = ret; // Suppress unused warning.
   }
 
 void test01()

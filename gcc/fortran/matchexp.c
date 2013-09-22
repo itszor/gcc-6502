@@ -1,6 +1,5 @@
 /* Expression parser.
-   Copyright (C) 2000, 2001, 2002, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -21,6 +20,7 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 #include "arith.h"
 #include "match.h"
@@ -130,21 +130,10 @@ gfc_get_parentheses (gfc_expr *e)
 {
   gfc_expr *e2;
 
-  /* This is a temporary fix, awaiting the patch for various
-     other character problems.  The resolution and translation
-     of substrings and concatenations are so kludged up that
-     putting parentheses around them breaks everything.  */
-  if (e->ts.type == BT_CHARACTER && e->ref)
-    return e;
-
-  e2 = gfc_get_expr();
-  e2->expr_type = EXPR_OP;
+  e2 = gfc_get_operator_expr (&e->where, INTRINSIC_PARENTHESES, e, NULL);
   e2->ts = e->ts;
   e2->rank = e->rank;
-  e2->where = e->where;
-  e2->value.op.operator = INTRINSIC_PARENTHESES;
-  e2->value.op.op1 = e;
-  e2->value.op.op2 = NULL;
+
   return e2;
 }
 
@@ -156,7 +145,6 @@ match_primary (gfc_expr **result)
 {
   match m;
   gfc_expr *e;
-  locus where;
 
   m = gfc_match_literal_constant (result, 0);
   if (m != MATCH_NO)
@@ -171,8 +159,6 @@ match_primary (gfc_expr **result)
     return m;
 
   /* Match an expression in parentheses.  */
-  where = gfc_current_locus;
-
   if (gfc_match_char ('(') != MATCH_YES)
     return MATCH_NO;
 
@@ -205,26 +191,6 @@ syntax:
 }
 
 
-/* Build an operator expression node.  */
-
-static gfc_expr *
-build_node (gfc_intrinsic_op operator, locus *where,
-	    gfc_expr *op1, gfc_expr *op2)
-{
-  gfc_expr *new;
-
-  new = gfc_get_expr ();
-  new->expr_type = EXPR_OP;
-  new->value.op.operator = operator;
-  new->where = *where;
-
-  new->value.op.op1 = op1;
-  new->value.op.op2 = op2;
-
-  return new;
-}
-
-
 /* Match a level 1 expression.  */
 
 static match
@@ -235,6 +201,7 @@ match_level_1 (gfc_expr **result)
   locus where;
   match m;
 
+  gfc_gobble_whitespace ();
   where = gfc_current_locus;
   uop = NULL;
   m = match_defined_operator (&uop);
@@ -249,7 +216,7 @@ match_level_1 (gfc_expr **result)
     *result = e;
   else
     {
-      f = build_node (INTRINSIC_USER, &where, e, NULL);
+      f = gfc_get_operator_expr (&where, INTRINSIC_USER, e, NULL);
       f->value.op.uop = uop;
       *result = f;
     }
@@ -261,7 +228,7 @@ match_level_1 (gfc_expr **result)
 /* As a GNU extension we support an expanded level-2 expression syntax.
    Via this extension we support (arbitrary) nesting of unary plus and
    minus operations following unary and binary operators, such as **.
-   The grammar of section 7.1.1.3 is effectively rewitten as:
+   The grammar of section 7.1.1.3 is effectively rewritten as:
 
 	R704  mult-operand     is level-1-expr [ power-op ext-mult-operand ]
 	R704' ext-mult-operand is add-op ext-mult-operand
@@ -575,7 +542,7 @@ match_level_2 (gfc_expr **result)
 static match
 match_level_3 (gfc_expr **result)
 {
-  gfc_expr *all, *e, *total;
+  gfc_expr *all, *e, *total = NULL;
   locus where;
   match m;
 
@@ -592,12 +559,12 @@ match_level_3 (gfc_expr **result)
 
       m = match_level_2 (&e);
       if (m == MATCH_NO)
-	{
-	  gfc_error (expression_syntax);
-	  gfc_free_expr (all);
-	}
+	gfc_error (expression_syntax);
       if (m != MATCH_YES)
-	return MATCH_ERROR;
+	{
+	  gfc_free_expr (all);
+	  return MATCH_ERROR;
+	}
 
       total = gfc_concat (all, e);
       if (total == NULL)
@@ -925,7 +892,7 @@ gfc_match_expr (gfc_expr **result)
 	  return MATCH_ERROR;
 	}
 
-      all = build_node (INTRINSIC_USER, &where, all, e);
+      all = gfc_get_operator_expr (&where, INTRINSIC_USER, all, e);
       all->value.op.uop = uop;
     }
 

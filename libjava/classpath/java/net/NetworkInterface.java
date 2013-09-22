@@ -1,5 +1,5 @@
 /* NetworkInterface.java --
-   Copyright (C) 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2008 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -40,6 +40,8 @@ package java.net;
 
 import gnu.classpath.SystemProperties;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Vector;
@@ -57,12 +59,12 @@ import java.util.Vector;
 public final class NetworkInterface
 {
   private final VMNetworkInterface netif;
-  
+
   private NetworkInterface(VMNetworkInterface netif)
     {
     this.netif = netif;
     }
-  
+
   /** Creates an NetworkInterface instance which
    * represents any interface in the system. Its only
    * address is <code>0.0.0.0/0.0.0.0</code>. This
@@ -72,7 +74,7 @@ public final class NetworkInterface
   {
     return new NetworkInterface(new VMNetworkInterface());
   }
-  
+
   /**
    * Returns the name of the network interface
    *
@@ -107,16 +109,16 @@ public final class NetworkInterface
     for (Enumeration<InetAddress> addresses = inetAddresses.elements();
          addresses.hasMoreElements();)
       {
-	InetAddress addr = addresses.nextElement();
-	try
-	  {
-	    s.checkConnect(addr.getHostAddress(), -1);
-	    tmpInetAddresses.add(addr);
-	  }
-	catch (SecurityException e)
-	  {
-	    // Ignore.
-	  }
+        InetAddress addr = addresses.nextElement();
+        try
+          {
+            s.checkConnect(addr.getHostAddress(), -1);
+            tmpInetAddresses.add(addr);
+          }
+        catch (SecurityException e)
+          {
+            // Ignore.
+          }
       }
 
     return tmpInetAddresses.elements();
@@ -136,7 +138,7 @@ public final class NetworkInterface
    * Returns an network interface by name
    *
    * @param name The name of the interface to return
-   * 
+   *
    * @return a <code>NetworkInterface</code> object representing the interface,
    * or null if there is no interface with that name.
    *
@@ -185,14 +187,14 @@ public final class NetworkInterface
    * Return an <code>Enumeration</code> of all available network interfaces
    *
    * @return all interfaces
-   * 
+   *
    * @exception SocketException If an error occurs
    */
   public static Enumeration<NetworkInterface> getNetworkInterfaces()
     throws SocketException
   {
     VMNetworkInterface[] netifs = VMNetworkInterface.getVMInterfaces();
-    Vector<NetworkInterface> networkInterfaces = 
+    Vector<NetworkInterface> networkInterfaces =
       new Vector<NetworkInterface>(netifs.length);
     for (int i = 0; i < netifs.length; i++)
       {
@@ -215,7 +217,7 @@ public final class NetworkInterface
       return false;
 
     NetworkInterface tmp = (NetworkInterface) obj;
-    
+
     if (netif.name == null)
       return tmp.netif.name == null;
 
@@ -232,10 +234,10 @@ public final class NetworkInterface
   {
     // FIXME: hash correctly
     int hc = netif.addresses.hashCode();
-    
+
     if (netif.name != null)
       hc += netif.name.hashCode();
-    
+
     return hc;
   }
 
@@ -247,11 +249,11 @@ public final class NetworkInterface
   public String toString()
   {
     // FIXME: check if this is correct
-    StringBuffer result;
+    CPStringBuilder result;
     String separator = SystemProperties.getProperty("line.separator");
 
-    result = new StringBuffer();
-    
+    result = new CPStringBuilder();
+
     result.append("name: ");
     result.append(getDisplayName());
     result.append(" (").append(getName()).append(") addresses:");
@@ -259,10 +261,56 @@ public final class NetworkInterface
 
     for (Iterator it = netif.addresses.iterator(); it.hasNext(); )
       {
-	InetAddress address = (InetAddress) it.next();
-	result.append(address.toString()).append(";").append(separator);
+        InetAddress address = (InetAddress) it.next();
+        result.append(address.toString()).append(";").append(separator);
       }
 
     return result.toString();
   }
+
+  /**
+   * Determines whether this interface is ready to transfer data.
+   *
+   * @return whether the interface is up
+  */
+  public boolean isUp()
+    throws SocketException
+  {
+    return VMNetworkInterface.isUp(netif.name);
+  }
+
+  /**
+   * Determines whether this interface does point to point
+   * transmission.
+   *
+   * @return whether the interface does point to point transmission
+  */
+  public boolean isPointToPoint()
+    throws SocketException
+  {
+    return VMNetworkInterface.isPointToPoint(netif.name);
+  }
+
+  /**
+   * Determines whether this interface is the loopback interface.
+   *
+   * @return whether the interface is the loopback interface
+  */
+  public boolean isLoopback()
+    throws SocketException
+  {
+    return VMNetworkInterface.isLoopback(netif.name);
+  }
+
+  /**
+   * Determines whether this interface supports multicast transmission.
+   *
+   * @return whether the interface supports multicast transmission.
+  */
+  public boolean supportsMulticast()
+    throws SocketException
+  {
+    return VMNetworkInterface.supportsMulticast(netif.name);
+  }
+
 }

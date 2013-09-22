@@ -1,5 +1,9 @@
-// { dg-do run { xfail xstormy16-*-* *-*-darwin[1-7]* } }
-// Copyright (C) 2000, 2002, 2003 Free Software Foundation, Inc.
+// This fails for VxWorks RTPs because the initialization of
+// __cxa_allocate_exception's emergency buffer mutex will
+// itself call malloc(), and will fail if there is no more
+// memory available.
+// { dg-do run { xfail { { xstormy16-*-* *-*-darwin[3-7]* } || vxworks_rtp } } }
+// Copyright (C) 2000, 2002, 2003, 2010, 2012 Free Software Foundation, Inc.
 // Contributed by Nathan Sidwell 6 June 2000 <nathan@codesourcery.com>
 
 // Check we can throw a bad_alloc exception when malloc dies.
@@ -15,8 +19,8 @@ extern "C" void *memcpy(void *, const void *, size_t);
 const int arena_size = 256;
 #else
 #if defined(__FreeBSD__) || defined(__sun__) || defined(__hpux__)
-// FreeBSD, Solaris and HP-UX with threads require even more
-// space at initialization time.  FreeBSD 5 now requires over 131072 bytes.
+// FreeBSD, Solaris and HP-UX require even more space at initialization time.
+// FreeBSD 5 now requires over 131072 bytes.
 const int arena_size = 262144;
 #else
 const int arena_size = 32768;

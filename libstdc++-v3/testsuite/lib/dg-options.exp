@@ -1,10 +1,10 @@
 # Handlers for additional dg-xxx keywords in tests.
 
-# Copyright (C) 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2004-2013 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 # 
 # This program is distributed in the hope that it will be useful,
@@ -13,9 +13,8 @@
 # GNU General Public License for more details.
 # 
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-# 02110-1301, USA.
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 
 proc dg-require-c-std { args } {
     if { ![ check_v3_target_c_std ] } {
@@ -28,6 +27,24 @@ proc dg-require-c-std { args } {
 
 proc dg-require-debug-mode { args } {
     if { ![ check_v3_target_debug_mode ] } {
+	upvar dg-do-what dg-do-what
+	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+	return
+    }
+    return
+}
+
+proc dg-require-profile-mode { args } {
+    if { ![ check_v3_target_profile_mode ] } {
+	upvar dg-do-what dg-do-what
+	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+	return
+    }
+    return
+}
+
+proc dg-require-normal-mode { args } {
+    if { ![ check_v3_target_normal_mode ] } {
 	upvar dg-do-what dg-do-what
 	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
 	return
@@ -54,7 +71,7 @@ proc dg-require-fileio { args } {
 }
 
 proc dg-require-namedlocale { args } {
-    if { ![ check_v3_target_namedlocale ] } {
+    if { ![ check_v3_target_namedlocale [lindex $args 1] ] } {
 	upvar dg-do-what dg-do-what
 	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
 	return
@@ -80,11 +97,124 @@ proc dg-require-time { args } {
     return
 }
 
-proc dg-require-rvalref { args } {
-    if { ![ check_v3_target_rvalref ] } {
+proc dg-require-cstdint { args } {
+    if { ![ check_v3_target_cstdint ] } {
 	upvar dg-do-what dg-do-what
 	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
 	return
     }
     return
+}
+
+proc dg-require-cmath { args } {
+    if { ![ check_v3_target_cmath ] } {
+	upvar dg-do-what dg-do-what
+	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+	return
+    }
+    return
+}
+
+proc dg-require-atomic-builtins { args } {
+    if { ![ check_v3_target_atomic_builtins ] } {
+	upvar dg-do-what dg-do-what
+	set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+	return
+    }
+    return
+}
+
+proc dg-require-gthreads { args } {
+    if { ![ check_v3_target_gthreads ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-gthreads-timed { args } {
+    if { ![ check_v3_target_gthreads_timed ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-sleep { args } {
+    if { ![ check_v3_target_sleep ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-sched-yield { args } {
+    if { ![ check_v3_target_sched_yield ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-string-conversions { args } {
+    if { ![ check_v3_target_string_conversions ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-swprintf { args } {
+    if { ![ check_v3_target_swprintf ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-binary-io { args } {
+    if { ![ check_v3_target_binary_io ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-nprocs { args } {
+    if { ![ check_v3_target_nprocs ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-static-libstdcxx { args } {
+    if { ![ check_v3_target_static_libstdcxx ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc dg-require-little-endian { args } {
+    if { ![ check_v3_target_little_endian ] } {
+        upvar dg-do-what dg-do-what
+        set dg-do-what [list [lindex ${dg-do-what} 0] "N" "P"]
+        return
+    }
+    return
+}
+
+proc add_options_for_no_pch { flags } {
+    # This forces any generated and possibly included PCH to be invalid.
+    return "-D__GLIBCXX__=99999999"
 }

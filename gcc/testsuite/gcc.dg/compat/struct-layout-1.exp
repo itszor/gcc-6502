@@ -1,4 +1,4 @@
-# Copyright (C) 2002, 2003, 2004, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@ global compat_have_dfp
 # Load procedures from common libraries. 
 load_lib standard.exp
 load_lib gcc.exp
+load_lib target-libpath.exp
 
 # Load the language-dependent compabibility support procedures.
 load_lib c-compat.exp
@@ -83,15 +84,19 @@ if { $compat_have_dfp == 0 } {
 }
 
 set tstobjdir "$tmpdir/gcc.dg-struct-layout-1"
-set generator "$tmpdir/gcc.dg-struct-layout-1_generate"
+set generator "$tmpdir/gcc.dg-struct-layout-1_generate.exe"
 
 set generator_src "$srcdir/$subdir/struct-layout-1_generate.c"
 set generator_src "$generator_src $srcdir/$subdir/generate-random.c"
 set generator_src "$generator_src $srcdir/$subdir/generate-random_r.c"
 set generator_cmd "-o $generator $skip_dfp $generator_src"
 
-set status [remote_exec host "$HOSTCC $HOSTCFLAGS $generator_cmd"]
+# Temporarily switch to the environment for the host compiler.
+restore_ld_library_path_env_vars
+set status [remote_exec build "$HOSTCC $HOSTCFLAGS $generator_cmd"]
 set status [lindex $status 0]
+set_ld_library_path_env_vars
+
 if { $status == 0 } then {
     file delete -force $tstobjdir
     file mkdir $tstobjdir

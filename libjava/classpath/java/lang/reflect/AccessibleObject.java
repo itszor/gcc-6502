@@ -91,9 +91,9 @@ public class AccessibleObject
    * <code>ReflectPermission("suppressAccessChecks")</code>.<p>
    *
    * It is forbidden to set the accessibility flag to true on any constructor
-   * for java.lang.Class. This will result in a SecurityException. If the 
+   * for java.lang.Class. This will result in a SecurityException. If the
    * SecurityException is thrown for any of the passed AccessibleObjects,
-   * the accessibility flag will be set on AccessibleObjects in the array prior 
+   * the accessibility flag will be set on AccessibleObjects in the array prior
    * to the one which resulted in the exception.
    *
    * @param array the array of accessible objects
@@ -115,7 +115,7 @@ public class AccessibleObject
    * manager exists, it is checked for
    * <code>ReflectPermission("suppressAccessChecks")</code>.<p>
    *
-   * It is forbidden to set the accessibility flag to true on any constructor for 
+   * It is forbidden to set the accessibility flag to true on any constructor for
    * java.lang.Class. This will result in a SecurityException.
    *
    * @param flag the desired state of accessibility, true to bypass security
@@ -160,21 +160,72 @@ public class AccessibleObject
     this.flag = flag;
   }
 
+  /**
+   * <p>
+   * Returns the element's annotation for the specified annotation type,
+   * or <code>null</code> if no such annotation exists.
+   * </p>
+   * <p>
+   * <strong>This method must be overridden by subclasses to provide
+   * appropriate behaviour.</strong>
+   * </p>
+   *
+   * @param annotationClass the type of annotation to look for.
+   * @return this element's annotation for the specified type, or
+   *         <code>null</code> if no such annotation exists.
+   * @throws NullPointerException if the annotation class is <code>null</code>.
+   */
   public <T extends Annotation> T getAnnotation(Class<T> annotationClass)
   {
     throw new AssertionError("Subclass must override this method");
   }
 
+  /**
+   * Returns all annotations associated with the element.  If there are
+   * no annotations associated with the element, then a zero-length array
+   * will be returned.  The returned array may be modified by the client
+   * code, but this will have no effect on the annotation content of the
+   * element, and hence no effect on the return value of this method for
+   * future callers.
+   *
+   * @return this element's annotations.
+   */
   public Annotation[] getAnnotations()
   {
     return getDeclaredAnnotations();
   }
 
+  /**
+   * <p>
+   * Returns all annotations directly defined by the element.  If there are
+   * no annotations directly associated with the element, then a zero-length
+   * array will be returned.  The returned array may be modified by the client
+   * code, but this will have no effect on the annotation content of this
+   * class, and hence no effect on the return value of this method for
+   * future callers.
+   * </p>
+   * <p>
+   * <strong>This method must be overridden by subclasses to provide
+   * appropriate behaviour.</strong>
+   * </p>
+   *
+   * @return the annotations directly defined by the element.
+   * @since 1.5
+   */
   public Annotation[] getDeclaredAnnotations()
   {
     throw new AssertionError("Subclass must override this method");
   }
 
+  /**
+   * Returns true if an annotation for the specified type is associated
+   * with the element.  This is primarily a short-hand for using marker
+   * annotations.
+   *
+   * @param annotationClass the type of annotation to look for.
+   * @return true if an annotation exists for the specified type.
+   * @since 1.5
+   */
   public boolean isAnnotationPresent(Class<? extends Annotation> annotationClass)
   {
     return getAnnotation(annotationClass) != null;

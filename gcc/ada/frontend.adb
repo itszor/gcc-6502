@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -42,46 +42,68 @@ with Nlists;   use Nlists;
 with Opt;      use Opt;
 with Osint;
 with Par;
+with Prep;
 with Prepcomp;
-with Rtsfind;
+with Restrict; use Restrict;
+with Rident;   use Rident;
+with Rtsfind;  use Rtsfind;
+with Snames;   use Snames;
 with Sprint;
 with Scn;      use Scn;
 with Sem;      use Sem;
+with Sem_Aux;
 with Sem_Ch8;  use Sem_Ch8;
+with Sem_SCIL;
 with Sem_Elab; use Sem_Elab;
 with Sem_Prag; use Sem_Prag;
 with Sem_Warn; use Sem_Warn;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Sinput.L; use Sinput.L;
+with SCIL_LL;  use SCIL_LL;
 with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Types;    use Types;
 
 procedure Frontend is
-      Config_Pragmas : List_Id;
-      --  Gather configuration pragmas
+   Config_Pragmas : List_Id;
+   --  Gather configuration pragmas
 
 begin
-   --  Carry out package initializations. These are initializations which
-   --  might logically be performed at elaboration time, were it not for
-   --  the fact that we may be doing things more than once in the big loop
-   --  over files. Like elaboration, the order in which these calls are
-   --  made is in some cases important. For example, Lib cannot be
-   --  initialized until Namet, since it uses names table entries.
+   --  Carry out package initializations. These are initializations which might
+   --  logically be performed at elaboration time, were it not for the fact
+   --  that we may be doing things more than once in the big loop over files.
+   --  Like elaboration, the order in which these calls are made is in some
+   --  cases important. For example, Lib cannot be initialized before Namet,
+   --  since it uses names table entries.
 
    Rtsfind.Initialize;
    Atree.Initialize;
    Nlists.Initialize;
    Elists.Initialize;
    Lib.Load.Initialize;
+   Sem_Aux.Initialize;
    Sem_Ch8.Initialize;
+   Sem_Prag.Initialize;
    Fname.UF.Initialize;
    Checks.Initialize;
+   Sem_Warn.Initialize;
+   Prep.Initialize;
+
+   if Generate_SCIL then
+      SCIL_LL.Initialize;
+   end if;
 
    --  Create package Standard
 
    CStand.Create_Standard;
+
+   --  If the -gnatd.H flag is present, we are only interested in the Standard
+   --  package, so the frontend has done its job here.
+
+   if Debug_Flag_Dot_HH then
+      return;
+   end if;
 
    --  Check possible symbol definitions specified by -gnateD switches
 
@@ -101,12 +123,17 @@ begin
       Prepcomp.Check_Symbols;
    end if;
 
+   --  We set Parsing_Main_Extended_Source true here to cover processing of all
+   --  the configuration pragma files, as well as the main source unit itself.
+
+   Parsing_Main_Extended_Source := True;
+
    --  Now that the preprocessing situation is established, we are able to
-   --  load the main source (this is no longer done by Lib.Load.Initalize).
+   --  load the main source (this is no longer done by Lib.Load.Initialize).
 
    Lib.Load.Load_Main_Source;
 
-   --  Return immediately if the main source could not be parsed
+   --  Return immediately if the main source could not be found
 
    if Sinput.Main_Source_File = No_Source_File then
       return;
@@ -146,7 +173,6 @@ begin
          if Source_gnat_adc /= No_Source_File then
             Initialize_Scanner (No_Unit, Source_gnat_adc);
             Config_Pragmas := Par (Configuration_Pragmas => True);
-
          else
             Config_Pragmas := Empty_List;
          end if;
@@ -165,8 +191,8 @@ begin
 
             if Source_Config_File = No_Source_File then
                Osint.Fail
-                 ("cannot find configuration pragmas file ",
-                  Config_File_Names (Index).all);
+                 ("cannot find configuration pragmas file "
+                  & Config_File_Names (Index).all);
             end if;
 
             Initialize_Scanner (No_Unit, Source_Config_File);
@@ -200,6 +226,12 @@ begin
       Opt.Suppress_Options := Scope_Suppress;
    end;
 
+   --  This is where we can capture the value of the compilation unit specific
+   --  restrictions that have been set by the config pragma files (or from
+   --  Targparm), for later restoration when processing e.g. subunits.
+
+   Save_Config_Cunit_Boolean_Restrictions;
+
    --  If there was a -gnatem switch, initialize the mappings of unit names to
    --  file names and of file names to path names from the mapping file.
 
@@ -207,9 +239,17 @@ begin
       Fmap.Initialize (Mapping_File_Name.all);
    end if;
 
-   --  We have now processed the command line switches, and the gnat.adc
-   --  file, so this is the point at which we want to capture the values
-   --  of the configuration switches (see Opt for further details).
+   --  Adjust Optimize_Alignment mode from debug switches if necessary
+
+   if Debug_Flag_Dot_SS then
+      Optimize_Alignment := 'S';
+   elsif Debug_Flag_Dot_TT then
+      Optimize_Alignment := 'T';
+   end if;
+
+   --  We have now processed the command line switches, and the configuration
+   --  pragma files, so this is the point at which we want to capture the
+   --  values of the configuration switches (see Opt for further details).
 
    Opt.Register_Opt_Config_Switches;
 
@@ -230,6 +270,7 @@ begin
    --  semantics in any case).
 
    Discard_List (Par (Configuration_Pragmas => False));
+   Parsing_Main_Extended_Source := False;
 
    --  The main unit is now loaded, and subunits of it can be loaded,
    --  without reporting spurious loading circularities.
@@ -242,6 +283,12 @@ begin
 
    if Config_Pragmas /= Error_List
      and then Operating_Mode /= Check_Syntax
+
+     --  Do not attempt to process deferred configuration pragmas if the main
+     --  unit failed to load, to avoid cascaded inconsistencies that can lead
+     --  to a compiler crash.
+
+     and then not Fatal_Error (Main_Unit)
    then
       --  Pragmas that require some semantic activity, such as
       --  Interrupt_State, cannot be processed until the main unit
@@ -263,6 +310,17 @@ begin
       end;
    end if;
 
+   --  If we have restriction No_Exception_Propagation, and we did not have an
+   --  explicit switch turning off Warn_On_Non_Local_Exception, then turn on
+   --  this warning by default if we have encountered an exception handler.
+
+   if Restriction_Check_Required (No_Exception_Propagation)
+     and then not No_Warn_On_Non_Local_Exception
+     and then Exception_Handler_Encountered
+   then
+      Warn_On_Non_Local_Exception := True;
+   end if;
+
    --  Now on to the semantics. Skip if in syntax only mode
 
    if Operating_Mode /= Check_Syntax then
@@ -281,7 +339,7 @@ begin
          --  incorporate subunits at a lower level.
 
          if Operating_Mode = Generate_Code
-            and then Nkind (Unit (Cunit (Main_Unit))) = N_Subunit
+           and then Nkind (Unit (Cunit (Main_Unit))) = N_Subunit
          then
             Operating_Mode := Check_Semantics;
          end if;
@@ -294,8 +352,8 @@ begin
          --  Cleanup processing after completing main analysis
 
          if Operating_Mode = Generate_Code
-            or else (Operating_Mode = Check_Semantics
-                      and then ASIS_Mode)
+           or else (Operating_Mode = Check_Semantics
+                     and then ASIS_Mode)
          then
             Instantiate_Bodies;
          end if;
@@ -323,19 +381,28 @@ begin
 
          --  Output waiting warning messages
 
-         Sem_Warn.Output_Non_Modifed_In_Out_Warnings;
+         Sem_Warn.Output_Non_Modified_In_Out_Warnings;
          Sem_Warn.Output_Unreferenced_Messages;
          Sem_Warn.Check_Unused_Withs;
+         Sem_Warn.Output_Unused_Warnings_Off_Warnings;
       end if;
    end if;
 
    --  Qualify all entity names in inner packages, package bodies, etc.,
-   --  except when compiling for the VM back-ends, which depend on
-   --  having unqualified names in certain cases and handles the
-   --  generation of qualified names when needed.
+   --  except when compiling for the VM back-ends, which depend on having
+   --  unqualified names in certain cases and handles the generation of
+   --  qualified names when needed.
 
    if VM_Target = No_VM then
       Exp_Dbug.Qualify_All_Entity_Names;
+   end if;
+
+   --  SCIL backend requirement. Check that SCIL nodes associated with
+   --  dispatching calls reference subprogram calls.
+
+   if Generate_SCIL then
+      pragma Debug (Sem_SCIL.Check_SCIL_Nodes (Cunit (Main_Unit)));
+      null;
    end if;
 
    --  Dump the source now. Note that we do this as soon as the analysis
@@ -344,8 +411,31 @@ begin
 
    Sprint.Source_Dump;
 
+   --  Check again for configuration pragmas that appear in the context of
+   --  the main unit. These pragmas only affect the main unit, and the
+   --  corresponding flag is reset after each call to Semantics, but they
+   --  may affect the generated ali for the unit, and therefore the flag
+   --  must be set properly after compilation. Currently we only check for
+   --  Initialize_Scalars, but others should be checked: as well???
+
+   declare
+      Item  : Node_Id;
+
+   begin
+      Item := First (Context_Items (Cunit (Main_Unit)));
+      while Present (Item) loop
+         if Nkind (Item) = N_Pragma
+           and then Pragma_Name (Item) = Name_Initialize_Scalars
+         then
+            Initialize_Scalars := True;
+         end if;
+
+         Next (Item);
+      end loop;
+   end;
+
    --  If a mapping file has been specified by a -gnatem switch, update
-   --  it if there has been some sourcs that were not in the mappings.
+   --  it if there has been some sources that were not in the mappings.
 
    if Mapping_File_Name /= null then
       Fmap.Update_Mapping_File (Mapping_File_Name.all);

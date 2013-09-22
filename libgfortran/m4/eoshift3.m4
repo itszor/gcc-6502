@@ -1,32 +1,27 @@
 `/* Implementation of the EOSHIFT intrinsic
-   Copyright 2002, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
@@ -43,14 +38,14 @@ eoshift3 (gfc_array_char * const restrict ret,
 	const 'atype` * const restrict h,
 	const gfc_array_char * const restrict bound, 
 	const 'atype_name` * const restrict pwhich,
-	index_type size, char filler)
+	const char * filler, index_type filler_len)
 {
   /* r.* indicates the return array.  */
   index_type rstride[GFC_MAX_DIMENSIONS];
   index_type rstride0;
   index_type roffset;
   char *rptr;
-  char *dest;
+  char * restrict dest;
   /* s.* indicates the source array.  */
   index_type sstride[GFC_MAX_DIMENSIONS];
   index_type sstride0;
@@ -71,6 +66,8 @@ eoshift3 (gfc_array_char * const restrict ret,
   index_type dim;
   index_type len;
   index_type n;
+  index_type size;
+  index_type arraysize;
   int which;
   'atype_name` sh;
   'atype_name` delta;
@@ -81,30 +78,54 @@ eoshift3 (gfc_array_char * const restrict ret,
   soffset = 0;
   roffset = 0;
 
+  arraysize = size0 ((array_t *) array);
+  size = GFC_DESCRIPTOR_SIZE(array);
+
   if (pwhich)
     which = *pwhich - 1;
   else
     which = 0;
 
-  if (ret->data == NULL)
+  if (ret->base_addr == NULL)
     {
       int i;
 
-      ret->data = internal_malloc_size (size * size0 ((array_t *)array));
+      ret->base_addr = xmalloc (size * arraysize);
       ret->offset = 0;
       ret->dtype = array->dtype;
       for (i = 0; i < GFC_DESCRIPTOR_RANK (array); i++)
         {
-          ret->dim[i].lbound = 0;
-          ret->dim[i].ubound = array->dim[i].ubound - array->dim[i].lbound;
+	  index_type ub, str;
+
+	  ub = GFC_DESCRIPTOR_EXTENT(array,i) - 1;
 
           if (i == 0)
-            ret->dim[i].stride = 1;
+            str = 1;
           else
-            ret->dim[i].stride = (ret->dim[i-1].ubound + 1) * ret->dim[i-1].stride;
+            str = GFC_DESCRIPTOR_EXTENT(ret,i-1)
+	      * GFC_DESCRIPTOR_STRIDE(ret,i-1);
+
+	  GFC_DIMENSION_SET(ret->dim[i], 0, ub, str);
+
         }
+      /* xmalloc allocates a single byte for zero size.  */
+      ret->base_addr = xmalloc (size * arraysize);
+
+    }
+  else if (unlikely (compile_options.bounds_check))
+    {
+      bounds_equal_extents ((array_t *) ret, (array_t *) array,
+				 "return value", "EOSHIFT");
     }
 
+  if (unlikely (compile_options.bounds_check))
+    {
+      bounds_reduced_extents ((array_t *) h, (array_t *) array, which,
+      			      "SHIFT argument", "EOSHIFT");
+    }
+
+  if (arraysize == 0)
+    return;
 
   extent[0] = 1;
   count[0] = 0;
@@ -113,24 +134,24 @@ eoshift3 (gfc_array_char * const restrict ret,
     {
       if (dim == which)
         {
-          roffset = ret->dim[dim].stride * size;
+          roffset = GFC_DESCRIPTOR_STRIDE_BYTES(ret,dim);
           if (roffset == 0)
             roffset = size;
-          soffset = array->dim[dim].stride * size;
+          soffset = GFC_DESCRIPTOR_STRIDE_BYTES(array,dim);
           if (soffset == 0)
             soffset = size;
-          len = array->dim[dim].ubound + 1 - array->dim[dim].lbound;
+          len = GFC_DESCRIPTOR_EXTENT(array,dim);
         }
       else
         {
           count[n] = 0;
-          extent[n] = array->dim[dim].ubound + 1 - array->dim[dim].lbound;
-          rstride[n] = ret->dim[dim].stride * size;
-          sstride[n] = array->dim[dim].stride * size;
+          extent[n] = GFC_DESCRIPTOR_EXTENT(array,dim);
+          rstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(ret,dim);
+          sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,dim);
 
-          hstride[n] = h->dim[n].stride;
+          hstride[n] = GFC_DESCRIPTOR_STRIDE(h,n);
           if (bound)
-            bstride[n] = bound->dim[n].stride * size;
+            bstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(bound,n);
           else
             bstride[n] = 0;
           n++;
@@ -150,11 +171,11 @@ eoshift3 (gfc_array_char * const restrict ret,
   sstride0 = sstride[0];
   hstride0 = hstride[0];
   bstride0 = bstride[0];
-  rptr = ret->data;
-  sptr = array->data;
-  hptr = h->data;
+  rptr = ret->base_addr;
+  sptr = array->base_addr;
+  hptr = h->base_addr;
   if (bound)
-    bptr = bound->data;
+    bptr = bound->base_addr;
   else
     bptr = NULL;
 
@@ -199,7 +220,14 @@ eoshift3 (gfc_array_char * const restrict ret,
       else
 	while (n--)
 	  {
-	    memset (dest, filler, size);
+	    index_type i;
+
+	    if (filler_len == 1)
+	      memset (dest, filler[0], size);
+	    else
+	      for (i = 0; i < size; i += filler_len)
+		memcpy (&dest[i], filler, filler_len);
+
 	    dest += roffset;
 	  }
 
@@ -254,8 +282,9 @@ eoshift3_'atype_kind` (gfc_array_char * const restrict ret,
 	const gfc_array_char * const restrict bound,
 	const 'atype_name` * const restrict pwhich)
 {
-  eoshift3 (ret, array, h, bound, pwhich, GFC_DESCRIPTOR_SIZE (array), 0);
+  eoshift3 (ret, array, h, bound, pwhich, "\0", 1);
 }
+
 
 extern void eoshift3_'atype_kind`_char (gfc_array_char * const restrict, 
 	GFC_INTEGER_4,
@@ -273,10 +302,35 @@ eoshift3_'atype_kind`_char (gfc_array_char * const restrict ret,
 	const 'atype` *  const restrict h,
 	const gfc_array_char * const restrict bound,
 	const 'atype_name` * const restrict pwhich,
-	GFC_INTEGER_4 array_length,
+	GFC_INTEGER_4 array_length __attribute__((unused)),
 	GFC_INTEGER_4 bound_length __attribute__((unused)))
 {
-  eoshift3 (ret, array, h, bound, pwhich, array_length, ''` ''`);
+  eoshift3 (ret, array, h, bound, pwhich, " ", 1);
+}
+
+
+extern void eoshift3_'atype_kind`_char4 (gfc_array_char * const restrict, 
+	GFC_INTEGER_4,
+	const gfc_array_char * const restrict,
+	const 'atype` * const restrict,
+	const gfc_array_char * const restrict,
+	const 'atype_name` * const restrict, 
+	GFC_INTEGER_4, GFC_INTEGER_4);
+export_proto(eoshift3_'atype_kind`_char4);
+
+void
+eoshift3_'atype_kind`_char4 (gfc_array_char * const restrict ret,
+	GFC_INTEGER_4 ret_length __attribute__((unused)),
+	const gfc_array_char * const restrict array, 
+	const 'atype` *  const restrict h,
+	const gfc_array_char * const restrict bound,
+	const 'atype_name` * const restrict pwhich,
+	GFC_INTEGER_4 array_length __attribute__((unused)),
+	GFC_INTEGER_4 bound_length __attribute__((unused)))
+{
+  static const gfc_char4_t space = (unsigned char) ''` ''`;
+  eoshift3 (ret, array, h, bound, pwhich,
+	    (const char *) &space, sizeof (gfc_char4_t));
 }
 
 #endif'

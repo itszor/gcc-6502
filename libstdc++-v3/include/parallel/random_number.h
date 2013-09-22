@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/random_number.h
  *  @brief Random number generator based on the Mersenne twister.
@@ -40,91 +34,92 @@
 
 #include <parallel/types.h>
 #include <tr1/random>
+#include <limits>
 
 namespace __gnu_parallel
 {
   /** @brief Random number generator, based on the Mersenne twister. */
-  class random_number
+  class _RandomNumber
   {
   private:
-    std::tr1::mt19937 	mt;
-    uint64 		supremum;
-    uint64 		RAND_SUP;
-    double 		supremum_reciprocal;
-    double 		RAND_SUP_REC;
+    std::tr1::mt19937   _M_mt;
+    uint64_t            _M_supremum;
+    uint64_t            _M_rand_sup;
+    double              _M_supremum_reciprocal;
+    double              _M_rand_sup_reciprocal;
 
     // Assumed to be twice as long as the usual random number.
-    uint64 		cache;  
+    uint64_t              __cache;
 
     // Bit results.
-    int bits_left;
+    int __bits_left;
     
-    static uint32
-    scale_down(uint64 x,
+    static uint32_t
+    __scale_down(uint64_t __x,
 #if _GLIBCXX_SCALE_DOWN_FPU
-	       uint64 /*supremum*/, double supremum_reciprocal)
+               uint64_t /*_M_supremum*/, double _M_supremum_reciprocal)
 #else
-               uint64 supremum, double /*supremum_reciprocal*/)
+               uint64_t _M_supremum, double /*_M_supremum_reciprocal*/)
 #endif
-	{
+        {
 #if _GLIBCXX_SCALE_DOWN_FPU
-	  return uint32(x * supremum_reciprocal);
+          return uint32_t(__x * _M_supremum_reciprocal);
 #else
-	  return static_cast<uint32>(x % supremum);
+          return static_cast<uint32_t>(__x % _M_supremum);
 #endif
-	}
+        }
 
   public:
     /** @brief Default constructor. Seed with 0. */
-    random_number()
-    : mt(0), supremum(0x100000000ULL),
-      RAND_SUP(1ULL << (sizeof(uint32) * 8)),
-      supremum_reciprocal(double(supremum) / double(RAND_SUP)),
-      RAND_SUP_REC(1.0 / double(RAND_SUP)),
-      cache(0), bits_left(0) { }
+    _RandomNumber()
+    : _M_mt(0), _M_supremum(0x100000000ULL),
+      _M_rand_sup(1ULL << std::numeric_limits<uint32_t>::digits),
+      _M_supremum_reciprocal(double(_M_supremum) / double(_M_rand_sup)),
+      _M_rand_sup_reciprocal(1.0 / double(_M_rand_sup)),
+      __cache(0), __bits_left(0) { }
 
     /** @brief Constructor.
-     *  @param seed Random seed.
-     *  @param supremum Generate integer random numbers in the
-     *                  interval @c [0,supremum). */
-    random_number(uint32 seed, uint64 supremum = 0x100000000ULL)
-    : mt(seed), supremum(supremum),
-      RAND_SUP(1ULL << (sizeof(uint32) * 8)),
-      supremum_reciprocal(double(supremum) / double(RAND_SUP)),
-      RAND_SUP_REC(1.0 / double(RAND_SUP)),
-      cache(0), bits_left(0) { }
+     *  @param __seed Random __seed.
+     *  @param _M_supremum Generate integer random numbers in the
+     *                  interval @c [0,_M_supremum). */
+    _RandomNumber(uint32_t __seed, uint64_t _M_supremum = 0x100000000ULL)
+    : _M_mt(__seed), _M_supremum(_M_supremum),
+      _M_rand_sup(1ULL << std::numeric_limits<uint32_t>::digits),
+      _M_supremum_reciprocal(double(_M_supremum) / double(_M_rand_sup)),
+      _M_rand_sup_reciprocal(1.0 / double(_M_rand_sup)),
+      __cache(0), __bits_left(0) { }
 
     /** @brief Generate unsigned random 32-bit integer. */
-    uint32
+    uint32_t
     operator()()
-    { return scale_down(mt(), supremum, supremum_reciprocal); }
+    { return __scale_down(_M_mt(), _M_supremum, _M_supremum_reciprocal); }
 
     /** @brief Generate unsigned random 32-bit integer in the
-	interval @c [0,local_supremum). */
-    uint32
-    operator()(uint64 local_supremum)
+        interval @c [0,local_supremum). */
+    uint32_t
+    operator()(uint64_t local_supremum)
     {
-      return scale_down(mt(), local_supremum,
-			double(local_supremum * RAND_SUP_REC));
+      return __scale_down(_M_mt(), local_supremum,
+                        double(local_supremum * _M_rand_sup_reciprocal));
     }
 
     /** @brief Generate a number of random bits, run-time parameter.
-     *  @param bits Number of bits to generate. */
+     *  @param __bits Number of bits to generate. */
     unsigned long
-    genrand_bits(int bits)
+    __genrand_bits(int __bits)
     {
-      unsigned long res = cache & ((1 << bits) - 1);
-      cache = cache >> bits;
-      bits_left -= bits;
-      if (bits_left < 32)
-	{
-	  cache |= ((uint64(mt())) << bits_left);
-	  bits_left += 32;
-	}
-      return res;
+      unsigned long __res = __cache & ((1 << __bits) - 1);
+      __cache = __cache >> __bits;
+      __bits_left -= __bits;
+      if (__bits_left < 32)
+        {
+          __cache |= ((uint64_t(_M_mt())) << __bits_left);
+          __bits_left += 32;
+        }
+      return __res;
     }
 };
 
 } // namespace __gnu_parallel
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_RANDOM_NUMBER_H */

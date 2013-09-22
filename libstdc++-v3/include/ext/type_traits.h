@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file ext/type_traits.h
  *  This file is a GNU extension to the Standard C++ Library.
@@ -40,7 +34,9 @@
 #include <bits/c++config.h>
 #include <bits/cpp_type_traits.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Define a nested type if some predicate holds.
   template<bool, typename>
@@ -165,46 +161,53 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     struct __promote
     { typedef double __type; };
 
+  // No nested __type member for non-integer non-floating point types,
+  // allows this type to be used for SFINAE to constrain overloads in
+  // <cmath> and <complex> to only the intended types.
   template<typename _Tp>
     struct __promote<_Tp, false>
-    { typedef _Tp __type; };
+    { };
 
-  template<typename _Tp, typename _Up>
+  template<>
+    struct __promote<long double>
+    { typedef long double __type; };
+
+  template<>
+    struct __promote<double>
+    { typedef double __type; };
+
+  template<>
+    struct __promote<float>
+    { typedef float __type; };
+
+  template<typename _Tp, typename _Up,
+           typename _Tp2 = typename __promote<_Tp>::__type,
+           typename _Up2 = typename __promote<_Up>::__type>
     struct __promote_2
     {
-    private:
-      typedef typename __promote<_Tp>::__type __type1;
-      typedef typename __promote<_Up>::__type __type2;
-
-    public:
-      typedef __typeof__(__type1() + __type2()) __type;
+      typedef __typeof__(_Tp2() + _Up2()) __type;
     };
 
-  template<typename _Tp, typename _Up, typename _Vp>
+  template<typename _Tp, typename _Up, typename _Vp,
+           typename _Tp2 = typename __promote<_Tp>::__type,
+           typename _Up2 = typename __promote<_Up>::__type,
+           typename _Vp2 = typename __promote<_Vp>::__type>
     struct __promote_3
     {
-    private:
-      typedef typename __promote<_Tp>::__type __type1;
-      typedef typename __promote<_Up>::__type __type2;
-      typedef typename __promote<_Vp>::__type __type3;
-
-    public:
-      typedef __typeof__(__type1() + __type2() + __type3()) __type;
+      typedef __typeof__(_Tp2() + _Up2() + _Vp2()) __type;
     };
 
-  template<typename _Tp, typename _Up, typename _Vp, typename _Wp>
+  template<typename _Tp, typename _Up, typename _Vp, typename _Wp,
+           typename _Tp2 = typename __promote<_Tp>::__type,
+           typename _Up2 = typename __promote<_Up>::__type,
+           typename _Vp2 = typename __promote<_Vp>::__type,
+           typename _Wp2 = typename __promote<_Wp>::__type>
     struct __promote_4
     {
-    private:
-      typedef typename __promote<_Tp>::__type __type1;
-      typedef typename __promote<_Up>::__type __type2;
-      typedef typename __promote<_Vp>::__type __type3;
-      typedef typename __promote<_Wp>::__type __type4;
-
-    public:
-      typedef __typeof__(__type1() + __type2() + __type3() + __type4()) __type;
+      typedef __typeof__(_Tp2() + _Up2() + _Vp2() + _Wp2()) __type;
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif 

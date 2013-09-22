@@ -14,8 +14,6 @@ end module t
 
 subroutine r
   use t
-  b = 1.       ! { dg-error "is not a VALUE" }
+  b = 1.       ! { dg-error "is not a variable" }
   y = a(1.)
 end subroutine r
-
-! { dg-final { cleanup-modules "t" } }

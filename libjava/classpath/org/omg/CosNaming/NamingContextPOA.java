@@ -63,8 +63,8 @@ import org.omg.PortableServer.Servant;
 /**
  * The naming service servant. After implementing the abstract methods the
  * instance of this class can be connected to an ORB using POA.
- * 
- * @since 1.4 
+ *
+ * @since 1.4
  *
  * @author Audrius Meskauskas, Lithuania (AudriusA@Bioinformatics.org)
  */
@@ -92,7 +92,7 @@ public abstract class NamingContextPOA
   public OutputStream _invoke(String method, InputStream in, ResponseHandler rh)
   {
     OutputStream out = null;
-    Integer call_method = (Integer) _NamingContextImplBase.methods.get(method);
+    Integer call_method = _NamingContextImplBase.methods.get(method);
     if (call_method == null)
       throw new BAD_OPERATION(Minor.Method, CompletionStatus.COMPLETED_MAYBE);
 

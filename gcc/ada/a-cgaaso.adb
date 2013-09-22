@@ -2,131 +2,46 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---                      A D A . C O N T A I N E R S .                       --
---        G E N E R I C _ A N O N Y M O U S _ A R R A Y _ S O R T           --
+--              ADA.CONTAINERS.GENERIC_ANONYMOUS_ARRAY_SORT                 --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
 
---  This algorithm was adapted from GNAT.Heap_Sort (see g-heasor.ad[sb])
+--  This unit was originally a GNAT-specific addition to Ada 2005. A unit
+--  providing the same feature, Ada.Containers.Generic_Sort, was defined for
+--  Ada 2012.  We retain Generic_Anonymous_Array_Sort for compatibility, but
+--  implement it in terms of the official unit, Generic_Sort.
 
-with System;
+with Ada.Containers.Generic_Sort;
 
 procedure Ada.Containers.Generic_Anonymous_Array_Sort
   (First, Last : Index_Type'Base)
 is
-   type T is range System.Min_Int .. System.Max_Int;
-
-   function To_Index (J : T) return Index_Type;
-   pragma Inline (To_Index);
-
-   function Lt (J, K : T) return Boolean;
-   pragma Inline (Lt);
-
-   procedure Xchg (J, K : T);
-   pragma Inline (Xchg);
-
-   procedure Sift (S : T);
-
-   --------------
-   -- To_Index --
-   --------------
-
-   function To_Index (J : T) return Index_Type is
-      K : constant T'Base := Index_Type'Pos (First) + J - T'(1);
-   begin
-      return Index_Type'Val (K);
-   end To_Index;
-
-   --------
-   -- Lt --
-   --------
-
-   function Lt (J, K : T) return Boolean is
-   begin
-      return Less (To_Index (J), To_Index (K));
-   end Lt;
-
-   ----------
-   -- Xchg --
-   ----------
-
-   procedure Xchg (J, K : T) is
-   begin
-      Swap (To_Index (J), To_Index (K));
-   end Xchg;
-
-   Max : T := Index_Type'Pos (Last) - Index_Type'Pos (First) + T'(1);
-
-   ----------
-   -- Sift --
-   ----------
-
-   procedure Sift (S : T) is
-      C      : T := S;
-      Son    : T;
-      Father : T;
-
-   begin
-      loop
-         Son := C + C;
-
-         if Son < Max then
-            if Lt (Son, Son + 1) then
-               Son := Son + 1;
-            end if;
-         elsif Son > Max then
-            exit;
-         end if;
-
-         Xchg (Son, C);
-         C := Son;
-      end loop;
-
-      while C /= S loop
-         Father := C / 2;
-
-         if Lt (Father, C) then
-            Xchg (Father, C);
-            C := Father;
-         else
-            exit;
-         end if;
-      end loop;
-   end Sift;
-
---  Start of processing for Generic_Anonymous_Array_Sort
+   procedure Sort is new Ada.Containers.Generic_Sort
+     (Index_Type => Index_Type,
+      Before     => Less,
+      Swap       => Swap);
 
 begin
-   for J in reverse 1 .. Max / 2 loop
-      Sift (J);
-   end loop;
-
-   while Max > 1 loop
-      Xchg (1, Max);
-      Max := Max - 1;
-      Sift (1);
-   end loop;
+   Sort (First, Last);
 end Ada.Containers.Generic_Anonymous_Array_Sort;

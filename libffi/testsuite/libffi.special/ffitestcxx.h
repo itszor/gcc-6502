@@ -43,6 +43,16 @@
 
 #endif
 
+
+/* MinGW kludge.  */
+#ifdef _WIN64
+#define PRIdLL "I64d"
+#define PRIuLL "I64u"
+#else
+#define PRIdLL "lld"
+#define PRIuLL "llu"
+#endif
+
 #ifdef USING_MMAP
 static inline void *
 allocate_mmap (size_t size)
@@ -74,7 +84,7 @@ allocate_mmap (size_t size)
 	       MAP_PRIVATE, dev_zero_fd, 0);
 #endif
 
-  if (page == MAP_FAILED)
+  if (page == (char *) MAP_FAILED)
     {
       perror ("virtual memory exhausted");
       exit (1);

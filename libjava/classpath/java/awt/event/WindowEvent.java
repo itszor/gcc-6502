@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package java.awt.event;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.awt.Frame;
 import java.awt.Window;
 
@@ -47,7 +49,7 @@ import java.awt.Window;
  * are three listeners, for three types of events: WindowListeners deal with
  * the lifecycle of a window, WindowStateListeners deal with window state
  * like maximization, and WindowFocusListeners deal with focus switching to
- * or from a window. 
+ * or from a window.
  *
  * @author Aaron M. Renn (arenn@urbanophile.com)
  * @see WindowAdapter
@@ -270,7 +272,7 @@ public class WindowEvent extends ComponentEvent
    */
   public String paramString()
   {
-    StringBuffer s = new StringBuffer();
+    CPStringBuilder s = new CPStringBuilder();
     switch (id)
       {
       case WINDOW_OPENED:

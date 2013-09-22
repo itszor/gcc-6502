@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,7 +28,10 @@ with System; use System;
 
 with Ada.Unchecked_Conversion;
 
+pragma Warnings (Off);
+--  This package is used also by gnatcoll
 with System.OS_Lib; use System.OS_Lib;
+pragma Warnings (On);
 
 package body Sinput.C is
 
@@ -116,7 +119,7 @@ package body Sinput.C is
          loop
             Actual_Len := Read (Source_File_FD, Actual_Ptr (Hi)'Address, Len);
             Hi := Hi + Source_Ptr (Actual_Len);
-            exit when Actual_Len = Len or Actual_Len <= 0;
+            exit when Actual_Len = Len or else Actual_Len <= 0;
          end loop;
 
          Actual_Ptr (Hi) := EOF;
@@ -175,9 +178,10 @@ package body Sinput.C is
                Full_Debug_Name     => Path_Id,
                Full_File_Name      => Path_Id,
                Full_Ref_Name       => Path_Id,
+               Instance            => No_Instance_Id,
                Identifier_Casing   => Unknown,
+               Inlined_Call        => No_Location,
                Inlined_Body        => False,
-               Instantiation       => No_Location,
                Keyword_Casing      => Unknown,
                Last_Source_Line    => 1,
                License             => Unknown,

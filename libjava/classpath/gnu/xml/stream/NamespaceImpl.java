@@ -1,4 +1,4 @@
-/* NamespaceImpl.java -- 
+/* NamespaceImpl.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -39,6 +39,7 @@ package gnu.xml.stream;
 
 import java.io.IOException;
 import java.io.Writer;
+import javax.xml.namespace.QName;
 import javax.xml.stream.Location;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Namespace;
@@ -55,12 +56,15 @@ public class NamespaceImpl
 
   protected final String prefix;
   protected final String uri;
+  protected final boolean specified;
 
-  protected NamespaceImpl(Location location, String prefix, String uri)
+  protected NamespaceImpl(Location location, String prefix, String uri,
+                          boolean specified)
   {
     super(location);
     this.prefix = prefix;
     this.uri = uri;
+    this.specified = specified;
   }
 
   public int getEventType()
@@ -78,11 +82,34 @@ public class NamespaceImpl
     return uri;
   }
 
+  public boolean isSpecified()
+  {
+    return specified;
+  }
+
+  public QName getName()
+  {
+    if (isDefaultNamespaceDeclaration())
+      return new QName("", "xmlns", null);
+    else
+      return new QName("", prefix, "xmlns");
+  }
+
+  public String getDTDType()
+  {
+    return "CDATA";
+  }
+
+  public String getValue()
+  {
+    return uri;
+  }
+
   public boolean isDefaultNamespaceDeclaration()
   {
     return (prefix == null || "".equals(prefix));
   }
-  
+
   public void writeAsEncodedUnicode(Writer writer)
     throws XMLStreamException
   {
@@ -106,6 +133,5 @@ public class NamespaceImpl
         throw e2;
       }
   }
-  
-}
 
+}

@@ -1,7 +1,17 @@
-#import <objc/Object.h>
+#include <stdlib.h>
+#include "../../../objc-obj-c++-shared/TestsuiteObject.m"
 
+/* do nothing except prove we can compile and link code calling the
+   ecceptions mechanism */
+   
 int main(void)
 {
-  [Object class];
-  return 0;
+    @try {
+	int a = 1 ;
+	@throw [TestsuiteObject new];
+    }
+    @catch (TestsuiteObject *obj) {
+  	return 0;
+    }
+    abort();
 }

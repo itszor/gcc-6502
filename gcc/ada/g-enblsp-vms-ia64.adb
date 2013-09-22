@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                       Copyright (C) 2005, AdaCore                        --
+--                    Copyright (C) 2005-2010, AdaCore                      --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -75,11 +73,8 @@ begin
 
    --  Fork a new process (it is not possible to do this in a subprogram)
 
-   if Alloc_Vfork_Blocks >= 0 then
-      Descriptor.Pid := Setjmp1 (Get_Vfork_Jmpbuf);
-   else
-      Descriptor.Pid := -1;
-   end if;
+   Descriptor.Pid :=
+     (if Alloc_Vfork_Blocks >= 0 then Setjmp1 (Get_Vfork_Jmpbuf) else -1);
 
    --  Are we now in the child
 
@@ -89,13 +84,13 @@ begin
 
       Arg   := new String (1 .. Command_With_Path'Length + 1);
       Arg (1 .. Command_With_Path'Length) := Command_With_Path.all;
-      Arg (Arg'Last)        := ASCII.Nul;
+      Arg (Arg'Last)        := ASCII.NUL;
       Arg_List (1)          := Arg.all'Address;
 
       for J in Args'Range loop
          Arg                     := new String (1 .. Args (J)'Length + 1);
          Arg (1 .. Args (J)'Length)  := Args (J).all;
-         Arg (Arg'Last)              := ASCII.Nul;
+         Arg (Arg'Last)              := ASCII.NUL;
          Arg_List (J + 2 - Args'First) := Arg.all'Address;
       end loop;
 

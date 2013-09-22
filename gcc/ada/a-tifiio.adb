@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -292,22 +290,24 @@ package body Ada.Text_IO.Fixed_IO is
                    and then Num'Small * 10.0**Scale < 10.0);
 
    Exact : constant Boolean :=
-                Float'Floor (Num'Small) = Float'Ceiling (Num'Small)
-            or Float'Floor (1.0 / Num'Small) = Float'Ceiling (1.0 / Num'Small)
-            or Num'Small >= 10.0**Max_Digits;
+     Float'Floor (Num'Small) = Float'Ceiling (Num'Small)
+       or else Float'Floor (1.0 / Num'Small) = Float'Ceiling (1.0 / Num'Small)
+       or else Num'Small >= 10.0**Max_Digits;
    --  True iff a numerator and denominator can be calculated such that
-   --  their ratio exactly represents the small of Num
-
-   --  Local Subprograms
+   --  their ratio exactly represents the small of Num.
 
    procedure Put
      (To   : out String;
       Last : out Natural;
       Item : Num;
-      Fore : Field;
+      Fore : Integer;
       Aft  : Field;
       Exp  : Field);
-   --  Actual output function, used internally by all other Put routines
+   --  Actual output function, used internally by all other Put routines.
+   --  The formal Fore is an Integer, not a Field, because the routine is
+   --  also called from the version of Put that performs I/O to a string,
+   --  where the starting position depends on the size of the String, and
+   --  bears no relation to the bounds of Field.
 
    ---------
    -- Get --
@@ -319,10 +319,8 @@ package body Ada.Text_IO.Fixed_IO is
       Width : Field := 0)
    is
       pragma Unsuppress (Range_Check);
-
    begin
       Aux.Get (File, Long_Long_Float (Item), Width);
-
    exception
       when Constraint_Error => raise Data_Error;
    end Get;
@@ -332,10 +330,8 @@ package body Ada.Text_IO.Fixed_IO is
       Width : Field := 0)
    is
       pragma Unsuppress (Range_Check);
-
    begin
       Aux.Get (Current_In, Long_Long_Float (Item), Width);
-
    exception
       when Constraint_Error => raise Data_Error;
    end Get;
@@ -346,10 +342,8 @@ package body Ada.Text_IO.Fixed_IO is
       Last : out Positive)
    is
       pragma Unsuppress (Range_Check);
-
    begin
       Aux.Gets (From, Long_Long_Float (Item), Last);
-
    exception
       when Constraint_Error => raise Data_Error;
    end Get;
@@ -391,15 +385,17 @@ package body Ada.Text_IO.Fixed_IO is
       Aft  : Field := Default_Aft;
       Exp  : Field := Default_Exp)
    is
-      Fore : constant Integer := To'Length
-                                - 1                      -- Decimal point
-                                - Field'Max (1, Aft)     -- Decimal part
-                                - Boolean'Pos (Exp /= 0) -- Exponent indicator
-                                - Exp;                   -- Exponent
+      Fore : constant Integer :=
+        To'Length
+          - 1                      -- Decimal point
+          - Field'Max (1, Aft)     -- Decimal part
+          - Boolean'Pos (Exp /= 0) -- Exponent indicator
+          - Exp;                   -- Exponent
+
       Last : Natural;
 
    begin
-      if Fore - Boolean'Pos (Item < 0.0) < 1 or else Fore > Field'Last then
+      if Fore - Boolean'Pos (Item < 0.0) < 1 then
          raise Layout_Error;
       end if;
 
@@ -414,7 +410,7 @@ package body Ada.Text_IO.Fixed_IO is
      (To   : out String;
       Last : out Natural;
       Item : Num;
-      Fore : Field;
+      Fore : Integer;
       Aft  : Field;
       Exp  : Field)
    is
@@ -425,26 +421,18 @@ package body Ada.Text_IO.Fixed_IO is
       Neg : constant Boolean := (Item < 0.0);
       Pos : Integer := 0;  -- Next digit X has value X * 10.0**Pos;
 
-      Y, Z : Int64;
-      E : constant Integer := Boolean'Pos (not Exact)
-                                *  (Max_Digits - 1 + Scale);
-      D : constant Integer := Boolean'Pos (Exact)
-                                * Integer'Min (A, Max_Digits - (Num'Fore - 1))
-                            + Boolean'Pos (not Exact)
-                                * (Scale - 1);
-
       procedure Put_Character (C : Character);
       pragma Inline (Put_Character);
       --  Add C to the output string To, updating Last
 
       procedure Put_Digit (X : Digit);
-      --  Add digit X to the output string (going from left to right),
-      --  updating Last and Pos, and inserting the sign, leading zeros
-      --  or a decimal point when necessary. After outputting the first
-      --  digit, Pos must not be changed outside Put_Digit anymore
+      --  Add digit X to the output string (going from left to right), updating
+      --  Last and Pos, and inserting the sign, leading zeros or a decimal
+      --  point when necessary. After outputting the first digit, Pos must not
+      --  be changed outside Put_Digit anymore.
 
       procedure Put_Int64 (X : Int64; Scale : Integer);
-      --  Output the decimal number X * 10**Scale
+      --  Output the decimal number abs X * 10**Scale
 
       procedure Put_Scaled
         (X, Y, Z : Int64;
@@ -480,7 +468,8 @@ package body Ada.Text_IO.Fixed_IO is
 
       begin
          if Last = To'First - 1 then
-            if X /= 0 or Pos <= 0 then
+            if X /= 0 or else Pos <= 0 then
+
                --  Before outputting first digit, include leading space,
                --  possible minus sign and, if the first digit is fractional,
                --  decimal seperator and leading zeros.
@@ -550,7 +539,11 @@ package body Ada.Text_IO.Fixed_IO is
             Put_Digit (0);
          end loop;
 
-         --  If Pos is less than Scale now, reset to equal Scale
+         --  If and only if more than one digit is output before the decimal
+         --  point, pos will be unequal to scale when outputting the first
+         --  digit.
+
+         pragma Assert (Pos = Scale or else Last = To'First - 1);
 
          Pos := Scale;
 
@@ -566,60 +559,88 @@ package body Ada.Text_IO.Fixed_IO is
          A       : Field;
          E       : Integer)
       is
-         N  : constant Natural := (A + Max_Digits - 1) / Max_Digits + 1;
-         Q  : array (1 .. N) of Int64 := (others => 0);
+         pragma Assert (E >= -Max_Digits);
+         AA : constant Field := E + A;
+         N  : constant Natural := (AA + Max_Digits - 1) / Max_Digits + 1;
+
+         Q  : array (0 .. N - 1) of Int64 := (others => 0);
+         --  Each element of Q has Max_Digits decimal digits, except the
+         --  last, which has eAA rem Max_Digits. Only Q (Q'First) may have an
+         --  absolute value equal to or larger than 10**Max_Digits. Only the
+         --  absolute value of the elements is not significant, not the sign.
 
          XX : Int64 := X;
          YY : Int64 := Y;
-         AA : Field := A;
 
       begin
          for J in Q'Range loop
             exit when XX = 0;
 
-            Scaled_Divide (XX, YY, Z, Q (J), XX, Round => AA = 0);
-
-            --  As the last block of digits is rounded, a carry may have to
-            --  be propagated to the more significant digits. Since the last
-            --  block may have less than Max_Digits, the test for this block
-            --  is specialized.
-
-            --  The absolute value of the left-most digit block may equal
-            --  10*Max_Digits, as no carry can be propagated from there.
-            --  The final output routines need to be prepared to handle
-            --  this specific case.
-
-            if (Q (J) = YY or -Q (J) = YY) and then J > Q'First then
-               if Q (J) < 0 then
-                  Q (J - 1) := Q (J - 1) + 1;
-               else
-                  Q (J - 1) := Q (J - 1) - 1;
-               end if;
-
-               Q (J) := 0;
-
-               Propagate_Carry :
-               for J in reverse Q'First + 1 .. Q'Last loop
-                  if Q (J) >= 10**Max_Digits then
-                     Q (J - 1) := Q (J - 1) + 1;
-                     Q (J) := Q (J) - 10**Max_Digits;
-
-                  elsif Q (J) <= -10**Max_Digits then
-                     Q (J - 1) := Q (J - 1) - 1;
-                     Q (J) := Q (J) + 10**Max_Digits;
-                  end if;
-               end loop Propagate_Carry;
+            if J > 0 then
+               YY := 10**(Integer'Min (Max_Digits, AA - (J - 1) * Max_Digits));
             end if;
 
-            YY := -10**Integer'Min (Max_Digits, AA);
-            AA := AA - Integer'Min (Max_Digits, AA);
+            Scaled_Divide (XX, YY, Z, Q (J), R => XX, Round => False);
          end loop;
+
+         if -E > A then
+            pragma Assert (N = 1);
+
+            Discard_Extra_Digits : declare
+               Factor : constant Int64 := 10**(-E - A);
+
+            begin
+               --  The scaling factors were such that the first division
+               --  produced more digits than requested. So divide away extra
+               --  digits and compute new remainder for later rounding.
+
+               if abs (Q (0) rem Factor) >= Factor / 2 then
+                  Q (0) := abs (Q (0) / Factor) + 1;
+               else
+                  Q (0) := Q (0) / Factor;
+               end if;
+
+               XX := 0;
+            end Discard_Extra_Digits;
+         end if;
+
+         --  At this point XX is a remainder and we need to determine if the
+         --  quotient in Q must be rounded away from zero.
+
+         --  As XX is less than the divisor, it is safe to take its absolute
+         --  without chance of overflow. The check to see if XX is at least
+         --  half the absolute value of the divisor must be done carefully to
+         --  avoid overflow or lose precision.
+
+         XX := abs XX;
+
+         if XX >= 2**62
+            or else (Z < 0 and then (-XX) * 2 <= Z)
+            or else (Z >= 0 and then XX * 2 >= Z)
+         then
+            --  OK, rounding is necessary. As the sign is not significant,
+            --  take advantage of the fact that an extra negative value will
+            --  always be available when propagating the carry.
+
+            Q (Q'Last) := -abs Q (Q'Last) - 1;
+
+            Propagate_Carry :
+            for J in reverse 1 .. Q'Last loop
+               if Q (J) = YY or else Q (J) = -YY then
+                  Q (J) := 0;
+                  Q (J - 1) := -abs Q (J - 1) - 1;
+
+               else
+                  exit Propagate_Carry;
+               end if;
+            end loop Propagate_Carry;
+         end if;
 
          for J in Q'First .. Q'Last - 1 loop
-            Put_Int64 (Q (J), E - (J - Q'First) * Max_Digits);
+            Put_Int64 (Q (J), E - J * Max_Digits);
          end loop;
 
-         Put_Int64 (Q (Q'Last), E - A);
+         Put_Int64 (Q (Q'Last), -A);
       end Put_Scaled;
 
    --  Start of processing for Put
@@ -638,11 +659,13 @@ package body Ada.Text_IO.Fixed_IO is
          --  been generated, compute the Aft next digits (without rounding).
          --  Once a non-zero digit is generated, determine the exact number
          --  of digits remaining and compute them with rounding.
+
          --  Since a large number of iterations might be necessary in case
          --  of Aft = 1, the following optimization would be desirable.
+
          --  Count the number Z of leading zero bits in the integer
-         --  representation of X, and start with producing
-         --  Aft + Z * 1000 / 3322 digits in the first scaled division.
+         --  representation of X, and start with producing Aft + Z * 1000 /
+         --  3322 digits in the first scaled division.
 
          --  However, the floating-point routines are still used now ???
 
@@ -652,20 +675,35 @@ package body Ada.Text_IO.Fixed_IO is
       end if;
 
       if Exact then
-         Y := Int64'Min (Int64 (-Num'Small), -1) * 10**Integer'Max (0, D);
-         Z := Int64'Min (Int64 (-(1.0 / Num'Small)), -1)
-                                                 * 10**Integer'Max (0, -D);
-      else
-         Y := Int64 (-(Num'Small * 10.0**E));
-         Z := -10**Max_Digits;
-      end if;
+         declare
+            D : constant Integer := Integer'Min (A, Max_Digits
+                                                            - (Num'Fore - 1));
+            Y : constant Int64   := Int64'Min (Int64 (-Num'Small), -1)
+                                     * 10**Integer'Max (0, D);
+            Z : constant Int64   := Int64'Min (Int64 (-(1.0 / Num'Small)), -1)
+                                     * 10**Integer'Max (0, -D);
+         begin
+            Put_Scaled (X, Y, Z, A, -D);
+         end;
 
-      Put_Scaled (X, Y, Z, A - D, -D);
+      else -- not Exact
+         declare
+            E : constant Integer := Max_Digits - 1 + Scale;
+            D : constant Integer := Scale - 1;
+            Y : constant Int64   := Int64 (-Num'Small * 10.0**E);
+            Z : constant Int64   := -10**Max_Digits;
+         begin
+            Put_Scaled (X, Y, Z, A, -D);
+         end;
+      end if;
 
       --  If only zero digits encountered, unit digit has not been output yet
 
       if Last < To'First then
          Pos := 0;
+
+      elsif Last > To'Last then
+         raise Layout_Error; -- Not enough room in the output variable
       end if;
 
       --  Always output digits up to the first one after the decimal point

@@ -14,14 +14,16 @@ public:
 
 class Something {
 public:
-  void DoSomething(Ding A);	// { dg-error "" } referred to
+  void DoSomething(Ding A);	// { dg-message "Something::DoSomething|no known conversion" } referred to
 };
 
 void DoSomething(Ding A);
 
 void foo(Something* pX)
 {
-  DoSomething(1);		// { dg-error "" } 
-  pX->DoSomething(1);		// { dg-error "" } 
-  (*pX).DoSomething(1);		// { dg-error "" } 
+  DoSomething(1);		// { dg-error "could not convert" }
+  pX->DoSomething(1);		// { dg-error "no matching" } 
+  // { dg-message "candidate" "candidate note" { target *-*-* } 25 }
+  (*pX).DoSomething(1);		// { dg-error "no matching" } 
+  // { dg-message "candidate" "candidate note" { target *-*-* } 27 }
 }

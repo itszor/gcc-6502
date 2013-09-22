@@ -1,12 +1,12 @@
 // -*- C++ -*-
 // Testing streambuf/filebuf/stringbuf for the C++ library testsuite.
 //
-// Copyright (C) 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2003-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -15,18 +15,9 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 //
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 #ifndef _GLIBCXX_TESTSUITE_IO_H
 #define _GLIBCXX_TESTSUITE_IO_H
@@ -55,7 +46,7 @@ namespace __gnu_test
       bool
       write_position() 
       { 
-	bool one = this->pptr() != NULL; 
+	bool one = this->pptr() != 0; 
 	bool two = this->pptr() < this->epptr();
 	return one && two;
       }
@@ -63,7 +54,7 @@ namespace __gnu_test
       bool
       read_position()
       { 
-	bool one = this->gptr() != NULL; 
+	bool one = this->gptr() != 0; 
 	bool two = this->gptr() < this->egptr();
 	return one && two;
       }
@@ -71,21 +62,21 @@ namespace __gnu_test
       bool
       unbuffered() 
       { 
-	bool one = this->pbase() == NULL; 
-	bool two = this->pptr() == NULL; 
+	bool one = this->pbase() == 0; 
+	bool two = this->pptr() == 0; 
 	return one && two;
       }
   
       bool
       check_pointers()
       {
-	bool one   = this->eback() == NULL;
-	bool two   = this->gptr() == NULL;
-	bool three = this->egptr() == NULL;
+	bool one   = this->eback() == 0;
+	bool two   = this->gptr() == 0;
+	bool three = this->egptr() == 0;
 	
-	bool four  = this->pbase() == NULL;
-	bool five  = this->pptr() == NULL;
-	bool six   = this->epptr() == NULL;
+	bool four  = this->pbase() == 0;
+	bool five  = this->pptr() == 0;
+	bool six   = this->epptr() == 0;
 	return one && two && three && four && five && six;
       }
     };
@@ -152,7 +143,7 @@ namespace __gnu_test
       {
 	p[0] = char_type('s');
 	p[1] = char_type();
-	setg(p, p, p + 1); 
+	this->setg(p, p, p + 1);
       }
 
       virtual int_type underflow() 
@@ -284,37 +275,37 @@ namespace __gnu_test
     protected:
       iter_type 
       do_put(iter_type, ios_base&, char_type, bool) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
       
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, long) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
 
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, unsigned long) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
 
 #ifdef _GLIBCXX_USE_LONG_LONG 
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, long long) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
 
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, unsigned long long) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
 #endif
       
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, double) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
 
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, long double) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
       
       virtual iter_type 
       do_put(iter_type, ios_base&, char_type, const void*) const
-      { throw facet_error(); return iter_type(NULL); }
+      { throw facet_error(); return iter_type(0); }
     };
 
   typedef  fail_num_put<char>     fail_num_put_char;

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 2002-2007, AdaCore                     --
+--                     Copyright (C) 2002-2013, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,9 +31,11 @@ with Output;   use Output;
 
 with Interfaces.C.Strings; use Interfaces.C.Strings;
 
-with System;
-
 package body MLib.Utl is
+
+   Adalib_Path : String_Access := null;
+   --  Path of the GNAT adalib directory, specified in procedure
+   --  Specify_Adalib_Dir. Used in function Lib_Directory.
 
    Gcc_Name : String_Access;
    --  Default value of the "gcc" executable used in procedure Gcc
@@ -136,7 +138,7 @@ package body MLib.Utl is
 
    begin
       if Ar_Exec = null then
-         Ar_Name := Osint.Program_Name (Archive_Builder);
+         Ar_Name := Osint.Program_Name (Archive_Builder, "gnatmake");
          Ar_Exec := Locate_Exec_On_Path (Ar_Name.all);
 
          if Ar_Exec = null then
@@ -146,7 +148,7 @@ package body MLib.Utl is
          end if;
 
          if Ar_Exec = null then
-            Fail (Ar_Name.all, " not found in path");
+            Fail (Ar_Name.all & " not found in path");
 
          elsif Opt.Verbose_Mode then
             Write_Str  ("found ");
@@ -177,7 +179,7 @@ package body MLib.Utl is
 
          --  ranlib
 
-         Ranlib_Name := Osint.Program_Name (Archive_Indexer);
+         Ranlib_Name := Osint.Program_Name (Archive_Indexer, "gnatmake");
 
          if Ranlib_Name'Length > 0 then
             Ranlib_Exec := Locate_Exec_On_Path (Ranlib_Name.all);
@@ -271,7 +273,7 @@ package body MLib.Utl is
       end if;
 
       if not Success then
-         Fail (Ar_Name.all, " execution error.");
+         Fail (Ar_Name.all & " execution error.");
       end if;
 
       --  If we have found ranlib, run it over the library
@@ -289,7 +291,7 @@ package body MLib.Utl is
             Success);
 
          if not Success then
-            Fail (Ranlib_Name.all, " execution error.");
+            Fail (Ranlib_Name.all & " execution error.");
          end if;
       end if;
    end Ar;
@@ -299,7 +301,7 @@ package body MLib.Utl is
    -----------------
 
    procedure Delete_File (Filename : String) is
-      File    : constant String := Filename & ASCII.Nul;
+      File    : constant String := Filename & ASCII.NUL;
       Success : Boolean;
 
    begin
@@ -349,16 +351,15 @@ package body MLib.Utl is
       --  Pointer to a string representing the linker option which specifies
       --  the response file.
 
-      Using_GNU_Linker : Boolean;
-      for Using_GNU_Linker'Size use Character'Size;
-      pragma Import (C, Using_GNU_Linker, "__gnat_using_gnu_linker");
-      --  Predicate indicating whether this target uses the GNU linker. In
-      --  this case we must output a GNU linker compatible response file.
+      Object_File_Option : constant String := Value (Object_File_Option_Ptr);
+      --  The linker option which specifies the response file as a string
 
-      Opening : aliased constant String := """";
-      Closing : aliased constant String := '"' & ASCII.LF;
-      --  Needed to quote object paths in object list files when GNU linker
-      --  is used.
+      Using_GNU_response_file : constant Boolean :=
+                                  Object_File_Option'Length > 0
+                                    and then
+                                      Object_File_Option
+                                        (Object_File_Option'Last) = '@';
+      --  Whether a GNU response file is used
 
       Tname    : String_Access;
       Tname_FD : File_Descriptor := Invalid_FD;
@@ -386,7 +387,7 @@ package body MLib.Utl is
 
       Position : Object_Position;
 
-      procedure Write_RF (A : System.Address; N : Integer);
+      procedure Write_RF (S : String);
       --  Write a string to the response file and check if it was successful.
       --  Fail the program if it was not successful (disk full).
 
@@ -394,27 +395,58 @@ package body MLib.Utl is
       -- Write_RF --
       --------------
 
-      procedure Write_RF (A : System.Address; N : Integer) is
-         Status : Integer;
-      begin
-         Status := Write (Tname_FD, A, N);
+      procedure Write_RF (S : String) is
+         Success    : Boolean            := True;
+         Back_Slash : constant Character := '\';
 
-         if Status /= N then
+      begin
+         --  If a GNU response file is used, space and backslash need to be
+         --  escaped because they are interpreted as a string separator and
+         --  an escape character respectively by the underlying mechanism.
+         --  On the other hand, quote and double-quote are not escaped since
+         --  they are interpreted as string delimiters on both sides.
+
+         if Using_GNU_response_file then
+            for J in S'Range loop
+               if S (J) = ' ' or else S (J) = '\' then
+                  if Write (Tname_FD, Back_Slash'Address, 1) /= 1 then
+                     Success := False;
+                  end if;
+               end if;
+
+               if Write (Tname_FD, S (J)'Address, 1) /= 1 then
+                  Success := False;
+               end if;
+            end loop;
+
+         else
+            if Write (Tname_FD, S'Address, S'Length) /= S'Length then
+               Success := False;
+            end if;
+         end if;
+
+         if Write (Tname_FD, ASCII.LF'Address, 1) /= 1 then
+            Success := False;
+         end if;
+
+         if not Success then
             Fail ("cannot generate response file to link library: disk full");
          end if;
       end Write_RF;
+
+   --  Start of processing for Gcc
 
    begin
       if Driver_Name = No_Name then
          if Gcc_Exec = null then
             if Gcc_Name = null then
-               Gcc_Name :=  Osint.Program_Name ("gcc");
+               Gcc_Name := Osint.Program_Name ("gcc", "gnatmake");
             end if;
 
             Gcc_Exec := Locate_Exec_On_Path (Gcc_Name.all);
 
             if Gcc_Exec = null then
-               Fail (Gcc_Name.all, " not found in path");
+               Fail (Gcc_Name.all & " not found in path");
             end if;
          end if;
 
@@ -424,7 +456,7 @@ package body MLib.Utl is
          Driver := Locate_Exec_On_Path (Get_Name_String (Driver_Name));
 
          if Driver = null then
-            Fail (Get_Name_String (Driver_Name), " not found in path");
+            Fail (Get_Name_String (Driver_Name) & " not found in path");
          end if;
       end if;
 
@@ -456,11 +488,25 @@ package body MLib.Utl is
       end loop;
 
       if not Opt.Quiet_Output then
-         Write_Str (Driver.all);
+         if Opt.Verbose_Mode then
+            Write_Str (Driver.all);
+
+         elsif Driver_Name /= No_Name then
+            Write_Str (Get_Name_String (Driver_Name));
+
+         else
+            Write_Str (Gcc_Name.all);
+         end if;
 
          for J in 1 .. A loop
-            Write_Char (' ');
-            Write_Str  (Arguments (J).all);
+            if Opt.Verbose_Mode or else J < 4 then
+               Write_Char (' ');
+               Write_Str  (Arguments (J).all);
+
+            else
+               Write_Str (" ...");
+               exit;
+            end if;
          end loop;
 
          --  Do not display all the object files if not in verbose mode, only
@@ -476,10 +522,19 @@ package body MLib.Utl is
             elsif Position = Second then
                Write_Str (" ...");
                Position := Last;
+               exit;
             end if;
          end loop;
 
          for J in Options_2'Range loop
+            if not Opt.Verbose_Mode then
+               if Position = Second then
+                  Write_Str (" ...");
+               end if;
+
+               exit;
+            end if;
+
             Write_Char (' ');
             Write_Str (Options_2 (J).all);
          end loop;
@@ -496,59 +551,16 @@ package body MLib.Utl is
       end loop;
 
       if Object_List_File_Supported and then Link_Bytes > Link_Max then
+
          --  Create a temporary file containing the object files, one object
          --  file per line for maximal compatibility with linkers supporting
          --  this option.
 
          Create_Temp_File (Tname_FD, Tname);
 
-         --  If target is using the GNU linker we must add a special header
-         --  and footer in the response file.
-
-         --  The syntax is : INPUT (object1.o object2.o ... )
-
-         --  Because the GNU linker does not like name with characters such
-         --  as '!', we must put the object paths between double quotes.
-
-         if Using_GNU_Linker then
-            declare
-               GNU_Header : aliased constant String := "INPUT (";
-
-            begin
-               Write_RF (GNU_Header'Address, GNU_Header'Length);
-            end;
-         end if;
-
          for J in Objects'Range loop
-            --  Opening quote for GNU linker
-
-            if Using_GNU_Linker then
-               Write_RF (Opening'Address, 1);
-            end if;
-
-            Write_RF
-                (Objects (J).all'Address, Objects (J).all'Length);
-
-            --  Closing quote for GNU linker
-
-            if Using_GNU_Linker then
-               Write_RF (Closing'Address, 2);
-
-            else
-               Write_RF (ASCII.LF'Address, 1);
-            end if;
+            Write_RF (Objects (J).all);
          end loop;
-
-         --  Handle GNU linker response file footer
-
-         if Using_GNU_Linker then
-            declare
-               GNU_Footer : aliased constant String := ")";
-
-            begin
-               Write_RF (GNU_Footer'Address, GNU_Footer'Length);
-            end;
-         end if;
 
          Close (Tname_FD, Closing_Status);
 
@@ -557,8 +569,7 @@ package body MLib.Utl is
          end if;
 
          A := A + 1;
-         Arguments (A) :=
-           new String'(Value (Object_File_Option_Ptr) & Tname.all);
+         Arguments (A) := new String'(Object_File_Option & Tname.all);
 
       else
          A := A + Objects'Length;
@@ -570,21 +581,19 @@ package body MLib.Utl is
 
       Spawn (Driver.all, Arguments (1 .. A), Success);
 
-      if Tname /= null then
-         Delete_File (Tname.all, Closing_Status);
+      if Success then
+         --  Delete the temporary file used in conjunction with linking
+         --  if one was created.
 
-         if not Closing_Status then
-            Write_Str ("warning: could not delete response file """);
-            Write_Str (Tname.all);
-            Write_Line (""" to link library");
+         if Tname_FD /= Invalid_FD then
+            Delete_File (Tname.all);
          end if;
-      end if;
 
-      if not Success then
+      else
          if Driver_Name = No_Name then
-            Fail (Gcc_Name.all, " execution error");
+            Fail (Gcc_Name.all & " execution error");
          else
-            Fail (Get_Name_String (Driver_Name), " execution error");
+            Fail (Get_Name_String (Driver_Name) & " execution error");
          end if;
       end if;
    end Gcc;
@@ -597,6 +606,13 @@ package body MLib.Utl is
       Libgnat : constant String := Tgt.Libgnat;
 
    begin
+      --  If procedure Specify_Adalib_Dir has been called, used the specified
+      --  value.
+
+      if Adalib_Path /= null then
+         return Adalib_Path.all;
+      end if;
+
       Name_Len := Libgnat'Length;
       Name_Buffer (1 .. Name_Len) := Libgnat;
       Get_Name_String (Osint.Find_File (Name_Enter, Osint.Library));
@@ -605,5 +621,18 @@ package body MLib.Utl is
 
       return Name_Buffer (1 .. Name_Len - Libgnat'Length);
    end Lib_Directory;
+
+   ------------------------
+   -- Specify_Adalib_Dir --
+   ------------------------
+
+   procedure Specify_Adalib_Dir (Path : String) is
+   begin
+      if Path'Length = 0 then
+         Adalib_Path := null;
+      else
+         Adalib_Path := new String'(Path);
+      end if;
+   end Specify_Adalib_Dir;
 
 end MLib.Utl;

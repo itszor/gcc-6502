@@ -3,13 +3,13 @@
    files which are fixed to work correctly with ANSI C and placed in a
    directory that GCC will search.
 
-   Copyright (C) 1999, 2000, 2001, 2004 Free Software Foundation, Inc.
+   Copyright (C) 1999, 2000, 2001, 2004, 2009 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
 
 GCC is distributed in the hope that it will be useful,
@@ -18,9 +18,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+along with GCC; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 #include "fixlib.h"
 
@@ -259,14 +258,14 @@ make_raw_shell_str( char* pz_d, tCC* pz_s, size_t smax )
   *(pz_d++) = '\'';
 
   for (;;) {
-    if (pz_d - pz_d_start >= smax)
+    if ((size_t) (pz_d - pz_d_start) >= smax)
       return (char*)NULL;
     switch (*(pz_d++) = *(pz_s++)) {
     case NUL:
       goto loopDone;
 
     case '\'':
-      if (pz_d - pz_d_start >= smax - sizeof( zQ )-1)
+      if ((size_t) (pz_d - pz_d_start) >= smax - sizeof( zQ )-1)
 	return (char*)NULL;
       strcpy( pz_d-1, zQ );
       pz_d += sizeof( zQ )-2;

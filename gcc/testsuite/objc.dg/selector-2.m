@@ -2,7 +2,7 @@
 /* { dg-options "-Wselector" } */
 /* { dg-do compile } */
 
-#include <objc/Object.h>
+#include <objc/objc.h>
 
 @interface Foo
 @end

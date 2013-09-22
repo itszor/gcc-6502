@@ -1,4 +1,4 @@
-/* DoubleType.java -- 
+/* DoubleType.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -38,7 +38,6 @@ exception statement from your version. */
 package gnu.xml.validation.datatype;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
 import javax.xml.XMLConstants;
@@ -96,7 +95,7 @@ final class DoubleType
         throw e2;
       }
   }
-  
+
   public Object createValue(String literal, ValidationContext context) {
     try
       {
@@ -107,6 +106,5 @@ final class DoubleType
         return null;
       }
   }
-  
-}
 
+}

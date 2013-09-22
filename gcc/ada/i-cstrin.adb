@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -44,10 +42,10 @@ package body Interfaces.C.Strings is
    --  this type will in fact be used for aliasing values of other types.
 
    function To_chars_ptr is
-      new Ada.Unchecked_Conversion (Address, chars_ptr);
+      new Ada.Unchecked_Conversion (System.Parameters.C_Address, chars_ptr);
 
    function To_Address is
-      new Ada.Unchecked_Conversion (chars_ptr, Address);
+      new Ada.Unchecked_Conversion (chars_ptr, System.Parameters.C_Address);
 
    -----------------------
    -- Local Subprograms --
@@ -72,7 +70,7 @@ package body Interfaces.C.Strings is
    --  compatible, so we directly import here the malloc and free routines.
 
    function Memory_Alloc (Size : size_t) return chars_ptr;
-   pragma Import (C, Memory_Alloc, "__gnat_malloc");
+   pragma Import (C, Memory_Alloc, System.Parameters.C_Malloc_Linkname);
 
    procedure Memory_Free (Address : chars_ptr);
    pragma Import (C, Memory_Free, "__gnat_free");
@@ -109,7 +107,7 @@ package body Interfaces.C.Strings is
       Pointer : chars_ptr;
 
    begin
-      --  Get index of position of null. If Index > Chars'last,
+      --  Get index of position of null. If Index > Chars'Last,
       --  nul is absent and must be added explicitly.
 
       Index := Position_Of_Nul (Into => Chars);
@@ -130,7 +128,7 @@ package body Interfaces.C.Strings is
                  Offset => 0,
                  Chars  => Chars,
                  Check  => False);
-         Poke (nul, into => Pointer + size_t'(Chars'Length));
+         Poke (nul, Into => Pointer + size_t'(Chars'Length));
       end if;
 
       return Pointer;
@@ -141,8 +139,26 @@ package body Interfaces.C.Strings is
    ----------------
 
    function New_String (Str : String) return chars_ptr is
+
+      --  It's important that this subprogram uses the heap directly to compute
+      --  the result, and doesn't copy the string on the stack, otherwise its
+      --  use is limited when used from tasks on large strings.
+
+      Result : constant chars_ptr := Memory_Alloc (Str'Length + 1);
+
+      Result_Array : char_array  (1 .. Str'Length + 1);
+      for Result_Array'Address use To_Address (Result);
+      pragma Import (Ada, Result_Array);
+
+      Count : size_t;
+
    begin
-      return New_Char_Array (To_C (Str));
+      To_C
+        (Item       => Str,
+         Target     => Result_Array,
+         Count      => Count,
+         Append_Nul => True);
+      return Result;
    end New_String;
 
    ----------

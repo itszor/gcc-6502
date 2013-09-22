@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -32,7 +32,7 @@ package Exp_Fixd is
    --  General note on universal fixed. In the routines below, a fixed-point
    --  type is always a specific fixed-point type or universal real, never
    --  universal fixed. Universal fixed only appears as the result type of a
-   --  division or multplication and in all such cases, the parent node, which
+   --  division or multiplication and in all such cases, the parent node, which
    --  must be either a conversion node or a 'Round attribute reference node,
    --  has the specific type information. In both cases, the parent node is
    --  removed from the tree, and the appropriate routine in this package is
@@ -133,7 +133,7 @@ package Exp_Fixd is
    procedure Expand_Multiply_Integer_By_Fixed_Giving_Fixed (N : Node_Id);
    --  This routine expands the multiplication between standard integer and a
    --  fixed-point type. The result type is the same fixed-point type as the
-   --  the fixed operand type. N is an N_Op_Multiply node whose result type
+   --  fixed operand type. N is an N_Op_Multiply node whose result type
    --  and right operand types are the fixed-point type, and whose left operand
    --  type is always standard integer.
 

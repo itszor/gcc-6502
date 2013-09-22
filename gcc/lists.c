@@ -1,6 +1,5 @@
 /* List management for the GCC expander.
-   Copyright (C) 1987, 1988, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1987-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,7 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "rtl.h"
 #include "ggc.h"
 
@@ -50,12 +49,12 @@ free_list (rtx *listp, rtx *unused_listp)
 
   gcc_assert (unused_listp != &unused_insn_list
 	      || GET_CODE (prev_link) == INSN_LIST);
-  
+
   while (link)
     {
       gcc_assert (unused_listp != &unused_insn_list
 		  || GET_CODE (prev_link) == INSN_LIST);
-  
+
       prev_link = link;
       link = XEXP (link, 1);
     }
@@ -140,7 +139,7 @@ alloc_EXPR_LIST (int kind, rtx val, rtx next)
       PUT_REG_NOTE_KIND (r, kind);
     }
   else
-    r = gen_rtx_EXPR_LIST (kind, val, next);
+    r = gen_rtx_EXPR_LIST ((enum machine_mode) kind, val, next);
 
   return r;
 }
@@ -161,6 +160,37 @@ free_INSN_LIST_list (rtx *listp)
   if (*listp == 0)
     return;
   free_list (listp, &unused_insn_list);
+}
+
+/* Make a copy of the INSN_LIST list LINK and return it.  */
+rtx
+copy_INSN_LIST (rtx link)
+{
+  rtx new_queue;
+  rtx *pqueue = &new_queue;
+
+  for (; link; link = XEXP (link, 1))
+    {
+      rtx x = XEXP (link, 0);
+      rtx newlink = alloc_INSN_LIST (x, NULL);
+      *pqueue = newlink;
+      pqueue = &XEXP (newlink, 1);
+    }
+  *pqueue = NULL_RTX;
+  return new_queue;
+}
+
+/* Duplicate the INSN_LIST elements of COPY and prepend them to OLD.  */
+rtx
+concat_INSN_LIST (rtx copy, rtx old)
+{
+  rtx new_rtx = old;
+  for (; copy ; copy = XEXP (copy, 1))
+    {
+      new_rtx = alloc_INSN_LIST (XEXP (copy, 0), new_rtx);
+      PUT_REG_NOTE_KIND (new_rtx, REG_NOTE_KIND (copy));
+    }
+  return new_rtx;
 }
 
 /* This function will free up an individual EXPR_LIST node.  */
@@ -186,6 +216,32 @@ void
 remove_free_INSN_LIST_elem (rtx elem, rtx *listp)
 {
   free_INSN_LIST_node (remove_list_elem (elem, listp));
+}
+
+/* Remove and free the first node in the INSN_LIST pointed to by LISTP.  */
+rtx
+remove_free_INSN_LIST_node (rtx *listp)
+{
+  rtx node = *listp;
+  rtx elem = XEXP (node, 0);
+
+  remove_list_node (listp);
+  free_INSN_LIST_node (node);
+
+  return elem;
+}
+
+/* Remove and free the first node in the EXPR_LIST pointed to by LISTP.  */
+rtx
+remove_free_EXPR_LIST_node (rtx *listp)
+{
+  rtx node = *listp;
+  rtx elem = XEXP (node, 0);
+
+  remove_list_node (listp);
+  free_EXPR_LIST_node (node);
+
+  return elem;
 }
 
 #include "gt-lists.h"

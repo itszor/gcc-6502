@@ -101,7 +101,7 @@ public class Native2ASCII
         encoding = argument;
       }
     });
-    result.add(new Option("reverse", Messages.getString("Native2ASCII.ReversedHelp")) //$NON-NLS-1$ //$NON-NLS-2$
+    result.add(new Option("reverse", Messages.getString("Native2ASCII.ReverseHelp")) //$NON-NLS-1$ //$NON-NLS-2$
     {
       public void parsed(String argument) throws OptionException
       {
@@ -148,7 +148,7 @@ public class Native2ASCII
             String s = rdr.readLine();
             if (s == null)
               break;
-            StringBuffer sb = new StringBuffer(s.length() + 80);
+            StringBuilder sb = new StringBuilder(s.length() + 80);
             for (int i = 0; i < s.length(); i++)
               {
                 char c = s.charAt(i);

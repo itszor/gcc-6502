@@ -6,7 +6,7 @@
    should be identical.  */
 
 /* { dg-do compile } */
-/* { dg-options "-save-temps -ansi -pedantic-errors" } */
+/* { dg-options "-save-temps -ansi -pedantic-errors -ftrack-macro-expansion=0" } */
 
 #define HASH #
 #define HASHDEFINE #define
@@ -22,13 +22,13 @@ int resync_parser_2;
 
 void g1 ()
 {
-HASH define X 1 /* { dg-error "stray|undeclared|parse|syntax|expected|for each" "# from macro" } */
+HASH define X 1 /* { dg-error "stray|unknown|expected" "# from macro" } */
   int resync_parser_3;
 }
 
 void g2 ()
 {
-HASHDEFINE  Y 1 /* { dg-error "stray|undeclared|parse|syntax|expected|for each" "#define from macro" } */
+HASHDEFINE  Y 1 /* { dg-error "stray|unknown|expected" "#define from macro" } */
   int resync_parser_4;
 }
 

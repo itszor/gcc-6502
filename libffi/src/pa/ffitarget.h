@@ -1,5 +1,6 @@
 /* -----------------------------------------------------------------*-C-*-
-   ffitarget.h - Copyright (c) 1996-2003  Red Hat, Inc.
+   ffitarget.h - Copyright (c) 2012  Anthony Green
+                 Copyright (c) 1996-2003  Red Hat, Inc.
    Target configuration macros for hppa.
 
    Permission is hereby granted, free of charge, to any person obtaining
@@ -13,18 +14,23 @@
    The above copyright notice and this permission notice shall be included
    in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-   IN NO EVENT SHALL CYGNUS SOLUTIONS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-   OTHER DEALINGS IN THE SOFTWARE.
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
 
    ----------------------------------------------------------------------- */
 
 #ifndef LIBFFI_TARGET_H
 #define LIBFFI_TARGET_H
+
+#ifndef LIBFFI_H
+#error "Please do not include ffitarget.h directly into your source.  Use ffi.h instead."
+#endif
 
 /* ---- System specific configurations ----------------------------------- */
 
@@ -37,21 +43,22 @@ typedef enum ffi_abi {
 
 #ifdef PA_LINUX
   FFI_PA32,
-  FFI_DEFAULT_ABI = FFI_PA32,
+  FFI_LAST_ABI,
+  FFI_DEFAULT_ABI = FFI_PA32
 #endif
 
 #ifdef PA_HPUX
   FFI_PA32,
-  FFI_DEFAULT_ABI = FFI_PA32,
+  FFI_LAST_ABI,
+  FFI_DEFAULT_ABI = FFI_PA32
 #endif
 
 #ifdef PA64_HPUX
 #error "PA64_HPUX FFI is not yet implemented"
   FFI_PA64,
-  FFI_DEFAULT_ABI = FFI_PA64,
+  FFI_LAST_ABI,
+  FFI_DEFAULT_ABI = FFI_PA64
 #endif
-
-  FFI_LAST_ABI = FFI_DEFAULT_ABI + 1
 } ffi_abi;
 #endif
 

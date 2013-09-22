@@ -69,7 +69,8 @@ public class MBeanServerDelegate
   /**
    * The listeners registered with the delegate.
    */
-  private final List listeners = new ArrayList();
+  private final List<ListenerData> listeners =
+    new ArrayList<ListenerData>();
 
   /**
    * The sequence identifier used by the delegate.
@@ -114,8 +115,8 @@ public class MBeanServerDelegate
    * @see #removeNotificationListener(NotificationListener)
    */
   public void addNotificationListener(NotificationListener listener,
-				      NotificationFilter filter,
-				      Object passback)
+                                      NotificationFilter filter,
+                                      Object passback)
     throws IllegalArgumentException
   {
     if (listener == null)
@@ -174,15 +175,15 @@ public class MBeanServerDelegate
    */
   public MBeanNotificationInfo[] getNotificationInfo()
   {
-    return new MBeanNotificationInfo[] 
+    return new MBeanNotificationInfo[]
       {
-	new MBeanNotificationInfo(new String[]
-	  {
-	    MBeanServerNotification.REGISTRATION_NOTIFICATION,
-	    MBeanServerNotification.UNREGISTRATION_NOTIFICATION,
-	  },
-				  MBeanServerNotification.class.getName(),
-				  "Server registration notifications")
+        new MBeanNotificationInfo(new String[]
+          {
+            MBeanServerNotification.REGISTRATION_NOTIFICATION,
+            MBeanServerNotification.UNREGISTRATION_NOTIFICATION,
+          },
+                                  MBeanServerNotification.class.getName(),
+                                  "Server registration notifications")
       };
   }
 
@@ -234,20 +235,19 @@ public class MBeanServerDelegate
   public void removeNotificationListener(NotificationListener listener)
     throws ListenerNotFoundException
   {
-    Iterator it = listeners.iterator();
+    Iterator<ListenerData> it = listeners.iterator();
     boolean foundOne = false;
     while (it.hasNext())
       {
-	ListenerData data = (ListenerData) it.next();
-	if (data.getListener() == listener)
-	  {
-	    it.remove();
-	    foundOne = true;
-	  }
+        if (it.next().getListener() == listener)
+          {
+            it.remove();
+            foundOne = true;
+          }
       }
     if (!foundOne)
       throw new ListenerNotFoundException("The specified listener, " + listener +
-					  "is not registered with this bean.");
+                                          "is not registered with this bean.");
   }
 
   /**
@@ -269,16 +269,16 @@ public class MBeanServerDelegate
    * @see #removeNotificationListener(NotificationListener)
    */
   public void removeNotificationListener(NotificationListener listener,
-					 NotificationFilter filter,
-					 Object passback)
+                                         NotificationFilter filter,
+                                         Object passback)
     throws ListenerNotFoundException
   {
     if (!(listeners.remove(new ListenerData(listener, filter, passback))))
       {
-	throw new ListenerNotFoundException("The specified listener, " + listener +
-					    " with filter " + filter + 
-					    "and passback " + passback + 
-					    ", is not registered with this bean.");
+        throw new ListenerNotFoundException("The specified listener, " + listener +
+                                            " with filter " + filter +
+                                            "and passback " + passback +
+                                            ", is not registered with this bean.");
       }
   }
 
@@ -293,13 +293,11 @@ public class MBeanServerDelegate
   {
     if (notification.getSequenceNumber() <= 0)
       notification.setSequenceNumber(++seqNo);
-    Iterator it = listeners.iterator();
-    while (it.hasNext())
+    for (ListenerData ldata : listeners)
       {
-	ListenerData ldata = (ListenerData) it.next();
-	NotificationFilter filter = ldata.getFilter();
-	if (filter == null || filter.isNotificationEnabled(notification))
-	  ldata.getListener().handleNotification(notification, ldata.getPassback());
+        NotificationFilter filter = ldata.getFilter();
+        if (filter == null || filter.isNotificationEnabled(notification))
+          ldata.getListener().handleNotification(notification, ldata.getPassback());
       }
   }
 

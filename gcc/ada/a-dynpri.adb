@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -32,21 +30,9 @@
 ------------------------------------------------------------------------------
 
 with System.Task_Primitives.Operations;
---  used for Write_Lock
---           Unlock
---           Set_Priority
---           Wakeup
---           Self
-
 with System.Tasking;
---  used for Task_Id
-
 with System.Parameters;
---  used for Single_Lock
-
 with System.Soft_Links;
---  use for Abort_Defer
---          Abort_Undefer
 
 with Ada.Unchecked_Conversion;
 
@@ -81,7 +67,7 @@ package body Ada.Dynamic_Priorities is
       end if;
 
       if Task_Identification.Is_Terminated (T) then
-         raise Tasking_Error with Error_Message & "null task";
+         raise Tasking_Error with Error_Message & "terminated task";
       end if;
 
       return Target.Common.Base_Priority;
@@ -96,7 +82,7 @@ package body Ada.Dynamic_Priorities is
    procedure Set_Priority
      (Priority : System.Any_Priority;
       T        : Ada.Task_Identification.Task_Id :=
-                   Ada.Task_Identification.Current_Task)
+        Ada.Task_Identification.Current_Task)
    is
       Target        : constant Task_Id := Convert_Ids (T);
       Error_Message : constant String := "Trying to set the priority of a ";
@@ -107,8 +93,12 @@ package body Ada.Dynamic_Priorities is
          raise Program_Error with Error_Message & "null task";
       end if;
 
+      --  Setting the priority of an already-terminated task doesn't do
+      --  anything (see RM-D.5.1(7)). Note that Get_Priority is different in
+      --  this regard.
+
       if Task_Identification.Is_Terminated (T) then
-         raise Tasking_Error with Error_Message & "terminated task";
+         return;
       end if;
 
       SSL.Abort_Defer.all;

@@ -52,12 +52,12 @@ import org.omg.CORBA.TypeCodePackage.BadKind;
 public class FixedTypeCode
   extends PrimitiveTypeCode
 {
-  /** 
-   * Use serialVersionUID for interoperability. 
+  /**
+   * Use serialVersionUID for interoperability.
    */
   private static final long serialVersionUID = 1;
-  
-  
+
+
   /**
    * The number of the used digits.
    */
@@ -109,7 +109,7 @@ public class FixedTypeCode
   /**
    * Get the number of digits in thid BigDecimal
    *
-   * @param x a BigDecimal to check.
+   * @param number a BigDecimal to check.
    */
   public static int countDigits(BigDecimal number)
   {

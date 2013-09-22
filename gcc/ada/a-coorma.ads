@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,28 +14,28 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
 
-with Ada.Containers.Red_Black_Trees;
-with Ada.Finalization;
-with Ada.Streams;
+with Ada.Iterator_Interfaces;
+
+private with Ada.Containers.Red_Black_Trees;
+private with Ada.Finalization;
+private with Ada.Streams;
 
 generic
    type Key_Type is private;
@@ -50,8 +50,11 @@ package Ada.Containers.Ordered_Maps is
 
    function Equivalent_Keys (Left, Right : Key_Type) return Boolean;
 
-   type Map is tagged private;
-   pragma Preelaborable_Initialization (Map);
+   type Map is tagged private with
+      Constant_Indexing => Constant_Reference,
+      Variable_Indexing => Reference,
+      Default_Iterator  => Iterate,
+      Iterator_Element  => Element_Type;
 
    type Cursor is private;
    pragma Preelaborable_Initialization (Cursor);
@@ -59,6 +62,11 @@ package Ada.Containers.Ordered_Maps is
    Empty_Map : constant Map;
 
    No_Element : constant Cursor;
+
+   function Has_Element (Position : Cursor) return Boolean;
+
+   package Map_Iterator_Interfaces is new
+     Ada.Iterator_Interfaces (Cursor, Has_Element);
 
    function "=" (Left, Right : Map) return Boolean;
 
@@ -87,6 +95,39 @@ package Ada.Containers.Ordered_Maps is
       Position  : Cursor;
       Process   : not null access
                    procedure (Key : Key_Type; Element : in out Element_Type));
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   type Reference_Type (Element : not null access Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Position  : Cursor) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Map;
+      Position  : Cursor) return Reference_Type;
+   pragma Inline (Reference);
+
+   function Constant_Reference
+     (Container : aliased Map;
+      Key       : Key_Type) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Map;
+      Key       : Key_Type) return Reference_Type;
+   pragma Inline (Reference);
+
+   procedure Assign (Target : in out Map; Source : Map);
+
+   function Copy (Source : Map) return Map;
 
    procedure Move (Target : in out Map; Source : in out Map);
 
@@ -158,8 +199,6 @@ package Ada.Containers.Ordered_Maps is
 
    function Contains (Container : Map; Key : Key_Type) return Boolean;
 
-   function Has_Element (Position : Cursor) return Boolean;
-
    function "<" (Left, Right : Cursor) return Boolean;
 
    function ">" (Left, Right : Cursor) return Boolean;
@@ -180,6 +219,19 @@ package Ada.Containers.Ordered_Maps is
      (Container : Map;
       Process   : not null access procedure (Position : Cursor));
 
+   --  The map container supports iteration in both the forward and reverse
+   --  directions, hence these constructor functions return an object that
+   --  supports the Reversible_Iterator interface.
+
+   function Iterate
+     (Container : Map)
+      return Map_Iterator_Interfaces.Reversible_Iterator'class;
+
+   function Iterate
+     (Container : Map;
+      Start     : Cursor)
+      return Map_Iterator_Interfaces.Reversible_Iterator'class;
+
 private
 
    pragma Inline (Next);
@@ -194,25 +246,36 @@ private
       Right   : Node_Access;
       Color   : Red_Black_Trees.Color_Type := Red_Black_Trees.Red;
       Key     : Key_Type;
-      Element : Element_Type;
+      Element : aliased Element_Type;
    end record;
 
-   package Tree_Types is new Red_Black_Trees.Generic_Tree_Types
-     (Node_Type,
-      Node_Access);
+   package Tree_Types is
+     new Red_Black_Trees.Generic_Tree_Types (Node_Type, Node_Access);
 
    type Map is new Ada.Finalization.Controlled with record
       Tree : Tree_Types.Tree_Type;
    end record;
 
-   procedure Adjust (Container : in out Map);
+   overriding procedure Adjust (Container : in out Map);
 
-   procedure Finalize (Container : in out Map) renames Clear;
+   overriding procedure Finalize (Container : in out Map) renames Clear;
 
    use Red_Black_Trees;
    use Tree_Types;
    use Ada.Finalization;
    use Ada.Streams;
+
+   procedure Write
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : Map);
+
+   for Map'Write use Write;
+
+   procedure Read
+     (Stream    : not null access Root_Stream_Type'Class;
+      Container : out Map);
+
+   for Map'Read use Read;
 
    type Map_Access is access all Map;
    for Map_Access'Storage_Size use 0;
@@ -234,19 +297,52 @@ private
 
    for Cursor'Read use Read;
 
-   No_Element : constant Cursor := Cursor'(null, null);
+   type Reference_Control_Type is
+      new Controlled with record
+         Container : Map_Access;
+      end record;
 
-   procedure Write
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : Map);
+   overriding procedure Adjust (Control : in out Reference_Control_Type);
+   pragma Inline (Adjust);
 
-   for Map'Write use Write;
+   overriding procedure Finalize (Control : in out Reference_Control_Type);
+   pragma Inline (Finalize);
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
 
    procedure Read
-     (Stream    : not null access Root_Stream_Type'Class;
-      Container : out Map);
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type);
 
-   for Map'Read use Read;
+   for Constant_Reference_Type'Read use Read;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type);
+
+   for Constant_Reference_Type'Write use Write;
+
+   type Reference_Type
+      (Element : not null access Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Reference_Type);
+
+   for Reference_Type'Read use Read;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Reference_Type);
+
+   for Reference_Type'Write use Write;
 
    Empty_Map : constant Map :=
                  (Controlled with Tree => (First  => null,
@@ -255,5 +351,7 @@ private
                                            Length => 0,
                                            Busy   => 0,
                                            Lock   => 0));
+
+   No_Element : constant Cursor := Cursor'(null, null);
 
 end Ada.Containers.Ordered_Maps;

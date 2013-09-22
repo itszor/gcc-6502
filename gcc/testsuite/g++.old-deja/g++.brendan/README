@@ -1,3 +1,4 @@
+R.I.P. Brendan Patrick Kehoe, December 3, 1970 - July 19, 2011.
 
 abstract	- abstract functions
 alignof		- gcc alignof builtin
@@ -38,3 +39,9 @@ union		- handling unions
 visibility	- access control and visibility checking
 warnings	- warning messages
 
+
+Copyright (C) 1997-2013 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

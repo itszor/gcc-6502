@@ -1,5 +1,5 @@
 /* v850 specific, C compiler specific functions.
-   Copyright (C) 2000, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Jeff Law (law@cygnus.com).
 
 This file is part of GCC.
@@ -24,8 +24,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "cpplib.h"
 #include "tree.h"
-#include "c-pragma.h"
-#include "toplev.h"
+#include "c-family/c-pragma.h"
+#include "diagnostic-core.h"
 #include "ggc.h"
 #include "tm_p.h"
 
@@ -114,13 +114,14 @@ mark_current_function_as_interrupt (void)
 void
 ghs_pragma_section (cpp_reader * pfile ATTRIBUTE_UNUSED)
 {
-  int repeat;
+  int repeat = 0;
 
   /* #pragma ghs section [name = alias [, name = alias [, ...]]] */
   do
     {
       tree x;
       enum cpp_ttype type;
+      tree sect_ident;
       const char *sect, *alias;
       enum GHS_section_kind kind;
       
@@ -129,7 +130,10 @@ ghs_pragma_section (cpp_reader * pfile ATTRIBUTE_UNUSED)
       if (type == CPP_EOF && !repeat)
 	goto reset;
       else if (type == CPP_NAME)
-	sect = IDENTIFIER_POINTER (x);
+	{
+	  sect_ident = x;
+	  sect = IDENTIFIER_POINTER (sect_ident);
+	}
       else
 	goto bad;
       repeat = 0;
@@ -162,7 +166,7 @@ ghs_pragma_section (cpp_reader * pfile ATTRIBUTE_UNUSED)
       else if (streq (sect, "zbss"))    kind = GHS_SECTION_KIND_ZDATA;
       else
 	{
-	  warning (0, "unrecognized section name \"%s\"", sect);
+	  warning (0, "unrecognized section name %qE", sect_ident);
 	  return;
 	}
       

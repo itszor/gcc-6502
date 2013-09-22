@@ -1,14 +1,13 @@
 /* PR c++/30917 */
 /* This used to ICE */
-/* { dg-do "compile" } */
+/* { dg-do compile } */
 
 
-// This is invalid: QGList must only be looked up in count.
 class QGList;
 unsigned count() {
   class QGListIterator {
     friend class QGList;
-    QGListIterator( const QGList & ); /* { dg-error "expected|with no type" } */
+    QGListIterator( const QGList & ); // OK, finds ::QGList.
   };
   return 0;
 }

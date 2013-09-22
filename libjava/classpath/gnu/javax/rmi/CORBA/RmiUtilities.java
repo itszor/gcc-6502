@@ -1,6 +1,6 @@
 /* RmiUtilities.java --
    Copyright (C) 2005 Free Software Foundation, Inc.
-   
+
 This file is part of GNU Classpath.
 
 GNU Classpath is free software; you can redistribute it and/or modify
@@ -46,6 +46,8 @@ import gnu.CORBA.CDR.gnuRuntime;
 import gnu.CORBA.CDR.gnuValueStream;
 import gnu.CORBA.CDR.HeadlessInput;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.omg.CORBA.MARSHAL;
 import org.omg.CORBA.StringValueHelper;
 import org.omg.CORBA.WStringValueHelper;
@@ -85,7 +87,7 @@ import javax.rmi.CORBA.Util;
 
 /**
  * Defines methods that must be accessible in several derived classes.
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (AudriusA@Bioinformatics.org)
  */
 public class RmiUtilities
@@ -393,7 +395,7 @@ public class RmiUtilities
    */
   public static String toHex(long l)
   {
-    StringBuffer b = new StringBuffer();
+    CPStringBuilder b = new CPStringBuilder();
     b.append(Long.toHexString(l).toUpperCase());
     while (b.length() < 16)
       b.insert(0, '0');
@@ -425,7 +427,7 @@ public class RmiUtilities
       return "V";
     else if (type.isArray())
       {
-        StringBuffer l = new StringBuffer("[");
+        CPStringBuilder l = new CPStringBuilder("[");
         Class component = type.getComponentType();
 
         while (component.isArray())
@@ -536,7 +538,7 @@ public class RmiUtilities
    * Write data to the CORBA output stream. Writes the object contents only; the
    * header must be already written. For object, containing objects, may be
    * called recursively.
-   * 
+   *
    * @param an_output a stream to write to, must be
    * org.omg.CORBA_2_3.portable.OutputStream
    * @param object an object to write.
@@ -565,7 +567,7 @@ public class RmiUtilities
    * Write data to the CORBA output stream. Writes the object contents only; the
    * header must be already written. For object, containing objects, may be
    * called recursively.
-   * 
+   *
    * @param an_output a stream to write to, must be
    * org.omg.CORBA_2_3.portable.OutputStream
    * @param object an object to write.
@@ -677,7 +679,7 @@ public class RmiUtilities
    * Read data from the CDR input stream. Reads the object contents only; the
    * header must be already read (the repository id or ids ara passed). For
    * object, containing objects, may be called recursively.
-   * 
+   *
    * @param an_input the stream to read from, must be
    * org.omg.CORBA_2_3.portable.InputStream
    * @param object the instance of the object being read.
@@ -687,7 +689,7 @@ public class RmiUtilities
    * were specified.
    * @param codebase the codebase, if it was included in the header of the value
    * type. Null if not codebase was included.
-   * 
+   *
    * @return the object, extracted from the stream.
    */
   /**
@@ -700,13 +702,14 @@ public class RmiUtilities
     if (in instanceof HeadlessInput)
       ((HeadlessInput) in).subsequentCalls = true;
 
-    gnuRuntime g;
+    gnuRuntime g = null;
     Serializable object = null;
 
     try
       {
         g = (gnuRuntime) sender;
-        object = g.target;
+        if (sender != null)
+          object = g.target;
       }
     catch (ClassCastException e)
       {
@@ -757,7 +760,7 @@ public class RmiUtilities
 
     if (object == null)
       object = instantiate(offset, clz, g);
-    
+
     // The sentence below prevents attempt to read the internal fields of the
     // ObjectImpl (or RMI Stub) that might follow the object definition.
     // Sun's jre 1.5 does not write this information. The stubs, generated

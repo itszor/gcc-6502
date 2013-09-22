@@ -1,17 +1,18 @@
 /* { dg-do compile } */
-/* { dg-options "-O2" } */
+/* { dg-skip-if "" { *-*-* } { "-O0" } { "" } } */
+/* { dg-options "-ffat-lto-objects" } */
 
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
 typedef uint8_t byte;
 typedef uint32_t u32bit;
-typedef unsigned int size_t;
+__extension__ typedef __SIZE_TYPE__ size_t;
 extern "C" {
     extern void __warn_memset_zero_len (void) __attribute__((__warning__ ("")));
     extern __inline __attribute__ ((__always_inline__)) __attribute__ ((__gnu_inline__, __artificial__))
     void * memset (void *__dest, int __ch, size_t __len) throw () {
 	if (__builtin_constant_p (__len) && __len == 0)
-	    __warn_memset_zero_len (); /* { dg-warning "" } */
+	    __warn_memset_zero_len (); /* { dg-warning "declared with attribute warning" } */
     }
 }
 inline void clear_mem(void* ptr, u32bit n)    {
@@ -48,7 +49,7 @@ template<typename T> void MemoryRegion<T>::create(u32bit n)    {
 template<typename T> class SecureVector : public MemoryRegion<T>    {
 public:
     SecureVector<T>& operator=(const MemoryRegion<T>& in)          {
-	if(this != &in) set(in);
+	if(this != &in) this->set(in);
     }
 };
 class OctetString    {
@@ -69,6 +70,7 @@ OctetString& OctetString::operator^=(const OctetString& k)    {
 	bits.clear();
     }
 }
-bool operator==(const OctetString& s1, const OctetString& s2)    {
+bool __attribute__((flatten))
+operator==(const OctetString& s1, const OctetString& s2)    {
     return (s1.bits_of() == s2.bits_of());
 }

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,19 +34,6 @@ package body Prj.PP is
 
    Not_Tested : array (Project_Node_Kind) of Boolean := (others => True);
 
-   Max_Line_Length : constant := 255;
-   --  Maximum length of a line. This is chosen to be compatible with older
-   --  versions of GNAT that had a strict limit on the maximum line length.
-
-   Column : Natural := 0;
-   --  Column number of the last character in the line. Used to avoid
-   --  outputing lines longer than Max_Line_Length.
-
-   First_With_In_List : Boolean := True;
-   --  Indicate that the next with clause is first in a list such as
-   --    with "A", "B";
-   --  First_With_In_List will be True for "A", but not for "B".
-
    procedure Indicate_Tested (Kind : Project_Node_Kind);
    --  Set the corresponding component of array Not_Tested to False.
    --  Only called by pragmas Debug.
@@ -67,13 +54,16 @@ package body Prj.PP is
    procedure Pretty_Print
      (Project                            : Prj.Tree.Project_Node_Id;
       In_Tree                            : Prj.Tree.Project_Node_Tree_Ref;
-      Increment                          : Positive      := 3;
-      Eliminate_Empty_Case_Constructions : Boolean       := False;
-      Minimize_Empty_Lines               : Boolean       := False;
-      W_Char                             : Write_Char_Ap := null;
-      W_Eol                              : Write_Eol_Ap  := null;
-      W_Str                              : Write_Str_Ap  := null;
-      Backward_Compatibility             : Boolean)
+      Increment                          : Positive       := 3;
+      Eliminate_Empty_Case_Constructions : Boolean        := False;
+      Minimize_Empty_Lines               : Boolean        := False;
+      W_Char                             : Write_Char_Ap  := null;
+      W_Eol                              : Write_Eol_Ap   := null;
+      W_Str                              : Write_Str_Ap   := null;
+      Backward_Compatibility             : Boolean;
+      Id                                 : Prj.Project_Id := Prj.No_Project;
+      Max_Line_Length                    : Max_Length_Of_Line :=
+                                             Max_Length_Of_Line'Last)
    is
       procedure Print (Node : Project_Node_Id; Indent : Natural);
       --  A recursive procedure that traverses a project file tree and outputs
@@ -81,28 +71,35 @@ package body Prj.PP is
       --  is used when printing attributes, since in nested packages they
       --  need to use a fully qualified name.
 
-      procedure Output_Attribute_Name (Name : Name_Id);
+      procedure Output_Attribute_Name (Name : Name_Id; Indent : Natural);
       --  Outputs an attribute name, taking into account the value of
       --  Backward_Compatibility.
 
-      procedure Output_Name (Name : Name_Id; Capitalize : Boolean := True);
+      procedure Output_Name
+        (Name       : Name_Id;
+         Indent     : Natural;
+         Capitalize : Boolean := True);
       --  Outputs a name
 
       procedure Start_Line (Indent : Natural);
       --  Outputs the indentation at the beginning of the line
 
-      procedure Output_String (S : Name_Id);
-      procedure Output_String (S : Path_Name_Type);
+      procedure Output_String (S : Name_Id; Indent : Natural);
+      procedure Output_String (S : Path_Name_Type; Indent : Natural);
       --  Outputs a string using the default output procedures
 
       procedure Write_Empty_Line (Always : Boolean := False);
       --  Outputs an empty line, only if the previous line was not empty
-      --  already and either Always is True or Minimize_Empty_Lines is False.
+      --  already and either Always is True or Minimize_Empty_Lines is
+      --  False.
 
       procedure Write_Line (S : String);
       --  Outputs S followed by a new line
 
-      procedure Write_String (S : String; Truncated : Boolean := False);
+      procedure Write_String
+        (S         : String;
+         Indent    : Natural;
+         Truncated : Boolean := False);
       --  Outputs S using Write_Str, starting a new line if line would
       --  become too long, when Truncated = False.
       --  When Truncated = True, only the part of the string that can fit on
@@ -111,39 +108,48 @@ package body Prj.PP is
       procedure Write_End_Of_Line_Comment (Node : Project_Node_Id);
 
       Write_Char : Write_Char_Ap := Output.Write_Char'Access;
-      Write_Eol  : Write_Eol_Ap  := Output.Write_Eol'Access;
-      Write_Str  : Write_Str_Ap  := Output.Write_Str'Access;
+      Write_Eol  : Write_Eol_Ap := Output.Write_Eol'Access;
+      Write_Str  : Write_Str_Ap := Output.Write_Str'Access;
       --  These three access to procedure values are used for the output
 
       Last_Line_Is_Empty : Boolean := False;
       --  Used to avoid two consecutive empty lines
 
+      Column : Natural := 0;
+      --  Column number of the last character in the line. Used to avoid
+      --  outputting lines longer than Max_Line_Length.
+
+      First_With_In_List : Boolean := True;
+      --  Indicate that the next with clause is first in a list such as
+      --    with "A", "B";
+      --  First_With_In_List will be True for "A", but not for "B".
+
       ---------------------------
       -- Output_Attribute_Name --
       ---------------------------
 
-      procedure Output_Attribute_Name (Name : Name_Id) is
+      procedure Output_Attribute_Name (Name : Name_Id; Indent : Natural) is
       begin
          if Backward_Compatibility then
             case Name is
                when Snames.Name_Spec =>
-                  Output_Name (Snames.Name_Specification);
+                  Output_Name (Snames.Name_Specification, Indent);
 
                when Snames.Name_Spec_Suffix =>
-                  Output_Name (Snames.Name_Specification_Suffix);
+                  Output_Name (Snames.Name_Specification_Suffix, Indent);
 
                when Snames.Name_Body =>
-                  Output_Name (Snames.Name_Implementation);
+                  Output_Name (Snames.Name_Implementation, Indent);
 
                when Snames.Name_Body_Suffix =>
-                  Output_Name (Snames.Name_Implementation_Suffix);
+                  Output_Name (Snames.Name_Implementation_Suffix, Indent);
 
                when others =>
-                  Output_Name (Name);
+                  Output_Name (Name, Indent);
             end case;
 
          else
-            Output_Name (Name);
+            Output_Name (Name, Indent);
          end if;
       end Output_Attribute_Name;
 
@@ -151,10 +157,18 @@ package body Prj.PP is
       -- Output_Name --
       -----------------
 
-      procedure Output_Name (Name : Name_Id; Capitalize : Boolean := True) is
+      procedure Output_Name
+        (Name       : Name_Id;
+         Indent     : Natural;
+         Capitalize : Boolean := True)
+      is
          Capital : Boolean := Capitalize;
 
       begin
+         if Column = 0 and then Indent /= 0 then
+            Start_Line (Indent + Increment);
+         end if;
+
          Get_Name_String (Name);
 
          --  If line would become too long, create new line
@@ -162,6 +176,10 @@ package body Prj.PP is
          if Column + Name_Len > Max_Line_Length then
             Write_Eol.all;
             Column := 0;
+
+            if Indent /= 0 then
+               Start_Line (Indent + Increment);
+            end if;
          end if;
 
          for J in 1 .. Name_Len loop
@@ -185,18 +203,26 @@ package body Prj.PP is
       -- Output_String --
       -------------------
 
-      procedure Output_String (S : Name_Id) is
+      procedure Output_String (S : Name_Id; Indent : Natural) is
       begin
+         if Column = 0 and then Indent /= 0 then
+            Start_Line (Indent + Increment);
+         end if;
+
          Get_Name_String (S);
 
-         --  If line could become too long, create new line.
-         --  Note that the number of characters on the line could be
-         --  twice the number of character in the string (if every
-         --  character is a '"') plus two (the initial and final '"').
+         --  If line could become too long, create new line. Note that the
+         --  number of characters on the line could be twice the number of
+         --  character in the string (if every character is a '"') plus two
+         --  (the initial and final '"').
 
          if Column + Name_Len + Name_Len + 2 > Max_Line_Length then
             Write_Eol.all;
             Column := 0;
+
+            if Indent /= 0 then
+               Start_Line (Indent + Increment);
+            end if;
          end if;
 
          Write_Char ('"');
@@ -213,14 +239,16 @@ package body Prj.PP is
                Column := Column + 1;
             end if;
 
-            --  If the string does not fit on one line, cut it in parts
-            --  and concatenate.
+            --  If the string does not fit on one line, cut it in parts and
+            --  concatenate.
 
             if J < Name_Len and then Column >= Max_Line_Length then
                Write_Str (""" &");
                Write_Eol.all;
+               Column := 0;
+               Start_Line (Indent + Increment);
                Write_Char ('"');
-               Column := 1;
+               Column := Column + 1;
             end if;
          end loop;
 
@@ -228,9 +256,9 @@ package body Prj.PP is
          Column := Column + 1;
       end Output_String;
 
-      procedure Output_String (S : Path_Name_Type) is
+      procedure Output_String (S : Path_Name_Type; Indent : Natural) is
       begin
-         Output_String (Name_Id (S));
+         Output_String (Name_Id (S), Indent);
       end Output_String;
 
       ----------------
@@ -268,8 +296,8 @@ package body Prj.PP is
 
       begin
          if Value /= No_Name then
-            Write_String (" --");
-            Write_String (Get_Name_String (Value), Truncated => True);
+            Write_String (" --", 0);
+            Write_String (Get_Name_String (Value), 0, Truncated => True);
          end if;
 
          Write_Line ("");
@@ -281,7 +309,7 @@ package body Prj.PP is
 
       procedure Write_Line (S : String) is
       begin
-         Write_String (S);
+         Write_String (S, 0);
          Last_Line_Is_Empty := False;
          Write_Eol.all;
          Column := 0;
@@ -291,9 +319,16 @@ package body Prj.PP is
       -- Write_String --
       ------------------
 
-      procedure Write_String (S : String; Truncated : Boolean := False) is
+      procedure Write_String
+        (S         : String;
+         Indent    : Natural;
+         Truncated : Boolean := False) is
          Length : Natural := S'Length;
       begin
+         if Column = 0 and then Indent /= 0 then
+            Start_Line (Indent + Increment);
+         end if;
+
          --  If the string would not fit on the line,
          --  start a new line.
 
@@ -304,6 +339,10 @@ package body Prj.PP is
             else
                Write_Eol.all;
                Column := 0;
+
+               if Indent /= 0 then
+                  Start_Line (Indent + Increment);
+               end if;
             end if;
          end if;
 
@@ -315,15 +354,15 @@ package body Prj.PP is
       -- Print --
       -----------
 
-      procedure Print (Node   : Project_Node_Id; Indent : Natural) is
+      procedure Print (Node : Project_Node_Id; Indent : Natural) is
       begin
-         if Node /= Empty_Node then
+         if Present (Node) then
 
             case Kind_Of (Node, In_Tree) is
 
                when N_Project  =>
                   pragma Debug (Indicate_Tested (N_Project));
-                  if First_With_Clause_Of (Node, In_Tree) /= Empty_Node then
+                  if Present (First_With_Clause_Of (Node, In_Tree)) then
 
                      --  with clause(s)
 
@@ -334,22 +373,45 @@ package body Prj.PP is
 
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Write_String ("project ");
-                  Output_Name (Name_Of (Node, In_Tree));
+
+                  case Project_Qualifier_Of (Node, In_Tree) is
+                     when Unspecified | Standard =>
+                        null;
+                     when Aggregate   =>
+                        Write_String ("aggregate ", Indent);
+                     when Aggregate_Library =>
+                        Write_String ("aggregate library ", Indent);
+                     when Library     =>
+                        Write_String ("library ", Indent);
+                     when Configuration =>
+                        Write_String ("configuration ", Indent);
+                     when Dry =>
+                        Write_String ("abstract ", Indent);
+                  end case;
+
+                  Write_String ("project ", Indent);
+
+                  if Id /= Prj.No_Project then
+                     Output_Name (Id.Display_Name, Indent);
+                  else
+                     Output_Name (Name_Of (Node, In_Tree), Indent);
+                  end if;
 
                   --  Check if this project extends another project
 
                   if Extended_Project_Path_Of (Node, In_Tree) /= No_Path then
-                     Write_String (" extends ");
+                     Write_String (" extends ", Indent);
 
                      if Is_Extending_All (Node, In_Tree) then
-                        Write_String ("all ");
+                        Write_String ("all ", Indent);
                      end if;
 
-                     Output_String (Extended_Project_Path_Of (Node, In_Tree));
+                     Output_String
+                       (Extended_Project_Path_Of (Node, In_Tree),
+                        Indent);
                   end if;
 
-                  Write_String (" is");
+                  Write_String (" is", Indent);
                   Write_End_Of_Line_Comment (Node);
                   Print
                     (First_Comment_After (Node, In_Tree), Indent + Increment);
@@ -362,8 +424,14 @@ package body Prj.PP is
                     (First_Comment_Before_End (Node, In_Tree),
                      Indent + Increment);
                   Start_Line (Indent);
-                  Write_String ("end ");
-                  Output_Name (Name_Of (Node, In_Tree));
+                  Write_String ("end ", Indent);
+
+                  if Id /= Prj.No_Project then
+                     Output_Name (Id.Display_Name, Indent);
+                  else
+                     Output_Name (Name_Of (Node, In_Tree), Indent);
+                  end if;
+
                   Write_Line (";");
                   Print (First_Comment_After_End (Node, In_Tree), Indent);
 
@@ -385,20 +453,20 @@ package body Prj.PP is
                         if Non_Limited_Project_Node_Of (Node, In_Tree) =
                              Empty_Node
                         then
-                           Write_String ("limited ");
+                           Write_String ("limited ", Indent);
                         end if;
 
-                        Write_String ("with ");
+                        Write_String ("with ", Indent);
                      end if;
 
-                     Output_String (String_Value_Of (Node, In_Tree));
+                     Output_String (String_Value_Of (Node, In_Tree), Indent);
 
                      if Is_Not_Last_In_List (Node, In_Tree) then
-                        Write_String (", ");
+                        Write_String (", ", Indent);
                         First_With_In_List := False;
 
                      else
-                        Write_String (";");
+                        Write_String (";", Indent);
                         Write_End_Of_Line_Comment (Node);
                         Print (First_Comment_After (Node, In_Tree), Indent);
                         First_With_In_List := True;
@@ -411,7 +479,7 @@ package body Prj.PP is
                   pragma Debug (Indicate_Tested (N_Project_Declaration));
 
                   if
-                    First_Declarative_Item_Of (Node, In_Tree) /= Empty_Node
+                    Present (First_Declarative_Item_Of (Node, In_Tree))
                   then
                      Print
                        (First_Declarative_Item_Of (Node, In_Tree),
@@ -429,25 +497,26 @@ package body Prj.PP is
                   Write_Empty_Line (Always => True);
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Write_String ("package ");
-                  Output_Name (Name_Of (Node, In_Tree));
+                  Write_String ("package ", Indent);
+                  Output_Name (Name_Of (Node, In_Tree), Indent);
 
                   if Project_Of_Renamed_Package_Of (Node, In_Tree) /=
                        Empty_Node
                   then
-                     Write_String (" renames ");
+                     Write_String (" renames ", Indent);
                      Output_Name
                        (Name_Of
                           (Project_Of_Renamed_Package_Of (Node, In_Tree),
-                           In_Tree));
-                     Write_String (".");
-                     Output_Name (Name_Of (Node, In_Tree));
-                     Write_String (";");
+                           In_Tree),
+                        Indent);
+                     Write_String (".", Indent);
+                     Output_Name (Name_Of (Node, In_Tree), Indent);
+                     Write_String (";", Indent);
                      Write_End_Of_Line_Comment (Node);
                      Print (First_Comment_After_End (Node, In_Tree), Indent);
 
                   else
-                     Write_String (" is");
+                     Write_String (" is", Indent);
                      Write_End_Of_Line_Comment (Node);
                      Print (First_Comment_After (Node, In_Tree),
                             Indent + Increment);
@@ -463,8 +532,8 @@ package body Prj.PP is
                      Print (First_Comment_Before_End (Node, In_Tree),
                             Indent + Increment);
                      Start_Line (Indent);
-                     Write_String ("end ");
-                     Output_Name (Name_Of (Node, In_Tree));
+                     Write_String ("end ", Indent);
+                     Output_Name (Name_Of (Node, In_Tree), Indent);
                      Write_Line (";");
                      Print (First_Comment_After_End (Node, In_Tree), Indent);
                      Write_Empty_Line;
@@ -474,64 +543,111 @@ package body Prj.PP is
                   pragma Debug (Indicate_Tested (N_String_Type_Declaration));
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Write_String ("type ");
-                  Output_Name (Name_Of (Node, In_Tree));
+                  Write_String ("type ", Indent);
+                  Output_Name (Name_Of (Node, In_Tree), Indent);
                   Write_Line (" is");
                   Start_Line (Indent + Increment);
-                  Write_String ("(");
+                  Write_String ("(", Indent);
 
                   declare
                      String_Node : Project_Node_Id :=
                        First_Literal_String (Node, In_Tree);
 
                   begin
-                     while String_Node /= Empty_Node loop
-                        Output_String (String_Value_Of (String_Node, In_Tree));
+                     while Present (String_Node) loop
+                        Output_String
+                          (String_Value_Of (String_Node, In_Tree),
+                           Indent);
                         String_Node :=
                           Next_Literal_String (String_Node, In_Tree);
 
-                        if String_Node /= Empty_Node then
-                           Write_String (", ");
+                        if Present (String_Node) then
+                           Write_String (", ", Indent);
                         end if;
                      end loop;
                   end;
 
-                  Write_String (");");
+                  Write_String (");", Indent);
                   Write_End_Of_Line_Comment (Node);
                   Print (First_Comment_After (Node, In_Tree), Indent);
 
                when N_Literal_String =>
                   pragma Debug (Indicate_Tested (N_Literal_String));
-                  Output_String (String_Value_Of (Node, In_Tree));
+                  Output_String (String_Value_Of (Node, In_Tree), Indent);
 
                   if Source_Index_Of (Node, In_Tree) /= 0 then
-                     Write_String (" at ");
-                     Write_String (Source_Index_Of (Node, In_Tree)'Img);
+                     Write_String (" at", Indent);
+                     Write_String
+                       (Source_Index_Of (Node, In_Tree)'Img,
+                        Indent);
                   end if;
 
                when N_Attribute_Declaration =>
                   pragma Debug (Indicate_Tested (N_Attribute_Declaration));
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Write_String ("for ");
-                  Output_Attribute_Name (Name_Of (Node, In_Tree));
+                  Write_String ("for ", Indent);
+                  Output_Attribute_Name (Name_Of (Node, In_Tree), Indent);
 
                   if Associative_Array_Index_Of (Node, In_Tree) /= No_Name then
-                     Write_String (" (");
+                     Write_String (" (", Indent);
                      Output_String
-                       (Associative_Array_Index_Of (Node, In_Tree));
+                       (Associative_Array_Index_Of (Node, In_Tree),
+                        Indent);
 
                      if Source_Index_Of (Node, In_Tree) /= 0 then
-                        Write_String (" at ");
-                        Write_String (Source_Index_Of (Node, In_Tree)'Img);
+                        Write_String (" at", Indent);
+                        Write_String
+                          (Source_Index_Of (Node, In_Tree)'Img,
+                           Indent);
                      end if;
 
-                     Write_String (")");
+                     Write_String (")", Indent);
                   end if;
 
-                  Write_String (" use ");
-                  Print (Expression_Of (Node, In_Tree), Indent);
-                  Write_String (";");
+                  Write_String (" use ", Indent);
+
+                  if Present (Expression_Of (Node, In_Tree)) then
+                     Print (Expression_Of (Node, In_Tree), Indent);
+
+                  else
+                     --  Full associative array declaration
+
+                     if
+                       Present (Associative_Project_Of (Node, In_Tree))
+                     then
+                        Output_Name
+                          (Name_Of
+                             (Associative_Project_Of (Node, In_Tree),
+                              In_Tree),
+                           Indent);
+
+                        if
+                          Present (Associative_Package_Of (Node, In_Tree))
+                        then
+                           Write_String (".", Indent);
+                           Output_Name
+                             (Name_Of
+                                (Associative_Package_Of (Node, In_Tree),
+                                 In_Tree),
+                              Indent);
+                        end if;
+
+                     elsif
+                       Present (Associative_Package_Of (Node, In_Tree))
+                     then
+                        Output_Name
+                          (Name_Of
+                             (Associative_Package_Of (Node, In_Tree),
+                              In_Tree),
+                           Indent);
+                     end if;
+
+                     Write_String ("'", Indent);
+                     Output_Attribute_Name (Name_Of (Node, In_Tree), Indent);
+                  end if;
+
+                  Write_String (";", Indent);
                   Write_End_Of_Line_Comment (Node);
                   Print (First_Comment_After (Node, In_Tree), Indent);
 
@@ -540,13 +656,14 @@ package body Prj.PP is
                     (Indicate_Tested (N_Typed_Variable_Declaration));
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Output_Name (Name_Of (Node, In_Tree));
-                  Write_String (" : ");
+                  Output_Name (Name_Of (Node, In_Tree), Indent);
+                  Write_String (" : ", Indent);
                   Output_Name
-                    (Name_Of (String_Type_Of (Node, In_Tree), In_Tree));
-                  Write_String (" := ");
+                    (Name_Of (String_Type_Of (Node, In_Tree), In_Tree),
+                     Indent);
+                  Write_String (" := ", Indent);
                   Print (Expression_Of (Node, In_Tree), Indent);
-                  Write_String (";");
+                  Write_String (";", Indent);
                   Write_End_Of_Line_Comment (Node);
                   Print (First_Comment_After (Node, In_Tree), Indent);
 
@@ -554,10 +671,10 @@ package body Prj.PP is
                   pragma Debug (Indicate_Tested (N_Variable_Declaration));
                   Print (First_Comment_Before (Node, In_Tree), Indent);
                   Start_Line (Indent);
-                  Output_Name (Name_Of (Node, In_Tree));
-                  Write_String (" := ");
+                  Output_Name (Name_Of (Node, In_Tree), Indent);
+                  Write_String (" := ", Indent);
                   Print (Expression_Of (Node, In_Tree), Indent);
-                  Write_String (";");
+                  Write_String (";", Indent);
                   Write_End_Of_Line_Comment (Node);
                   Print (First_Comment_After (Node, In_Tree), Indent);
 
@@ -567,12 +684,12 @@ package body Prj.PP is
                      Term : Project_Node_Id := First_Term (Node, In_Tree);
 
                   begin
-                     while Term /= Empty_Node loop
+                     while Present (Term) loop
                         Print (Term, Indent);
                         Term := Next_Term (Term, In_Tree);
 
-                        if Term /= Empty_Node then
-                           Write_String (" & ");
+                        if Present (Term) then
+                           Write_String (" & ", Indent);
                         end if;
                      end loop;
                   end;
@@ -583,79 +700,84 @@ package body Prj.PP is
 
                when N_Literal_String_List =>
                   pragma Debug (Indicate_Tested (N_Literal_String_List));
-                  Write_String ("(");
+                  Write_String ("(", Indent);
 
                   declare
                      Expression : Project_Node_Id :=
                        First_Expression_In_List (Node, In_Tree);
 
                   begin
-                     while Expression /= Empty_Node loop
+                     while Present (Expression) loop
                         Print (Expression, Indent);
                         Expression :=
                           Next_Expression_In_List (Expression, In_Tree);
 
-                        if Expression /= Empty_Node then
-                           Write_String (", ");
+                        if Present (Expression) then
+                           Write_String (", ", Indent);
                         end if;
                      end loop;
                   end;
 
-                  Write_String (")");
+                  Write_String (")", Indent);
 
                when N_Variable_Reference =>
                   pragma Debug (Indicate_Tested (N_Variable_Reference));
-                  if Project_Node_Of (Node, In_Tree) /= Empty_Node then
+                  if Present (Project_Node_Of (Node, In_Tree)) then
                      Output_Name
-                       (Name_Of (Project_Node_Of (Node, In_Tree), In_Tree));
-                     Write_String (".");
+                       (Name_Of (Project_Node_Of (Node, In_Tree), In_Tree),
+                        Indent);
+                     Write_String (".", Indent);
                   end if;
 
-                  if Package_Node_Of (Node, In_Tree) /= Empty_Node then
+                  if Present (Package_Node_Of (Node, In_Tree)) then
                      Output_Name
-                       (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree));
-                     Write_String (".");
+                       (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree),
+                        Indent);
+                     Write_String (".", Indent);
                   end if;
 
-                  Output_Name (Name_Of (Node, In_Tree));
+                  Output_Name (Name_Of (Node, In_Tree), Indent);
 
                when N_External_Value =>
                   pragma Debug (Indicate_Tested (N_External_Value));
-                  Write_String ("external (");
+                  Write_String ("external (", Indent);
                   Print (External_Reference_Of (Node, In_Tree), Indent);
 
-                  if External_Default_Of (Node, In_Tree) /= Empty_Node then
-                     Write_String (", ");
+                  if Present (External_Default_Of (Node, In_Tree)) then
+                     Write_String (", ", Indent);
                      Print (External_Default_Of (Node, In_Tree), Indent);
                   end if;
 
-                  Write_String (")");
+                  Write_String (")", Indent);
 
                when N_Attribute_Reference =>
                   pragma Debug (Indicate_Tested (N_Attribute_Reference));
 
-                  if Project_Node_Of (Node, In_Tree) /= Empty_Node
+                  if Present (Project_Node_Of (Node, In_Tree))
                     and then Project_Node_Of (Node, In_Tree) /= Project
                   then
                      Output_Name
-                       (Name_Of (Project_Node_Of (Node, In_Tree), In_Tree));
+                       (Name_Of (Project_Node_Of (Node, In_Tree), In_Tree),
+                        Indent);
 
-                     if Package_Node_Of (Node, In_Tree) /= Empty_Node then
-                        Write_String (".");
+                     if Present (Package_Node_Of (Node, In_Tree)) then
+                        Write_String (".", Indent);
                         Output_Name
-                          (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree));
+                          (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree),
+                           Indent);
                      end if;
 
-                  elsif Package_Node_Of (Node, In_Tree) /= Empty_Node then
+                  elsif Present (Package_Node_Of (Node, In_Tree)) then
                      Output_Name
-                       (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree));
+                       (Name_Of (Package_Node_Of (Node, In_Tree), In_Tree),
+                        Indent);
 
                   else
-                     Write_String ("project");
+                     Write_String ("project", Indent);
                   end if;
 
-                  Write_String ("'");
-                  Output_Attribute_Name (Name_Of (Node, In_Tree));
+                  Write_String ("'", Indent);
+                  Output_Attribute_Name (Name_Of (Node, In_Tree), Indent);
 
                   declare
                      Index : constant Name_Id :=
@@ -663,9 +785,9 @@ package body Prj.PP is
 
                   begin
                      if Index /= No_Name then
-                        Write_String (" (");
-                        Output_String (Index);
-                        Write_String (")");
+                        Write_String (" (", Indent);
+                        Output_String (Index, Indent);
+                        Write_String (")", Indent);
                      end if;
                   end;
 
@@ -678,10 +800,10 @@ package body Prj.PP is
 
                   begin
                      Case_Item := First_Case_Item_Of (Node, In_Tree);
-                     while Case_Item /= Empty_Node loop
-                        if First_Declarative_Item_Of (Case_Item, In_Tree) /=
-                             Empty_Node
-                          or else not Eliminate_Empty_Case_Constructions
+                     while Present (Case_Item) loop
+                        if Present
+                            (First_Declarative_Item_Of (Case_Item, In_Tree))
+                           or else not Eliminate_Empty_Case_Constructions
                         then
                            Is_Non_Empty := True;
                            exit;
@@ -694,11 +816,11 @@ package body Prj.PP is
                         Write_Empty_Line;
                         Print (First_Comment_Before (Node, In_Tree), Indent);
                         Start_Line (Indent);
-                        Write_String ("case ");
+                        Write_String ("case ", Indent);
                         Print
                           (Case_Variable_Reference_Of (Node, In_Tree),
                            Indent);
-                        Write_String (" is");
+                        Write_String (" is", Indent);
                         Write_End_Of_Line_Comment (Node);
                         Print
                           (First_Comment_After (Node, In_Tree),
@@ -708,7 +830,7 @@ package body Prj.PP is
                            Case_Item : Project_Node_Id :=
                                          First_Case_Item_Of (Node, In_Tree);
                         begin
-                           while Case_Item /= Empty_Node loop
+                           while Present (Case_Item) loop
                               pragma Assert
                                 (Kind_Of (Case_Item, In_Tree) = N_Case_Item);
                               Print (Case_Item, Indent + Increment);
@@ -729,34 +851,34 @@ package body Prj.PP is
                when N_Case_Item =>
                   pragma Debug (Indicate_Tested (N_Case_Item));
 
-                  if First_Declarative_Item_Of (Node, In_Tree) /= Empty_Node
+                  if Present (First_Declarative_Item_Of (Node, In_Tree))
                     or else not Eliminate_Empty_Case_Constructions
                   then
                      Write_Empty_Line;
                      Print (First_Comment_Before (Node, In_Tree), Indent);
                      Start_Line (Indent);
-                     Write_String ("when ");
+                     Write_String ("when ", Indent);
 
-                     if First_Choice_Of (Node, In_Tree) = Empty_Node then
-                        Write_String ("others");
+                     if No (First_Choice_Of (Node, In_Tree)) then
+                        Write_String ("others", Indent);
 
                      else
                         declare
                            Label : Project_Node_Id :=
                                      First_Choice_Of (Node, In_Tree);
                         begin
-                           while Label /= Empty_Node loop
+                           while Present (Label) loop
                               Print (Label, Indent);
                               Label := Next_Literal_String (Label, In_Tree);
 
-                              if Label /= Empty_Node then
-                                 Write_String (" | ");
+                              if Present (Label) then
+                                 Write_String (" | ", Indent);
                               end if;
                            end loop;
                         end;
                      end if;
 
-                     Write_String (" =>");
+                     Write_String (" =>", Indent);
                      Write_End_Of_Line_Comment (Node);
                      Print
                        (First_Comment_After (Node, In_Tree),
@@ -766,7 +888,7 @@ package body Prj.PP is
                         First : constant Project_Node_Id :=
                                   First_Declarative_Item_Of (Node, In_Tree);
                      begin
-                        if First = Empty_Node then
+                        if No (First) then
                            Write_Empty_Line;
                         else
                            Print (First, Indent + Increment);
@@ -788,9 +910,10 @@ package body Prj.PP is
                   end if;
 
                   Start_Line (Indent);
-                  Write_String ("--");
+                  Write_String ("--", Indent);
                   Write_String
                     (Get_Name_String (String_Value_Of (Node, In_Tree)),
+                     Indent,
                      Truncated => True);
                   Write_Line ("");
 
@@ -825,10 +948,6 @@ package body Prj.PP is
       end if;
 
       Print (Project, 0);
-
-      if W_Char = null or else W_Str = null then
-         Output.Write_Eol;
-      end if;
    end Pretty_Print;
 
    -----------------------
@@ -848,5 +967,16 @@ package body Prj.PP is
 
       Output.Write_Eol;
    end Output_Statistics;
+
+   ---------
+   -- wpr --
+   ---------
+
+   procedure wpr
+     (Project : Prj.Tree.Project_Node_Id;
+      In_Tree : Prj.Tree.Project_Node_Tree_Ref) is
+   begin
+      Pretty_Print (Project, In_Tree, Backward_Compatibility => False);
+   end wpr;
 
 end Prj.PP;

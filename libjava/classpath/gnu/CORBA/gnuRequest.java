@@ -83,12 +83,10 @@ import org.omg.PortableInterceptor.ClientRequestInterceptorOperations;
 import org.omg.PortableInterceptor.ForwardRequest;
 import org.omg.PortableInterceptor.InvalidSlot;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import java.net.BindException;
 import java.net.Socket;
 
 import java.util.ArrayList;
@@ -594,7 +592,7 @@ public class gnuRequest extends Request implements Cloneable
   {
     final gnuRequest cloned = Clone();
     cloned.oneWay = true;
-    
+
     new Thread()
       {
         public void run()
@@ -716,7 +714,7 @@ public class gnuRequest extends Request implements Cloneable
   /**
    * Do the actual invocation. This implementation requires to set the IOR
    * property ({@link #setIOR(IOR)} before calling this method.
-   * 
+   *
    * @throws BAD_INV_ORDER, minor code 0, if the IOR has not been previously set
    *           or if the direct argument addition is mixed with the direct
    *           argument writing into the output stream.
@@ -938,7 +936,7 @@ public synchronized RawReply submit()
     throws SystemException, ForwardRequest
   {
     RawReply response = submit();
-    
+
     // If this is a one way message, do not care about the response.
     if (oneWay && response == EMPTY)
       return;

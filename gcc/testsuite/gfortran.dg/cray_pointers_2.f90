@@ -1,6 +1,14 @@
-! { dg-do run }
-! { dg-options "-fcray-pointer -fbounds-check" }
+! Using two spaces between dg-do and run is a hack to keep gfortran-dg-runtest
+! from cycling through optimization options for this expensive test.
+! { dg-do  run }
+! { dg-options "-O3 -fcray-pointer -fbounds-check -fno-inline" }
+! { dg-timeout-factor 4 }
+!
 ! Series of routines for testing a Cray pointer implementation
+!
+! Note: Some of the test cases violate Fortran's alias rules;
+! the "-fno-inline option" for now prevents failures.
+!
 program craytest
   common /errors/errors(400)
   common /foo/foo ! To prevent optimizations

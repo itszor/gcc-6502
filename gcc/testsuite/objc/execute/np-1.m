@@ -4,7 +4,6 @@
  */
 
 #include <objc/objc.h>
-#include <objc/Protocol.h>
 
 @protocol MyProtocol
 - (oneway void) methodA;
@@ -25,7 +24,7 @@ int main (void)
 
   [object methodA];
 
-   exit (0);
+  return 0;
 }
 
 

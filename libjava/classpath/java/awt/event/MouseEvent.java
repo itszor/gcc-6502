@@ -39,6 +39,7 @@ exception statement from your version. */
 package java.awt.event;
 
 import gnu.java.awt.EventModifier;
+import gnu.java.lang.CPStringBuilder;
 
 import java.awt.Component;
 import java.awt.Point;
@@ -221,37 +222,8 @@ public class MouseEvent extends InputEvent
                     int x, int y, int clickCount, boolean popupTrigger,
                     int button)
   {
-    super(source, id, when, modifiers);
-
-    this.x = x;
-    this.y = y;
-    this.clickCount = clickCount;
-    this.popupTrigger = popupTrigger;
-    this.button = button;
-    if (button < NOBUTTON || button > BUTTON3)
-      throw new IllegalArgumentException();
-    if ((modifiers & EventModifier.OLD_MASK) != 0)
-      {
-        if ((modifiers & BUTTON1_MASK) != 0)
-          this.button = BUTTON1;
-        else if ((modifiers & BUTTON2_MASK) != 0)
-          this.button = BUTTON2;
-        else if ((modifiers & BUTTON3_MASK) != 0)
-          this.button = BUTTON3;
-      }
-    // clear the mouse button modifier masks if this is a button
-    // release event.
-    if (id == MOUSE_RELEASED)
-      this.modifiersEx &= ~(BUTTON1_DOWN_MASK
-			    | BUTTON2_DOWN_MASK
-			    | BUTTON3_DOWN_MASK);
-
-    if (source != null)
-      {
-        Point screenLoc = source.getLocationOnScreen();
-        absX = screenLoc.x + x;
-        absY = screenLoc.y + y;
-      }
+    this(source, id, when, modifiers, x, y, 0, 0, clickCount, popupTrigger,
+         button);
   }
 
   /**
@@ -321,8 +293,8 @@ public class MouseEvent extends InputEvent
     // release event.
     if (id == MOUSE_RELEASED)
       this.modifiersEx &= ~(BUTTON1_DOWN_MASK
-			    | BUTTON2_DOWN_MASK
-			    | BUTTON3_DOWN_MASK);
+                            | BUTTON2_DOWN_MASK
+                            | BUTTON3_DOWN_MASK);
 
     this.absX = absX;
     this.absY = absY;
@@ -463,7 +435,7 @@ public class MouseEvent extends InputEvent
    */
   public String paramString()
   {
-    StringBuffer s = new StringBuffer();
+    CPStringBuilder s = new CPStringBuilder();
     switch (id)
       {
       case MOUSE_CLICKED:
@@ -497,10 +469,10 @@ public class MouseEvent extends InputEvent
     // FIXME: need a mauve test for this method
     if (modifiersEx != 0)
       s.append(",extModifiers=").append(getModifiersExText(modifiersEx));
-    
+
     s.append(",clickCount=").append(clickCount);
     s.append(",consumed=").append(consumed);
-    
+
     return s.toString();
   }
 

@@ -1,6 +1,6 @@
 
 /* gtktoolkit.c -- Native portion of GtkToolkit
-   Copyright (C) 1998, 1999, 2005, 2007  Free Software Foundation, Inc.
+   Copyright (C) 1998, 1999, 2005, 2007, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -40,7 +40,6 @@ exception statement from your version. */
 #include "gtkpeer.h"
 #include "gnu_java_awt_peer_gtk_GtkToolkit.h"
 #include "jcl.h"
-#include <gdk/gdkx.h>
 
 #define RC_FILE ".classpath-gtkrc"
 
@@ -184,10 +183,6 @@ Java_gnu_java_awt_peer_gtk_GtkToolkit_gtkInit (JNIEnv *env,
 
   gtk_widget_set_default_colormap (gdk_rgb_get_colormap ());
 
-  /* Make sure queued calls don't get sent to GTK/GDK while 
-     we're shutting down. */
-  atexit (gdk_threads_enter);
-
   if ((homedir = getenv ("HOME")))
     {
       rcpath = (char *) g_malloc (strlen (homedir) + strlen (RC_FILE) + 2);
@@ -221,6 +216,7 @@ Java_gnu_java_awt_peer_gtk_GtkToolkit_gtkInit (JNIEnv *env,
   init_dpi_conversion_factor ();
 
   gtktoolkit = (*env)->FindClass(env, "gnu/java/awt/peer/gtk/GtkMainThread");
+  gtktoolkit = (*env)->NewGlobalRef(env, gtktoolkit); /* bug fix #40889 */
   setRunningID = (*env)->GetStaticMethodID (env, gtktoolkit,
                                             "setRunning", "(Z)V");
 }

@@ -7,14 +7,19 @@
     This had to be done to correct non-standard usages in the
     original, manufacturer supplied header file.  */
 
-#ifndef FIXINC_WRAP_LOCALE_H_ULTRIX_LOCALE
-#define FIXINC_WRAP_LOCALE_H_ULTRIX_LOCALE 1
 
 
+#if defined( OPENBSD_NULL_DEFINITION_CHECK )
+#ifndef NULL
+#ifdef __cplusplus
+#ifdef __GNUG__
+#define NULL	__null
+#else	 /* ! __GNUG__  */
+#define NULL	0L
+#endif	 /* __GNUG__  */
+#else	 /* ! __cplusplus  */
+#define NULL	((void *)0)
+#endif	 /* __cplusplus  */
+#endif	 /* !NULL  */
 
-#if defined( ULTRIX_LOCALE_CHECK )
-@(#)locale.h   6.1     (ULTRIX)
-
-#endif  /* ULTRIX_LOCALE_CHECK */
-
-#endif  /* FIXINC_WRAP_LOCALE_H_ULTRIX_LOCALE */
+#endif  /* OPENBSD_NULL_DEFINITION_CHECK */

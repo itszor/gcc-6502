@@ -17,26 +17,26 @@ entry bar2()
   bar2 = ""
 end function test2
 
-function test3() ! { dg-warning "is obsolescent" }
+function test3() ! { dg-warning "Obsolescent feature" }
   character(*) :: test3
-  character(*) :: bar3 ! { dg-warning "is obsolescent" }
+  character(*) :: bar3 ! { dg-warning "Obsolescent feature" }
   test3 = ""
   return
 entry bar3()
   bar3 = ""
-end function test3 ! { dg-warning "is obsolescent" }
+end function test3
 
-function test4(n) ! { dg-error "returning variables of different string lengths" }
+function test4(n) ! { dg-warning "returning variables of different string lengths" }
   integer  :: n
   character(n) :: test4
-  character(*) :: bar4 ! { dg-warning "is obsolescent" }
+  character(*) :: bar4 ! { dg-warning "Obsolescent feature" }
   test4 = ""
   return
 entry bar4()
   bar4 = ""
 end function test4
 
-function test5() ! { dg-error "returning variables of different string lengths" }
+function test5() ! { dg-warning "returning variables of different string lengths" }
   character(1) :: test5
   character(2) :: bar5
   test5 = ""
@@ -45,11 +45,11 @@ entry bar5()
   bar5 = ""
 end function test5
 
-function test6() ! { dg-warning "is obsolescent|returning variables of different string lengths" }
+function test6() ! { dg-warning "Obsolescent feature|returning variables of different string lengths" }
   character(*) :: test6
   character(2) :: bar6
   test6 = ""
   return
 entry bar6()
   bar6 = ""
-end function test6 ! { dg-warning "is obsolescent" }
+end function test6

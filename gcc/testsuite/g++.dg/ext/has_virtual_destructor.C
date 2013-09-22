@@ -1,4 +1,4 @@
-// { dg-do "run" }
+// { dg-do run }
 #include <cassert>
 #include <exception>
 
@@ -14,15 +14,15 @@ union U
   double b;
 };
 
-class B
+struct B
 {
   virtual ~B() { }
 };
 
-class C
+struct C
 : public B { };
 
-class D
+struct D
 {
   ~D() { }
 };

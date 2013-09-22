@@ -1,5 +1,5 @@
 /* DSSKeyPairPKCS8Codec.java -- PKCS#8 Encoding/Decoding handler
-   Copyright (C) 2006 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -67,7 +67,9 @@ import java.util.logging.Logger;
 public class DSSKeyPairPKCS8Codec
     implements IKeyPairCodec
 {
-  private static final Logger log = Logger.getLogger(DSSKeyPairPKCS8Codec.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(DSSKeyPairPKCS8Codec.class.getName()) : null;
+
   private static final OID DSA_ALG_OID = new OID(Registry.DSA_OID_STRING);
 
   // implicit 0-arguments constructor
@@ -88,7 +90,7 @@ public class DSSKeyPairPKCS8Codec
   /**
    * Returns the PKCS#8 ASN.1 <i>PrivateKeyInfo</i> representation of a DSA
    * private key. The ASN.1 specification is as follows:
-   * 
+   *
    * <pre>
    *   PrivateKeyInfo ::= SEQUENCE {
    *     version              INTEGER, -- MUST be 0
@@ -107,7 +109,7 @@ public class DSSKeyPairPKCS8Codec
    *     g   INTEGER
    *   }
    * </pre>
-   * 
+   *
    * @return the DER encoded form of the ASN.1 representation of the
    *         <i>PrivateKeyInfo</i> field in an X.509 certificate.
    * @throw InvalidParameterException if an error occurs during the marshalling

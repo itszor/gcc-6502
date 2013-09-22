@@ -1,5 +1,5 @@
 /* PR c++/34059 */
-/* { dg-do "compile" } */
+/* { dg-do compile } */
 
 struct A
 {
@@ -26,7 +26,7 @@ template<bool> struct S {
   S(unsigned int = BBB::foo()->AAA::get()); /* { dg-error "is not a base of" } */
 };
 template<bool> struct SS {
-  SS(unsigned int = BBB::foo()->get());
+  SS(unsigned int = BBB::foo()->get()); /* { dg-error "within this context" } */
 };
 
 void bar()
@@ -37,6 +37,6 @@ void bar()
   int i;
   i.C::foo<0>(); /* { dg-error "which is of non-class type" } */
 
-  S<false> s;
-  SS<false> ss; /* { dg-error "within this context" } */
+  S<false> s; /* { dg-error "default argument" } */
+  SS<false> ss;
 }

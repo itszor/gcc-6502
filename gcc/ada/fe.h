@@ -6,24 +6,23 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *          Copyright (C) 1992-2007, Free Software Foundation, Inc.         *
+ *          Copyright (C) 1992-2012, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -32,6 +31,10 @@
 
 /* This file contains definitions to access front-end functions and
    variables used by gigi.  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* comperr:  */
 
@@ -46,10 +49,7 @@ extern char Fold_Lower[], Fold_Upper[];
 
 /* debug: */
 
-#define Debug_Flag_XX debug__debug_flag_xx
 #define Debug_Flag_NN debug__debug_flag_nn
-
-extern Boolean Debug_Flag_XX;
 extern Boolean Debug_Flag_NN;
 
 /* einfo: We will be setting Esize for types, Component_Bit_Offset for fields,
@@ -80,6 +80,10 @@ extern Boolean Is_Entity_Name		(Node_Id);
 #define Get_Attribute_Definition_Clause einfo__get_attribute_definition_clause
 extern Node_Id Get_Attribute_Definition_Clause (Entity_Id, char);
 
+/* atree: */
+
+#define Serious_Errors_Detected atree__serious_errors_detected
+
 /* errout: */
 
 #define Error_Msg_N               errout__error_msg_n
@@ -88,25 +92,28 @@ extern Node_Id Get_Attribute_Definition_Clause (Entity_Id, char);
 
 extern void Error_Msg_N	          (Fat_Pointer, Node_Id);
 extern void Error_Msg_NE          (Fat_Pointer, Node_Id, Entity_Id);
-extern void Set_Identifier_Casing (Char *, Char *);
+extern void Set_Identifier_Casing (Char *, const Char *);
 
 /* err_vars: */
 
-#define Error_Msg_Node_2     err_vars__error_msg_node_2
-#define Error_Msg_Uint_1     err_vars__error_msg_uint_1
-#define Error_Msg_Uint_2     err_vars__error_msg_uint_2
+#define Error_Msg_Node_2        err_vars__error_msg_node_2
+#define Error_Msg_Uint_1        err_vars__error_msg_uint_1
+#define Error_Msg_Uint_2        err_vars__error_msg_uint_2
 
-extern Entity_Id             Error_Msg_Node_2;
-extern Uint                  Error_Msg_Uint_1;
-extern Uint                  Error_Msg_Uint_2;
+extern Entity_Id Error_Msg_Node_2;
+extern Uint      Error_Msg_Uint_1;
+extern Uint      Error_Msg_Uint_2;
+extern Nat       Serious_Errors_Detected;
 
 /* exp_ch11:  */
 
 #define Get_Local_Raise_Call_Entity exp_ch11__get_local_raise_call_entity
 #define Get_RT_Exception_Entity exp_ch11__get_rt_exception_entity
+#define Get_RT_Exception_Name exp_ch11__get_rt_exception_name
 
 extern Entity_Id Get_Local_Raise_Call_Entity (void);
 extern Entity_Id Get_RT_Exception_Entity (int);
+extern void Get_RT_Exception_Name (int);
 
 /* exp_code:  */
 
@@ -139,10 +146,23 @@ extern void Setup_Asm_Outputs		(Node_Id);
 /* exp_dbug:  */
 
 #define Get_Encoded_Name exp_dbug__get_encoded_name
+#define Get_External_Name exp_dbug__get_external_name
 #define Get_External_Name_With_Suffix exp_dbug__get_external_name_with_suffix
 
-extern void Get_Encoded_Name	(Entity_Id);
-extern void Get_External_Name_With_Suffix (Entity_Id, Fat_Pointer);
+extern void Get_Encoded_Name			(Entity_Id);
+extern void Get_External_Name			(Entity_Id, Boolean);
+extern void Get_External_Name_With_Suffix	(Entity_Id, Fat_Pointer);
+
+/* exp_util: */
+
+#define Is_Fully_Repped_Tagged_Type exp_util__is_fully_repped_tagged_type
+
+extern Boolean Is_Fully_Repped_Tagged_Type      (Entity_Id);
+
+/* exp_vfpt: */
+
+#define Get_Vax_Real_Literal_As_Signed exp_vfpt__get_vax_real_literal_as_signed
+extern Ureal Get_Vax_Real_Literal_As_Signed (Node_Id);
 
 /* lib: */
 
@@ -158,17 +178,21 @@ extern Boolean In_Same_Source_Unit              (Node_Id, Node_Id);
 
 /* opt: */
 
-#define Global_Discard_Names           opt__global_discard_names
+#define Back_Annotate_Rep_Info         opt__back_annotate_rep_info
+#define Exception_Extra_Info           opt__exception_extra_info
 #define Exception_Locations_Suppressed opt__exception_locations_suppressed
 #define Exception_Mechanism            opt__exception_mechanism
-#define Back_Annotate_Rep_Info         opt__back_annotate_rep_info
+#define Generate_SCO_Instance_Table    opt__generate_sco_instance_table
+#define Global_Discard_Names           opt__global_discard_names
 
 typedef enum {Setjmp_Longjmp, Back_End_Exceptions} Exception_Mechanism_Type;
 
-extern Boolean Global_Discard_Names;
+extern Boolean Back_Annotate_Rep_Info;
+extern Boolean Exception_Extra_Info;
 extern Boolean Exception_Locations_Suppressed;
 extern Exception_Mechanism_Type Exception_Mechanism;
-extern Boolean Back_Annotate_Rep_Info;
+extern Boolean Generate_SCO_Instance_Table;
+extern Boolean Global_Discard_Names;
 
 /* restrict: */
 
@@ -181,6 +205,22 @@ extern Boolean No_Exception_Handlers_Set   (void);
 extern void Check_No_Implicit_Heap_Alloc   (Node_Id);
 extern void Check_Elaboration_Code_Allowed (Node_Id);
 extern void Check_Implicit_Dynamic_Code_Allowed (Node_Id);
+
+/* sem_aux:  */
+
+#define Ancestor_Subtype               sem_aux__ancestor_subtype
+#define First_Discriminant             sem_aux__first_discriminant
+#define First_Stored_Discriminant      sem_aux__first_stored_discriminant
+#define First_Subtype                  sem_aux__first_subtype
+#define Is_By_Reference_Type           sem_aux__is_by_reference_type
+#define Is_Derived_Type                sem_aux__is_derived_type
+
+extern Entity_Id  Ancestor_Subtype             (Entity_Id);
+extern Entity_Id  First_Discriminant           (Entity_Id);
+extern Entity_Id  First_Stored_Discriminant    (Entity_Id);
+extern Entity_Id  First_Subtype                (Entity_Id);
+extern Boolean    Is_By_Reference_Type         (Entity_Id);
+extern Boolean    Is_Derived_Type              (Entity_Id);
 
 /* sem_elim: */
 
@@ -222,8 +262,14 @@ extern void Set_Has_No_Elaboration_Code	(Node_Id, Boolean);
 
 /* targparm: */
 
+#define Backend_Overflow_Checks_On_Target targparm__backend_overflow_checks_on_target
 #define Stack_Check_Probes_On_Target targparm__stack_check_probes_on_target
 #define Stack_Check_Limits_On_Target targparm__stack_check_limits_on_target
 
+extern Boolean Backend_Overflow_Checks_On_Target;
 extern Boolean Stack_Check_Probes_On_Target;
 extern Boolean Stack_Check_Limits_On_Target;
+
+#ifdef __cplusplus
+}
+#endif

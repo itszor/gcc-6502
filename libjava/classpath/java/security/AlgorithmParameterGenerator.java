@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package java.security;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Engine;
 
 import java.lang.reflect.InvocationTargetException;
@@ -46,7 +48,7 @@ import java.security.spec.AlgorithmParameterSpec;
 /**
  * <code>AlgorithmParameterGenerator</code> is used to generate algorithm
  * parameters for specified algorithms.
- * 
+ *
  * <p>In case the client does not explicitly initialize the
  * <code>AlgorithmParameterGenerator</code> (via a call to an
  * <code>init()</code> method), each provider must supply (and document) a
@@ -71,7 +73,7 @@ public class AlgorithmParameterGenerator
 
   /**
    * Constructs a new instance of <code>AlgorithmParameterGenerator</code>.
-   * 
+   *
    * @param paramGenSpi
    *          the generator to use.
    * @param provider
@@ -80,8 +82,8 @@ public class AlgorithmParameterGenerator
    *          the algorithm to use.
    */
   protected AlgorithmParameterGenerator(AlgorithmParameterGeneratorSpi
-					paramGenSpi, Provider provider,
-					String algorithm)
+                                        paramGenSpi, Provider provider,
+                                        String algorithm)
   {
     this.paramGenSpi = paramGenSpi;
     this.provider = provider;
@@ -97,7 +99,7 @@ public class AlgorithmParameterGenerator
   /**
    * Returns a new <code>AlgorithmParameterGenerator</code> instance which
    * generates algorithm parameters for the specified algorithm.
-   * 
+   *
    * @param algorithm the name of algorithm to use.
    * @return the new instance.
    * @throws NoSuchAlgorithmException if <code>algorithm</code> is not
@@ -127,7 +129,7 @@ public class AlgorithmParameterGenerator
   /**
    * Returns a new <code>AlgorithmParameterGenerator</code> instance which
    * generates algorithm parameters for the specified algorithm.
-   * 
+   *
    * @param algorithm the name of algorithm to use.
    * @param provider the name of the {@link Provider} to use.
    * @return the new instance.
@@ -155,7 +157,7 @@ public class AlgorithmParameterGenerator
   /**
    * Returns a new <code>AlgorithmParameterGenerator</code> instance which
    * generates algorithm parameters for the specified algorithm.
-   * 
+   *
    * @param algorithm the name of algorithm to use.
    * @param provider the {@link Provider} to use.
    * @return the new instance.
@@ -171,7 +173,7 @@ public class AlgorithmParameterGenerator
                                                         Provider provider)
       throws NoSuchAlgorithmException
   {
-    StringBuilder sb = new StringBuilder()
+    CPStringBuilder sb = new CPStringBuilder()
         .append("AlgorithmParameterGenerator for algorithm [")
         .append(algorithm).append("] from provider[")
         .append(provider).append("] could not be created");
@@ -211,7 +213,7 @@ public class AlgorithmParameterGenerator
   /**
    * Initializes this instance with the specified size. Since no source of
    * randomness is supplied, a default one will be used.
-   * 
+   *
    * @param size
    *          size (in bits) to use.
    */
@@ -223,7 +225,7 @@ public class AlgorithmParameterGenerator
   /**
    * Initializes this instance with the specified key-size and source of
    * randomness.
-   * 
+   *
    * @param size
    *          the size (in bits) to use.
    * @param random
@@ -237,7 +239,7 @@ public class AlgorithmParameterGenerator
   /**
    * Initializes this instance with the specified {@link AlgorithmParameterSpec}.
    * Since no source of randomness is supplied, a default one will be used.
-   * 
+   *
    * @param genParamSpec
    *          the {@link AlgorithmParameterSpec} to use.
    * @throws InvalidAlgorithmParameterException
@@ -252,7 +254,7 @@ public class AlgorithmParameterGenerator
   /**
    * Initializes this instance with the specified {@link AlgorithmParameterSpec}
    * and source of randomness.
-   * 
+   *
    * @param genParamSpec
    *          the {@link AlgorithmParameterSpec} to use.
    * @param random

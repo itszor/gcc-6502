@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-phicprop-details" } */
+/* { dg-options "-O2 -fdump-tree-optimized" } */
 
 int test(int v)
 {
@@ -16,6 +16,7 @@ int test(int v)
   return x;
 }
 
-/* { dg-final { scan-tree-dump-times "Original statement:.*% 2\[ \t\n]*Updated statement.*=1" 0 "phicprop3" } } */
-/* { dg-final { cleanup-tree-dump "phicprop\[1-3\]" } } */
+/* This should be unrolled and optimized into conditional set of return value "v < 0".  */
 
+/* { dg-final { scan-tree-dump-not "if \\(" "optimized" } } */
+/* { dg-final { cleanup-tree-dump "optimized" } } */

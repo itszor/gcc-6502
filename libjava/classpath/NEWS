@@ -1,9 +1,183 @@
-New in release 0.96
+Key:
+
+SX  - http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=X
+RHX - https://bugzilla.redhat.com/show_bug.cgi?id=X
+DX  - http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=X
+GX  - http://bugs.gentoo.org/show_bug.cgi?id=X
+CAX - http://server.complang.tuwien.ac.at/cgi-bin/bugzilla/show_bug.cgi?id=X
+LPX - https://bugs.launchpad.net/bugs/X 
+PRX - http://gcc.gnu.org/bugzilla/show_bug.cgi?id=X
+
+CVE-XXXX-YYYY: http://www.cve.mitre.org/cgi-bin/cvename.cgi?name=XXXX-YYYY
+
+New in release 0.99.1 (XXX XX, 2012)
+
+* Bug fixes:
+  - PR42134: NPE in java.text.Bidi
+  - PR54931: Classpath will not build docs with version of GJDoc included with itself
+  - PR54960: Avoid NullPointerException in SAXSerializer.
+  - PR42551: Avoid overwriting length of message when computing length representation.
+  - PR44208: Ensure a handle for the enum is registered before its constant.
+  - PR41689: javax.security.sasl.CREDIENTIALS field is missing
+  - PR55140: Addition of exception to codePointBefore breaks OpenJDK GenerateBreakIteratorData tool
+
+New in release 0.99 (Feb 15, 2012)
+
+* Addition of java.util.regex.Pattern.quote.
+* Addition of java.io.IOError.
+* Addition of java.io.Console.
+* Bug fixes:
+  - PR39408: gjavah doesn't generate constants in header files where they occur in a superclass
+  - PR40590: namespace namespace broken in CNI
+  - PR40630: java.util.Scanner fails when used for charset generation by the OpenJDK build
+  - PR40653: Issue with XML stream writer and namespaces
+  - PR40663: Support Stax API 1.0.1
+  - PR39177: trunk revision 144128 - jar: internal error: java.lang.NullPointerException
+  - PR41696: java.util.zip.Inflater:finished () returns false when it should return true
+  - PR43536: CopyOnWriteArrayList bug in delete() when empty
+  - PR36560: java.util.zip: Error parsing zip file with larger files in it
+  - Restrict access to VM classes.
+  - Cleanup use of message resources.
+  - Throw exception when encrypted zip file entries are encountered.
+  - Fix infinite recursion in javax.print.attribute.standard.JobStateReasons.add.
+  - Native code cleanups in GtkToolkit.c and jcl.c.
+  - Only log when debugging is on.
+  - PR44411: System.nanoTime() is not independent of wall-clock time
+  - PR46775: Calling Policy.setPolicy with a new Policy object has no effect on the DefaultSecurityManager
+  - Use implementation of VMClass.getSimpleName from gcj.
+  - Simplify security determination in ProtectionDomain in situations where all permissions are available.
+  - PR42390: Missing Security Manager checks in classpath apis
+  - Throw NullPointerExceptions appropriately for compatibility with OpenJDK.
+  - Use Integer.parseInt in preference to Integer.decode in java.util.Formatter.
+  - Use same default capacity in java.util.HashMap as documented in OpenJDK.
+  - Check for hashcode equality before calling equals in java.util.HashMap.put
+  - Make sure match is within input data limits in java.util.regex.Matcher.find.
+  - Fix misuse of ArrayList.set in javax.swing.text.html.StyleSheet.resolveStyle.
+  - PR48131: java.util.zip.ZipException: incomplete dynamic bit lengths tree
+  - Check for negative capacity in VMDirectByteBuffer's native code.
+  - PR42823: tcp/ip sockets read/write operations causes memory leak 
+  - Generate META-INF/INDEX.LST for glibj.zip
+  - Fix issues when building with -Werror and gcc 4.6.
+  - PR40188: javah creates constants using name of superclass
+  - PR45527: gjavah encodes $ as used in inner classes as 00024 where Oracle's javah does not
+  - PR45526: gjavah does not implicitly produce header files for inner classes
+  - Fix NullPointerException for null keys in java.util.HashMap.put.
+  - Fix BEAST security issue in gnu.javax.net.ssl.provider.
+  - RH712013: pdftk crashes with java.lang.ArrayIndexOutOfBoundsException
+* Updated to libtool 2.x.
+* Lots of warning fixes / addition of generics.
+* Fix license headers in tools.
+* Normalise whitespace.
+* Maintenance work on javac detection.
+* Mark plugin as unmaintained and disable by default.
+
+New in release 0.98 (Feb 05, 2009)
+
+* Native support for BigInteger is now provided using the GMP
+library.  A new option, --enable/disable-gmp is provided, and
+the option is enabled by default if GMP is found.
+* Classpath now makes use of a new StringBuilder implementation
+internally called CPStringBuilder.  In addition to being
+unsynchronised, like StringBuilder, this also avoids copying the
+array when toString or substring is called.  While StringBuffer/Builder
+always retain their own array, which is only altered during resizing,
+CPStringBuilder gives away its array when the result is generated
+by toString()/substring() and starts afresh.  The default capacity of
+CPStringBuilder can also be configured using the
+gnu.classpath.cpstringbuilder.capacity property. (PR21869)
+* gjdoc is now built as part of tools.zip.
+* Import of the Java Activation Framework from ClasspathX to provide
+javax.activation (part of 1.6).
+* Preliminary version of java.util.Scanner (PR30436)
+* Reduce cost of ThreadLocal(s) to improve Jython performance (PR33690)
+* Updated to use CLDR 1.5.1 (PR35237)
+* Many bug fixes including:
+  - PR22851: zoneStrings in gnu/java/locale/LocaleInformation*
+  - PR31895: setCurrency(Currency) does not actually change the currency.
+  - PR32028: Make fails at gjdoc
+  - PR34840: Mismatch between Sun and Classpath's java.lang.Appendable
+  - PR35487: gcj causes ConcurrentModificationException during tomcat5
+  - PR35690: javax.tools.FileObject.toUri is in wrong case
+  - PR36085: java.util.regex escape-sequence handling 
+  - PR36147: Apache Tomcat fails to read descriptors using GNU XML
+  - PR36219: gnu.xml.transform.SortKey isn't subclass
+  - PR36220: NPEs in gnu.xml.transform.* clone methods 
+  - PR36221: DomDOMException running SPEC jvm 2008 xml.transform
+  - PR36477: OOME in CPStringBuilder when running Eclipse
+  - PR36522: Policy file is not read at all
+  - PR36636: gjar -u doesn't work
+  - PR36637: --without-fastjar doesn't wor
+  - PR36677: Omission bug in JDWP VirtualMachineCommandSet 
+  - PR38417: gnu.java.security.util.PRNG produces easily predictable values
+  - PR38473: Segmentation fault in retrieving font outline decomposition 
+  - PR38861: Support XULRunner 1.9.1.
+  - PR38912: XMLParser not interning element names 
+
+Runtime interface changes:
+
+  * VMSecureRandom has moved to gnu.java.security.jce.prng.VMSecureRandom
+  as part of the fix for PR38417.
+  * gnu.java.lang.VMCPStringBuilder has been added and should be added to
+  avoid the inefficency of reflection when creating non-copied String objects.
+
+Bug fixes in release 0.97.2 (Jun 06, 2007)
+
+* Include headers in the release tarball.
+* Allow the building of tools to be optional.
+* Only check for a Java compiler when required.
+* Allow VMOperatingSystemMXBeanImpl to compile on Solaris.
+* Documentation typo fixes
+* Fix memory leak in native/jni/classpath/jcl.c
+* Web page updates (PR classpath/22883)
+* Fixes to pass the JSR166 TCK
+* Use awk to construct the classlist on building
+* Fix deadlock in Logger (PR classpath/35974)
+* Fix regression in java.lang.String (PR classpath/35482)
+* Allow Classpath tools to handle @file options.
+* Allow parseInt to handle a + prefix correctly.
+* Remove use of 1.5 language constructs in the VM layer.
+
+Bug fixes in release 0.97.1 (Mar 11, 2007)
+
+* Include documentation for JSR166 (java.util.concurrent)
+* Fix STaX API compatability.
+* Include the tools properties file in the release tarball.
+
+New in release 0.97 (Feb 22, 2007)
+
+Build changes:
+
+* A copy of javah (to produce C header files from Java source code)
+is now required to generate the files in include.
+* The javac check has been changed so that it attempts to find ecj,
+javac and gcj (in that order).  You may override this by using
+JAVAC=<preferred javac>
+
+Runtime interface changes:
+
+* Removed VMFloat.floatToIntBits amd VMDouble.doubleToLongBits.
+* Added new getParameterAnnotations() methods in Constructor and Method.
+
+New in release 0.96.1 (Oct 16, 2007)
+
+* Small compile, configure and build fixes.
+
+New in release 0.96 (Oct 15, 2007)
+
+* New experimental GStreamer javax.sound peer (see README.gstreamer)
+* The JNI interface has been updated to 1.6
+* Better support for the OpenJDK javac compiler
+* Support for using javah via tools.zip and com.sun.tools.javah.Main
+* Much improved Escher AWT peers
+* Many bug fixes including improvements to AWT and Swing support
 
 Runtime interface changes:
 
 * Add VMFloat.toString(float) and VMFloat.parseFloat(String). Default
   implementations are the same as previous behavior.
+* Add new default implementations of VMMemoryMXBean.getHeapUsage()
+  and VMMemoryMXBean.getNonHeapUsage() via iteration over the memory
+  pools of the appropriate type.
 
 New in release 0.95 (Apr 23, 2007)
 

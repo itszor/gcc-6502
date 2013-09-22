@@ -9,23 +9,6 @@
 
 
 
-#if defined( ALPHA___EXTERN_PREFIX_CHECK )
-#if (defined(__DECC) || defined(__PRAGMA_EXTERN_PREFIX))
-#pragma extern_prefix "_P"
-#   if  (defined(__DECC) || defined(__PRAGMA_EXTERN_PREFIX))
-#     pragma extern_prefix "_E"
-# if !defined(_LIBC_POLLUTION_H_) &&  (defined(__DECC) || defined(__PRAGMA_EXTERN_PREFIX))
-#  pragma extern_prefix ""
-#endif  /* ALPHA___EXTERN_PREFIX_CHECK */
-
-
-#if defined( ALPHA_BAD_LVAL_CHECK )
-#pragma extern_prefix "_FOO"
-#define something _FOOsomething
-#define mumble _FOOmumble
-#endif  /* ALPHA_BAD_LVAL_CHECK */
-
-
 #if defined( AVOID_WCHAR_T_TYPE_CHECK )
 #ifndef __cplusplus
 typedef unsigned short	wchar_t 	;
@@ -72,13 +55,6 @@ extern __DJ_wint_t x;
 #define TIOCFOO \
 BSD43__IOWR('T', 1) /* Some are multi-line */
 #endif  /* IO_QUOTES_USE_CHECK */
-
-
-#if defined( LIBC1_IFDEFD_MEMX_CHECK )
-/* Copy N bytes of SRC to DEST.  */
-extern __ptr_t memcpy __P ((__ptr_t __dest, __const __ptr_t __src,
-                         size_t __n));
-#endif  /* LIBC1_IFDEFD_MEMX_CHECK */
 
 
 #if defined( MACHINE_ANSI_H_VA_LIST_CHECK )
@@ -129,6 +105,18 @@ extern size_t
 #endif  /* SYSV68_STRING_CHECK */
 
 
-#if defined( WINDISS_VALIST_CHECK )
-#include <stdarg.h>
-#endif  /* WINDISS_VALIST_CHECK */
+#if defined( VMS_USE_PRAGMA_EXTERN_MODEL_CHECK )
+#if defined(__DECC) || defined(__DECCXX) || defined(__GNUC__)
+# pragma extern_model __save
+# pragma extern_model strict_refdef
+   extern struct x zz;
+# pragma extern_model __restore
+#endif
+
+#endif  /* VMS_USE_PRAGMA_EXTERN_MODEL_CHECK */
+
+
+#if defined( VXWORKS_REGS_CHECK )
+#include <arch/../regs.h>
+
+#endif  /* VXWORKS_REGS_CHECK */

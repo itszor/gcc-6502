@@ -1,5 +1,5 @@
 /* PR c/20043 */
-/* { dg-compile } */
+/* { dg-do compile } */
 /* { dg-options "-std=gnu99" } */
 
 extern void f0 (int *);
@@ -81,3 +81,5 @@ main (void)
   f13 (&l);
   return 0;
 }
+
+/* { dg-message "note: expected '\[^\n'\]*' but argument is of type '\[^\n'\]*'" "note: expected" { target *-*-* } 0 } */

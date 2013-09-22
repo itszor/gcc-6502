@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,17 +28,12 @@ with Csets;    use Csets;
 with Hostparm; use Hostparm;
 with Namet;    use Namet;
 with Opt;      use Opt;
-with Output;   use Output;
 with Restrict; use Restrict;
 with Rident;   use Rident;
 with Scans;    use Scans;
 with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Uintp;    use Uintp;
-
-with GNAT.Byte_Order_Mark; use GNAT.Byte_Order_Mark;
-
-with System.WCh_Con; use System.WCh_Con;
 
 package body Scn is
 
@@ -271,41 +266,7 @@ package body Scn is
          Set_License (Current_Source_File, Determine_License);
       end if;
 
-      --  Check for BOM
-
-      declare
-         BOM : BOM_Kind;
-         Len : Natural;
-         Tst : String (1 .. 5);
-
-      begin
-         for J in 1 .. 5 loop
-            Tst (J) := Source (Scan_Ptr + Source_Ptr (J) - 1);
-         end loop;
-
-         Read_BOM (Tst, Len, BOM, False);
-
-         case BOM is
-            when UTF8_All =>
-               Scan_Ptr := Scan_Ptr + Source_Ptr (Len);
-               Wide_Character_Encoding_Method := WCEM_UTF8;
-               Upper_Half_Encoding := True;
-
-            when UTF16_LE | UTF16_BE =>
-               Write_Line ("UTF-16 encoding format not recognized");
-               raise Unrecoverable_Error;
-
-            when UTF32_LE | UTF32_BE =>
-               Write_Line ("UTF-32 encoding format not recognized");
-               raise Unrecoverable_Error;
-
-            when Unknown =>
-               null;
-
-            when others =>
-               raise Program_Error;
-         end case;
-      end;
+      Check_For_BOM;
 
       --  Because of the License stuff above, Scng.Initialize_Scanner cannot
       --  call Scan. Scan initial token (note this initializes Prev_Token,
@@ -325,32 +286,68 @@ package body Scn is
          Scan;
       end if;
 
-      --  Clear flags for reserved words used as indentifiers
+      --  Clear flags for reserved words used as identifiers
 
       for J in Token_Type loop
          Used_As_Identifier (J) := False;
       end loop;
    end Initialize_Scanner;
 
-   -----------------------
-   -- Obsolescent_Check --
-   -----------------------
-
-   procedure Obsolescent_Check (S : Source_Ptr) is
-   begin
-      --  This is a pain in the neck case, since we normally need a node to
-      --  call Check_Restrictions, and all we have is a source pointer. The
-      --  easiest thing is to construct a dummy node. A bit kludgy, but this
-      --  is a marginal case. It's not worth trying to do things more cleanly.
-
-      Check_Restriction (No_Obsolescent_Features, New_Node (N_Empty, S));
-   end Obsolescent_Check;
-
    ---------------
    -- Post_Scan --
    ---------------
 
    procedure Post_Scan is
+      procedure Check_Obsolescent_Features_Restriction (S : Source_Ptr);
+      --  This checks for Obsolescent_Features restriction being active, and
+      --  if so, flags the restriction as occurring at the given scan location.
+
+      procedure Check_Obsolete_Base_Char;
+      --  Check for numeric literal using ':' instead of '#' for based case
+
+      --------------------------------------------
+      -- Check_Obsolescent_Features_Restriction --
+      --------------------------------------------
+
+      procedure Check_Obsolescent_Features_Restriction (S : Source_Ptr) is
+      begin
+         --  Normally we have a node handy for posting restrictions. We don't
+         --  have such a node here, so construct a dummy one with the right
+         --  scan pointer. This is only used to get the Sloc value anyway.
+
+         Check_Restriction (No_Obsolescent_Features, New_Node (N_Empty, S));
+      end Check_Obsolescent_Features_Restriction;
+
+      ------------------------------
+      -- Check_Obsolete_Base_Char --
+      ------------------------------
+
+      procedure Check_Obsolete_Base_Char is
+         S : Source_Ptr;
+
+      begin
+         if Based_Literal_Uses_Colon then
+
+            --  Find the : for the restriction or warning message
+
+            S := Token_Ptr;
+            while Source (S) /= ':' loop
+               S := S + 1;
+            end loop;
+
+            Check_Obsolescent_Features_Restriction (S);
+
+            if Warn_On_Obsolescent_Feature then
+               Error_Msg
+                 ("?j?use of "":"" is an obsolescent feature (RM J.2(3))", S);
+               Error_Msg
+                 ("\?j?use ""'#"" instead", S);
+            end if;
+         end if;
+      end Check_Obsolete_Base_Char;
+
+   --  Start of processing for Post_Scan
+
    begin
       case Token is
          when Tok_Char_Literal =>
@@ -365,20 +362,46 @@ package body Scn is
          when Tok_Real_Literal =>
             Token_Node := New_Node (N_Real_Literal, Token_Ptr);
             Set_Realval (Token_Node, Real_Literal_Value);
+            Check_Obsolete_Base_Char;
 
          when Tok_Integer_Literal =>
             Token_Node := New_Node (N_Integer_Literal, Token_Ptr);
             Set_Intval (Token_Node, Int_Literal_Value);
+            Check_Obsolete_Base_Char;
 
          when Tok_String_Literal =>
             Token_Node := New_Node (N_String_Literal, Token_Ptr);
-            Set_Has_Wide_Character (Token_Node, Wide_Character_Found);
+            Set_Has_Wide_Character
+              (Token_Node, Wide_Character_Found);
+            Set_Has_Wide_Wide_Character
+              (Token_Node, Wide_Wide_Character_Found);
             Set_Strval (Token_Node, String_Literal_Id);
+
+            if Source (Token_Ptr) = '%' then
+               Check_Obsolescent_Features_Restriction (Token_Ptr);
+
+               if Warn_On_Obsolescent_Feature then
+                  Error_Msg_SC
+                    ("?j?use of ""'%"" is an obsolescent feature (RM J.2(4))");
+                  Error_Msg_SC ("\?j?use """""" instead");
+               end if;
+            end if;
 
          when Tok_Operator_Symbol =>
             Token_Node := New_Node (N_Operator_Symbol, Token_Ptr);
             Set_Chars (Token_Node, Token_Name);
             Set_Strval (Token_Node, String_Literal_Id);
+
+         when Tok_Vertical_Bar =>
+            if Source (Token_Ptr) = '!' then
+               Check_Obsolescent_Features_Restriction (Token_Ptr);
+
+               if Warn_On_Obsolescent_Feature then
+                  Error_Msg_SC
+                    ("?j?use of ""'!"" is an obsolescent feature (RM J.2(2))");
+                  Error_Msg_SC ("\?j?use ""'|"" instead");
+               end if;
+            end if;
 
          when others =>
             null;

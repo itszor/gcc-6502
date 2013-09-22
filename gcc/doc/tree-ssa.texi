@@ -1,5 +1,4 @@
-@c Copyright (c) 2004, 2005, 2007, 2008 Free Software Foundation, Inc.
-@c Free Software Foundation, Inc.
+@c Copyright (C) 2004-2013 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -8,7 +7,7 @@
 @c ---------------------------------------------------------------------
 
 @node Tree SSA
-@chapter Analysis and Optimization of GIMPLE Trees
+@chapter Analysis and Optimization of GIMPLE tuples
 @cindex Tree SSA
 @cindex Optimization infrastructure for GIMPLE
 
@@ -37,728 +36,29 @@ functions and programming constructs needed to implement optimization
 passes for GIMPLE@.
 
 @menu
-* GENERIC::		A high-level language-independent representation.
-* GIMPLE::              A lower-level factored tree representation.
-* Annotations::		Attributes for statements and variables.
-* Statement Operands::	Variables referenced by GIMPLE statements.
-* SSA::			Static Single Assignment representation.
-* Alias analysis::	Representing aliased loads and stores.
+* Annotations::         Attributes for variables.
+* SSA Operands::        SSA names referenced by GIMPLE statements.
+* SSA::                 Static Single Assignment representation.
+* Alias analysis::      Representing aliased loads and stores.
+* Memory model::        Memory model used by the middle-end.
 @end menu
-
-@node GENERIC
-@section GENERIC
-@cindex GENERIC
-
-The purpose of GENERIC is simply to provide a language-independent way of
-representing an entire function in trees.  To this end, it was necessary to
-add a few new tree codes to the back end, but most everything was already
-there.  If you can express it with the codes in @code{gcc/tree.def}, it's
-GENERIC@.
-
-Early on, there was a great deal of debate about how to think about
-statements in a tree IL@.  In GENERIC, a statement is defined as any
-expression whose value, if any, is ignored.  A statement will always
-have @code{TREE_SIDE_EFFECTS} set (or it will be discarded), but a
-non-statement expression may also have side effects.  A
-@code{CALL_EXPR}, for instance.
-
-It would be possible for some local optimizations to work on the
-GENERIC form of a function; indeed, the adapted tree inliner works
-fine on GENERIC, but the current compiler performs inlining after
-lowering to GIMPLE (a restricted form described in the next section).
-Indeed, currently the frontends perform this lowering before handing
-off to @code{tree_rest_of_compilation}, but this seems inelegant.
-
-If necessary, a front end can use some language-dependent tree codes
-in its GENERIC representation, so long as it provides a hook for
-converting them to GIMPLE and doesn't expect them to work with any
-(hypothetical) optimizers that run before the conversion to GIMPLE@.
-The intermediate representation used while parsing C and C++ looks
-very little like GENERIC, but the C and C++ gimplifier hooks are
-perfectly happy to take it as input and spit out GIMPLE@.
-
-@node GIMPLE
-@section GIMPLE
-@cindex GIMPLE
-
-GIMPLE is a simplified subset of GENERIC for use in optimization.  The
-particular subset chosen (and the name) was heavily influenced by the
-SIMPLE IL used by the McCAT compiler project at McGill University,
-though we have made some different choices.  For one thing, SIMPLE
-doesn't support @code{goto}; a production compiler can't afford that
-kind of restriction.
-
-GIMPLE retains much of the structure of the parse trees: lexical
-scopes are represented as containers, rather than markers.  However,
-expressions are broken down into a 3-address form, using temporary
-variables to hold intermediate values.  Also, control structures are
-lowered to gotos.
-
-In GIMPLE no container node is ever used for its value; if a
-@code{COND_EXPR} or @code{BIND_EXPR} has a value, it is stored into a
-temporary within the controlled blocks, and that temporary is used in
-place of the container.
-
-The compiler pass which lowers GENERIC to GIMPLE is referred to as the
-@samp{gimplifier}.  The gimplifier works recursively, replacing complex
-statements with sequences of simple statements.
-
-@c Currently, the only way to
-@c tell whether or not an expression is in GIMPLE form is by recursively
-@c examining it; in the future there will probably be a flag to help avoid
-@c redundant work.  FIXME FIXME
-
-@menu
-* Interfaces::
-* Temporaries::
-* GIMPLE Expressions::
-* Statements::
-* GIMPLE Example::
-* Rough GIMPLE Grammar::
-@end menu
-
-@node Interfaces
-@subsection Interfaces
-@cindex gimplification
-
-The tree representation of a function is stored in
-@code{DECL_SAVED_TREE}.  It is lowered to GIMPLE by a call to
-@code{gimplify_function_tree}.
-
-If a front end wants to include language-specific tree codes in the tree
-representation which it provides to the back end, it must provide a
-definition of @code{LANG_HOOKS_GIMPLIFY_EXPR} which knows how to
-convert the front end trees to GIMPLE@.  Usually such a hook will involve
-much of the same code for expanding front end trees to RTL@.  This function
-can return fully lowered GIMPLE, or it can return GENERIC trees and let the
-main gimplifier lower them the rest of the way; this is often simpler.
-GIMPLE that is not fully lowered is known as ``high GIMPLE'' and
-consists of the IL before the pass @code{pass_lower_cf}.  High GIMPLE
-still contains lexical scopes and nested expressions, while low GIMPLE
-exposes all of the implicit jumps for control expressions like
-@code{COND_EXPR}.
-
-The C and C++ front ends currently convert directly from front end
-trees to GIMPLE, and hand that off to the back end rather than first
-converting to GENERIC@.  Their gimplifier hooks know about all the
-@code{_STMT} nodes and how to convert them to GENERIC forms.  There
-was some work done on a genericization pass which would run first, but
-the existence of @code{STMT_EXPR} meant that in order to convert all
-of the C statements into GENERIC equivalents would involve walking the
-entire tree anyway, so it was simpler to lower all the way.  This
-might change in the future if someone writes an optimization pass
-which would work better with higher-level trees, but currently the
-optimizers all expect GIMPLE@.
-
-A front end which wants to use the tree optimizers (and already has
-some sort of whole-function tree representation) only needs to provide
-a definition of @code{LANG_HOOKS_GIMPLIFY_EXPR}, call
-@code{gimplify_function_tree} to lower to GIMPLE, and then hand off to
-@code{tree_rest_of_compilation} to compile and output the function.
-
-You can tell the compiler to dump a C-like representation of the GIMPLE
-form with the flag @option{-fdump-tree-gimple}.
-
-@node Temporaries
-@subsection Temporaries
-@cindex Temporaries
-
-When gimplification encounters a subexpression which is too complex, it
-creates a new temporary variable to hold the value of the subexpression,
-and adds a new statement to initialize it before the current statement.
-These special temporaries are known as @samp{expression temporaries}, and are
-allocated using @code{get_formal_tmp_var}.  The compiler tries to
-always evaluate identical expressions into the same temporary, to simplify
-elimination of redundant calculations.
-
-We can only use expression temporaries when we know that it will not be
-reevaluated before its value is used, and that it will not be otherwise
-modified@footnote{These restrictions are derived from those in Morgan 4.8.}.
-Other temporaries can be allocated using
-@code{get_initialized_tmp_var} or @code{create_tmp_var}.
-
-Currently, an expression like @code{a = b + 5} is not reduced any
-further.  We tried converting it to something like
-@smallexample
-  T1 = b + 5;
-  a = T1;
-@end smallexample
-but this bloated the representation for minimal benefit.  However, a
-variable which must live in memory cannot appear in an expression; its
-value is explicitly loaded into a temporary first.  Similarly, storing
-the value of an expression to a memory variable goes through a
-temporary.
-
-@node GIMPLE Expressions
-@subsection Expressions
-@cindex GIMPLE Expressions
-
-In general, expressions in GIMPLE consist of an operation and the
-appropriate number of simple operands; these operands must either be a
-GIMPLE rvalue (@code{is_gimple_val}), i.e.@: a constant or a register
-variable.  More complex operands are factored out into temporaries, so
-that
-@smallexample
-  a = b + c + d
-@end smallexample
-becomes
-@smallexample
-  T1 = b + c;
-  a = T1 + d;
-@end smallexample
-
-The same rule holds for arguments to a @code{CALL_EXPR}.
-
-The target of an assignment is usually a variable, but can also be an
-@code{INDIRECT_REF} or a compound lvalue as described below.
-
-@menu
-* Compound Expressions::
-* Compound Lvalues::
-* Conditional Expressions::
-* Logical Operators::
-@end menu
-
-@node Compound Expressions
-@subsubsection Compound Expressions
-@cindex Compound Expressions
-
-The left-hand side of a C comma expression is simply moved into a separate
-statement.
-
-@node Compound Lvalues
-@subsubsection Compound Lvalues
-@cindex Compound Lvalues
-
-Currently compound lvalues involving array and structure field references
-are not broken down; an expression like @code{a.b[2] = 42} is not reduced
-any further (though complex array subscripts are).  This restriction is a
-workaround for limitations in later optimizers; if we were to convert this
-to
-
-@smallexample
-  T1 = &a.b;
-  T1[2] = 42;
-@end smallexample
-
-alias analysis would not remember that the reference to @code{T1[2]} came
-by way of @code{a.b}, so it would think that the assignment could alias
-another member of @code{a}; this broke @code{struct-alias-1.c}.  Future
-optimizer improvements may make this limitation unnecessary.
-
-@node Conditional Expressions
-@subsubsection Conditional Expressions
-@cindex Conditional Expressions
-
-A C @code{?:} expression is converted into an @code{if} statement with
-each branch assigning to the same temporary.  So,
-
-@smallexample
-  a = b ? c : d;
-@end smallexample
-becomes
-@smallexample
-  if (b)
-    T1 = c;
-  else
-    T1 = d;
-  a = T1;
-@end smallexample
-
-Tree level if-conversion pass re-introduces @code{?:} expression, if appropriate.
-It is used to vectorize loops with conditions using vector conditional operations.
-
-Note that in GIMPLE, @code{if} statements are also represented using
-@code{COND_EXPR}, as described below.
-
-@node Logical Operators
-@subsubsection Logical Operators
-@cindex Logical Operators
-
-Except when they appear in the condition operand of a @code{COND_EXPR},
-logical `and' and `or' operators are simplified as follows:
-@code{a = b && c} becomes
-
-@smallexample
-  T1 = (bool)b;
-  if (T1)
-    T1 = (bool)c;
-  a = T1;
-@end smallexample
-
-Note that @code{T1} in this example cannot be an expression temporary,
-because it has two different assignments.
-
-@node Statements
-@subsection Statements
-@cindex Statements
-
-Most statements will be assignment statements, represented by
-@code{MODIFY_EXPR}.  A @code{CALL_EXPR} whose value is ignored can
-also be a statement.  No other C expressions can appear at statement level;
-a reference to a volatile object is converted into a @code{MODIFY_EXPR}.
-In GIMPLE form, type of @code{MODIFY_EXPR} is not meaningful.  Instead, use type
-of LHS or RHS@.
-
-There are also several varieties of complex statements.
-
-@menu
-* Blocks::
-* Statement Sequences::
-* Empty Statements::
-* Loops::
-* Selection Statements::
-* Jumps::
-* Cleanups::
-* GIMPLE Exception Handling::
-@end menu
-
-@node Blocks
-@subsubsection Blocks
-@cindex Blocks
-
-Block scopes and the variables they declare in GENERIC and GIMPLE are
-expressed using the @code{BIND_EXPR} code, which in previous versions of
-GCC was primarily used for the C statement-expression extension.
-
-Variables in a block are collected into @code{BIND_EXPR_VARS} in
-declaration order.  Any runtime initialization is moved out of
-@code{DECL_INITIAL} and into a statement in the controlled block.  When
-gimplifying from C or C++, this initialization replaces the
-@code{DECL_STMT}.
-
-Variable-length arrays (VLAs) complicate this process, as their size often
-refers to variables initialized earlier in the block.  To handle this, we
-currently split the block at that point, and move the VLA into a new, inner
-@code{BIND_EXPR}.  This strategy may change in the future.
-
-@code{DECL_SAVED_TREE} for a GIMPLE function will always be a
-@code{BIND_EXPR} which contains declarations for the temporary variables
-used in the function.
-
-A C++ program will usually contain more @code{BIND_EXPR}s than there are
-syntactic blocks in the source code, since several C++ constructs have
-implicit scopes associated with them.  On the other hand, although the C++
-front end uses pseudo-scopes to handle cleanups for objects with
-destructors, these don't translate into the GIMPLE form; multiple
-declarations at the same level use the same @code{BIND_EXPR}.
-
-@node Statement Sequences
-@subsubsection Statement Sequences
-@cindex Statement Sequences
-
-Multiple statements at the same nesting level are collected into a
-@code{STATEMENT_LIST}.  Statement lists are modified and traversed
-using the interface in @samp{tree-iterator.h}.
-
-@node Empty Statements
-@subsubsection Empty Statements
-@cindex Empty Statements
-
-Whenever possible, statements with no effect are discarded.  But if they
-are nested within another construct which cannot be discarded for some
-reason, they are instead replaced with an empty statement, generated by
-@code{build_empty_stmt}.  Initially, all empty statements were shared,
-after the pattern of the Java front end, but this caused a lot of trouble in
-practice.
-
-An empty statement is represented as @code{(void)0}.
-
-@node Loops
-@subsubsection Loops
-@cindex Loops
-
-At one time loops were expressed in GIMPLE using @code{LOOP_EXPR}, but
-now they are lowered to explicit gotos.
-
-@node Selection Statements
-@subsubsection Selection Statements
-@cindex Selection Statements
-
-A simple selection statement, such as the C @code{if} statement, is
-expressed in GIMPLE using a void @code{COND_EXPR}.  If only one branch is
-used, the other is filled with an empty statement.
-
-Normally, the condition expression is reduced to a simple comparison.  If
-it is a shortcut (@code{&&} or @code{||}) expression, however, we try to
-break up the @code{if} into multiple @code{if}s so that the implied shortcut
-is taken directly, much like the transformation done by @code{do_jump} in
-the RTL expander.
-
-A @code{SWITCH_EXPR} in GIMPLE contains the condition and a
-@code{TREE_VEC} of @code{CASE_LABEL_EXPR}s describing the case values
-and corresponding @code{LABEL_DECL}s to jump to.  The body of the
-@code{switch} is moved after the @code{SWITCH_EXPR}.
-
-@node Jumps
-@subsubsection Jumps
-@cindex Jumps
-
-Other jumps are expressed by either @code{GOTO_EXPR} or @code{RETURN_EXPR}.
-
-The operand of a @code{GOTO_EXPR} must be either a label or a variable
-containing the address to jump to.
-
-The operand of a @code{RETURN_EXPR} is either @code{NULL_TREE},
-@code{RESULT_DECL}, or a @code{MODIFY_EXPR} which sets the return value.  It
-would be nice to move the @code{MODIFY_EXPR} into a separate statement, but the
-special return semantics in @code{expand_return} make that difficult.  It may
-still happen in the future, perhaps by moving most of that logic into
-@code{expand_assignment}.
-
-@node Cleanups
-@subsubsection Cleanups
-@cindex Cleanups
-
-Destructors for local C++ objects and similar dynamic cleanups are
-represented in GIMPLE by a @code{TRY_FINALLY_EXPR}.
-@code{TRY_FINALLY_EXPR} has two operands, both of which are a sequence
-of statements to execute.  The first sequence is executed.  When it
-completes the second sequence is executed.
-
-The first sequence may complete in the following ways:
-
-@enumerate
-
-@item Execute the last statement in the sequence and fall off the
-end.
-
-@item Execute a goto statement (@code{GOTO_EXPR}) to an ordinary
-label outside the sequence.
-
-@item Execute a return statement (@code{RETURN_EXPR}).
-
-@item Throw an exception.  This is currently not explicitly represented in
-GIMPLE.
-
-@end enumerate
-
-The second sequence is not executed if the first sequence completes by
-calling @code{setjmp} or @code{exit} or any other function that does
-not return.  The second sequence is also not executed if the first
-sequence completes via a non-local goto or a computed goto (in general
-the compiler does not know whether such a goto statement exits the
-first sequence or not, so we assume that it doesn't).
-
-After the second sequence is executed, if it completes normally by
-falling off the end, execution continues wherever the first sequence
-would have continued, by falling off the end, or doing a goto, etc.
-
-@code{TRY_FINALLY_EXPR} complicates the flow graph, since the cleanup
-needs to appear on every edge out of the controlled block; this
-reduces the freedom to move code across these edges.  Therefore, the
-EH lowering pass which runs before most of the optimization passes
-eliminates these expressions by explicitly adding the cleanup to each
-edge.  Rethrowing the exception is represented using @code{RESX_EXPR}.
-
-
-@node GIMPLE Exception Handling
-@subsubsection Exception Handling
-@cindex GIMPLE Exception Handling
-
-Other exception handling constructs are represented using
-@code{TRY_CATCH_EXPR}.  @code{TRY_CATCH_EXPR} has two operands.  The
-first operand is a sequence of statements to execute.  If executing
-these statements does not throw an exception, then the second operand
-is ignored.  Otherwise, if an exception is thrown, then the second
-operand of the @code{TRY_CATCH_EXPR} is checked.  The second operand
-may have the following forms:
-
-@enumerate
-
-@item A sequence of statements to execute.  When an exception occurs,
-these statements are executed, and then the exception is rethrown.
-
-@item A sequence of @code{CATCH_EXPR} expressions.  Each @code{CATCH_EXPR}
-has a list of applicable exception types and handler code.  If the
-thrown exception matches one of the caught types, the associated
-handler code is executed.  If the handler code falls off the bottom,
-execution continues after the original @code{TRY_CATCH_EXPR}.
-
-@item An @code{EH_FILTER_EXPR} expression.  This has a list of
-permitted exception types, and code to handle a match failure.  If the
-thrown exception does not match one of the allowed types, the
-associated match failure code is executed.  If the thrown exception
-does match, it continues unwinding the stack looking for the next
-handler.
-
-@end enumerate
-
-Currently throwing an exception is not directly represented in GIMPLE,
-since it is implemented by calling a function.  At some point in the future
-we will want to add some way to express that the call will throw an
-exception of a known type.
-
-Just before running the optimizers, the compiler lowers the high-level
-EH constructs above into a set of @samp{goto}s, magic labels, and EH
-regions.  Continuing to unwind at the end of a cleanup is represented
-with a @code{RESX_EXPR}.
-
-@node GIMPLE Example
-@subsection GIMPLE Example
-@cindex GIMPLE Example
-
-@smallexample
-struct A @{ A(); ~A(); @};
-
-int i;
-int g();
-void f()
-@{
-  A a;
-  int j = (--i, i ? 0 : 1);
-
-  for (int x = 42; x > 0; --x)
-    @{
-      i += g()*4 + 32;
-    @}
-@}
-@end smallexample
-
-becomes
-
-@smallexample
-void f()
-@{
-  int i.0;
-  int T.1;
-  int iftmp.2;
-  int T.3;
-  int T.4;
-  int T.5;
-  int T.6;
-
-  @{
-    struct A a;
-    int j;
-
-    __comp_ctor (&a);
-    try
-      @{
-        i.0 = i;
-        T.1 = i.0 - 1;
-        i = T.1;
-        i.0 = i;
-        if (i.0 == 0)
-          iftmp.2 = 1;
-        else
-          iftmp.2 = 0;
-        j = iftmp.2;
-        @{
-          int x;
-
-          x = 42;
-          goto test;
-          loop:;
-
-          T.3 = g ();
-          T.4 = T.3 * 4;
-          i.0 = i;
-          T.5 = T.4 + i.0;
-          T.6 = T.5 + 32;
-          i = T.6;
-          x = x - 1;
-
-          test:;
-          if (x > 0)
-            goto loop;
-          else
-            goto break_;
-          break_:;
-        @}
-      @}
-    finally
-      @{
-        __comp_dtor (&a);
-      @}
-  @}
-@}
-@end smallexample
-
-@node Rough GIMPLE Grammar
-@subsection Rough GIMPLE Grammar
-@cindex Rough GIMPLE Grammar
-
-@smallexample
-   function     : FUNCTION_DECL
-                        DECL_SAVED_TREE -> compound-stmt
-
-   compound-stmt: STATEMENT_LIST
-                        members -> stmt
-
-   stmt         : block
-                | if-stmt
-                | switch-stmt
-                | goto-stmt
-                | return-stmt
-                | resx-stmt
-                | label-stmt
-                | try-stmt
-                | modify-stmt
-                | call-stmt
-
-   block        : BIND_EXPR
-                        BIND_EXPR_VARS -> chain of DECLs
-                        BIND_EXPR_BLOCK -> BLOCK
-                        BIND_EXPR_BODY -> compound-stmt
-
-   if-stmt      : COND_EXPR
-                        op0 -> condition
-                        op1 -> compound-stmt
-                        op2 -> compound-stmt
-
-   switch-stmt  : SWITCH_EXPR
-                        op0 -> val
-                        op1 -> NULL
-                        op2 -> TREE_VEC of CASE_LABEL_EXPRs
-                            The CASE_LABEL_EXPRs are sorted by CASE_LOW,
-                            and default is last.
-
-   goto-stmt    : GOTO_EXPR
-                        op0 -> LABEL_DECL | val
-
-   return-stmt  : RETURN_EXPR
-                        op0 -> return-value
-
-   return-value : NULL
-                | RESULT_DECL
-                | MODIFY_EXPR
-                        op0 -> RESULT_DECL
-                        op1 -> lhs
-
-   resx-stmt    : RESX_EXPR
-
-   label-stmt   : LABEL_EXPR
-                        op0 -> LABEL_DECL
-
-   try-stmt     : TRY_CATCH_EXPR
-                        op0 -> compound-stmt
-                        op1 -> handler
-                | TRY_FINALLY_EXPR
-                        op0 -> compound-stmt
-                        op1 -> compound-stmt
-
-   handler      : catch-seq
-                | EH_FILTER_EXPR
-                | compound-stmt
-
-   catch-seq    : STATEMENT_LIST
-                        members -> CATCH_EXPR
-
-   modify-stmt  : MODIFY_EXPR
-                        op0 -> lhs
-                        op1 -> rhs
-
-   call-stmt    : CALL_EXPR
-                        op0 -> val | OBJ_TYPE_REF
-                        op1 -> call-arg-list
-
-   call-arg-list: TREE_LIST
-                        members -> lhs | CONST
-
-   addr-expr-arg: ID
-                | compref
-
-   addressable  : addr-expr-arg
-                | indirectref
-
-   with-size-arg: addressable
-                | call-stmt
-
-   indirectref  : INDIRECT_REF
-                        op0 -> val
-
-   lhs          : addressable
-                | bitfieldref
-                | WITH_SIZE_EXPR
-                        op0 -> with-size-arg
-                        op1 -> val
-
-   min-lval     : ID
-                | indirectref
-
-   bitfieldref  : BIT_FIELD_REF
-                        op0 -> inner-compref
-                        op1 -> CONST
-                        op2 -> val
-
-   compref      : inner-compref
-                | TARGET_MEM_REF
-                        op0 -> ID
-                        op1 -> val
-                        op2 -> val
-                        op3 -> CONST
-                        op4 -> CONST
-                | REALPART_EXPR
-                        op0 -> inner-compref
-                | IMAGPART_EXPR
-                        op0 -> inner-compref
-
-   inner-compref: min-lval
-                | COMPONENT_REF
-                        op0 -> inner-compref
-                        op1 -> FIELD_DECL
-                        op2 -> val
-                | ARRAY_REF
-                        op0 -> inner-compref
-                        op1 -> val
-                        op2 -> val
-                        op3 -> val
-                | ARRAY_RANGE_REF
-                        op0 -> inner-compref
-                        op1 -> val
-                        op2 -> val
-                        op3 -> val
-                | VIEW_CONVERT_EXPR
-                        op0 -> inner-compref
-
-   condition    : val
-                | RELOP
-                        op0 -> val
-                        op1 -> val
-
-   val          : ID
-                | invariant ADDR_EXPR
-                        op0 -> addr-expr-arg
-                | CONST
-
-   rhs          : lhs
-                | CONST
-                | call-stmt
-                | ADDR_EXPR
-                        op0 -> addr-expr-arg
-                | UNOP
-                        op0 -> val
-                | BINOP
-                        op0 -> val
-                        op1 -> val
-                | RELOP
-                        op0 -> val
-                        op1 -> val
-		| COND_EXPR
-			op0 -> condition
-			op1 -> val
-			op2 -> val
-@end smallexample
 
 @node Annotations
 @section Annotations
 @cindex annotations
 
-The optimizers need to associate attributes with statements and
-variables during the optimization process.  For instance, we need to
-know what basic block a statement belongs to or whether a variable
-has aliases.  All these attributes are stored in data structures
-called annotations which are then linked to the field @code{ann} in
-@code{struct tree_common}.
+The optimizers need to associate attributes with variables during the
+optimization process.  For instance, we need to know whether a
+variable has aliases.  All these attributes are stored in data
+structures called annotations which are then linked to the field
+@code{ann} in @code{struct tree_common}.
 
-Presently, we define annotations for statements (@code{stmt_ann_t}),
-variables (@code{var_ann_t}) and SSA names (@code{ssa_name_ann_t}).
+Presently, we define annotations for variables (@code{var_ann_t}).
 Annotations are defined and documented in @file{tree-flow.h}.
 
 
-@node Statement Operands
-@section Statement Operands
+@node SSA Operands
+@section SSA Operands
 @cindex operands
 @cindex virtual operands
 @cindex real operands
@@ -808,9 +108,9 @@ full object that they represent.  For instance, given
 
 Since @code{a} and @code{b} are non-aliased locals, the statement
 @code{a = b} will have one real definition and one real use because
-variable @code{b} is completely modified with the contents of
-variable @code{a}.  Real definition are also known as @dfn{killing
-definitions}.  Similarly, the use of @code{a} reads all its bits.
+variable @code{a} is completely modified with the contents of
+variable @code{b}.  Real definition are also known as @dfn{killing
+definitions}.  Similarly, the use of @code{b} reads all its bits.
 
 In contrast, virtual operands are used with variables that can have
 a partial or ambiguous reference.  This includes structures, arrays,
@@ -883,7 +183,7 @@ must be made to @code{update_stmt} when complete.  Calling one of the
 call to @code{update_stmt}.
 
 @subsection Operand Iterators And Access Routines
-@cindex Operand Iterators 
+@cindex Operand Iterators
 @cindex Operand Access Routines
 
 Operands are collected by @file{tree-ssa-operands.c}.  They are stored
@@ -893,9 +193,9 @@ operand iterators or an access routine.
 The following access routines are available for examining operands:
 
 @enumerate
-@item @code{SINGLE_SSA_@{USE,DEF,TREE@}_OPERAND}: These accessors will return 
-NULL unless there is exactly one operand matching the specified flags.  If 
-there is exactly one operand, the operand is returned as either a @code{tree}, 
+@item @code{SINGLE_SSA_@{USE,DEF,TREE@}_OPERAND}: These accessors will return
+NULL unless there is exactly one operand matching the specified flags.  If
+there is exactly one operand, the operand is returned as either a @code{tree},
 @code{def_operand_p}, or @code{use_operand_p}.
 
 @smallexample
@@ -904,7 +204,7 @@ use_operand_p u = SINGLE_SSA_USE_OPERAND (stmt, SSA_ALL_VIRTUAL_USES);
 def_operand_p d = SINGLE_SSA_DEF_OPERAND (stmt, SSA_OP_ALL_DEFS);
 @end smallexample
 
-@item @code{ZERO_SSA_OPERANDS}: This macro returns true if there are no 
+@item @code{ZERO_SSA_OPERANDS}: This macro returns true if there are no
 operands matching the specified flags.
 
 @smallexample
@@ -912,8 +212,8 @@ if (ZERO_SSA_OPERANDS (stmt, SSA_OP_ALL_VIRTUALS))
   return;
 @end smallexample
 
-@item @code{NUM_SSA_OPERANDS}: This macro Returns the number of operands 
-matching 'flags'.  This actually executes a loop to perform the count, so 
+@item @code{NUM_SSA_OPERANDS}: This macro Returns the number of operands
+matching 'flags'.  This actually executes a loop to perform the count, so
 only use this if it is really needed.
 
 @smallexample
@@ -943,7 +243,7 @@ How to choose the appropriate iterator:
 
 @enumerate
 @item Determine whether you are need to see the operand pointers, or just the
-    trees, and choose the appropriate macro:
+trees, and choose the appropriate macro:
 
 @smallexample
 Need            Macro:
@@ -954,12 +254,12 @@ tree            FOR_EACH_SSA_TREE_OPERAND
 @end smallexample
 
 @item You need to declare a variable of the type you are interested
-    in, and an ssa_op_iter structure which serves as the loop
-    controlling variable.
+in, and an ssa_op_iter structure which serves as the loop controlling
+variable.
 
 @item Determine which operands you wish to use, and specify the flags of
-    those you are interested in.  They are documented in
-    @file{tree-ssa-operands.h}:
+those you are interested in.  They are documented in
+@file{tree-ssa-operands.h}:
 
 @smallexample
 #define SSA_OP_USE              0x01    /* @r{Real USE operands.}  */
@@ -1030,8 +330,8 @@ documentation in @file{tree-ssa-operands.h}.
 There are also a couple of variants on the stmt iterators regarding PHI
 nodes.
 
-@code{FOR_EACH_PHI_ARG} Works exactly like 
-@code{FOR_EACH_SSA_USE_OPERAND}, except it works over @code{PHI} arguments 
+@code{FOR_EACH_PHI_ARG} Works exactly like
+@code{FOR_EACH_SSA_USE_OPERAND}, except it works over @code{PHI} arguments
 instead of statement operands.
 
 @smallexample
@@ -1045,15 +345,15 @@ FOR_EACH_PHI_ARG (use_p, phi_stmt, iter, SSA_OP_VIRTUAL_USES)
 FOR_EACH_PHI_ARG (use_p, phi_stmt, iter, SSA_OP_USES)
   my_code;
 
-/* Look at every every PHI use.  */
+/* Look at every PHI use.  */
 FOR_EACH_PHI_ARG (use_p, phi_stmt, iter, SSA_OP_ALL_USES)
   my_code;
 @end smallexample
 
-@code{FOR_EACH_PHI_OR_STMT_@{USE,DEF@}} works exactly like 
+@code{FOR_EACH_PHI_OR_STMT_@{USE,DEF@}} works exactly like
 @code{FOR_EACH_SSA_@{USE,DEF@}_OPERAND}, except it will function on
 either a statement or a @code{PHI} node.  These should be used when it is
-appropriate but they are not quite as efficient as the individual 
+appropriate but they are not quite as efficient as the individual
 @code{FOR_EACH_PHI} and @code{FOR_EACH_SSA} routines.
 
 @smallexample
@@ -1071,7 +371,7 @@ FOR_EACH_PHI_OR_STMT_DEF (def_operand_p, phi, iter, flags)
 @subsection Immediate Uses
 @cindex Immediate Uses
 
-Immediate use information is now always available.  Using the immediate use 
+Immediate use information is now always available.  Using the immediate use
 iterators, you may examine every use of any @code{SSA_NAME}. For instance,
 to change each use of @code{ssa_var} to @code{ssa_var2} and call fold_stmt on
 each stmt after that is done:
@@ -1092,18 +392,18 @@ each stmt after that is done:
 
 There are 2 iterators which can be used. @code{FOR_EACH_IMM_USE_FAST} is
 used when the immediate uses are not changed, i.e., you are looking at the
-uses, but not setting them.  
+uses, but not setting them.
 
-If they do get changed, then care must be taken that things are not changed 
-under the iterators, so use the @code{FOR_EACH_IMM_USE_STMT} and 
-@code{FOR_EACH_IMM_USE_ON_STMT} iterators.  They attempt to preserve the 
-sanity of the use list by moving all the uses for a statement into 
-a controlled position, and then iterating over those uses.  Then the 
+If they do get changed, then care must be taken that things are not changed
+under the iterators, so use the @code{FOR_EACH_IMM_USE_STMT} and
+@code{FOR_EACH_IMM_USE_ON_STMT} iterators.  They attempt to preserve the
+sanity of the use list by moving all the uses for a statement into
+a controlled position, and then iterating over those uses.  Then the
 optimization can manipulate the stmt when all the uses have been
-processed.  This is a little slower than the FAST version since it adds a 
-placeholder element and must sort through the list a bit for each statement.  
-This placeholder element must be also be removed if the loop is 
-terminated early.  The macro @code{BREAK_FROM_IMM_USE_SAFE} is provided 
+processed.  This is a little slower than the FAST version since it adds a
+placeholder element and must sort through the list a bit for each statement.
+This placeholder element must be also be removed if the loop is
+terminated early.  The macro @code{BREAK_FROM_IMM_USE_SAFE} is provided
 to do this :
 
 @smallexample
@@ -1119,19 +419,19 @@ to do this :
 @end smallexample
 
 There are checks in @code{verify_ssa} which verify that the immediate use list
-is up to date, as well as checking that an optimization didn't break from the 
-loop without using this macro.  It is safe to simply 'break'; from a 
+is up to date, as well as checking that an optimization didn't break from the
+loop without using this macro.  It is safe to simply 'break'; from a
 @code{FOR_EACH_IMM_USE_FAST} traverse.
 
 Some useful functions and macros:
 @enumerate
 @item  @code{has_zero_uses (ssa_var)} : Returns true if there are no uses of
 @code{ssa_var}.
-@item   @code{has_single_use (ssa_var)} : Returns true if there is only a 
+@item   @code{has_single_use (ssa_var)} : Returns true if there is only a
 single use of @code{ssa_var}.
 @item   @code{single_imm_use (ssa_var, use_operand_p *ptr, tree *stmt)} :
 Returns true if there is only a single use of @code{ssa_var}, and also returns
-the use pointer and statement it occurs in in the second and third parameters.
+the use pointer and statement it occurs in, in the second and third parameters.
 @item   @code{num_imm_uses (ssa_var)} : Returns the number of immediate uses of
 @code{ssa_var}. It is better not to use this if possible since it simply
 utilizes a loop to count the uses.
@@ -1142,18 +442,18 @@ isn't located in a @code{PHI} node.
 @end enumerate
 
 Note that uses are not put into an immediate use list until their statement is
-actually inserted into the instruction stream via a @code{bsi_*} routine.  
+actually inserted into the instruction stream via a @code{bsi_*} routine.
 
-It is also still possible to utilize lazy updating of statements, but this 
-should be used only when absolutely required.  Both alias analysis and the 
-dominator optimizations currently do this.  
+It is also still possible to utilize lazy updating of statements, but this
+should be used only when absolutely required.  Both alias analysis and the
+dominator optimizations currently do this.
 
-When lazy updating is being used, the immediate use information is out of date 
+When lazy updating is being used, the immediate use information is out of date
 and cannot be used reliably.  Lazy updating is achieved by simply marking
-statements modified via calls to @code{mark_stmt_modified} instead of 
-@code{update_stmt}.  When lazy updating is no longer required, all the 
-modified statements must have @code{update_stmt} called in order to bring them 
-up to date.  This must be done before the optimization is finished, or 
+statements modified via calls to @code{mark_stmt_modified} instead of
+@code{update_stmt}.  When lazy updating is no longer required, all the
+modified statements must have @code{update_stmt} called in order to bring them
+up to date.  This must be done before the optimization is finished, or
 @code{verify_ssa} will trigger an abort.
 
 This is done with a simple loop over the instruction stream:
@@ -1228,27 +528,27 @@ which''.
 
 The following macros can be used to examine PHI nodes
 
-@defmac	PHI_RESULT (@var{phi})
+@defmac PHI_RESULT (@var{phi})
 Returns the @code{SSA_NAME} created by PHI node @var{phi} (i.e.,
 @var{phi}'s LHS)@.
 @end defmac
 
-@defmac	PHI_NUM_ARGS (@var{phi})
+@defmac PHI_NUM_ARGS (@var{phi})
 Returns the number of arguments in @var{phi}.  This number is exactly
 the number of incoming edges to the basic block holding @var{phi}@.
 @end defmac
 
-@defmac	PHI_ARG_ELT (@var{phi}, @var{i})
+@defmac PHI_ARG_ELT (@var{phi}, @var{i})
 Returns a tuple representing the @var{i}th argument of @var{phi}@.
 Each element of this tuple contains an @code{SSA_NAME} @var{var} and
 the incoming edge through which @var{var} flows.
 @end defmac
 
-@defmac	PHI_ARG_EDGE (@var{phi}, @var{i})
+@defmac PHI_ARG_EDGE (@var{phi}, @var{i})
 Returns the incoming edge for the @var{i}th argument of @var{phi}.
 @end defmac
 
-@defmac	PHI_ARG_DEF (@var{phi}, @var{i})
+@defmac PHI_ARG_DEF (@var{phi}, @var{i})
 Returns the @code{SSA_NAME} for the @var{i}th argument of @var{phi}.
 @end defmac
 
@@ -1260,7 +560,7 @@ Some optimization passes make changes to the function that
 invalidate the SSA property.  This can happen when a pass has
 added new symbols or changed the program so that variables that
 were previously aliased aren't anymore.  Whenever something like this
-happens, the affected symbols must be renamed into SSA form again.  
+happens, the affected symbols must be renamed into SSA form again.
 Transformations that emit new code or replicate existing statements
 will also need to update the SSA form@.
 
@@ -1274,36 +574,36 @@ the program@.
 For instance, given the following code:
 
 @smallexample
-     1	L0:
-     2	x_1 = PHI (0, x_5)
-     3	if (x_1 < 10)
-     4	  if (x_1 > 7)
-     5	    y_2 = 0
-     6	  else
-     7	    y_3 = x_1 + x_7
-     8	  endif
-     9	  x_5 = x_1 + 1
+     1  L0:
+     2  x_1 = PHI (0, x_5)
+     3  if (x_1 < 10)
+     4    if (x_1 > 7)
+     5      y_2 = 0
+     6    else
+     7      y_3 = x_1 + x_7
+     8    endif
+     9    x_5 = x_1 + 1
      10   goto L0;
-     11	endif
+     11 endif
 @end smallexample
 
 Suppose that we insert new names @code{x_10} and @code{x_11} (lines
 @code{4} and @code{8})@.
 
 @smallexample
-     1	L0:
-     2	x_1 = PHI (0, x_5)
-     3	if (x_1 < 10)
-     4	  x_10 = @dots{}
-     5	  if (x_1 > 7)
-     6	    y_2 = 0
-     7	  else
-     8	    x_11 = @dots{}
-     9	    y_3 = x_1 + x_7
-     10	  endif
-     11	  x_5 = x_1 + 1
-     12	  goto L0;
-     13	endif
+     1  L0:
+     2  x_1 = PHI (0, x_5)
+     3  if (x_1 < 10)
+     4    x_10 = @dots{}
+     5    if (x_1 > 7)
+     6      y_2 = 0
+     7    else
+     8      x_11 = @dots{}
+     9      y_3 = x_1 + x_7
+     10   endif
+     11   x_5 = x_1 + 1
+     12   goto L0;
+     13 endif
 @end smallexample
 
 We want to replace all the uses of @code{x_1} with the new definitions
@@ -1327,10 +627,7 @@ introduced to replace existing names in the program, the mapping
 between the old and the new names are registered by calling
 @code{register_new_name_mapping} (note that if your pass creates new
 code by duplicating basic blocks, the call to @code{tree_duplicate_bb}
-will set up the necessary mappings automatically).  On the other hand,
-if your pass exposes a new symbol that should be put in SSA form for
-the first time, the new symbol should be registered with
-@code{mark_sym_for_renaming}.
+will set up the necessary mappings automatically).
 
 After the replacement mappings have been registered and new symbols
 marked for renaming, a call to @code{update_ssa} makes the registered
@@ -1341,40 +638,40 @@ There are several @code{TODO} flags that control the behavior of
 
 @itemize @bullet
 @item @code{TODO_update_ssa}.  Update the SSA form inserting PHI nodes
-      for newly exposed symbols and virtual names marked for updating.
-      When updating real names, only insert PHI nodes for a real name
-      @code{O_j} in blocks reached by all the new and old definitions for
-      @code{O_j}.  If the iterated dominance frontier for @code{O_j}
-      is not pruned, we may end up inserting PHI nodes in blocks that
-      have one or more edges with no incoming definition for
-      @code{O_j}.  This would lead to uninitialized warnings for
-      @code{O_j}'s symbol@.
+for newly exposed symbols and virtual names marked for updating.
+When updating real names, only insert PHI nodes for a real name
+@code{O_j} in blocks reached by all the new and old definitions for
+@code{O_j}.  If the iterated dominance frontier for @code{O_j}
+is not pruned, we may end up inserting PHI nodes in blocks that
+have one or more edges with no incoming definition for
+@code{O_j}.  This would lead to uninitialized warnings for
+@code{O_j}'s symbol@.
 
 @item @code{TODO_update_ssa_no_phi}.  Update the SSA form without
-      inserting any new PHI nodes at all.  This is used by passes that
-      have either inserted all the PHI nodes themselves or passes that
-      need only to patch use-def and def-def chains for virtuals
-      (e.g., DCE)@.
+inserting any new PHI nodes at all.  This is used by passes that
+have either inserted all the PHI nodes themselves or passes that
+need only to patch use-def and def-def chains for virtuals
+(e.g., DCE)@.
 
 
 @item @code{TODO_update_ssa_full_phi}.  Insert PHI nodes everywhere
-      they are needed.  No pruning of the IDF is done.  This is used
-      by passes that need the PHI nodes for @code{O_j} even if it
-      means that some arguments will come from the default definition
-      of @code{O_j}'s symbol (e.g., @code{pass_linear_transform})@.
+they are needed.  No pruning of the IDF is done.  This is used
+by passes that need the PHI nodes for @code{O_j} even if it
+means that some arguments will come from the default definition
+of @code{O_j}'s symbol (e.g., @code{pass_linear_transform})@.
 
-      WARNING: If you need to use this flag, chances are that your
-      pass may be doing something wrong.  Inserting PHI nodes for an
-      old name where not all edges carry a new replacement may lead to
-      silent codegen errors or spurious uninitialized warnings@.
+WARNING: If you need to use this flag, chances are that your
+pass may be doing something wrong.  Inserting PHI nodes for an
+old name where not all edges carry a new replacement may lead to
+silent codegen errors or spurious uninitialized warnings@.
 
 @item @code{TODO_update_ssa_only_virtuals}.  Passes that update the
-      SSA form on their own may want to delegate the updating of
-      virtual names to the generic updater.  Since FUD chains are
-      easier to maintain, this simplifies the work they need to do.
-      NOTE: If this flag is used, any OLD->NEW mappings for real names
-      are explicitly destroyed and only the symbols marked for
-      renaming are processed@.
+SSA form on their own may want to delegate the updating of
+virtual names to the generic updater.  Since FUD chains are
+easier to maintain, this simplifies the work they need to do.
+NOTE: If this flag is used, any OLD->NEW mappings for real names
+are explicitly destroyed and only the symbols marked for
+renaming are processed@.
 @end itemize
 
 @subsection Preserving the virtual SSA form
@@ -1445,8 +742,8 @@ slightly different.  For each argument @var{arg} of the PHI node, this
 function will:
 
 @enumerate
-@item	Walk the use-def chains for @var{arg}.
-@item	Call @code{FN (@var{arg}, @var{phi}, @var{data})}.
+@item Walk the use-def chains for @var{arg}.
+@item Call @code{FN (@var{arg}, @var{phi}, @var{data})}.
 @end enumerate
 
 Note how the first argument to @var{fn} is no longer the original
@@ -1466,26 +763,26 @@ hooks to execute custom code at various points during traversal:
 
 @enumerate
 @item Once to initialize any local data needed while processing
-      @var{bb} and its children.  This local data is pushed into an
-      internal stack which is automatically pushed and popped as the
-      walker traverses the dominator tree.
+@var{bb} and its children.  This local data is pushed into an
+internal stack which is automatically pushed and popped as the
+walker traverses the dominator tree.
 
 @item Once before traversing all the statements in the @var{bb}.
 
 @item Once for every statement inside @var{bb}.
 
 @item Once after traversing all the statements and before recursing
-      into @var{bb}'s dominator children.
+into @var{bb}'s dominator children.
 
 @item It then recurses into all the dominator children of @var{bb}.
 
 @item After recursing into all the dominator children of @var{bb} it
-      can, optionally, traverse every statement in @var{bb} again
-      (i.e., repeating steps 2 and 3).
+can, optionally, traverse every statement in @var{bb} again
+(i.e., repeating steps 2 and 3).
 
 @item Once after walking the statements in @var{bb} and @var{bb}'s
-      dominator children.  At this stage, the block local data stack
-      is popped.
+dominator children.  At this stage, the block local data stack
+is popped.
 @end enumerate
 @end deftypefn
 
@@ -1495,230 +792,128 @@ hooks to execute custom code at various points during traversal:
 @cindex flow-sensitive alias analysis
 @cindex flow-insensitive alias analysis
 
-Alias analysis proceeds in 4 main phases:
+Alias analysis in GIMPLE SSA form consists of two pieces.  First
+the virtual SSA web ties conflicting memory accesses and provides
+a SSA use-def chain and SSA immediate-use chains for walking
+possibly dependent memory accesses.  Second an alias-oracle can
+be queried to disambiguate explicit and implicit memory references.
 
 @enumerate
-@item   Structural alias analysis.
+@item Memory SSA form.
 
-This phase walks the types for structure variables, and determines which
-of the fields can overlap using offset and size of each field.  For each
-field, a ``subvariable'' called a ``Structure field tag'' (SFT)@ is
-created, which represents that field as a separate variable.  All
-accesses that could possibly overlap with a given field will have
-virtual operands for the SFT of that field.
+All statements that may use memory have exactly one accompanied use of
+a virtual SSA name that represents the state of memory at the
+given point in the IL.
+
+All statements that may define memory have exactly one accompanied
+definition of a virtual SSA name using the previous state of memory
+and defining the new state of memory after the given point in the IL.
 
 @smallexample
-struct foo
+int i;
+int foo (void)
 @{
-  int a;
-  int b;
-@}
-struct foo temp;
-int bar (void)
-@{
-  int tmp1, tmp2, tmp3;
-  SFT.0_2 = VDEF <SFT.0_1>
-  temp.a = 5;
-  SFT.1_4 = VDEF <SFT.1_3>
-  temp.b = 6;
-  
-  VUSE <SFT.1_4>
-  tmp1_5 = temp.b;
-  VUSE <SFT.0_2>
-  tmp2_6 = temp.a;
-
-  tmp3_7 = tmp1_5 + tmp2_6;
-  return tmp3_7;
+  # .MEM_3 = VDEF <.MEM_2(D)>
+  i = 1;
+  # VUSE <.MEM_3>
+  return i;
 @}
 @end smallexample
 
-If you copy the symbol tag for a variable for some reason, you probably
-also want to copy the subvariables for that variable.
+The virtual SSA names in this case are @code{.MEM_2(D)} and
+@code{.MEM_3}.  The store to the global variable @code{i}
+defines @code{.MEM_3} invalidating @code{.MEM_2(D)}.  The
+load from @code{i} uses that new state @code{.MEM_3}.
 
-@item	Points-to and escape analysis.
+The virtual SSA web serves as constraints to SSA optimizers
+preventing illegitimate code-motion and optimization.  It
+also provides a way to walk related memory statements.
 
-This phase walks the use-def chains in the SSA web looking for
-three things:
+@item Points-to and escape analysis.
 
-	@itemize @bullet
-	@item	Assignments of the form @code{P_i = &VAR}
-	@item	Assignments of the form P_i = malloc()
-	@item	Pointers and ADDR_EXPR that escape the current function.
-	@end itemize
+Points-to analysis builds a set of constraints from the GIMPLE
+SSA IL representing all pointer operations and facts we do
+or do not know about pointers.  Solving this set of constraints
+yields a conservatively correct solution for each pointer
+variable in the program (though we are only interested in
+SSA name pointers) as to what it may possibly point to.
 
-The concept of `escaping' is the same one used in the Java world.
-When a pointer or an ADDR_EXPR escapes, it means that it has been
-exposed outside of the current function.  So, assignment to
-global variables, function arguments and returning a pointer are
-all escape sites.
+This points-to solution for a given SSA name pointer is stored
+in the @code{pt_solution} sub-structure of the
+@code{SSA_NAME_PTR_INFO} record.  The following accessor
+functions are available:
 
-This is where we are currently limited.  Since not everything is
-renamed into SSA, we lose track of escape properties when a
-pointer is stashed inside a field in a structure, for instance.
-In those cases, we are assuming that the pointer does escape.
+@itemize @bullet
+@item @code{pt_solution_includes}
+@item @code{pt_solutions_intersect}
+@end itemize
 
-We use escape analysis to determine whether a variable is
-call-clobbered.  Simply put, if an ADDR_EXPR escapes, then the
-variable is call-clobbered.  If a pointer P_i escapes, then all
-the variables pointed-to by P_i (and its memory tag) also escape.
+Points-to analysis also computes the solution for two special
+set of pointers, @code{ESCAPED} and @code{CALLUSED}.  Those
+represent all memory that has escaped the scope of analysis
+or that is used by pure or nested const calls.
 
-@item	Compute flow-sensitive aliases
+@item Type-based alias analysis
 
-We have two classes of memory tags.  Memory tags associated with
-the pointed-to data type of the pointers in the program.  These
-tags are called ``symbol memory tag'' (SMT)@.  The other class are
-those associated with SSA_NAMEs, called ``name memory tag'' (NMT)@.
-The basic idea is that when adding operands for an INDIRECT_REF
-*P_i, we will first check whether P_i has a name tag, if it does
-we use it, because that will have more precise aliasing
-information.  Otherwise, we use the standard symbol tag.
-
-In this phase, we go through all the pointers we found in
-points-to analysis and create alias sets for the name memory tags
-associated with each pointer P_i.  If P_i escapes, we mark
-call-clobbered the variables it points to and its tag.
-
-
-@item	Compute flow-insensitive aliases
-
-This pass will compare the alias set of every symbol memory tag and
-every addressable variable found in the program.  Given a symbol
-memory tag SMT and an addressable variable V@.  If the alias sets
-of SMT and V conflict (as computed by may_alias_p), then V is
-marked as an alias tag and added to the alias set of SMT@.
+Type-based alias analysis is frontend dependent though generic
+support is provided by the middle-end in @code{alias.c}.  TBAA
+code is used by both tree optimizers and RTL optimizers.
 
 Every language that wishes to perform language-specific alias analysis
 should define a function that computes, given a @code{tree}
 node, an alias set for the node.  Nodes in different alias sets are not
 allowed to alias.  For an example, see the C front-end function
 @code{c_get_alias_set}.
+
+@item Tree alias-oracle
+
+The tree alias-oracle provides means to disambiguate two memory
+references and memory references against statements.  The following
+queries are available:
+
+@itemize @bullet
+@item @code{refs_may_alias_p}
+@item @code{ref_maybe_used_by_stmt_p}
+@item @code{stmt_may_clobber_ref_p}
+@end itemize
+
+In addition to those two kind of statement walkers are available
+walking statements related to a reference ref.
+@code{walk_non_aliased_vuses} walks over dominating memory defining
+statements and calls back if the statement does not clobber ref
+providing the non-aliased VUSE.  The walk stops at
+the first clobbering statement or if asked to.
+@code{walk_aliased_vdefs} walks over dominating memory defining
+statements and calls back on each statement clobbering ref
+providing its aliasing VDEF.  The walk stops if asked to.
+
 @end enumerate
 
-For instance, consider the following function:
+
+@node Memory model
+@section Memory model
+@cindex memory model
+
+The memory model used by the middle-end models that of the C/C++
+languages.  The middle-end has the notion of an effective type
+of a memory region which is used for type-based alias analysis.
+
+The following is a refinement of ISO C99 6.5/6, clarifying the block copy case
+to follow common sense and extending the concept of a dynamic effective
+type to objects with a declared type as required for C++.
 
 @smallexample
-foo (int i)
-@{
-  int *p, *q, a, b;
-
-  if (i > 10)
-    p = &a;
-  else
-    q = &b;
-
-  *p = 3;
-  *q = 5;
-  a = b + 2;
-  return *p;
-@}
+The effective type of an object for an access to its stored value is
+the declared type of the object or the effective type determined by
+a previous store to it.  If a value is stored into an object through
+an lvalue having a type that is not a character type, then the
+type of the lvalue becomes the effective type of the object for that
+access and for subsequent accesses that do not modify the stored value.
+If a value is copied into an object using @code{memcpy} or @code{memmove},
+or is copied as an array of character type, then the effective type
+of the modified object for that access and for subsequent accesses that
+do not modify the value is undetermined.  For all other accesses to an
+object, the effective type of the object is simply the type of the
+lvalue used for the access.
 @end smallexample
 
-After aliasing analysis has finished, the symbol memory tag for
-pointer @code{p} will have two aliases, namely variables @code{a} and
-@code{b}.
-Every time pointer @code{p} is dereferenced, we want to mark the
-operation as a potential reference to @code{a} and @code{b}.
-
-@smallexample
-foo (int i)
-@{
-  int *p, a, b;
-
-  if (i_2 > 10)
-    p_4 = &a;
-  else
-    p_6 = &b;
-  # p_1 = PHI <p_4(1), p_6(2)>;
-
-  # a_7 = VDEF <a_3>;
-  # b_8 = VDEF <b_5>;
-  *p_1 = 3;
-
-  # a_9 = VDEF <a_7>
-  # VUSE <b_8>
-  a_9 = b_8 + 2;
-
-  # VUSE <a_9>;
-  # VUSE <b_8>;
-  return *p_1;
-@}
-@end smallexample
-
-In certain cases, the list of may aliases for a pointer may grow
-too large.  This may cause an explosion in the number of virtual
-operands inserted in the code.  Resulting in increased memory
-consumption and compilation time.
-
-When the number of virtual operands needed to represent aliased
-loads and stores grows too large (configurable with @option{--param
-max-aliased-vops}), alias sets are grouped to avoid severe
-compile-time slow downs and memory consumption.  The alias
-grouping heuristic proceeds as follows:
-
-@enumerate
-@item Sort the list of pointers in decreasing number of contributed
-virtual operands.
-
-@item Take the first pointer from the list and reverse the role
-of the memory tag and its aliases.  Usually, whenever an
-aliased variable Vi is found to alias with a memory tag
-T, we add Vi to the may-aliases set for T@.  Meaning that
-after alias analysis, we will have:
-
-@smallexample
-may-aliases(T) = @{ V1, V2, V3, @dots{}, Vn @}
-@end smallexample
-
-This means that every statement that references T, will get
-@code{n} virtual operands for each of the Vi tags.  But, when
-alias grouping is enabled, we make T an alias tag and add it
-to the alias set of all the Vi variables:
-
-@smallexample
-may-aliases(V1) = @{ T @}
-may-aliases(V2) = @{ T @}
-@dots{}
-may-aliases(Vn) = @{ T @}
-@end smallexample
-
-This has two effects: (a) statements referencing T will only get
-a single virtual operand, and, (b) all the variables Vi will now
-appear to alias each other.  So, we lose alias precision to
-improve compile time.  But, in theory, a program with such a high
-level of aliasing should not be very optimizable in the first
-place.
-
-@item Since variables may be in the alias set of more than one
-memory tag, the grouping done in step (2) needs to be extended
-to all the memory tags that have a non-empty intersection with
-the may-aliases set of tag T@.  For instance, if we originally
-had these may-aliases sets:
-
-@smallexample
-may-aliases(T) = @{ V1, V2, V3 @}
-may-aliases(R) = @{ V2, V4 @}
-@end smallexample
-
-In step (2) we would have reverted the aliases for T as:
-
-@smallexample
-may-aliases(V1) = @{ T @}
-may-aliases(V2) = @{ T @}
-may-aliases(V3) = @{ T @}
-@end smallexample
-
-But note that now V2 is no longer aliased with R@.  We could
-add R to may-aliases(V2), but we are in the process of
-grouping aliases to reduce virtual operands so what we do is
-add V4 to the grouping to obtain:
-
-@smallexample
-may-aliases(V1) = @{ T @}
-may-aliases(V2) = @{ T @}
-may-aliases(V3) = @{ T @}
-may-aliases(V4) = @{ T @}
-@end smallexample
-
-@item If the total number of virtual operands due to aliasing is
-still above the threshold set by max-alias-vops, go back to (2).
-@end enumerate

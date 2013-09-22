@@ -1,5 +1,5 @@
-/* Whirlpool.java -- 
-   Copyright (C) 2001, 2002, 2006 Free Software Foundation, Inc.
+/* Whirlpool.java --
+   Copyright (C) 2001, 2002, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.java.security.hash;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Configuration;
 import gnu.java.security.Registry;
 import gnu.java.security.util.Util;
@@ -65,7 +67,9 @@ import java.util.logging.Logger;
 public final class Whirlpool
     extends BaseHash
 {
-  private static final Logger log = Logger.getLogger(Whirlpool.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(Whirlpool.class.getName()) : null;
+
   private static final int BLOCK_SIZE = 64; // inner block size in bytes
 
   /** The digest of the 0-bit long message. */
@@ -177,10 +181,10 @@ public final class Whirlpool
         {
           log.fine("Static data");
           log.fine("T0[]:");
-          StringBuilder sb;
+          CPStringBuilder sb;
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T0[i * 4 + j])).append(", ");
 
@@ -189,7 +193,7 @@ public final class Whirlpool
           log.fine("T1[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T1[i * 4 + j])).append(", ");
 
@@ -198,7 +202,7 @@ public final class Whirlpool
           log.fine("T2[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T2[i * 4 + j])).append(", ");
 
@@ -207,7 +211,7 @@ public final class Whirlpool
           log.fine("T3[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T3[i * 4 + j])).append(", ");
 
@@ -216,7 +220,7 @@ public final class Whirlpool
           log.fine("\nT4[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T4[i * 4 + j])).append(", ");
 
@@ -225,7 +229,7 @@ public final class Whirlpool
           log.fine("T5[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T5[i * 4 + j])).append(", ");
 
@@ -234,7 +238,7 @@ public final class Whirlpool
           log.fine("T6[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T5[i * 4 + j])).append(", ");
 
@@ -243,7 +247,7 @@ public final class Whirlpool
           log.fine("T7[]:");
           for (i = 0; i < 64; i++)
             {
-              sb = new StringBuilder();
+              sb = new CPStringBuilder();
               for (j = 0; j < 4; j++)
                 sb.append("0x").append(Util.toString(T5[i * 4 + j])).append(", ");
 
@@ -546,7 +550,7 @@ public final class Whirlpool
     // so far. hence the minimal number of bytes added to the message proper
     // are 33 (1 for the 1-bit followed by the 0-bits and the encoding of
     // the count framed in a 256-bit block). our formula is then:
-    //		count + 33 + padding = 0 (mod BLOCK_SIZE)
+    //          count + 33 + padding = 0 (mod BLOCK_SIZE)
     int n = (int)((count + 33) % BLOCK_SIZE);
     int padding = n == 0 ? 33 : BLOCK_SIZE - n + 33;
     byte[] result = new byte[padding];

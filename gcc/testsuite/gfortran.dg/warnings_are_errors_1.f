@@ -8,11 +8,11 @@
        integer(kind=1) :: i
        real :: r1, r2(3)
 ! gfc_warning_now:
-0      ! { dg-warning "Zero is not a valid statement label" }
+0      r1 = 0 ! { dg-warning "Zero is not a valid statement label" }
 !
 34 5   i=0 
 ! gfc_notify_std(GFC_STD_F95_DEL):
-       do r1 = 1, 2 ! { dg-error "Deleted feature: Loop variable" }
+       do r1 = 1, 2 ! { dg-warning "Deleted feature: Loop variable" }
          i = i+1
        end do
        call foo j bar

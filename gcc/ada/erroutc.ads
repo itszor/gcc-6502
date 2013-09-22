@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,7 +36,7 @@ package Erroutc is
    --  type, and is used by Add_Class to insert 'Class at the proper point
 
    Continuation : Boolean := False;
-   --  Indicates if current message is a continuation. Intialized from the
+   --  Indicates if current message is a continuation. Initialized from the
    --  Msg_Cont parameter in Error_Msg_Internal and then set True if a \
    --  insertion character is encountered.
 
@@ -50,8 +50,16 @@ package Erroutc is
    Is_Warning_Msg : Boolean := False;
    --  Set True to indicate if current message is warning message
 
+   Warning_Msg_Char : Character;
+   --  Warning character, valid only if Is_Warning_Msg is True
+   --    ' '      -- ? appeared on its own in message
+   --    '?'      -- ?? appeared in message
+   --    'x'      -- ?x? appeared in message
+   --    'X'      -- ?x? appeared in message (X is upper case of x)
+
    Is_Style_Msg : Boolean := False;
    --  Set True to indicate if the current message is a style message
+   --  (i.e. a message whose text starts with the characters "(style)").
 
    Is_Serious_Error : Boolean := False;
    --  Set by Set_Msg_Text to indicate if current message is serious error
@@ -81,9 +89,9 @@ package Erroutc is
 
    Max_Msg_Length : constant := 1024 + 2 * Int (Column_Number'Last);
    --  Maximum length of error message. The addition of 2 * Column_Number'Last
-   --  ensures that two insertion tokens of maximum length can be accomodated.
+   --  ensures that two insertion tokens of maximum length can be accommodated.
    --  The value of 1024 is an arbitrary value that should be more than long
-   --  enough to accomodate any reasonable message (and for that matter, some
+   --  enough to accommodate any reasonable message (and for that matter, some
    --  pretty unreasonable messages!)
 
    Msg_Buffer : String (1 .. Max_Msg_Length);
@@ -115,7 +123,7 @@ package Erroutc is
 
    No_Error_Msg : constant Error_Msg_Id := 0;
    --  A constant which is different from any value returned by Get_Error_Id.
-   --  Typically used by a client to indicate absense of a saved Id value.
+   --  Typically used by a client to indicate absence of a saved Id value.
 
    Cur_Msg : Error_Msg_Id := No_Error_Msg;
    --  Id of most recently posted error message
@@ -146,6 +154,11 @@ package Erroutc is
       --  Pointer to next message in error chain. A value of No_Error_Msg
       --  indicates the end of the chain.
 
+      Prev : Error_Msg_Id;
+      --  Pointer to previous message in error chain. Only set during the
+      --  Finalize procedure. A value of No_Error_Msg indicates the first
+      --  message in the chain.
+
       Sfile : Source_File_Index;
       --  Source table index of source file. In the case of an error that
       --  refers to a template, always references the original template
@@ -175,6 +188,13 @@ package Erroutc is
 
       Warn : Boolean;
       --  True if warning message (i.e. insertion character ? appeared)
+
+      Warn_Chr : Character;
+      --  Warning character, valid only if Warn is True
+      --    ' '      -- ? appeared on its own in message
+      --    '?'      -- ?? appeared in message
+      --    'x'      -- ?x? appeared in message
+      --    'X'      -- ?x? appeared in message (X is upper case of x)
 
       Style : Boolean;
       --  True if style message (starts with "(style)")
@@ -213,33 +233,33 @@ package Erroutc is
    --  error message table, since messages are not always inserted in sequence.
 
    Last_Error_Msg : Error_Msg_Id;
-   --  The last entry on the list of error messages. Note that this is not
-   --  the same as the physically last entry in the error message table, since
-   --  messages are not always inserted in sequence.
+   --  The last entry on the list of error messages. Note: this is not the same
+   --  as the physically last entry in the error message table, since messages
+   --  are not always inserted in sequence.
 
    --------------------------
    -- Warning Mode Control --
    --------------------------
 
-   --  Pragma Warnings allows warnings to be turned off for a specified
-   --  region of code, and the following tables are the data structure used
-   --  to keep track of these regions.
+   --  Pragma Warnings allows warnings to be turned off for a specified region
+   --  of code, and the following tables are the data structures used to keep
+   --  track of these regions.
 
-   --  The first table is used for the basic command line control, and for
-   --  the forms of Warning with a single ON or OFF parameter
+   --  The first table is used for the basic command line control, and for the
+   --  forms of Warning with a single ON or OFF parameter.
 
    --  It contains pairs of source locations, the first being the start
    --  location for a warnings off region, and the second being the end
-   --  location. When a pragma Warnings (Off) is encountered, a new entry
-   --  is established extending from the location of the pragma to the
-   --  end of the current source file. A subsequent pragma Warnings (On)
-   --  adjusts the end point of this entry appropriately.
+   --  location. When a pragma Warnings (Off) is encountered, a new entry is
+   --  established extending from the location of the pragma to the end of the
+   --  current source file. A subsequent pragma Warnings (On) adjusts the end
+   --  point of this entry appropriately.
 
-   --  If all warnings are suppressed by comamnd switch, then there is a
-   --  dummy entry (put there by Errout.Initialize) at the start of the
-   --  table which covers all possible Source_Ptr values. Note that the
-   --  source pointer values in this table always reference the original
-   --  template, not an instantiation copy, in the generic case.
+   --  If all warnings are suppressed by command switch, then there is a dummy
+   --  entry (put there by Errout.Initialize) at the start of the table which
+   --  covers all possible Source_Ptr values. Note that the source pointer
+   --  values in this table always reference the original template, not an
+   --  instantiation copy, in the generic case.
 
    type Warnings_Entry is record
       Start : Source_Ptr;
@@ -267,29 +287,16 @@ package Erroutc is
       Msg : String_Ptr;
       --  Message from pragma Warnings (Off, string)
 
-      Pattern : String_Ptr;
-      --  Same as Msg, excluding initial and final asterisks if present. The
-      --  lower bound of this string is always one.
-
-      Patlen : Natural;
-      --  Length of pattern string (excluding initial/final asterisks)
-
       Open : Boolean;
       --  Set to True if OFF has been encountered with no matching ON
 
       Used : Boolean;
       --  Set to True if entry has been used to suppress a warning
 
-      Star_Start : Boolean;
-      --  True if given pattern had * at start
-
-      Star_End : Boolean;
-      --  True if given pattern had * at end
-
       Config : Boolean;
-      --  True if pragma is configuration pragma (in which case no matching
-      --  Off pragma is required, and it is not required that a specific
-      --  warning be suppressed).
+      --  True if pragma is configuration pragma (in which case no matching Off
+      --  pragma is required, and it is not required that a specific warning be
+      --  suppressed).
    end record;
 
    package Specific_Warnings is new Table.Table (
@@ -311,10 +318,10 @@ package Erroutc is
    --     end Mumble;
 
    --  The trouble is that the first pragma is technically a configuration
-   --  pragma, and yet it is clearly being used in the context of thinking
-   --  of it as a specific case. To deal with this, what we do is that the
-   --  On entry can match a configuration pragma from the same file, and if
-   --  we find such an On entry, we cancel the indication of it being the
+   --  pragma, and yet it is clearly being used in the context of thinking of
+   --  it as a specific case. To deal with this, what we do is that the On
+   --  entry can match a configuration pragma from the same file, and if we
+   --  find such an On entry, we cancel the indication of it being the
    --  configuration case. This seems to handle all cases we run into ok.
 
    -----------------
@@ -343,16 +350,16 @@ package Erroutc is
    --  output giving node number (of node N) if the debug X switch is set.
 
    procedure Check_Duplicate_Message (M1, M2 : Error_Msg_Id);
-   --  This function is passed the Id values of two error messages. If
-   --  either M1 or M2 is a continuation message, or is already deleted,
-   --  the call is ignored. Otherwise a check is made to see if M1 and M2
-   --  are duplicated or redundant. If so, the message to be deleted and
-   --  all its continuations are marked with the Deleted flag set to True.
+   --  This function is passed the Id values of two error messages. If either
+   --  M1 or M2 is a continuation message, or is already deleted, the call is
+   --  ignored. Otherwise a check is made to see if M1 and M2 are duplicated or
+   --  redundant. If so, the message to be deleted and all its continuations
+   --  are marked with the Deleted flag set to True.
 
    procedure Output_Error_Msgs (E : in out Error_Msg_Id);
-   --  Output source line, error flag, and text of stored error message and
-   --  all subsequent messages for the same line and unit. On return E is
-   --  set to be one higher than the last message output.
+   --  Output source line, error flag, and text of stored error message and all
+   --  subsequent messages for the same line and unit. On return E is set to be
+   --  one higher than the last message output.
 
    procedure Output_Line_Number (L : Logical_Line_Number);
    --  Output a line number as six digits (with leading zeroes suppressed),
@@ -373,9 +380,9 @@ package Erroutc is
    --  including the end points) will be deleted from the error listing.
 
    function Same_Error (M1, M2 : Error_Msg_Id) return Boolean;
-   --  See if two messages have the same text. Returns true if the text
-   --  of the two messages is identical, or if one of them is the same
-   --  as the other with an appended "instance at xxx" tag.
+   --  See if two messages have the same text. Returns true if the text of the
+   --  two messages is identical, or if one of them is the same as the other
+   --  with an appended "instance at xxx" tag.
 
    procedure Set_Msg_Blank;
    --  Sets a single blank in the message if the preceding character is a
@@ -452,7 +459,8 @@ package Erroutc is
    procedure Set_Specific_Warning_Off
      (Loc    : Source_Ptr;
       Msg    : String;
-      Config : Boolean);
+      Config : Boolean;
+      Used   : Boolean := False);
    --  This is called in response to the two argument form of pragma Warnings
    --  where the first argument is OFF, and the second argument is a string
    --  which identifies a specific warning to be suppressed. The first argument
@@ -460,6 +468,8 @@ package Erroutc is
    --  string from the pragma. Loc is the location of the pragma (which is the
    --  start of the range to suppress). Config is True for the configuration
    --  pragma case (where there is no requirement for a matching OFF pragma).
+   --  Used is set True to disable the check that the warning actually has
+   --  has the effect of suppressing a warning.
 
    procedure Set_Specific_Warning_On
      (Loc : Source_Ptr;
@@ -482,18 +492,19 @@ package Erroutc is
 
    procedure Test_Style_Warning_Serious_Msg (Msg : String);
    --  Sets Is_Warning_Msg true if Msg is a warning message (contains a
-   --  question mark character), and False otherwise. Sets Is_Style_Msg
-   --  true if Msg is a style message (starts with "(style)"). Sets
-   --  Is_Serious_Error True unless the message is a warning or style
-   --  message or contains the character | indicating a non-serious
-   --  error message. Note that the call has no effect for continuation
-   --  messages (those whose first character is \).
+   --  question mark character), and False otherwise. Is_Style_Msg is set true
+   --  if Msg is a style message (starts with "(style)". Sets Is_Serious_Error
+   --  True unless the message is a warning or style/info message or contains
+   --  the character | indicating a non-serious error message. Note that the
+   --  call has no effect for continuation messages (those whose first
+   --  character is '\').
 
    function Warnings_Suppressed (Loc : Source_Ptr) return Boolean;
    --  Determines if given location is covered by a warnings off suppression
    --  range in the warnings table (or is suppressed by compilation option,
    --  which generates a warning range for the whole source file). This routine
-   --  only deals with the general ON/OFF case, not specific warnings
+   --  only deals with the general ON/OFF case, not specific warnings. True
+   --  is also returned if warnings are globally suppressed.
 
    function Warning_Specifically_Suppressed
      (Loc : Source_Ptr;

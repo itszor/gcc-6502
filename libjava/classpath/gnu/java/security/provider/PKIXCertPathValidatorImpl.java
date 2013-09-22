@@ -1,5 +1,5 @@
 /* PKIXCertPathValidatorImpl.java -- PKIX certificate path validator.
-   Copyright (C) 2004, 2005, 2006  Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -91,13 +91,14 @@ import java.util.logging.Logger;
  * See <a href="http://www.ietf.org/rfc/rfc3280.txt">RFC 3280: Internet X.509
  * Public Key Infrastructure Certificate and Certificate Revocation List (CRL)
  * Profile</a>.
- * 
+ *
  * @author Casey Marshall (rsdio@metastatic.org)
  */
 public class PKIXCertPathValidatorImpl
     extends CertPathValidatorSpi
 {
-  private static final Logger log = Logger.getLogger(PKIXCertPathValidatorImpl.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+        Logger.getLogger(PKIXCertPathValidatorImpl.class.getName()) : null;
 
   public static final String ANY_POLICY = "2.5.29.32.0";
 
@@ -403,7 +404,7 @@ public class PKIXCertPathValidatorImpl
    * <li>The CRL is signed by a certificate in the given cert stores, and that
    * cert is signed by one of the certificates in the path.</li>
    * </ol>
-   * 
+   *
    * @param crl The CRL being checked.
    * @param path The path this CRL is being checked against.
    * @param now The value to use as 'now'.

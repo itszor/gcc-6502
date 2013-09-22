@@ -81,7 +81,7 @@ public class FreetypeGlyphVector extends GlyphVector
    * The glyph codes
    */
   private int[] glyphCodes;
-  
+
   /**
    * The set of fonts used in this glyph vector.
    */
@@ -89,22 +89,22 @@ public class FreetypeGlyphVector extends GlyphVector
 
   /**
    * Glyph transforms.  Supports all transform operations.
-   * 
+   *
    * The identity transform should not be stored in this array; use a null
    * instead (will result in performance improvements).
    */
   private AffineTransform[] glyphTransforms;
 
   private GlyphMetrics[] metricsCache;
-  
+
   private native void dispose(long[] fonts);
-  
+
   /**
    * Returns a pointer to the native PangoFcFont object.
-   * 
+   *
    * The object will be referenced with g_object_ref n times before being
    * returned, and must be unreferenced a corresponding number of times.
-   * 
+   *
    * @param n Number of times to reference the object.
    * @return Pointer to the native default font.
    */
@@ -158,19 +158,19 @@ public class FreetypeGlyphVector extends GlyphVector
     glyphCodes = new int[ codes.length ];
     System.arraycopy(codes, 0, glyphCodes, 0, codes.length);
     nGlyphs = glyphCodes.length;
-    
+
     if (fontSet == null)
       {
         fontSet = new long[nGlyphs];
         Arrays.fill(fontSet, getNativeFontPointer(nGlyphs));
       }
-    
+
     performDefaultLayout();
   }
 
   /**
    * Cloning constructor
-   */  
+   */
   private FreetypeGlyphVector( FreetypeGlyphVector gv )
   {
     font = gv.font;
@@ -191,7 +191,7 @@ public class FreetypeGlyphVector extends GlyphVector
     glyphPositions = new float[(nGlyphs + 1) * 2];
     glyphTransforms = new AffineTransform[ nGlyphs ];
     Arrays.fill(glyphTransforms, null);
-    
+
     for(int i = 0; i < nGlyphs; i++ )
       {
         if (gv.glyphTransforms[i] != null)
@@ -203,7 +203,7 @@ public class FreetypeGlyphVector extends GlyphVector
     System.arraycopy(gv.glyphCodes, 0, glyphCodes, 0, nGlyphs);
     System.arraycopy(gv.fontSet, 0, fontSet, 0, nGlyphs);
   }
-  
+
   public void finalize()
   {
     dispose(fontSet);
@@ -247,7 +247,8 @@ public class FreetypeGlyphVector extends GlyphVector
   /**
    * Returns the kerning of a glyph pair
    */
-  private native Point2D getKerning(int leftGlyph, int rightGlyph, long font);
+  private native void getKerning(int leftGlyph, int rightGlyph, long font,
+                                 float[] p);
 
   private native double[] getMetricsNative(int glyphCode, long font);
 
@@ -267,9 +268,9 @@ public class FreetypeGlyphVector extends GlyphVector
     if( ! (gv instanceof FreetypeGlyphVector) )
       return false;
 
-    return (((FreetypeGlyphVector)gv).font.equals(font) && 
-	    ((FreetypeGlyphVector)gv).frc.equals(frc)
-	    && ((FreetypeGlyphVector)gv).s.equals(s));
+    return (((FreetypeGlyphVector)gv).font.equals(font) &&
+            ((FreetypeGlyphVector)gv).frc.equals(frc)
+            && ((FreetypeGlyphVector)gv).s.equals(s));
   }
 
   /**
@@ -301,6 +302,7 @@ public class FreetypeGlyphVector extends GlyphVector
     GlyphMetrics gm = null;
     float x = 0;
     float y = 0;
+    float[] p = {0.0f, 0.0f};
     for(int i = 0; i < nGlyphs; i++)
       {
         gm = getGlyphMetrics( i );
@@ -314,26 +316,26 @@ public class FreetypeGlyphVector extends GlyphVector
         // using the same font
         if (i != nGlyphs-1 && fontSet[i] == fontSet[i+1])
           {
-            Point2D p = getKerning(glyphCodes[i], glyphCodes[i + 1], fontSet[i]);
-            x += p.getX();
-            y += p.getY();
+            getKerning(glyphCodes[i], glyphCodes[i + 1], fontSet[i], p);
+            x += p[0];
+            y += p[1];
           }
       }
     glyphPositions[nGlyphs * 2] = x;
     glyphPositions[nGlyphs * 2 + 1] = y;
-    
+
     // Apply any transform that may be in the font's attributes
     TransformAttribute ta;
     ta = (TransformAttribute)font.getAttributes().get(TextAttribute.TRANSFORM);
     if (ta != null)
       {
         AffineTransform tx = ta.getTransform();
-        
+
         // Transform glyph positions
         tx.transform(glyphPositions, 0, glyphPositions, 0,
                      glyphPositions.length / 2);
-        
-        // Also store per-glyph scale/shear/rotate (but not translation) 
+
+        // Also store per-glyph scale/shear/rotate (but not translation)
         double[] matrix = new double[4];
         tx.getMatrix(matrix);
         AffineTransform deltaTx = new AffineTransform(matrix);
@@ -353,7 +355,7 @@ public class FreetypeGlyphVector extends GlyphVector
   /**
    * Returns multiple glyphcodes.
    */
-  public int[] getGlyphCodes(int beginGlyphIndex, int numEntries, 
+  public int[] getGlyphCodes(int beginGlyphIndex, int numEntries,
                              int[] codeReturn)
   {
     int[] rval;
@@ -362,7 +364,7 @@ public class FreetypeGlyphVector extends GlyphVector
       rval = new int[ numEntries ];
     else
       rval = codeReturn;
-    
+
     System.arraycopy(glyphCodes, beginGlyphIndex, rval, 0, numEntries);
 
     return rval;
@@ -370,10 +372,10 @@ public class FreetypeGlyphVector extends GlyphVector
 
   /**
    * Returns pointers to the fonts used in this glyph vector.
-   * 
+   *
    * The array index matches that of the glyph vector itself.
    */
-  protected long[] getGlyphFonts(int beginGlyphIndex, int numEntries, 
+  protected long[] getGlyphFonts(int beginGlyphIndex, int numEntries,
                                  long[] codeReturn)
   {
     long[] rval;
@@ -382,7 +384,7 @@ public class FreetypeGlyphVector extends GlyphVector
       rval = new long[ numEntries ];
     else
       rval = codeReturn;
-    
+
     System.arraycopy(fontSet, beginGlyphIndex, rval, 0, numEntries);
 
     return rval;
@@ -392,18 +394,18 @@ public class FreetypeGlyphVector extends GlyphVector
   {
     GlyphMetrics gm = getGlyphMetrics( glyphIndex );
     if( gm == null )
-      return null; 
+      return null;
     Rectangle2D r = gm.getBounds2D();
     Point2D p = getGlyphPosition( glyphIndex );
-    
+
     double[] bounds = new double[] {p.getX() + r.getX() - gm.getLSB(),
                                     p.getY() + r.getY(),
                                     p.getX() + r.getX() - gm.getLSB() + gm.getAdvanceX(),
                                     p.getY() + r.getY() + r.getHeight()};
-    
+
     if (glyphTransforms[glyphIndex] != null)
       glyphTransforms[glyphIndex].transform(bounds, 0, bounds, 0, 2);
-    
+
     return new Rectangle2D.Double(bounds[0], bounds[1], bounds[2] - bounds[0],
                                   bounds[3] - bounds[1]);
   }
@@ -426,10 +428,10 @@ public class FreetypeGlyphVector extends GlyphVector
               gm = null;
             else
               {
-                gm = new GlyphMetrics(true, 
-                                      (float)val[1], 
-                                      (float)val[2], 
-                                      new Rectangle2D.Double(val[3], val[4], 
+                gm = new GlyphMetrics(true,
+                                      (float)val[1],
+                                      (float)val[2],
+                                      new Rectangle2D.Double(val[3], val[4],
                                                              val[5], val[6] ),
                                       GlyphMetrics.STANDARD );
                 peer.putGlyphMetrics( glyphCodes[ i ], gm );
@@ -452,7 +454,7 @@ public class FreetypeGlyphVector extends GlyphVector
 
   /**
    * Returns the outline of a single glyph.
-   * 
+   *
    * Despite what the Sun API says, this method returns the glyph relative to
    * the origin of the *entire string*, not each individual glyph.
    */
@@ -460,7 +462,7 @@ public class FreetypeGlyphVector extends GlyphVector
   {
     GeneralPath gp = getGlyphOutlineNative(glyphCodes[glyphIndex],
                                            fontSet[glyphIndex]);
-    
+
     AffineTransform tx = AffineTransform.getTranslateInstance(glyphPositions[glyphIndex*2],
                                                               glyphPositions[glyphIndex*2+1]);
     if (glyphTransforms[glyphIndex] != null)
@@ -482,12 +484,12 @@ public class FreetypeGlyphVector extends GlyphVector
   /**
    * Returns the positions of multiple glyphs.
    */
-  public float[] getGlyphPositions(int beginGlyphIndex, int numEntries, 
-				   float[] positionReturn)
+  public float[] getGlyphPositions(int beginGlyphIndex, int numEntries,
+                                   float[] positionReturn)
   {
     if (positionReturn == null || positionReturn.length < (numEntries * 2))
       positionReturn = new float[numEntries*2];
-    
+
     System.arraycopy(glyphPositions, beginGlyphIndex*2, positionReturn, 0,
                      numEntries*2);
     return positionReturn;
@@ -500,7 +502,7 @@ public class FreetypeGlyphVector extends GlyphVector
   {
     return glyphTransforms[glyphIndex];
   }
-  
+
   /**
    * Checks whether any transform has been set on any glyphs.
    */
@@ -509,10 +511,10 @@ public class FreetypeGlyphVector extends GlyphVector
     for (int i = 0; i < glyphTransforms.length; i++)
       if (glyphTransforms[i] != null)
         return true;
-    
+
     return false;
   }
-  
+
   /**
    * Returns the visual bounds of a glyph
    * May be off by a pixel or two due to hinting/rasterization.
@@ -536,7 +538,7 @@ public class FreetypeGlyphVector extends GlyphVector
     for( int i = 1; i < nGlyphs; i++ )
       {
         Rectangle2D r2 = (Rectangle2D)getGlyphLogicalBounds( i );
-        
+
         rect = rect.createUnion( r2 );
       }
 
@@ -564,9 +566,9 @@ public class FreetypeGlyphVector extends GlyphVector
   }
 
   /**
-   * TODO: 
-   * FreeType does not currently have an API for the JSTF table. We should 
-   * probably get the table ourselves from FT and pass it to some parser 
+   * TODO:
+   * FreeType does not currently have an API for the JSTF table. We should
+   * probably get the table ourselves from FT and pass it to some parser
    * which the native font peers will need.
    */
   public GlyphJustificationInfo getGlyphJustificationInfo(int glyphIndex)
@@ -613,14 +615,14 @@ public class FreetypeGlyphVector extends GlyphVector
     // using and checking for nulls can be much faster.
     if (newTX != null && newTX.isIdentity())
       newTX = null;
-    
+
     // If the old and new transforms are identical, bail
     if (glyphTransforms[glyphIndex] == null && newTX == null)
       return;
-    
+
     if (newTX != null && newTX.equals(glyphTransforms[glyphIndex]))
       return;
-    
+
     // Invalidate bounds cache and set new transform
     logicalBounds = null;
     glyphTransforms[glyphIndex] = newTX;

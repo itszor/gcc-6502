@@ -2,6 +2,7 @@
    output reloads.  */
 
 /* { dg-do compile } */
+/* { dg-require-profiling "-fprofile-generate" } */
 /* { dg-options "-O2 -fprofile-generate" } */
 
 char *
@@ -34,5 +35,3 @@ test(char *ret, int *counter, void *schema,
   error (1, 0, 0, node, "%s", name);
   return 0;
 }
-
-/* { dg-final { cleanup-coverage-files } } */

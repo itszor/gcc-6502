@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/sort.h
  *  @brief Parallel sorting algorithm switch.
@@ -60,63 +54,185 @@
 
 namespace __gnu_parallel
 {
+  //prototype
+  template<bool __stable, typename _RAIter,
+           typename _Compare, typename _Parallelism>
+    void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp, _Parallelism __parallelism);
+        
   /** 
-   *  @brief Choose a parallel sorting algorithm.
-   *  @param begin Begin iterator of input sequence.
-   *  @param end End iterator of input sequence.
-   *  @param comp Comparator.
-   *  @param stable Sort stable.
+   *  @brief Choose multiway mergesort, splitting variant at run-time,
+   *  for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
    *  @callgraph 
    */
-  template<typename RandomAccessIterator, typename Comparator>
+  template<bool __stable, typename _RAIter, typename _Compare>
     inline void
-    parallel_sort(RandomAccessIterator begin, RandomAccessIterator end,
-                  Comparator comp, bool stable)
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp, multiway_mergesort_tag __parallelism)
     {
-      _GLIBCXX_CALL(end - begin)
-      typedef std::iterator_traits<RandomAccessIterator> traits_type;
-      typedef typename traits_type::value_type value_type;
-      typedef typename traits_type::difference_type difference_type;
+      _GLIBCXX_CALL(__end - __begin)
 
-      if (begin != end)
-      {
-        difference_type n = end - begin;
+      if(_Settings::get().sort_splitting == EXACT)
+	parallel_sort_mwms<__stable, true>
+	  (__begin, __end, __comp, __parallelism.__get_num_threads());
+      else
+	parallel_sort_mwms<__stable, false>
+	  (__begin, __end, __comp, __parallelism.__get_num_threads());
+    }
 
-        if (false) ;
+  /** 
+   *  @brief Choose multiway mergesort with exact splitting,
+   *  for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+  template<bool __stable, typename _RAIter, typename _Compare>
+    inline void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp,
+		    multiway_mergesort_exact_tag __parallelism)
+    {
+      _GLIBCXX_CALL(__end - __begin)
+
+      parallel_sort_mwms<__stable, true>
+        (__begin, __end, __comp, __parallelism.__get_num_threads());
+    }
+
+  /** 
+   *  @brief Choose multiway mergesort with splitting by sampling,
+   *  for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+  template<bool __stable, typename _RAIter, typename _Compare>
+    inline void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp,
+		    multiway_mergesort_sampling_tag __parallelism)
+    {
+      _GLIBCXX_CALL(__end - __begin)
+
+      parallel_sort_mwms<__stable, false>
+      (__begin, __end, __comp, __parallelism.__get_num_threads());
+    }
+
+  /**
+   *  @brief Choose quicksort for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+  template<bool __stable, typename _RAIter, typename _Compare>
+    inline void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp, quicksort_tag __parallelism)
+    {
+      _GLIBCXX_CALL(__end - __begin)
+
+      _GLIBCXX_PARALLEL_ASSERT(__stable == false);
+
+      __parallel_sort_qs(__begin, __end, __comp,
+			 __parallelism.__get_num_threads());
+    }
+
+  /**
+   *  @brief Choose balanced quicksort for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+   template<bool __stable, typename _RAIter, typename _Compare>
+     inline void
+     __parallel_sort(_RAIter __begin, _RAIter __end,
+		     _Compare __comp, balanced_quicksort_tag __parallelism)
+     {
+       _GLIBCXX_CALL(__end - __begin)
+
+       _GLIBCXX_PARALLEL_ASSERT(__stable == false);
+
+       __parallel_sort_qsb(__begin, __end, __comp,
+			   __parallelism.__get_num_threads());
+     }
+
+  /** 
+   *  @brief Choose multiway mergesort with exact splitting,
+   *  for parallel sorting.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+  template<bool __stable, typename _RAIter, typename _Compare>
+    inline void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp, default_parallel_tag __parallelism)
+    {
+      _GLIBCXX_CALL(__end - __begin)
+
+      __parallel_sort<__stable>
+	(__begin, __end, __comp,
+	 multiway_mergesort_exact_tag(__parallelism.__get_num_threads()));
+    }
+
+  /**
+   *  @brief Choose a parallel sorting algorithm.
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator of input sequence.
+   *  @param __comp Comparator.
+   *  @tparam __stable Sort stable.
+   *  @callgraph 
+   */
+  template<bool __stable, typename _RAIter, typename _Compare>
+    inline void
+    __parallel_sort(_RAIter __begin, _RAIter __end,
+		    _Compare __comp, parallel_tag __parallelism)
+    {
+      _GLIBCXX_CALL(__end - __begin)
+      typedef std::iterator_traits<_RAIter> _TraitsType;
+      typedef typename _TraitsType::value_type _ValueType;
+      typedef typename _TraitsType::difference_type _DifferenceType;
+
+      if (false) ;
 #if _GLIBCXX_MERGESORT
-        else if (stable)
-          {
-            if(_Settings::get().sort_splitting == EXACT)
-              parallel_sort_mwms<true, true>
-                (begin, end, comp, get_max_threads());
-            else
-              parallel_sort_mwms<true, false>
-                (begin, end, comp, get_max_threads());
-          }
-        else if (_Settings::get().sort_algorithm == MWMS)
-          {
-            if(_Settings::get().sort_splitting == EXACT)
-              parallel_sort_mwms<false, true>
-                (begin, end, comp, get_max_threads());
-            else
-              parallel_sort_mwms<false, false>
-                (begin, end, comp, get_max_threads());
-          }
+      else if (__stable || _Settings::get().sort_algorithm == MWMS)
+        {
+          if(_Settings::get().sort_splitting == EXACT)
+            parallel_sort_mwms<__stable, true>
+              (__begin, __end, __comp, __parallelism.__get_num_threads());
+          else
+            parallel_sort_mwms<false, false>
+              (__begin, __end, __comp, __parallelism.__get_num_threads());
+        }
 #endif
 #if _GLIBCXX_QUICKSORT
-        else if (!stable && _Settings::get().sort_algorithm == QS)
-          parallel_sort_qs(begin, end, comp, n, get_max_threads());
+      else if (_Settings::get().sort_algorithm == QS)
+        __parallel_sort_qs(__begin, __end, __comp,
+                           __parallelism.__get_num_threads());
 #endif
 #if _GLIBCXX_BAL_QUICKSORT
-        else if (!stable && _Settings::get().sort_algorithm == QS_BALANCED)
-          parallel_sort_qsb(begin, end, comp, n, get_max_threads());
+      else if (_Settings::get().sort_algorithm == QS_BALANCED)
+        __parallel_sort_qsb(__begin, __end, __comp,
+                            __parallelism.__get_num_threads());
 #endif
-        else if(stable)
-          __gnu_sequential::stable_sort(begin, end, comp);
-        else
-          __gnu_sequential::sort(begin, end, comp);
-      }
+      else
+        __gnu_sequential::sort(__begin, __end, __comp);
     }
 } // end namespace __gnu_parallel
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_SORT_H */

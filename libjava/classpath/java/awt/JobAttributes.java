@@ -1,4 +1,4 @@
-/* JobAttributes.java -- 
+/* JobAttributes.java --
    Copyright (C) 2002, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package java.awt;
+
+import gnu.java.lang.CPStringBuilder;
 
 /**
  * Needs documentation...
@@ -479,7 +481,7 @@ public final class JobAttributes implements Cloneable
 
   public String toString()
   {
-    StringBuffer s = new StringBuffer("copies=").append(copies)
+    CPStringBuilder s = new CPStringBuilder("copies=").append(copies)
       .append(",defaultSelection=").append(selection).append(",destination=")
       .append(destination).append(",dialog=").append(dialog)
       .append(",fileName=").append(filename).append(",fromPage=")

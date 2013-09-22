@@ -1,4 +1,5 @@
 /* Contributed by Nicola Pero - Fri Oct 26 22:39:32 BST 2001 */
+#include <stdlib.h>
 #include <objc/objc.h>
 
 /* Test calling a class method on self where self has been redefined
@@ -32,9 +33,7 @@ struct d
   
   return u;
 }
-#ifdef __NEXT_RUNTIME__                                   
 + initialize { return self; }
-#endif
 @end
 
 /* The second class */
@@ -57,9 +56,7 @@ struct d
     }
 }
 
-#ifdef __NEXT_RUNTIME__                                   
 + initialize { return self; }
-#endif
 @end
 
 

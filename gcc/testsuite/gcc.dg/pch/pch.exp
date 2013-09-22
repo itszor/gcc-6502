@@ -1,4 +1,4 @@
-#   Copyright (C) 1997, 2002, 2003, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,9 +20,13 @@
 # Load support procs.
 load_lib gcc-dg.exp
 load_lib dg-pch.exp
+load_lib torture-options.exp
 
 # Initialize `dg'.
 dg-init
+torture-init
+set-torture-options $DG_TORTURE_OPTIONS
+pch-init
 
 set old_dg_do_what_default "${dg-do-what-default}"
 
@@ -40,7 +44,7 @@ foreach test [lsort [glob -nocomplain $srcdir/$subdir/*.c]] {
 set test "largefile.c"
 set testh "largefile.hs"
 set f [open $test w]
-puts $f "/* { dg-xfail-if \"PR 14940\" { \"i?86-*-solaris2.10\" } { \"*\" } { \"\" } } */"
+puts $f "/* { dg-timeout-factor 4.0 } */"
 set v 0
 for { set v 0 } { $v < 10000 } { incr v } {
     puts $f "#define MACRO_${v} \"1234567890\" \"$v\""
@@ -56,4 +60,6 @@ file delete $testh
 set dg-do-what-default "$old_dg_do_what_default"
 
 # All done.
+pch-finish
+torture-finish
 dg-finish

@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -33,6 +33,7 @@ with Nlists;   use Nlists;
 with Nmake;    use Nmake;
 with Opt;      use Opt;
 with Rtsfind;  use Rtsfind;
+with Sem_Aux;  use Sem_Aux;
 with Sem_Eval; use Sem_Eval;
 with Sem_Util; use Sem_Util;
 with Sem_Warn; use Sem_Warn;
@@ -219,8 +220,7 @@ package body Exp_Code is
 
       Name_Len := 0;
       loop
-         Name_Len := Name_Len + 1;
-         Name_Buffer (Name_Len) := C;
+         Add_Char_To_Name_Buffer (C);
          Clobber_Ptr := Clobber_Ptr + 1;
          exit when Clobber_Ptr > Len;
          C := Get_Character (Get_String_Char (Str, Clobber_Ptr));

@@ -113,7 +113,7 @@
 	* mangle.c (write_bare_function_type): Mangle return type for
 	methods of Java classes
 
-2005-12-08  Th�dore Papadopoulo <Theodore.Papadopoulo@sophia.inria.fr>
+2005-12-08  Théodore Papadopoulo <Theodore.Papadopoulo@sophia.inria.fr>
 
 	* call.c (build_conditional_expr): Print types in error messages.
 
@@ -125,11 +125,11 @@
 
 	* cp-gimplify.c (gimplify_cp_loop): Use fold_build3.
 
-2005-12-07  Rafael �ila de Esp�dola  <rafael.espindola@gmail.com>
+2005-12-07  Rafael Ávila de Espíndola  <rafael.espindola@gmail.com>
 
 	* Make-lang.in (c++.all.build, c++.install-normal): Remove.
 
-2005-12-07  Rafael �ila de Esp�dola  <rafael.espindola@gmail.com>
+2005-12-07  Rafael Ávila de Espíndola  <rafael.espindola@gmail.com>
 
 	* Make-lang.in: Remove all dependencies on s-gtype.
 
@@ -3519,3 +3519,10 @@
 	PR middle-end/17544
 	* decl.c (finish_function): Fix comment.  Annotate the compiler
 	generated return with the current file name and line 0.
+
+
+Copyright (C) 2005 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.

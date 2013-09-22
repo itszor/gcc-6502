@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2006-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2006-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -33,8 +31,6 @@
 
 with Ada.Calendar;            use Ada.Calendar;
 with Ada.Calendar.Time_Zones; use Ada.Calendar.Time_Zones;
-
-pragma Warnings (Off); -- temp till we fix out param warnings ???
 
 package body Ada.Calendar.Formatting is
 
@@ -46,15 +42,15 @@ package body Ada.Calendar.Formatting is
    --  independent, thus only one source file is needed for multiple targets.
 
    procedure Check_Char (S : String; C : Character; Index : Integer);
-   --  Subsidiary to the two versions of Value. Determine whether the
-   --  input strint S has character C at position Index. Raise
-   --  Constraint_Error if there is a mismatch.
+   --  Subsidiary to the two versions of Value. Determine whether the input
+   --  string S has character C at position Index. Raise Constraint_Error if
+   --  there is a mismatch.
 
    procedure Check_Digit (S : String; Index : Integer);
-   --  Subsidiary to the two versions of Value. Determine whether the
-   --  character of string S at position Index is a digit. This catches
-   --  invalid input such as 1983-*1-j3 u5:n7:k9 which should be
-   --  1983-01-03 05:07:09. Raise Constraint_Error if there is a mismatch.
+   --  Subsidiary to the two versions of Value. Determine whether the character
+   --  of string S at position Index is a digit. This catches invalid input
+   --  such as 1983-*1-j3 u5:n7:k9 which should be 1983-01-03 05:07:09. Raise
+   --  Constraint_Error if there is a mismatch.
 
    ----------------
    -- Check_Char --
@@ -143,87 +139,53 @@ package body Ada.Calendar.Formatting is
      (Elapsed_Time          : Duration;
       Include_Time_Fraction : Boolean := False) return String
    is
+      To_Char    : constant array (0 .. 9) of Character := "0123456789";
       Hour       : Hour_Number;
       Minute     : Minute_Number;
       Second     : Second_Number;
       Sub_Second : Duration;
       SS_Nat     : Natural;
 
-      Low  : Integer;
-      High : Integer;
+      --  Determine the two slice bounds for the result string depending on
+      --  whether the input is negative and whether fractions are requested.
+
+      First  : constant Integer := (if Elapsed_Time < 0.0 then 1 else 2);
+      Last   : constant Integer := (if Include_Time_Fraction then 12 else 9);
 
       Result : String := "-00:00:00.00";
 
    begin
       Split (abs (Elapsed_Time), Hour, Minute, Second, Sub_Second);
 
-      --  Determine the two slice bounds for the result string depending on
-      --  whether the input is negative and whether fractions are requested.
+      --  Hour processing, positions 2 and 3
 
-      if Elapsed_Time < 0.0 then
-         Low := 1;
-      else
-         Low := 2;
+      Result (2) := To_Char (Hour / 10);
+      Result (3) := To_Char (Hour mod 10);
+
+      --  Minute processing, positions 5 and 6
+
+      Result (5) := To_Char (Minute / 10);
+      Result (6) := To_Char (Minute mod 10);
+
+      --  Second processing, positions 8 and 9
+
+      Result (8) := To_Char (Second / 10);
+      Result (9) := To_Char (Second mod 10);
+
+      --  Optional sub second processing, positions 11 and 12
+
+      if Include_Time_Fraction and then Sub_Second > 0.0 then
+
+         --  Prevent rounding up when converting to natural, avoiding the zero
+         --  case to prevent rounding down to a negative number.
+
+         SS_Nat := Natural (Duration'(Sub_Second * 100.0) - 0.5);
+
+         Result (11) := To_Char (SS_Nat / 10);
+         Result (12) := To_Char (SS_Nat mod 10);
       end if;
 
-      if Include_Time_Fraction then
-         High := 12;
-      else
-         High := 9;
-      end if;
-
-      --  Prevent rounding when converting to natural
-
-      Sub_Second := Sub_Second * 100.0 - 0.5;
-      SS_Nat := Natural (Sub_Second);
-
-      declare
-         Hour_Str   : constant String := Hour_Number'Image (Hour);
-         Minute_Str : constant String := Minute_Number'Image (Minute);
-         Second_Str : constant String := Second_Number'Image (Second);
-         SS_Str     : constant String := Natural'Image (SS_Nat);
-
-      begin
-         --  Hour processing, positions 2 and 3
-
-         if Hour < 10 then
-            Result (3) := Hour_Str (2);
-         else
-            Result (2) := Hour_Str (2);
-            Result (3) := Hour_Str (3);
-         end if;
-
-         --  Minute processing, positions 5 and 6
-
-         if Minute < 10 then
-            Result (6) := Minute_Str (2);
-         else
-            Result (5) := Minute_Str (2);
-            Result (6) := Minute_Str (3);
-         end if;
-
-         --  Second processing, positions 8 and 9
-
-         if Second < 10 then
-            Result (9) := Second_Str (2);
-         else
-            Result (8) := Second_Str (2);
-            Result (9) := Second_Str (3);
-         end if;
-
-         --  Optional sub second processing, positions 11 and 12
-
-         if Include_Time_Fraction then
-            if SS_Nat < 10 then
-               Result (12) := SS_Str (2);
-            else
-               Result (11) := SS_Str (2);
-               Result (12) := SS_Str (3);
-            end if;
-         end if;
-
-         return Result (Low .. High);
-      end;
+      return Result (First .. Last);
    end Image;
 
    -----------
@@ -235,6 +197,8 @@ package body Ada.Calendar.Formatting is
       Include_Time_Fraction : Boolean := False;
       Time_Zone             : Time_Zones.Time_Offset := 0) return String
    is
+      To_Char : constant array (0 .. 9) of Character := "0123456789";
+
       Year        : Year_Number;
       Month       : Month_Number;
       Day         : Day_Number;
@@ -245,94 +209,60 @@ package body Ada.Calendar.Formatting is
       SS_Nat      : Natural;
       Leap_Second : Boolean;
 
+      --  The result length depends on whether fractions are requested.
+
       Result : String := "0000-00-00 00:00:00.00";
+      Last   : constant Positive :=
+        Result'Last - (if Include_Time_Fraction then 0 else 3);
 
    begin
       Split (Date, Year, Month, Day,
              Hour, Minute, Second, Sub_Second, Leap_Second, Time_Zone);
 
-      --  Prevent rounding when converting to natural
+      --  Year processing, positions 1, 2, 3 and 4
 
-      Sub_Second := Sub_Second * 100.0 - 0.5;
-      SS_Nat := Natural (Sub_Second);
+      Result (1) := To_Char (Year / 1000);
+      Result (2) := To_Char (Year / 100 mod 10);
+      Result (3) := To_Char (Year / 10 mod 10);
+      Result (4) := To_Char (Year mod 10);
 
-      declare
-         Year_Str   : constant String := Year_Number'Image (Year);
-         Month_Str  : constant String := Month_Number'Image (Month);
-         Day_Str    : constant String := Day_Number'Image (Day);
-         Hour_Str   : constant String := Hour_Number'Image (Hour);
-         Minute_Str : constant String := Minute_Number'Image (Minute);
-         Second_Str : constant String := Second_Number'Image (Second);
-         SS_Str     : constant String := Natural'Image (SS_Nat);
+      --  Month processing, positions 6 and 7
 
-      begin
-         --  Year processing, positions 1, 2, 3 and 4
+      Result (6) := To_Char (Month / 10);
+      Result (7) := To_Char (Month mod 10);
 
-         Result (1) := Year_Str (2);
-         Result (2) := Year_Str (3);
-         Result (3) := Year_Str (4);
-         Result (4) := Year_Str (5);
+      --  Day processing, positions 9 and 10
 
-         --  Month processing, positions 6 and 7
+      Result (9)  := To_Char (Day / 10);
+      Result (10) := To_Char (Day mod 10);
 
-         if Month < 10 then
-            Result (7) := Month_Str (2);
-         else
-            Result (6) := Month_Str (2);
-            Result (7) := Month_Str (3);
-         end if;
+      Result (12) := To_Char (Hour / 10);
+      Result (13) := To_Char (Hour mod 10);
 
-         --  Day processing, positions 9 and 10
+      --  Minute processing, positions 15 and 16
 
-         if Day < 10 then
-            Result (10) := Day_Str (2);
-         else
-            Result (9)  := Day_Str (2);
-            Result (10) := Day_Str (3);
-         end if;
+      Result (15) := To_Char (Minute / 10);
+      Result (16) := To_Char (Minute mod 10);
 
-         --  Hour processing, positions 12 and 13
+      --  Second processing, positions 18 and 19
 
-         if Hour < 10 then
-            Result (13) := Hour_Str (2);
-         else
-            Result (12) := Hour_Str (2);
-            Result (13) := Hour_Str (3);
-         end if;
+      Result (18) := To_Char (Second / 10);
+      Result (19) := To_Char (Second mod 10);
 
-         --  Minute processing, positions 15 and 16
+      --  Optional sub second processing, positions 21 and 22
 
-         if Minute < 10 then
-            Result (16) := Minute_Str (2);
-         else
-            Result (15) := Minute_Str (2);
-            Result (16) := Minute_Str (3);
-         end if;
+      if Include_Time_Fraction and then Sub_Second > 0.0 then
 
-         --  Second processing, positions 18 and 19
+         --  Prevent rounding up when converting to natural, avoiding the zero
+         --  case to prevent rounding down to a negative number.
 
-         if Second < 10 then
-            Result (19) := Second_Str (2);
-         else
-            Result (18) := Second_Str (2);
-            Result (19) := Second_Str (3);
-         end if;
+         SS_Nat := Natural (Duration'(Sub_Second * 100.0) - 0.5);
 
-         --  Optional sub second processing, positions 21 and 22
+         Result (21) := To_Char (SS_Nat / 10);
+         Result (22) := To_Char (SS_Nat mod 10);
+      end if;
 
-         if Include_Time_Fraction then
-            if SS_Nat < 10 then
-               Result (22) := SS_Str (2);
-            else
-               Result (21) := SS_Str (2);
-               Result (22) := SS_Str (3);
-            end if;
-
-            return Result;
-         else
-            return Result (1 .. 19);
-         end if;
-      end;
+      return Result (Result'First .. Last);
    end Image;
 
    ------------
@@ -417,7 +347,7 @@ package body Ada.Calendar.Formatting is
    begin
       --  Validity checks
 
-      if not Hour'Valid
+      if        not Hour'Valid
         or else not Minute'Valid
         or else not Second'Valid
         or else not Sub_Second'Valid
@@ -451,11 +381,7 @@ package body Ada.Calendar.Formatting is
          raise Constraint_Error;
       end if;
 
-      if Seconds = 0.0 then
-         Secs := 0;
-      else
-         Secs := Natural (Seconds - 0.5);
-      end if;
+      Secs := (if Seconds = 0.0 then 0 else Natural (Seconds - 0.5));
 
       Sub_Second := Second_Duration (Seconds - Day_Duration (Secs));
       Hour       := Hour_Number (Secs / 3_600);
@@ -495,18 +421,19 @@ package body Ada.Calendar.Formatting is
 
    begin
       Formatting_Operations.Split
-        (Date      => Date,
-         Year      => Year,
-         Month     => Month,
-         Day       => Day,
-         Day_Secs  => Seconds,
-         Hour      => H,
-         Minute    => M,
-         Second    => Se,
-         Sub_Sec   => Su,
-         Leap_Sec  => Leap_Second,
-         Time_Zone => Tz,
-         Is_Ada_05 => True);
+        (Date        => Date,
+         Year        => Year,
+         Month       => Month,
+         Day         => Day,
+         Day_Secs    => Seconds,
+         Hour        => H,
+         Minute      => M,
+         Second      => Se,
+         Sub_Sec     => Su,
+         Leap_Sec    => Leap_Second,
+         Use_TZ      => True,
+         Is_Historic => True,
+         Time_Zone   => Tz);
 
       --  Validity checks
 
@@ -540,18 +467,19 @@ package body Ada.Calendar.Formatting is
 
    begin
       Formatting_Operations.Split
-        (Date      => Date,
-         Year      => Year,
-         Month     => Month,
-         Day       => Day,
-         Day_Secs  => Dd,
-         Hour      => Hour,
-         Minute    => Minute,
-         Second    => Second,
-         Sub_Sec   => Sub_Second,
-         Leap_Sec  => Le,
-         Time_Zone => Tz,
-         Is_Ada_05 => True);
+        (Date        => Date,
+         Year        => Year,
+         Month       => Month,
+         Day         => Day,
+         Day_Secs    => Dd,
+         Hour        => Hour,
+         Minute      => Minute,
+         Second      => Second,
+         Sub_Sec     => Sub_Second,
+         Leap_Sec    => Le,
+         Use_TZ      => True,
+         Is_Historic => True,
+         Time_Zone   => Tz);
 
       --  Validity checks
 
@@ -588,18 +516,19 @@ package body Ada.Calendar.Formatting is
 
    begin
       Formatting_Operations.Split
-       (Date      => Date,
-        Year      => Year,
-        Month     => Month,
-        Day       => Day,
-        Day_Secs  => Dd,
-        Hour      => Hour,
-        Minute    => Minute,
-        Second    => Second,
-        Sub_Sec   => Sub_Second,
-        Leap_Sec  => Leap_Second,
-        Time_Zone => Tz,
-        Is_Ada_05 => True);
+       (Date        => Date,
+        Year        => Year,
+        Month       => Month,
+        Day         => Day,
+        Day_Secs    => Dd,
+        Hour        => Hour,
+        Minute      => Minute,
+        Second      => Second,
+        Sub_Sec     => Sub_Second,
+        Leap_Sec    => Leap_Second,
+        Use_TZ      => True,
+        Is_Historic => True,
+        Time_Zone   => Tz);
 
       --  Validity checks
 
@@ -703,7 +632,8 @@ package body Ada.Calendar.Formatting is
            Sub_Sec      => Ss,
            Leap_Sec     => Leap_Second,
            Use_Day_Secs => True,
-           Is_Ada_05    => True,
+           Use_TZ       => True,
+           Is_Historic  => True,
            Time_Zone    => Tz);
    end Time_Of;
 
@@ -752,7 +682,8 @@ package body Ada.Calendar.Formatting is
            Sub_Sec      => Sub_Second,
            Leap_Sec     => Leap_Second,
            Use_Day_Secs => False,
-           Is_Ada_05    => True,
+           Use_TZ       => True,
+           Is_Historic  => True,
            Time_Zone    => Tz);
    end Time_Of;
 
@@ -788,8 +719,8 @@ package body Ada.Calendar.Formatting is
          raise Constraint_Error;
       end if;
 
-      --  After the correct length has been determined, it is safe to
-      --  copy the Date in order to avoid Date'First + N indexing.
+      --  After the correct length has been determined, it is safe to copy the
+      --  Date in order to avoid Date'First + N indexing.
 
       D (1 .. Date'Length) := Date;
 
@@ -872,8 +803,8 @@ package body Ada.Calendar.Formatting is
          raise Constraint_Error;
       end if;
 
-      --  After the correct length has been determined, it is safe to
-      --  copy the Elapsed_Time in order to avoid Date'First + N indexing.
+      --  After the correct length has been determined, it is safe to copy the
+      --  Elapsed_Time in order to avoid Date'First + N indexing.
 
       D (1 .. Elapsed_Time'Length) := Elapsed_Time;
 

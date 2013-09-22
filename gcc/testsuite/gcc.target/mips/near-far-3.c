@@ -1,6 +1,5 @@
 /* { dg-do compile } */
-/* { dg-mips-options "-mlong-calls -O2" } */
-/* { dg-require-effective-target nonpic } */
+/* { dg-options "-mlong-calls addressing=absolute" } */
 
 NOMIPS16 extern int long_call_func () __attribute__((long_call));
 NOMIPS16 extern int far_func () __attribute__((far));
@@ -14,5 +13,5 @@ NOMIPS16 int test4 () { return normal_func (); }
 
 /* { dg-final { scan-assembler-not "\tj\tlong_call_func\n" } } */
 /* { dg-final { scan-assembler-not "\tj\tfar_func\n" } } */
-/* { dg-final { scan-assembler     "\tj\tnear_func\n" } } */
+/* { dg-final { scan-assembler     "\tj(|al)\tnear_func\n" } } */
 /* { dg-final { scan-assembler-not "\tj\tnormal_func\n" } } */

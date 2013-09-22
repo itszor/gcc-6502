@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1999-2007, AdaCore                     --
+--                     Copyright (C) 1999-2010, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -471,15 +469,11 @@ package body GNAT.Calendar.Time_IO is
 
                when 'w' =>
                   declare
-                     DOW : Natural range 0 .. 6;
-
+                     DOW : constant Natural range 0 .. 6 :=
+                             (if Day_Of_Week (Date) = Sunday
+                              then 0
+                              else Day_Name'Pos (Day_Of_Week (Date)));
                   begin
-                     if Day_Of_Week (Date) = Sunday then
-                        DOW := 0;
-                     else
-                        DOW := Day_Name'Pos (Day_Of_Week (Date));
-                     end if;
-
                      Result := Result & Image (DOW, Length => 1);
                   end;
 
@@ -536,7 +530,7 @@ package body GNAT.Calendar.Time_IO is
         constant array (Ada.Calendar.Month_Number) of String3 :=
          ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
           "JUL", "AUG", "SEP", "OCT", "NOV", "DEC");
-      --  Short version of the month names, used when parsing date strings.
+      --  Short version of the month names, used when parsing date strings
 
       S                                                     : String := Str;
 
@@ -560,13 +554,12 @@ package body GNAT.Calendar.Time_IO is
       D          : String (1 .. 21);
       D_Length   : constant Natural := Date'Length;
 
-      Year       : Year_Number;
-      Month      : Month_Number;
-      Day        : Day_Number;
-      Hour       : Hour_Number;
-      Minute     : Minute_Number;
-      Second     : Second_Number;
-      Sub_Second : Second_Duration;
+      Year   : Year_Number;
+      Month  : Month_Number;
+      Day    : Day_Number;
+      Hour   : Hour_Number;
+      Minute : Minute_Number;
+      Second : Second_Number;
 
       procedure Extract_Date
         (Year       : out Year_Number;
@@ -770,9 +763,6 @@ package body GNAT.Calendar.Time_IO is
    --  Start of processing for Value
 
    begin
-      Split (Clock, Year, Month, Day, Hour, Minute, Second, Sub_Second);
-      Sub_Second := 0.0;
-
       --  Length checks
 
       if D_Length /= 8
@@ -792,12 +782,19 @@ package body GNAT.Calendar.Time_IO is
 
       D (1 .. D_Length) := Date;
 
-      if D_Length /= 8
-        or else D (3) /= ':'
-      then
+      if D_Length /= 8 or else D (3) /= ':' then
          Extract_Date (Year, Month, Day, Time_Start);
          Extract_Time (Time_Start, Hour, Minute, Second, Check_Space => True);
+
       else
+         declare
+            Discard : Second_Duration;
+            pragma Unreferenced (Discard);
+         begin
+            Split (Clock, Year, Month, Day, Hour, Minute, Second,
+                   Sub_Second => Discard);
+         end;
+
          Extract_Time (1, Hour, Minute, Second, Check_Space => False);
       end if;
 
@@ -813,17 +810,14 @@ package body GNAT.Calendar.Time_IO is
          raise Constraint_Error;
       end if;
 
-      return Time_Of (Year, Month, Day, Hour, Minute, Second, Sub_Second);
+      return Time_Of (Year, Month, Day, Hour, Minute, Second);
    end Value;
 
    --------------
    -- Put_Time --
    --------------
 
-   procedure Put_Time
-     (Date    : Ada.Calendar.Time;
-      Picture : Picture_String)
-   is
+   procedure Put_Time (Date : Ada.Calendar.Time; Picture : Picture_String) is
    begin
       Ada.Text_IO.Put (Image (Date, Picture));
    end Put_Time;

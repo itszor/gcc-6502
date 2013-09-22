@@ -1,4 +1,4 @@
-/* CopyNode.java -- 
+/* CopyNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.Iterator;
 import java.util.StringTokenizer;
@@ -125,7 +127,7 @@ final class CopyNode
                  context, pos, len,
                  parent, nextSibling);
   }
-  
+
   void addAttributeSet(Stylesheet stylesheet, QName mode,
                        Node context, int pos, int len,
                        Node parent, Node nextSibling, String attributeSet)
@@ -152,7 +154,7 @@ final class CopyNode
 
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("copy");
+    CPStringBuilder buf = new CPStringBuilder("copy");
     if (uas != null)
       {
         buf.append('[');

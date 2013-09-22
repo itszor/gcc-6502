@@ -2,17 +2,16 @@
 /* { dg-options "-c -O2 -ftree-vectorize -fdump-tree-ifcvt-stats" { target *-*-* } } */
 
 #include <stdarg.h>
-#include <signal.h>
 
 #define N 16
 #define MAX 42
+
+int A[N] = {36,39,42,45,43,32,21,12,23,34,45,56,67,78,89,11};
 
 extern void abort(void); 
 
 int main1 ()
 {  
-  int A[N] = {36,39,42,45,43,32,21,12,23,34,45,56,67,78,89,11};
-
   int i, j;
 
   for (i = 0; i < N; i++)

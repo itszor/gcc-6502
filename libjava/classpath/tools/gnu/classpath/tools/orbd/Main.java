@@ -1,5 +1,6 @@
 /* NamingServicePersistent.java -- The persistent naming service.
-   Copyright (C) 2006, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012, 2013
+   Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -41,10 +42,8 @@ import gnu.CORBA.OrbFunctional;
 import gnu.CORBA.IOR;
 import gnu.CORBA.NamingService.Ext;
 import gnu.classpath.tools.common.ClasspathToolParser;
-import gnu.classpath.tools.getopt.FileArgumentCallback;
 import gnu.classpath.tools.getopt.Option;
 import gnu.classpath.tools.getopt.OptionException;
-import gnu.classpath.tools.getopt.OptionGroup;
 import gnu.classpath.tools.getopt.Parser;
 
 import org.omg.CosNaming.NamingContextExt;
@@ -56,12 +55,12 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 
 /**
- * The server for the GNU Classpath persistent naming service. 
- * 
+ * The server for the GNU Classpath persistent naming service.
+ *
  * GNU Classpath currently works with this naming service and is also
  * interoperable with the Sun Microsystems naming services from releases 1.3 and
  * 1.4, both transient <i>tnameserv</i> and persistent <i>orbd</i>.
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (AudriusA@Bioinformatics.org)
  */
 public class Main
@@ -80,7 +79,7 @@ public class Main
   /**
    * Get the object key for the naming service. The default key is the string
    * "NameService" in ASCII.
-   * 
+   *
    * @return the byte array.
    */
   public static byte[] getDefaultKey()
@@ -181,7 +180,7 @@ public class Main
         System.out.println("GNU Classpath persistent naming service "
                            + "started at " + iorr.Internet.host + ":"
                            + iorr.Internet.port + " key 'NameService'.\n\n"
-                           + "Copyright (C) 2008 Free Software Foundation\n"
+                           + "Copyright (C) 2013 Free Software Foundation\n"
                            + "This tool comes with ABSOLUTELY NO WARRANTY. "
                            + "This is free software, and you are\nwelcome to "
                            + "redistribute it under conditions, defined in "

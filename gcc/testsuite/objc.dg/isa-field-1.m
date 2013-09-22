@@ -1,24 +1,33 @@
 /* Ensure there are no bizarre difficulties with accessing the 'isa' field of objects.  */
-/* { dg-do compile { target *-*-darwin* } } */
+/* { dg-do compile } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.h"
+#include "../objc-obj-c++-shared/runtime.h"
 
-@interface Object (Test)
+@interface TestsuiteObject (Test)
 - (Class) test1: (id)object;
 @end
 
-@interface Derived: Object
+@interface Derived: TestsuiteObject
 - (Class) test2: (id)object;
 @end
 
-@implementation Object (Test)
+@implementation TestsuiteObject (Test)
 
 Class test1(id object) {
+#ifdef __NEXT_RUNTIME__
     Class cls = object->isa;
+#else
+    Class cls = object->class_pointer;
+#endif
     return cls;
 }
 - (Class) test1: (id)object {
+#ifdef __NEXT_RUNTIME__
     Class cls = object->isa;
+#else
+    Class cls = object->class_pointer;
+#endif
     return cls;
 }
 
@@ -27,17 +36,29 @@ Class test1(id object) {
 @implementation Derived
 
 Class test2(id object) {
+#ifdef __NEXT_RUNTIME__
     Class cls = object->isa;
+#else
+    Class cls = object->class_pointer;
+#endif
     return cls;
 }
 - (Class) test2: (id)object {
+#ifdef __NEXT_RUNTIME__
     Class cls = object->isa;
+#else
+    Class cls = object->class_pointer;
+#endif
     return cls;
 }
 
 @end
 
 Class test3(id object) {
+#ifdef __NEXT_RUNTIME__
     Class cls = object->isa;
+#else
+    Class cls = object->class_pointer;
+#endif
     return cls;
 }

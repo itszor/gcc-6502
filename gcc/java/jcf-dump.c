@@ -1,8 +1,7 @@
 /* Program to dump out a Java(TM) .class file.
    Functionally similar to Sun's javap.
 
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2006, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -51,9 +50,8 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
-#include "ggc.h"
 #include "intl.h"
+#include "diagnostic.h"
 
 #include "jcf.h"
 #include "tree.h"
@@ -77,10 +75,6 @@ int flag_print_constant_pool = 0;
 int flag_print_fields = 1;
 int flag_print_methods = 1;
 int flag_print_attributes = 1;
-
-/* When nonzero, warn when source file is newer than matching class
-   file.  */
-int flag_newer = 1;
 
 /* Print names of classes that have a "main" method. */
 int flag_print_main = 0;
@@ -435,6 +429,23 @@ utf8_equal_string (JCF *jcf, int index, const char * value)
   print_element_value (out, jcf, 1);					\
 }
 
+#define HANDLE_BOOTSTRAP_METHODS_ATTRIBUTE()				\
+{									\
+  COMMON_HANDLE_ATTRIBUTE(jcf, attribute_name, attribute_length);	\
+  fputc ('\n', out); jcf_parse_bootstrap_methods (jcf, attribute_length); \
+}
+
+#define HANDLE_END_BOOTSTRAP_METHODS(NUM_METHODS)			\
+  {									\
+    int i;								\
+    for (i = 0; i < NUM_METHODS; i++)					\
+      {									\
+	bootstrap_method *m = &jcf->bootstrap_methods.methods[i];	\
+	fprintf (out, "  %d: ", i);					\
+	print_constant (out, jcf, m->method_ref, 1);			\
+	fprintf (out, "\n");						\
+      }									\
+  }
 
 #define PROCESS_OTHER_ATTRIBUTE(JCF, INDEX, LENGTH) \
 { COMMON_HANDLE_ATTRIBUTE(JCF, INDEX, LENGTH); \
@@ -795,7 +806,7 @@ print_constant (FILE *out, JCF *jcf, int index, int verbosity)
 	      /* Normal; add the implicit bit.  */
 	      mantissa |= ((uint32)1 << 23);
 	    
-	    f = frexp (mantissa, &dummy);
+	    f = frexp ((float) mantissa, &dummy);
 	    f = ldexp (f, exponent + 1);
 	    fprintf (out, "%.10g", f);
 	  }
@@ -838,7 +849,7 @@ print_constant (FILE *out, JCF *jcf, int index, int verbosity)
 	      /* Normal; add the implicit bit.  */
 	      mantissa |= ((uint64)1 << 52);
 
-	    d = frexp (mantissa, &dummy);
+	    d = frexp ((double) mantissa, &dummy);
 	    d = ldexp (d, exponent + 1);
 	    fprintf (out, "%.20g", d);
 	  }
@@ -850,9 +861,11 @@ print_constant (FILE *out, JCF *jcf, int index, int verbosity)
 	    if (dnum.mantissa0 == 0 && dnum.mantissa1 == 0)
 	      fputs ("Inf", out);
 	    else if (dnum.mantissa0 & JDOUBLE_QNAN_MASK)
-	      fprintf (out, "QNaN(%llu)", (unsigned long long)mantissa);
+	      fprintf (out, "QNaN(%" HOST_LONG_LONG_FORMAT "u)",
+                (unsigned long long)mantissa);
 	    else
-	      fprintf (out, "SNaN(%llu)", (unsigned long long)mantissa);
+	      fprintf (out, "SNaN(%" HOST_LONG_LONG_FORMAT "u)",
+                (unsigned long long)mantissa);
 	  }
 	if (verbosity > 1)
 	  {
@@ -901,6 +914,55 @@ print_constant (FILE *out, JCF *jcf, int index, int verbosity)
 	fputc ('\"', out);
       }
       break;
+    case CONSTANT_MethodHandle:
+      {
+	int kind = JPOOL_USHORT1 (jcf, index);
+	if (verbosity > 0)
+	  fprintf (out, "MethodHandle kind: %d=", kind);
+	switch(kind) {
+	case 1:
+	case 2:
+	case 3:
+	case 4:
+	  if (verbosity > 0)
+	    fprintf (out, "Fieldref: %ld=", (long) JPOOL_USHORT2 (jcf, index));
+	  print_constant (out, jcf, JPOOL_USHORT2 (jcf, index), 0);
+	case 5:
+	case 6:
+	case 7:
+	case 8:
+	  if (verbosity > 0)
+	    fprintf (out, "Methodref: %ld=", (long) JPOOL_USHORT2 (jcf, index));
+	  print_constant (out, jcf, JPOOL_USHORT2 (jcf, index), 0);
+	  break;
+	case 9:
+	  if (verbosity > 0)
+	    fprintf (out, "InterfaceMethodref: %ld=",
+		     (long) JPOOL_USHORT2 (jcf, index));
+	  print_constant (out, jcf, JPOOL_USHORT2 (jcf, index), 0);
+	  break;
+	}
+	break;
+      }
+    case CONSTANT_MethodType:
+      if (verbosity > 0)
+	fprintf (out, "MethodType %ld: ", (long) JPOOL_USHORT1 (jcf, index));
+      print_signature (out, jcf, JPOOL_USHORT1 (jcf, index), 0);
+      break;
+    case CONSTANT_InvokeDynamic:
+      {
+	uint16 name_and_type = JPOOL_USHORT2 (jcf, index);
+	if (verbosity > 0)
+	  fprintf (out, "InvokeDynamic: ");
+	fprintf (out, "bootstrap_method: %ld ",
+		 (long) JPOOL_USHORT1 (jcf, index));
+	if (verbosity == 2)
+	  fprintf (out, " name_and_type: %d=<", name_and_type);
+	print_constant_terse (out, jcf, name_and_type, CONSTANT_NameAndType);
+	if (verbosity == 2)
+	  fputc ('>', out);
+	break;
+      }
     default:
       fprintf (out, "(Unknown constant type %d)", kind);
     }
@@ -1165,7 +1227,7 @@ static void
 version (void)
 {
   printf ("jcf-dump %s%s\n\n", pkgversion_string, version_string);
-  printf ("Copyright %s 2008 Free Software Foundation, Inc.\n", _("(C)"));
+  printf ("Copyright %s 2013 Free Software Foundation, Inc.\n", _("(C)"));
   printf (_("This is free software; see the source for copying conditions.  There is NO\n"
 	    "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"));
   exit (0);
@@ -1176,11 +1238,21 @@ main (int argc, char** argv)
 {
   JCF jcf[1];
   int argi, opt;
+  const char *p;
+
+  p = argv[0] + strlen (argv[0]);
+  while (p != argv[0] && !IS_DIR_SEPARATOR (p[-1]))
+    --p;
+  progname = p;
+
+  xmalloc_set_program_name (progname);
 
   /* Unlock the stdio streams.  */
   unlock_std_streams ();
 
   gcc_init_libintl ();
+
+  diagnostic_initialize (global_dc, 0);
 
   if (argc <= 1)
     {
@@ -1303,7 +1375,6 @@ main (int argc, char** argv)
 	    {
 	      long compressed_size, member_size;
 	      int compression_method, filename_length, extra_length;
-	      int general_purpose_bits;
 	      const char *filename;
 	      int total_length;
 	      if (flag_print_class_info)
@@ -1323,7 +1394,7 @@ main (int argc, char** argv)
 		    }
 		  JCF_FILL (jcf, 26);
 		  JCF_SKIP (jcf, 2);
-		  general_purpose_bits = JCF_readu2_le (jcf);
+		  (void) /* general_purpose_bits = */ JCF_readu2_le (jcf);
 		  compression_method = JCF_readu2_le (jcf);
 		  JCF_SKIP (jcf, 8);
 		  compressed_size = JCF_readu4_le (jcf);

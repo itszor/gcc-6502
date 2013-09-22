@@ -78,7 +78,7 @@ public abstract class ForwardRequestHelper
     catch (ClassCastException cex)
       {
         BAD_OPERATION bad = new BAD_OPERATION("ForwardRequest expected");
-        bad.minor = Minor.Any;        
+        bad.minor = Minor.Any;
         bad.initCause(cex);
         throw bad;
       }
@@ -114,7 +114,7 @@ public abstract class ForwardRequestHelper
   public static ForwardRequest read(InputStream input)
   {
     // Read the exception repository id.
-    String id = input.read_string();
+    input.read_string();
     ForwardRequest value = new ForwardRequest();
 
     value.forward_reference = input.read_Object();

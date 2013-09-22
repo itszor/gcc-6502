@@ -1,6 +1,5 @@
 /* Header for code constant translation functions
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook
 
 This file is part of GCC.
@@ -24,8 +23,12 @@ tree gfc_conv_mpz_to_tree (mpz_t, int);
 void gfc_conv_tree_to_mpz (mpz_t, tree);
 
 /* Converts between REAL_CST and MPFR floating-point representations.  */
-tree gfc_conv_mpfr_to_tree (mpfr_t, int);
+tree gfc_conv_mpfr_to_tree (mpfr_t, int, int);
 void gfc_conv_tree_to_mpfr (mpfr_ptr, tree);
+
+/* Build a tree containing a real infinity (or HUGE if infinities are
+   not supported for the given type.  */
+tree gfc_build_inf_or_huge (tree, int);
 
 /* Build a tree for a constant.  Must be an EXPR_CONSTANT gfc_expr.
    For CHARACTER literal constants, the caller still has to set the
@@ -37,7 +40,9 @@ tree gfc_conv_constant_to_tree (gfc_expr *);
 void gfc_conv_constant (gfc_se *, gfc_expr *);
 
 tree gfc_build_string_const (int, const char *);
+tree gfc_build_wide_string_const (int, int, const gfc_char_t *);
 tree gfc_build_cstring_const (const char *);
+tree gfc_build_localized_cstring_const (const char *);
 
 /* Translate a string constant for a static initializer.  */
 tree gfc_conv_string_init (tree, gfc_expr *);

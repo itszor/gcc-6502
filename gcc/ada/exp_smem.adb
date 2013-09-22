@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1998-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,12 +25,14 @@
 
 with Atree;    use Atree;
 with Einfo;    use Einfo;
+with Exp_Ch9;  use Exp_Ch9;
 with Exp_Util; use Exp_Util;
 with Nmake;    use Nmake;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
 with Rtsfind;  use Rtsfind;
 with Sem;      use Sem;
+with Sem_Aux;  use Sem_Aux;
 with Sem_Util; use Sem_Util;
 with Sinfo;    use Sinfo;
 with Snames;   use Snames;
@@ -52,7 +54,7 @@ package body Exp_Smem is
 
    procedure Add_Write_After (N : Node_Id);
    --  Insert a Shared_Var_WOpen call for variable after the node
-   --  Insert_Node, as recorded by On_Lhs_Of_Assigment (where it points
+   --  Insert_Node, as recorded by On_Lhs_Of_Assignment (where it points
    --  to the assignment statement) or Is_Out_Actual (where it points to
    --  the procedure call statement).
 
@@ -71,6 +73,29 @@ package body Exp_Smem is
    --  OUT or IN OUT parameter to a procedure call. If the result is
    --  True, then Insert_Node is set to point to the call.
 
+   function Build_Shared_Var_Proc_Call
+     (Loc : Source_Ptr;
+      E   : Node_Id;
+      N   : Name_Id) return Node_Id;
+   --  Build a call to support procedure N for shared object E (provided by
+   --  the instance of System.Shared_Storage.Shared_Var_Procs associated to E).
+
+   --------------------------------
+   -- Build_Shared_Var_Proc_Call --
+   --------------------------------
+
+   function Build_Shared_Var_Proc_Call
+     (Loc : Source_Ptr;
+      E   : Entity_Id;
+      N   : Name_Id) return Node_Id is
+   begin
+      return Make_Procedure_Call_Statement (Loc,
+        Name => Make_Selected_Component (Loc,
+          Prefix        =>
+            New_Occurrence_Of (Shared_Var_Procs_Instance (E), Loc),
+          Selector_Name => Make_Identifier (Loc, N)));
+   end Build_Shared_Var_Proc_Call;
+
    ---------------------
    -- Add_Read_Before --
    ---------------------
@@ -78,14 +103,9 @@ package body Exp_Smem is
    procedure Add_Read_Before (N : Node_Id) is
       Loc : constant Source_Ptr := Sloc (N);
       Ent : constant Node_Id    := Entity (N);
-
    begin
-      if Present (Shared_Var_Read_Proc (Ent)) then
-         Insert_Action (N,
-           Make_Procedure_Call_Statement (Loc,
-             Name =>
-               New_Occurrence_Of (Shared_Var_Read_Proc (Ent), Loc),
-             Parameter_Associations => Empty_List));
+      if Present (Shared_Var_Procs_Instance (Ent)) then
+         Insert_Action (N, Build_Shared_Var_Proc_Call (Loc, Ent, Name_Read));
       end if;
    end Add_Read_Before;
 
@@ -134,8 +154,7 @@ package body Exp_Smem is
       --  Now, right after the Lock, insert a call to read the object
 
       Insert_Before_And_Analyze (Inode,
-        Make_Procedure_Call_Statement (Loc,
-          Name => New_Occurrence_Of (Shared_Var_Read_Proc (Obj), Loc)));
+        Build_Shared_Var_Proc_Call (Loc, Obj, Name_Read));
 
       --  Now insert the Unlock call after
 
@@ -150,8 +169,7 @@ package body Exp_Smem is
 
       if Nkind (N) = N_Procedure_Call_Statement then
          Insert_After_And_Analyze (Inode,
-           Make_Procedure_Call_Statement (Loc,
-             Name => New_Occurrence_Of (Shared_Var_Assign_Proc (Obj), Loc)));
+           Build_Shared_Var_Proc_Call (Loc, Obj, Name_Write));
       end if;
 
    end Add_Shared_Var_Lock_Procs;
@@ -165,12 +183,9 @@ package body Exp_Smem is
       Ent : constant Node_Id    := Entity (N);
 
    begin
-      if Present (Shared_Var_Assign_Proc (Ent)) then
+      if Present (Shared_Var_Procs_Instance (Ent)) then
          Insert_After_And_Analyze (Insert_Node,
-           Make_Procedure_Call_Statement (Loc,
-             Name =>
-               New_Occurrence_Of (Shared_Var_Assign_Proc (Ent), Loc),
-             Parameter_Associations => Empty_List));
+           Build_Shared_Var_Proc_Call (Loc, Ent, Name_Write));
       end if;
    end Add_Write_After;
 
@@ -255,10 +270,7 @@ package body Exp_Smem is
          return False;
 
       else
-         if Ekind (Formal) = E_Out_Parameter
-              or else
-            Ekind (Formal) = E_In_Out_Parameter
-         then
+         if Ekind_In (Formal, E_Out_Parameter, E_In_Out_Parameter) then
             Insert_Node := Call;
             return True;
          else
@@ -272,25 +284,24 @@ package body Exp_Smem is
    ---------------------------
 
    function Make_Shared_Var_Procs (N : Node_Id) return Node_Id is
-      Loc : constant Source_Ptr := Sloc (N);
-      Ent : constant Entity_Id  := Defining_Identifier (N);
-      Typ : constant Entity_Id  := Etype (Ent);
-      Vnm : String_Id;
-      Atr : Node_Id;
+      Loc     : constant Source_Ptr := Sloc (N);
+      Ent     : constant Entity_Id  := Defining_Identifier (N);
+      Typ     : constant Entity_Id  := Etype (Ent);
+      Vnm     : String_Id;
+      Obj     : Node_Id;
+      Obj_Typ : Entity_Id;
 
       After : constant Node_Id := Next (N);
       --  Node located right after N originally (after insertion of the SV
       --  procs this node is right after the last inserted node).
 
-      Assign_Proc : constant Entity_Id :=
-                      Make_Defining_Identifier (Loc,
-                        Chars => New_External_Name (Chars (Ent), 'A'));
+      SVP_Instance : constant Entity_Id := Make_Defining_Identifier (Loc,
+                       Chars => New_External_Name (Chars (Ent), 'G'));
+      --  Instance of System.Shared_Storage.Shared_Var_Procs associated
+      --  with Ent.
 
-      Read_Proc : constant Entity_Id :=
-                    Make_Defining_Identifier (Loc,
-                      Chars => New_External_Name (Chars (Ent), 'R'));
-
-      S : Entity_Id;
+      Instantiation : Node_Id;
+      --  Package instantiation node for SVP_Instance
 
    --  Start of processing for Make_Shared_Var_Procs
 
@@ -298,149 +309,42 @@ package body Exp_Smem is
       Build_Full_Name (Ent, Vnm);
 
       --  We turn off Shared_Passive during construction and analysis of
-      --  the assign and read routines, to avoid improper attempts to
-      --  process the variable references within these procedures.
+      --  the generic package instantiation, to avoid improper attempts to
+      --  process the variable references within these instantiation.
 
       Set_Is_Shared_Passive (Ent, False);
 
-      --  Construct assignment routine
+      --  Construct generic package instantiation
 
-      --    procedure VarA is
-      --       S : Ada.Streams.Stream_IO.Stream_Access;
-      --    begin
-      --       S := Shared_Var_WOpen ("pkg.var");
-      --       typ'Write (S, var);
-      --       Shared_Var_Close (S);
-      --    end VarA;
+      --  package varG is new Shared_Var_Procs (typ, var, "pkg.var");
 
-      S   := Make_Defining_Identifier (Loc, Name_uS);
+      Obj     := New_Occurrence_Of (Ent, Loc);
+      Obj_Typ := Typ;
+      if Is_Concurrent_Type (Typ) then
+         Obj     := Convert_Concurrent (N => Obj, Typ => Typ);
+         Obj_Typ := Corresponding_Record_Type (Typ);
+      end if;
 
-      Atr :=
-        Make_Attribute_Reference (Loc,
-          Prefix => New_Occurrence_Of (Typ, Loc),
-          Attribute_Name => Name_Write,
-          Expressions => New_List (
-            New_Reference_To (S, Loc),
-            New_Occurrence_Of (Ent, Loc)));
+      Instantiation :=
+        Make_Package_Instantiation (Loc,
+          Defining_Unit_Name   => SVP_Instance,
+          Name                 =>
+            New_Occurrence_Of (RTE (RE_Shared_Var_Procs), Loc),
+          Generic_Associations => New_List (
+            Make_Generic_Association (Loc,
+              Explicit_Generic_Actual_Parameter =>
+                New_Occurrence_Of (Obj_Typ, Loc)),
+            Make_Generic_Association (Loc,
+              Explicit_Generic_Actual_Parameter => Obj),
+            Make_Generic_Association (Loc,
+              Explicit_Generic_Actual_Parameter =>
+                Make_String_Literal (Loc, Vnm))));
 
-      Insert_After_And_Analyze (N,
-        Make_Subprogram_Body (Loc,
-          Specification =>
-            Make_Procedure_Specification (Loc,
-              Defining_Unit_Name => Assign_Proc),
+      Insert_After_And_Analyze (N, Instantiation);
 
-         --  S : Ada.Streams.Stream_IO.Stream_Access;
-
-          Declarations => New_List (
-            Make_Object_Declaration (Loc,
-              Defining_Identifier => S,
-              Object_Definition =>
-                New_Occurrence_Of (RTE (RE_Stream_Access), Loc))),
-
-          Handled_Statement_Sequence =>
-            Make_Handled_Sequence_Of_Statements (Loc,
-              Statements => New_List (
-
-               --  S := Shared_Var_WOpen ("pkg.var");
-
-                Make_Assignment_Statement (Loc,
-                  Name => New_Reference_To (S, Loc),
-                  Expression =>
-                    Make_Function_Call (Loc,
-                      Name =>
-                        New_Occurrence_Of
-                          (RTE (RE_Shared_Var_WOpen), Loc),
-                      Parameter_Associations => New_List (
-                        Make_String_Literal (Loc, Vnm)))),
-
-                Atr,
-
-               --  Shared_Var_Close (S);
-
-                Make_Procedure_Call_Statement (Loc,
-                  Name =>
-                    New_Occurrence_Of (RTE (RE_Shared_Var_Close), Loc),
-                  Parameter_Associations =>
-                    New_List (New_Reference_To (S, Loc)))))));
-
-      --  Construct read routine
-
-      --    procedure varR is
-      --       S : Ada.Streams.Stream_IO.Stream_Access;
-      --    begin
-      --       S := Shared_Var_ROpen ("pkg.var");
-      --       if S /= null then
-      --          typ'Read (S, Var);
-      --          Shared_Var_Close (S);
-      --       end if;
-      --    end varR;
-
-      S   := Make_Defining_Identifier (Loc, Name_uS);
-
-      Atr :=
-        Make_Attribute_Reference (Loc,
-          Prefix => New_Occurrence_Of (Typ, Loc),
-          Attribute_Name => Name_Read,
-          Expressions => New_List (
-            New_Reference_To (S, Loc),
-            New_Occurrence_Of (Ent, Loc)));
-
-      Insert_After_And_Analyze (N,
-        Make_Subprogram_Body (Loc,
-          Specification =>
-            Make_Procedure_Specification (Loc,
-              Defining_Unit_Name => Read_Proc),
-
-         --  S : Ada.Streams.Stream_IO.Stream_Access;
-
-          Declarations => New_List (
-            Make_Object_Declaration (Loc,
-              Defining_Identifier => S,
-              Object_Definition =>
-                New_Occurrence_Of (RTE (RE_Stream_Access), Loc))),
-
-          Handled_Statement_Sequence =>
-            Make_Handled_Sequence_Of_Statements (Loc,
-              Statements => New_List (
-
-               --  S := Shared_Var_ROpen ("pkg.var");
-
-                Make_Assignment_Statement (Loc,
-                  Name => New_Reference_To (S, Loc),
-                  Expression =>
-                    Make_Function_Call (Loc,
-                      Name =>
-                        New_Occurrence_Of
-                          (RTE (RE_Shared_Var_ROpen), Loc),
-                      Parameter_Associations => New_List (
-                        Make_String_Literal (Loc, Vnm)))),
-
-               --  if S /= null then
-
-                Make_Implicit_If_Statement (N,
-                  Condition =>
-                    Make_Op_Ne (Loc,
-                      Left_Opnd  => New_Reference_To (S, Loc),
-                      Right_Opnd => Make_Null (Loc)),
-
-                   Then_Statements => New_List (
-
-                     --  typ'Read (S, Var);
-
-                     Atr,
-
-                     --  Shared_Var_Close (S);
-
-                     Make_Procedure_Call_Statement (Loc,
-                       Name =>
-                         New_Occurrence_Of
-                           (RTE (RE_Shared_Var_Close), Loc),
-                       Parameter_Associations =>
-                         New_List (New_Reference_To (S, Loc)))))))));
-
-      Set_Is_Shared_Passive      (Ent, True);
-      Set_Shared_Var_Assign_Proc (Ent, Assign_Proc);
-      Set_Shared_Var_Read_Proc   (Ent, Read_Proc);
+      Set_Is_Shared_Passive (Ent, True);
+      Set_Shared_Var_Procs_Instance
+        (Ent, Defining_Entity (Instance_Spec (Instantiation)));
 
       --  Return last node before After
 

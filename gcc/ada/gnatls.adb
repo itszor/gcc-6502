@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,23 +36,17 @@ with Opt;         use Opt;
 with Osint;       use Osint;
 with Osint.L;     use Osint.L;
 with Output;      use Output;
+with Prj.Env;     use Prj.Env;
 with Rident;      use Rident;
 with Sdefault;
 with Snames;
 with Switch;      use Switch;
-with Targparm;    use Targparm;
 with Types;       use Types;
 
 with GNAT.Case_Util; use GNAT.Case_Util;
 
 procedure Gnatls is
    pragma Ident (Gnat_Static_Version_String);
-
-   Gpr_Project_Path : constant String := "GPR_PROJECT_PATH";
-   Ada_Project_Path : constant String := "ADA_PROJECT_PATH";
-   --  Names of the env. variables that contains path name(s) of directories
-   --  where project files may reside. If GPR_PROJECT_PATH is defined, its
-   --  value is used, otherwise ADA_PROJECT_PATH is used, if defined.
 
    --  NOTE : The following string may be used by other tools, such as GPS. So
    --  it can only be modified if these other uses are checked and coordinated.
@@ -61,7 +55,7 @@ procedure Gnatls is
    --  Label displayed in verbose mode before the directories in the project
    --  search path. Do not modify without checking NOTE above.
 
-   No_Project_Default_Dir : constant String := "-";
+   Prj_Path : Prj.Env.Project_Search_Path;
 
    Max_Column : constant := 80;
 
@@ -81,7 +75,7 @@ procedure Gnatls is
       Value : String_Access;
       Next  : Dir_Ref;
    end record;
-   --  ??? comment needed
+   --  Simply linked list of dirs
 
    First_Source_Dir : Dir_Ref;
    Last_Source_Dir  : Dir_Ref;
@@ -175,6 +169,9 @@ procedure Gnatls is
    procedure Scan_Ls_Arg (Argv : String);
    --  Scan and process lser specific arguments. Argv is a single argument
 
+   procedure Search_RTS (Name : String);
+   --  Find include and objects path for the RTS name.
+
    procedure Usage;
    --  Print usage message
 
@@ -185,19 +182,22 @@ procedure Gnatls is
    function Image (Restriction : Restriction_Id) return String;
    --  Returns the capitalized image of Restriction
 
-   ---------------------------------------
-   -- GLADE specific output subprograms --
-   ---------------------------------------
+   ------------------------------------------
+   -- GNATDIST specific output subprograms --
+   ------------------------------------------
 
-   package GLADE is
+   package GNATDIST is
 
-      --  Any modification to this subunit requires a synchronization
-      --  with the GLADE implementation.
+      --  Any modification to this subunit requires synchronization with the
+      --  GNATDIST sources.
 
-      procedure Output_ALI    (A : ALI_Id);
+      procedure Output_ALI (A : ALI_Id);
+      --  Comment required saying what this routine does ???
+
       procedure Output_No_ALI (Afile : File_Name_Type);
+      --  Comments required saying what this routine does ???
 
-   end GLADE;
+   end GNATDIST;
 
    -----------------
    -- Add_Lib_Dir --
@@ -221,7 +221,7 @@ procedure Gnatls is
       end if;
    end Add_Lib_Dir;
 
-   -- -----------------
+   --------------------
    -- Add_Source_Dir --
    --------------------
 
@@ -347,7 +347,7 @@ procedure Gnatls is
       Source_End := Source_Start - 1;
 
       if Print_Source then
-         Source_End   := Source_Start + Max_Src_Length;
+         Source_End := Source_Start + Max_Src_Length;
       end if;
    end Find_General_Layout;
 
@@ -392,11 +392,11 @@ procedure Gnatls is
       end if;
    end Find_Status;
 
-   -----------
-   -- GLADE --
-   -----------
+   --------------
+   -- GNATDIST --
+   --------------
 
-   package body GLADE is
+   package body GNATDIST is
 
       N_Flags   : Natural;
       N_Indents : Natural := 0;
@@ -431,33 +431,33 @@ procedure Gnatls is
          T_Body);
 
       Image : constant array (Token_Type) of String_Access :=
-        (T_No_ALI         => new String'("No_ALI"),
-         T_ALI            => new String'("ALI"),
-         T_Unit           => new String'("Unit"),
-         T_With           => new String'("With"),
-         T_Source         => new String'("Source"),
-         T_Afile          => new String'("Afile"),
-         T_Ofile          => new String'("Ofile"),
-         T_Sfile          => new String'("Sfile"),
-         T_Name           => new String'("Name"),
-         T_Main           => new String'("Main"),
-         T_Kind           => new String'("Kind"),
-         T_Flags          => new String'("Flags"),
-         T_Preelaborated  => new String'("Preelaborated"),
-         T_Pure           => new String'("Pure"),
-         T_Has_RACW       => new String'("Has_RACW"),
-         T_Remote_Types   => new String'("Remote_Types"),
-         T_Shared_Passive => new String'("Shared_Passive"),
-         T_RCI            => new String'("RCI"),
-         T_Predefined     => new String'("Predefined"),
-         T_Internal       => new String'("Internal"),
-         T_Is_Generic     => new String'("Is_Generic"),
-         T_Procedure      => new String'("procedure"),
-         T_Function       => new String'("function"),
-         T_Package        => new String'("package"),
-         T_Subprogram     => new String'("subprogram"),
-         T_Spec           => new String'("spec"),
-         T_Body           => new String'("body"));
+                (T_No_ALI         => new String'("No_ALI"),
+                 T_ALI            => new String'("ALI"),
+                 T_Unit           => new String'("Unit"),
+                 T_With           => new String'("With"),
+                 T_Source         => new String'("Source"),
+                 T_Afile          => new String'("Afile"),
+                 T_Ofile          => new String'("Ofile"),
+                 T_Sfile          => new String'("Sfile"),
+                 T_Name           => new String'("Name"),
+                 T_Main           => new String'("Main"),
+                 T_Kind           => new String'("Kind"),
+                 T_Flags          => new String'("Flags"),
+                 T_Preelaborated  => new String'("Preelaborated"),
+                 T_Pure           => new String'("Pure"),
+                 T_Has_RACW       => new String'("Has_RACW"),
+                 T_Remote_Types   => new String'("Remote_Types"),
+                 T_Shared_Passive => new String'("Shared_Passive"),
+                 T_RCI            => new String'("RCI"),
+                 T_Predefined     => new String'("Predefined"),
+                 T_Internal       => new String'("Internal"),
+                 T_Is_Generic     => new String'("Is_Generic"),
+                 T_Procedure      => new String'("procedure"),
+                 T_Function       => new String'("function"),
+                 T_Package        => new String'("package"),
+                 T_Subprogram     => new String'("subprogram"),
+                 T_Spec           => new String'("spec"),
+                 T_Body           => new String'("body"));
 
       procedure Output_Name  (N : Name_Id);
       --  Remove any encoding info (%b and %s) and output N
@@ -465,12 +465,11 @@ procedure Gnatls is
       procedure Output_Afile (A : File_Name_Type);
       procedure Output_Ofile (O : File_Name_Type);
       procedure Output_Sfile (S : File_Name_Type);
-      --  Output various names. Check that the name is different from
-      --  no name. Otherwise, skip the output.
+      --  Output various names. Check that the name is different from no name.
+      --  Otherwise, skip the output.
 
       procedure Output_Token (T : Token_Type);
-      --  Output token using a specific format. That is several
-      --  indentations and:
+      --  Output token using specific format. That is several indentations and:
       --
       --  T_No_ALI  .. T_With : <token> & " =>" & NL
       --  T_Source  .. T_Kind : <token> & " => "
@@ -609,12 +608,12 @@ procedure Gnatls is
             FS := Full_Source_Name (FS);
 
             --  There is no full source name. This occurs for instance when a
-            --  withed unit has a spec file but no body file. This situation
-            --  is not a problem for GLADE since the unit may be located on
-            --  a partition we do not want to build. However, we need to
-            --  locate the spec file and to find its full source name.
-            --  Replace the body file name with the spec file name used to
-            --  compile the current unit when possible.
+            --  withed unit has a spec file but no body file. This situation is
+            --  not a problem for GNATDIST since the unit may be located on a
+            --  partition we do not want to build. However, we need to locate
+            --  the spec file and to find its full source name. Replace the
+            --  body file name with the spec file name used to compile the
+            --  current unit when possible.
 
             if FS = No_File then
                Get_Name_String (S);
@@ -794,7 +793,7 @@ procedure Gnatls is
          N_Indents := N_Indents - 1;
       end Output_With;
 
-   end GLADE;
+   end GNATDIST;
 
    -----------
    -- Image --
@@ -826,41 +825,13 @@ procedure Gnatls is
    --------------------------------
 
    procedure Output_License_Information is
-      Params_File_Name : constant String := "gnatlic.adl";
-      --  Name of license file
-
-      Lo   : constant Source_Ptr := 1;
-      Hi   : Source_Ptr;
-      Text : Source_Buffer_Ptr;
-
    begin
-      Name_Len := 0;
-      Add_Str_To_Name_Buffer (Params_File_Name);
-      Read_Source_File (Name_Find, Lo, Hi, Text);
-
-      if Text /= null then
-
-         --  Omit last character (end-of-file marker) in output
-
-         Write_Str (String (Text (Lo .. Hi - 1)));
-         Write_Eol;
-
-         --  The following condition is determined at compile time: disable
-         --  "condition is always true/false" warning.
-
-         pragma Warnings (Off);
-      elsif Build_Type /= GPL and then Build_Type /= FSF then
-         pragma Warnings (On);
-
-         Write_Str ("License file missing, please contact AdaCore.");
-         Write_Eol;
-
-      else
-         Write_Str ("Please refer to file COPYING in your distribution"
-                  & " for license terms.");
-         Write_Eol;
-
-      end if;
+      case Build_Type is
+         when others =>
+            Write_Str ("Please refer to file COPYING in your distribution"
+                     & " for license terms.");
+            Write_Eol;
+      end case;
 
       Exit_Program (E_Success);
    end Output_License_Information;
@@ -1027,20 +998,20 @@ procedure Gnatls is
          end if;
 
          if Verbose_Mode then
-            if U.Preelab             or
-               U.No_Elab             or
-               U.Pure                or
-               U.Dynamic_Elab        or
-               U.Has_RACW            or
-               U.Remote_Types        or
-               U.Shared_Passive      or
-               U.RCI                 or
-               U.Predefined          or
-               U.Internal            or
-               U.Is_Generic          or
-               U.Init_Scalars        or
-               U.SAL_Interface       or
-               U.Body_Needed_For_SAL or
+            if U.Preelab             or else
+               U.No_Elab             or else
+               U.Pure                or else
+               U.Dynamic_Elab        or else
+               U.Has_RACW            or else
+               U.Remote_Types        or else
+               U.Shared_Passive      or else
+               U.RCI                 or else
+               U.Predefined          or else
+               U.Internal            or else
+               U.Is_Generic          or else
+               U.Init_Scalars        or else
+               U.SAL_Interface       or else
+               U.Body_Needed_For_SAL or else
                U.Elaborate_Body
             then
                Write_Eol;
@@ -1117,7 +1088,6 @@ procedure Gnatls is
                if U.Predefined then
                   Write_Str (" Predefined");
                end if;
-
             end if;
 
             declare
@@ -1158,7 +1128,7 @@ procedure Gnatls is
                   Write_Str ("     Restrictions violated =>");
 
                   --  For boolean restrictions, just display the name of the
-                  --  restriction; for valued restrictions, also display the
+                  --  restriction. For valued restrictions, also display the
                   --  restriction value.
 
                   for Restriction in All_Restrictions loop
@@ -1209,6 +1179,72 @@ procedure Gnatls is
       end if;
    end Reset_Print;
 
+   ----------------
+   -- Search_RTS --
+   ----------------
+
+   procedure Search_RTS (Name : String) is
+      Src_Path : String_Ptr;
+      Lib_Path : String_Ptr;
+      --  Paths for source and include subdirs
+
+      Rts_Full_Path : String_Access;
+      --  Full path for RTS project
+
+   begin
+      --  Try to find the RTS
+
+      Src_Path := Get_RTS_Search_Dir (Name, Include);
+      Lib_Path := Get_RTS_Search_Dir (Name, Objects);
+
+      --  For non-project RTS, both the include and the objects directories
+      --  must be present.
+
+      if Src_Path /= null and then Lib_Path /= null then
+         Add_Search_Dirs (Src_Path, Include);
+         Add_Search_Dirs (Lib_Path, Objects);
+         return;
+      end if;
+
+      if Lib_Path /= null then
+         Osint.Fail ("RTS path not valid: missing adainclude directory");
+      elsif Src_Path /= null then
+         Osint.Fail ("RTS path not valid: missing adalib directory");
+      end if;
+
+      --  Try to find the RTS on the project path. First setup the project path
+
+      Initialize_Default_Project_Path
+        (Prj_Path, Target_Name => Sdefault.Target_Name.all);
+
+      Rts_Full_Path := Get_Runtime_Path (Prj_Path, Name);
+
+      if Rts_Full_Path /= null then
+
+         --  Directory name was found on the project path. Look for the
+         --  include subdirectory(s).
+
+         Src_Path := Get_RTS_Search_Dir (Rts_Full_Path.all, Include);
+
+         if Src_Path /= null then
+            Add_Search_Dirs (Src_Path, Include);
+
+            --  Add the lib subdirectory if it exists
+
+            Lib_Path := Get_RTS_Search_Dir (Rts_Full_Path.all, Objects);
+
+            if Lib_Path /= null then
+               Add_Search_Dirs (Lib_Path, Objects);
+            end if;
+
+            return;
+         end if;
+      end if;
+
+      Osint.Fail
+        ("RTS path not valid: missing adainclude and adalib directories");
+   end Search_RTS;
+
    -------------------
    -- Scan_Ls_Arg --
    -------------------
@@ -1238,7 +1274,7 @@ procedure Gnatls is
          elsif (Argv'Length = 3 and then Argv (3) = '-')
            or else (Argv'Length = 4 and then Argv (4) = '-')
          then
-            Fail ("Trailing ""-"" at the end of ", Argv, " forbidden.");
+            Fail ("Trailing ""-"" at the end of " & Argv & " forbidden.");
 
          --  Processing for -Idir
 
@@ -1314,7 +1350,6 @@ procedure Gnatls is
                   --  Find the end of line
 
                   Last := Index;
-
                   while Last <= Buffer'Last
                     and then Buffer (Last) /= ASCII.LF
                     and then Buffer (Last) /= ASCII.CR
@@ -1328,10 +1363,9 @@ procedure Gnatls is
                      Add_File (Buffer (Index .. Last - 1));
                   end if;
 
-                  Index := Last;
-
                   --  Find the beginning of the next line
 
+                  Index := Last;
                   while Buffer (Index) = ASCII.CR or else
                         Buffer (Index) = ASCII.LF
                   loop
@@ -1361,39 +1395,6 @@ procedure Gnatls is
 
                Opt.No_Stdinc := True;
                Opt.RTS_Switch := True;
-
-               declare
-                  Src_Path_Name : constant String_Ptr :=
-                                    String_Ptr
-                                      (Get_RTS_Search_Dir
-                                        (Argv (7 .. Argv'Last), Include));
-                  Lib_Path_Name : constant String_Ptr :=
-                                    String_Ptr
-                                      (Get_RTS_Search_Dir
-                                        (Argv (7 .. Argv'Last), Objects));
-
-               begin
-                  if Src_Path_Name /= null
-                    and then Lib_Path_Name /= null
-                  then
-                     Add_Search_Dirs (Src_Path_Name, Include);
-                     Add_Search_Dirs (Lib_Path_Name, Objects);
-
-                  elsif Src_Path_Name = null
-                    and then Lib_Path_Name = null
-                  then
-                     Osint.Fail ("RTS path not valid: missing " &
-                                 "adainclude and adalib directories");
-
-                  elsif Src_Path_Name = null then
-                     Osint.Fail ("RTS path not valid: missing " &
-                                 "adainclude directory");
-
-                  elsif Lib_Path_Name = null then
-                     Osint.Fail ("RTS path not valid: missing " &
-                                 "adalib directory");
-                  end if;
-               end;
             end if;
          end if;
 
@@ -1422,6 +1423,8 @@ procedure Gnatls is
 
       Write_Str ("switches:");
       Write_Eol;
+
+      Display_Usage_Version_And_Help;
 
       --  Line for -a
 
@@ -1526,7 +1529,6 @@ procedure Gnatls is
 begin
    --  Initialize standard packages
 
-   Namet.Initialize;
    Csets.Initialize;
    Snames.Initialize;
 
@@ -1551,14 +1553,21 @@ begin
    --  If -l (output license information) is given, it must be the only switch
 
    if License and then Arg_Count /= 2 then
+      Set_Standard_Error;
       Write_Str ("Can't use -l with another switch");
       Write_Eol;
       Usage;
       Exit_Program (E_Fatal);
    end if;
 
-   --  Add the source and object directories specified on the
-   --  command line, if any, to the searched directories.
+   --  Handle --RTS switch
+
+   if RTS_Specified /= null then
+      Search_RTS (RTS_Specified.all);
+   end if;
+
+   --  Add the source and object directories specified on the command line, if
+   --  any, to the searched directories.
 
    while First_Source_Dir /= null loop
       Add_Src_Search_Dir (First_Source_Dir.Value.all);
@@ -1575,8 +1584,6 @@ begin
    Osint.Add_Default_Search_Dirs;
 
    if Verbose_Mode then
-      Targparm.Get_Target_Parameters;
-
       Write_Eol;
       Display_Version ("GNATLS", "1997");
       Write_Eol;
@@ -1621,23 +1628,16 @@ begin
       Write_Str ("   <Current_Directory>");
       Write_Eol;
 
+      Initialize_Default_Project_Path
+        (Prj_Path, Target_Name => Sdefault.Target_Name.all);
+
       declare
-         Project_Path : String_Access := Getenv (Gpr_Project_Path);
-
-         Lib : constant String :=
-                 Directory_Separator & "lib" & Directory_Separator;
-
-         First : Natural;
-         Last  : Natural;
-
-         Add_Default_Dir : Boolean := True;
+         Project_Path : String_Access;
+         First        : Natural;
+         Last         : Natural;
 
       begin
-         --  If there is a project path, display each directory in the path
-
-         if Project_Path.all = "" then
-            Project_Path := Getenv (Ada_Project_Path);
-         end if;
+         Get_Path (Prj_Path, Project_Path);
 
          if Project_Path.all /= "" then
             First := Project_Path'First;
@@ -1657,13 +1657,7 @@ begin
                   Last := Last + 1;
                end loop;
 
-               --  If the directory is No_Default_Project_Dir, set
-               --  Add_Default_Dir to False.
-
-               if Project_Path (First .. Last) = No_Project_Default_Dir then
-                  Add_Default_Dir := False;
-
-               elsif First /= Last or else Project_Path (First) /= '.' then
+               if First /= Last or else Project_Path (First) /= '.' then
 
                   --  If the directory is ".", skip it as it is the current
                   --  directory and it is already the first directory in the
@@ -1671,51 +1665,14 @@ begin
 
                   Write_Str ("   ");
                   Write_Str
-                    (To_Host_Dir_Spec
-                       (Project_Path (First .. Last), True).all);
+                    (Normalize_Pathname
+                      (To_Host_Dir_Spec
+                        (Project_Path (First .. Last), True).all));
                   Write_Eol;
                end if;
 
                First := Last + 1;
             end loop;
-         end if;
-
-         --  Add the default dir, except if "-" was one of the "directories"
-         --  specified in ADA_PROJECT_DIR.
-
-         if Add_Default_Dir then
-            Name_Len := 0;
-            Add_Str_To_Name_Buffer (Sdefault.Search_Dir_Prefix.all);
-
-            --  On Windows, make sure that all directory separators are '\'
-
-            if Directory_Separator /= '/' then
-               for J in 1 .. Name_Len loop
-                  if Name_Buffer (J) = '/' then
-                     Name_Buffer (J) := Directory_Separator;
-                  end if;
-               end loop;
-            end if;
-
-            --  Find the sequence "/lib/"
-
-            while Name_Len >= Lib'Length
-              and then Name_Buffer (Name_Len - 4 .. Name_Len) /= Lib
-            loop
-               Name_Len := Name_Len - 1;
-            end loop;
-
-            --  If the sequence "/lib"/ was found, display the default
-            --  directory <prefix>/lib/gnat/.
-
-            if Name_Len >= 5 then
-               Name_Buffer (Name_Len + 1 .. Name_Len + 4) := "gnat";
-               Name_Buffer (Name_Len + 5) := Directory_Separator;
-               Name_Len := Name_Len + 5;
-               Write_Str ("   ");
-               Write_Line
-                 (To_Host_Dir_Spec (Name_Buffer (1 .. Name_Len), True).all);
-            end if;
          end if;
       end;
 
@@ -1754,9 +1711,10 @@ begin
 
       if Ali_File = No_File then
          if Very_Verbose_Mode then
-            GLADE.Output_No_ALI (Lib_File_Name (Main_File));
+            GNATDIST.Output_No_ALI (Lib_File_Name (Main_File));
 
          else
+            Set_Standard_Error;
             Write_Str ("Can't find library info for ");
             Get_Name_String (Main_File);
             Write_Char ('"'); -- "
@@ -1789,9 +1747,13 @@ begin
       end if;
    end loop;
 
+   --  Reset default output file descriptor, if needed
+
+   Set_Standard_Output;
+
    if Very_Verbose_Mode then
       for A in ALIs.First .. ALIs.Last loop
-         GLADE.Output_ALI (A);
+         GNATDIST.Output_ALI (A);
       end loop;
 
       return;

@@ -1,6 +1,4 @@
 #include <objc/objc.h>
-#include <objc/objc-api.h>
-#include <objc/Object.h>
 
 @interface MyObject
 {
@@ -14,4 +12,3 @@
 @end
 
 #include "bf-common.h"
-

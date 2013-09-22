@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,7 +34,7 @@
 // warranty.
 
 /**
- * @file point_iterators.hpp
+ * @file bin_search_tree_/point_iterators.hpp
  * Contains an implementation class for bin_search_tree_.
  */
 
@@ -64,7 +58,7 @@ namespace __gnu_pbds
 						Reference,		\
 						Const_Reference,	\
 						Is_Forward_Iterator,	\
-						Allocator>
+						_Alloc>
 
 #define PB_DS_TREE_CONST_ODIR_IT_C_DEC					\
     bin_search_tree_const_it_<						\
@@ -75,7 +69,7 @@ namespace __gnu_pbds
 						Reference,		\
 						Const_Reference,	\
 						!Is_Forward_Iterator,	\
-						Allocator>
+						_Alloc>
 
 #define PB_DS_TREE_IT_C_DEC						\
     bin_search_tree_it_<						\
@@ -86,7 +80,7 @@ namespace __gnu_pbds
 						Reference,		\
 						Const_Reference,	\
 						Is_Forward_Iterator,	\
-						Allocator>
+						_Alloc>
 
 #define PB_DS_TREE_ODIR_IT_C_DEC					\
     bin_search_tree_it_<						\
@@ -97,9 +91,9 @@ namespace __gnu_pbds
 							Reference,	\
 							Const_Reference, \
 							!Is_Forward_Iterator, \
-							Allocator>
+							_Alloc>
 
-    // Const iterator.
+    /// Const iterator.
     template<typename Node_Pointer,
 	     typename Value_Type,
 	     typename Pointer,
@@ -107,30 +101,20 @@ namespace __gnu_pbds
 	     typename Reference,
 	     typename Const_Reference,
 	     bool Is_Forward_Iterator,
-	     class Allocator>
+	     typename _Alloc>
     class bin_search_tree_const_it_
     {
-
     public:
-
-      typedef std::bidirectional_iterator_tag iterator_category;
-
-      typedef typename Allocator::difference_type difference_type;
-
-      typedef Value_Type value_type;
-
-      typedef Pointer pointer;
-
-      typedef Const_Pointer const_pointer;
-
-      typedef Reference reference;
-
-      typedef Const_Reference const_reference;
-
-    public:
+      typedef std::bidirectional_iterator_tag 		iterator_category;
+      typedef typename _Alloc::difference_type 	difference_type;
+      typedef Value_Type 				value_type;
+      typedef Pointer 					pointer;
+      typedef Const_Pointer 				const_pointer;
+      typedef Reference 				reference;
+      typedef Const_Reference 				const_reference;
 
       inline
-      bin_search_tree_const_it_(const Node_Pointer p_nd = NULL) 
+      bin_search_tree_const_it_(const Node_Pointer p_nd = 0) 
       : m_p_nd(const_cast<Node_Pointer>(p_nd))
       { }
 
@@ -158,14 +142,14 @@ namespace __gnu_pbds
       inline const_pointer
       operator->() const
       {
-	_GLIBCXX_DEBUG_ASSERT(m_p_nd != NULL);
+	_GLIBCXX_DEBUG_ASSERT(m_p_nd != 0);
 	return &m_p_nd->m_value;
       }
 
       inline const_reference
       operator*() const
       {
-	_GLIBCXX_DEBUG_ASSERT(m_p_nd != NULL);
+	_GLIBCXX_DEBUG_ASSERT(m_p_nd != 0);
 	return m_p_nd->m_value;
       }
 
@@ -188,7 +172,7 @@ namespace __gnu_pbds
       inline PB_DS_TREE_CONST_IT_C_DEC& 
       operator++()
       {
-	_GLIBCXX_DEBUG_ASSERT(m_p_nd != NULL);
+	_GLIBCXX_DEBUG_ASSERT(m_p_nd != 0);
 	inc(integral_constant<int,Is_Forward_Iterator>());
 	return *this;
       }
@@ -231,10 +215,10 @@ namespace __gnu_pbds
 	    return;
 	  }
 
-	if (m_p_nd->m_p_right != NULL)
+	if (m_p_nd->m_p_right != 0)
 	  {
 	    m_p_nd = m_p_nd->m_p_right;
-	    while (m_p_nd->m_p_left != NULL)
+	    while (m_p_nd->m_p_left != 0)
 	      m_p_nd = m_p_nd->m_p_left;
 	    return;
 	  }
@@ -263,10 +247,10 @@ namespace __gnu_pbds
 	    return;
 	  }
 
-	if (m_p_nd->m_p_left != NULL)
+	if (m_p_nd->m_p_left != 0)
 	  {
 	    Node_Pointer p_y = m_p_nd->m_p_left;
-	    while (p_y->m_p_right != NULL)
+	    while (p_y->m_p_right != 0)
 	      p_y = p_y->m_p_right;
 	    m_p_nd = p_y;
 	    return;
@@ -286,7 +270,7 @@ namespace __gnu_pbds
       Node_Pointer m_p_nd;
     };
 
-    // Iterator.
+    /// Iterator.
     template<typename Node_Pointer,
 	     typename Value_Type,
 	     typename Pointer,
@@ -294,16 +278,12 @@ namespace __gnu_pbds
 	     typename Reference,
 	     typename Const_Reference,
 	     bool Is_Forward_Iterator,
-	     class Allocator>
-    class bin_search_tree_it_ : 
-      public PB_DS_TREE_CONST_IT_C_DEC
-
+	     typename _Alloc>
+    class bin_search_tree_it_ : public PB_DS_TREE_CONST_IT_C_DEC
     {
-
     public:
-
       inline
-      bin_search_tree_it_(const Node_Pointer p_nd = NULL) 
+      bin_search_tree_it_(const Node_Pointer p_nd = 0) 
       : PB_DS_TREE_CONST_IT_C_DEC((Node_Pointer)p_nd)
       { }
 
@@ -331,14 +311,14 @@ namespace __gnu_pbds
       inline typename PB_DS_TREE_CONST_IT_C_DEC::pointer
       operator->() const
       {
-	_GLIBCXX_DEBUG_ASSERT(base_it_type::m_p_nd != NULL);
+	_GLIBCXX_DEBUG_ASSERT(base_it_type::m_p_nd != 0);
 	return &base_it_type::m_p_nd->m_value;
       }
 
       inline typename PB_DS_TREE_CONST_IT_C_DEC::reference
       operator*() const
       {
-	_GLIBCXX_DEBUG_ASSERT(base_it_type::m_p_nd != NULL);
+	_GLIBCXX_DEBUG_ASSERT(base_it_type::m_p_nd != 0);
 	return base_it_type::m_p_nd->m_value;
       }
 

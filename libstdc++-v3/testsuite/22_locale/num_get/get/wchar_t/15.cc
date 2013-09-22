@@ -1,11 +1,11 @@
 // 2004-03-01  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004 Free Software Foundation
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.2.2.1.1  num_get members
 
@@ -51,21 +50,22 @@ void test01()
 
   ios_base::iostate err = ios_base::goodbit;
   iterator_type end;
-  double d = 0.0;
-  double d1 = 1.0;
-  double d2 = 3.0;
+  double d = 1.0;
   
   iss1.str(L"1e+2");
   err = ios_base::goodbit;
   end = ng1.get(iss1.rdbuf(), 0, iss1, err, d);
-  VERIFY( err == ios_base::goodbit );
-  VERIFY( d == d1 );
+  VERIFY( err == ios_base::failbit );
+  VERIFY( *end == L'+' );
+  VERIFY( d == 0.0 );
 
   iss2.str(L"3e-1");
   err = ios_base::goodbit;
+  d = 1.0;
   end = ng2.get(iss2.rdbuf(), 0, iss2, err, d);
-  VERIFY( err == ios_base::goodbit );
-  VERIFY( d == d2 );
+  VERIFY( err == ios_base::failbit );
+  VERIFY( *end == L'-' );
+  VERIFY( d == 0.0 );
 }
 
 int main()

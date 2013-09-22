@@ -3,11 +3,12 @@
 
 class B;
 
-class A {			// { dg-error "" } copy ctor candidate
+class A {			// { dg-message "note" } copy ctor candidate
   private:
-    A(B *);			// { dg-error "" } 
+    A(B *);			// { dg-message "note" } 
   public:
-    A(long);			// { dg-error "" } 
+    A(long);			// { dg-message "note" } 
 };
 
-A a(0); // { dg-error "" } should be ambigious
+A a(0); // { dg-error "ambiguous" }
+// { dg-message "candidate" "candidate note" { target *-*-* } 13 }

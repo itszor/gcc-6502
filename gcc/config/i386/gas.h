@@ -1,6 +1,5 @@
 /* Definitions for Intel 386 using GAS.
-   Copyright (C) 1988, 1993, 1994, 1996, 2002, 2004, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1988-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -47,7 +46,8 @@ along with GCC; see the file COPYING3.  If not see
 
 /* Output #ident as a .ident.  */
 
-#define ASM_OUTPUT_IDENT(FILE, NAME) fprintf (FILE, "\t.ident \"%s\"\n", NAME);
+#undef TARGET_ASM_OUTPUT_IDENT
+#define TARGET_ASM_OUTPUT_IDENT default_asm_output_ident_directive
 
 /* In the past there was confusion as to what the argument to .align was
    in GAS.  For the last several years the rule has been this: for a.out
@@ -86,6 +86,7 @@ along with GCC; see the file COPYING3.  If not see
    GAS version 1.38.1 doesn't understand the `repz' opcode mnemonic.
    So use `repe' instead.  */
 
+#undef ASM_OUTPUT_OPCODE
 #define ASM_OUTPUT_OPCODE(STREAM, PTR)	\
 {									\
   if ((PTR)[0] == 'r'							\
@@ -94,15 +95,17 @@ along with GCC; see the file COPYING3.  If not see
     {									\
       if ((PTR)[3] == 'z')						\
 	{								\
-	  fprintf (STREAM, "repe");					\
+	  fputs ("repe", (STREAM));					\
 	  (PTR) += 4;							\
 	}								\
       else if ((PTR)[3] == 'n' && (PTR)[4] == 'z')			\
 	{								\
-	  fprintf (STREAM, "repne");					\
+	  fputs ("repne", (STREAM));					\
 	  (PTR) += 5;							\
 	}								\
     }									\
+  else									\
+    ASM_OUTPUT_AVX_PREFIX ((STREAM), (PTR));				\
 }
 
 /* Define macro used to output shift-double opcodes when the shift
@@ -113,9 +116,6 @@ along with GCC; see the file COPYING3.  If not see
 
 #undef SHIFT_DOUBLE_OMITS_COUNT
 #define SHIFT_DOUBLE_OMITS_COUNT 0
-
-/* Print opcodes the way that GAS expects them.  */
-#define GAS_MNEMONICS 1
 
 /* The comment-starter string as GAS expects it. */
 #undef ASM_COMMENT_START

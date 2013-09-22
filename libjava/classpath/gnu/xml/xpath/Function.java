@@ -1,4 +1,4 @@
-/* Function.java -- 
+/* Function.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -51,7 +51,6 @@ public interface Function
   /**
    * Sets the list of expressions to evaluate as parameter values.
    */
-  void setArguments(List args);
+  void setArguments(List<Expr> args);
 
 }
-

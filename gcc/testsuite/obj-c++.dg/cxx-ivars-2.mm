@@ -1,10 +1,12 @@
 // Check if the '- .cxx_construct' and '-.cxx_destruct' methods get called
 // and if they perform their desired function.
 
-// { dg-do run { xfail { "*-*-*" } } } PR27247/PR23681
+// { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } }
+// { dg-do run { target *-*-darwin* } }
+// { dg-skip-if "" { *-*-* } { "-fgnu-runtime" } { "" } }
 // { dg-options "-fobjc-call-cxx-cdtors" }
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdlib.h>
 #define CHECK_IF(expr) if(!(expr)) abort()
 
@@ -29,7 +31,7 @@ struct boo: bar {
   }
 };
 
-@interface Baz: Object {
+@interface Baz: TestsuiteObject {
 @public
   bar aa;
 }
@@ -74,3 +76,4 @@ int main (void)
   [foo free];
   CHECK_IF(!ctor1_called && !ctor2_called && dtor1_called);
 }
+

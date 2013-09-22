@@ -1,12 +1,11 @@
 // Debugging iterator implementation (out of line) -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2003-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file debug/safe_iterator.tcc
  *  This file is a GNU debug extension to the Standard C++ Library.
@@ -42,7 +36,8 @@ namespace __gnu_debug
     _Safe_iterator<_Iterator, _Sequence>::
     _M_can_advance(const difference_type& __n) const
     {
-      typedef typename _Sequence::const_iterator const_iterator;
+      typedef typename _Sequence::const_iterator const_debug_iterator;
+      typedef typename const_debug_iterator::iterator_type const_iterator;
 
       if (this->_M_singular())
 	return false;
@@ -50,20 +45,18 @@ namespace __gnu_debug
 	return true;
       if (__n < 0)
 	{
-	  const_iterator __begin =
-	    static_cast<const _Sequence*>(_M_sequence)->begin();
+	  const_iterator __begin = _M_get_sequence()->_M_base().begin();
 	  std::pair<difference_type, _Distance_precision> __dist =
-	    this->_M_get_distance(__begin, *this);
+	    __get_distance(__begin, base());
 	  bool __ok =  ((__dist.second == __dp_exact && __dist.first >= -__n)
 			|| (__dist.second != __dp_exact && __dist.first > 0));
 	  return __ok;
 	}
       else
 	{
-	  const_iterator __end =
-	    static_cast<const _Sequence*>(_M_sequence)->end();
+	  const_iterator __end = _M_get_sequence()->_M_base().end();
 	  std::pair<difference_type, _Distance_precision> __dist =
-	    this->_M_get_distance(*this, __end);
+	    __get_distance(base(), __end);
 	  bool __ok = ((__dist.second == __dp_exact && __dist.first >= __n)
 		       || (__dist.second != __dp_exact && __dist.first > 0));
 	  return __ok;
@@ -82,7 +75,7 @@ namespace __gnu_debug
 	/* Determine if we can order the iterators without the help of
 	   the container */
 	std::pair<difference_type, _Distance_precision> __dist =
-	  this->_M_get_distance(*this, __rhs);
+	  __get_distance(base(), __rhs.base());
 	switch (__dist.second) {
 	case __dp_equality:
 	  if (__dist.first == 0)
@@ -96,52 +89,17 @@ namespace __gnu_debug
 
 	/* We can only test for equality, but check if one of the
 	   iterators is at an extreme. */
-	if (_M_is_begin() || __rhs._M_is_end())
+	/* Optim for classic [begin, it) or [it, end) ranges, limit checks
+	 * when code is valid.  Note, for the special case of forward_list,
+	 * before_begin replaces the role of begin.  */ 
+	if (_M_is_beginnest() || __rhs._M_is_end())
 	  return true;
-	else if (_M_is_end() || __rhs._M_is_begin())
+	if (_M_is_end() || __rhs._M_is_beginnest())
 	  return false;
 
 	// Assume that this is a valid range; we can't check anything else
 	return true;
       }
-
-  template<typename _Iterator, typename _Sequence>
-    void
-    _Safe_iterator<_Iterator, _Sequence>::
-    _M_invalidate()
-    {
-      __gnu_cxx::__scoped_lock sentry(this->_M_get_mutex());
-      _M_invalidate_single();
-    }
-
-  template<typename _Iterator, typename _Sequence>
-    void
-    _Safe_iterator<_Iterator, _Sequence>::
-    _M_invalidate_single()
-    {
-      typedef typename _Sequence::iterator iterator;
-      typedef typename _Sequence::const_iterator const_iterator;
-
-      if (!this->_M_singular())
-	{
-	  for (_Safe_iterator_base* __iter = _M_sequence->_M_iterators;
-	       __iter; __iter = __iter->_M_next)
-	    {
-	      iterator* __victim = static_cast<iterator*>(__iter);
-	      if (this->base() == __victim->base())
-		__victim->_M_version = 0;
-	    }
-
-	  for (_Safe_iterator_base* __iter2 = _M_sequence->_M_const_iterators;
-	       __iter2; __iter2 = __iter2->_M_next)
-	    {
-	      const_iterator* __victim = static_cast<const_iterator*>(__iter2);
-	      if (__victim->base() == this->base())
-		__victim->_M_version = 0;
-	    }
-	  _M_version = 0;
-	}
-    }
 } // namespace __gnu_debug
 
 #endif

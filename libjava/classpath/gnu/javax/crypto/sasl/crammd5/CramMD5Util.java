@@ -1,4 +1,4 @@
-/* CramMD5Util.java -- 
+/* CramMD5Util.java --
    Copyright (C) 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version.  */
 
 
 package gnu.javax.crypto.sasl.crammd5;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.security.Registry;
 import gnu.java.security.util.Util;
@@ -83,7 +85,7 @@ class CramMD5Util
     final byte[] result;
     try
       {
-        result = new StringBuffer("<")
+        result = new CPStringBuilder("<")
             .append(encoded.substring(0,encoded.length()))
             .append(".").append(String.valueOf(System.currentTimeMillis()))
             .append("@").append(hostname).append(">")

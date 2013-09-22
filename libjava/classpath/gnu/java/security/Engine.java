@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.java.security;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
@@ -56,7 +58,7 @@ import java.util.Enumeration;
  * represents.
  *
  * @see Provider
- * @author Casey Marshall 
+ * @author Casey Marshall
  */
 public final class Engine
 {
@@ -83,7 +85,7 @@ public final class Engine
    * Return the implementation for <i>algorithm</i> for service <i>service</i>
    * from <i>provider</i>. The service is e.g. "Signature", and the algorithm
    * "DSA".
-   * 
+   *
    * @param service The service name.
    * @param algorithm The name of the algorithm to get.
    * @param provider The provider to get the implementation from.
@@ -109,7 +111,7 @@ public final class Engine
    * constructor (which cannot be null; pass a zero-length array if the SPI
    * takes no arguments). The service is e.g. "Signature", and the algorithm
    * "DSA".
-   * 
+   *
    * @param service The service name.
    * @param algorithm The name of the algorithm to get.
    * @param provider The provider to get the implementation from.
@@ -150,20 +152,20 @@ public final class Engine
     String alias;
     int count = 0;
     boolean algorithmFound = false;
-    StringBuilder sb = new StringBuilder();
+    CPStringBuilder sb = new CPStringBuilder();
     while (enumer.hasMoreElements())
       {
         key = (String) enumer.nextElement();
         if (key.equalsIgnoreCase(service + "." + algorithm))
           {
             // remove the service portion from the key
-            algorithm = key.substring(service.length() + 1); 
+            algorithm = key.substring(service.length() + 1);
             algorithmFound = true;
             break;
           }
         else if (key.equalsIgnoreCase(ALG_ALIAS + service + "." + algorithm))
           {
-            alias = (String) provider.getProperty(key);
+            alias = provider.getProperty(key);
             if (! algorithm.equalsIgnoreCase(alias)) // does not refer to itself
               {
                 algorithm = alias;

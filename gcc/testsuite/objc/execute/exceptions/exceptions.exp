@@ -1,4 +1,4 @@
-# Copyright (C) 1991, 1992, 1993, 1995, 1997, 2007 Free Software Foundation, Inc.
+# Copyright (C) 1991-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,9 +24,14 @@ if $tracelevel then {
 
 set additional_flags ""
 lappend additional_flags "-fobjc-exceptions"
-
 # load support procs
 load_lib objc-torture.exp
+load_lib torture-options.exp
+load_lib target-supports.exp
+
+torture-init
+objc-set-runtime-options "execute" "additional_flags=-fobjc-exceptions"
+set-torture-options $OBJC_TORTURE_OPTIONS $OBJC_RUNTIME_OPTIONS 
 
 #
 # main test loop
@@ -40,3 +45,5 @@ foreach src [lsort [glob -nocomplain $srcdir/$subdir/*.m]] {
 
     objc-torture-execute $src $additional_flags
 }
+
+torture-finish

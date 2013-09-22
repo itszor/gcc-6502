@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -406,8 +404,7 @@ package body Ada.Strings.Wide_Wide_Unbounded is
      (Source  : Unbounded_Wide_Wide_String;
       Pattern : Wide_Wide_String;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
-      return Natural
+        Wide_Wide_Maps.Identity) return Natural
    is
    begin
       return
@@ -519,6 +516,19 @@ package body Ada.Strings.Wide_Wide_Unbounded is
    procedure Find_Token
      (Source : Unbounded_Wide_Wide_String;
       Set    : Wide_Wide_Maps.Wide_Wide_Character_Set;
+      From   : Positive;
+      Test   : Strings.Membership;
+      First  : out Positive;
+      Last   : out Natural)
+   is
+   begin
+      Wide_Wide_Search.Find_Token
+        (Source.Reference (From .. Source.Last), Set, Test, First, Last);
+   end Find_Token;
+
+   procedure Find_Token
+     (Source : Unbounded_Wide_Wide_String;
+      Set    : Wide_Wide_Maps.Wide_Wide_Character_Set;
       Test   : Strings.Membership;
       First  : out Positive;
       Last   : out Natural)
@@ -585,8 +595,7 @@ package body Ada.Strings.Wide_Wide_Unbounded is
       Pattern : Wide_Wide_String;
       Going   : Strings.Direction := Strings.Forward;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
-      return Natural
+        Wide_Wide_Maps.Identity) return Natural
    is
    begin
       return
@@ -624,8 +633,7 @@ package body Ada.Strings.Wide_Wide_Unbounded is
       From    : Positive;
       Going   : Direction := Forward;
       Mapping : Wide_Wide_Maps.Wide_Wide_Character_Mapping :=
-                  Wide_Wide_Maps.Identity)
-      return Natural
+        Wide_Wide_Maps.Identity) return Natural
    is
    begin
       return
@@ -802,14 +810,13 @@ package body Ada.Strings.Wide_Wide_Unbounded is
       if Chunk_Size > S_Length - Source.Last then
          declare
             New_Size : constant Positive :=
-                         S_Length + Chunk_Size + (S_Length / Growth_Factor);
+              S_Length + Chunk_Size + (S_Length / Growth_Factor);
 
             New_Rounded_Up_Size : constant Positive :=
-                                    ((New_Size - 1) / Min_Mul_Alloc + 1) *
-                                       Min_Mul_Alloc;
+              ((New_Size - 1) / Min_Mul_Alloc + 1) * Min_Mul_Alloc;
 
             Tmp : constant Wide_Wide_String_Access :=
-                    new Wide_Wide_String (1 .. New_Rounded_Up_Size);
+              new Wide_Wide_String (1 .. New_Rounded_Up_Size);
 
          begin
             Tmp (1 .. Source.Last) := Source.Reference (1 .. Source.Last);

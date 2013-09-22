@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package gnu.java.net.protocol.ftp;
+
+import gnu.java.lang.CPStringBuilder;
 
 import gnu.java.net.CRLFInputStream;
 import gnu.java.net.CRLFOutputStream;
@@ -123,7 +125,7 @@ public class FTPConnection
   protected static final String STAT = "STAT";
   protected static final String HELP = "HELP";
   protected static final String NOOP = "NOOP";
-  
+
   protected static final String AUTH = "AUTH";
   protected static final String PBSZ = "PBSZ";
   protected static final String PROT = "PROT";
@@ -209,7 +211,7 @@ public class FTPConnection
   {
     this(hostname, -1, 0, 0, false);
   }
-  
+
   /**
    * Creates a new connection to the server.
    * @param hostname the hostname of the server to connect to
@@ -240,7 +242,7 @@ public class FTPConnection
       {
         port = FTP_PORT;
       }
-    
+
     // Set up socket
     socket = new Socket();
     InetSocketAddress address = new InetSocketAddress(hostname, port);
@@ -256,7 +258,7 @@ public class FTPConnection
       {
         socket.setSoTimeout(timeout);
       }
-    
+
     InputStream in = socket.getInputStream();
     in = new BufferedInputStream(in);
     in = new CRLFInputStream(in);
@@ -264,7 +266,7 @@ public class FTPConnection
     OutputStream out = socket.getOutputStream();
     out = new BufferedOutputStream(out);
     this.out = new CRLFOutputStream(out);
-    
+
     // Read greeting
     FTPResponse response = getResponse();
     switch (response.getCode())
@@ -275,7 +277,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Authenticate using the specified username and password.
    * If the username suffices for the server, the password will not be used
@@ -329,7 +331,7 @@ public class FTPConnection
   {
     return starttls(confidential, new EmptyX509TrustManager());
   }
-  
+
   /**
    * Negotiates TLS over the current connection.
    * See IETF draft-murray-auth-ftp-ssl-15.txt for details.
@@ -349,7 +351,7 @@ public class FTPConnection
         TrustManager[] trust = new TrustManager[] { tm };
         context.init(null, trust, null);
         SSLSocketFactory factory = context.getSocketFactory();
-        
+
         send(AUTH + ' ' + TLS);
         FTPResponse response = getResponse();
         switch (response.getCode())
@@ -365,7 +367,7 @@ public class FTPConnection
           default:
             throw new FTPException(response);
           }
-        
+
         String hostname = socket.getInetAddress().getHostName();
         int port = socket.getPort();
         SSLSocket ss =
@@ -401,7 +403,7 @@ public class FTPConnection
           default:
             throw new FTPException(response);
           }
-        
+
         if (confidential)
           {
             // Set up streams
@@ -420,7 +422,7 @@ public class FTPConnection
         return false;
       }
   }
-  
+
   /**
    * Changes directory to the specified path.
    * @param path an absolute or relative pathname
@@ -445,7 +447,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Changes directory to the parent of the current working directory.
    * @return true on success, false otherwise
@@ -519,7 +521,7 @@ public class FTPConnection
       {
       }
   }
-  
+
   /**
    * Initialise the data transfer process.
    */
@@ -531,7 +533,7 @@ public class FTPConnection
         dtp.complete();
         dtp = null;
       }
-    
+
     InetAddress localhost = socket.getLocalAddress();
     if (passive)
       {
@@ -566,7 +568,7 @@ public class FTPConnection
                   {
                     c = message.charAt((++end) + 1);
                   }
-                
+
                 String address =
                   message.substring(start, mid1).replace(',', '.');
                 int port_hi =
@@ -574,7 +576,7 @@ public class FTPConnection
                 int port_lo =
                   Integer.parseInt(message.substring(mid2 + 1, end + 1));
                 int port = (port_hi << 8) | port_lo;
-                
+
                 /*System.out.println("Entering passive mode: " + address +
                   ":" + port);*/
                 dtp = new PassiveModeDTP(address, port, localhost,
@@ -619,9 +621,9 @@ public class FTPConnection
                   }
               }
           }
-        
+
         // Send PORT command
-        StringBuffer buf = new StringBuffer(PORT);
+        CPStringBuilder buf = new CPStringBuilder(PORT);
         buf.append(' ');
         // Construct the address/port string form
         byte[] address = localhost.getAddress();
@@ -655,7 +657,7 @@ public class FTPConnection
       }
     dtp.setTransferMode(transferMode);
   }
-  
+
   /**
    * Set passive mode.
    * @param flag true if we should use passive mode, false otherwise
@@ -669,7 +671,7 @@ public class FTPConnection
         initialiseDTP();
       }
   }
-  
+
   /**
    * Returns the current representation type of the transfer data.
    * @return TYPE_ASCII, TYPE_EBCDIC, or TYPE_BINARY
@@ -686,7 +688,7 @@ public class FTPConnection
   public void setRepresentationType(int type)
     throws IOException
   {
-    StringBuffer buf = new StringBuffer(TYPE);
+    CPStringBuilder buf = new CPStringBuilder(TYPE);
     buf.append(' ');
     switch (type)
       {
@@ -732,7 +734,7 @@ public class FTPConnection
   public void setFileStructure(int structure)
     throws IOException
   {
-    StringBuffer buf = new StringBuffer(STRU);
+    CPStringBuilder buf = new CPStringBuilder(STRU);
     buf.append(' ');
     switch (structure)
       {
@@ -776,7 +778,7 @@ public class FTPConnection
   public void setTransferMode(int mode)
     throws IOException
   {
-    StringBuffer buf = new StringBuffer(MODE);
+    CPStringBuilder buf = new CPStringBuilder(MODE);
     buf.append(' ');
     switch (mode)
       {
@@ -807,7 +809,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Retrieves the specified file.
    * @param filename the filename of the file to retrieve
@@ -847,7 +849,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Returns a stream for uploading a file.
    * If a file with the same filename already exists on the server, it will
@@ -901,7 +903,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * This command may be required by some servers to reserve sufficient
    * storage to accommodate the new file to be transferred.
@@ -924,7 +926,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Renames a file.
    * @param oldName the current name of the file
@@ -961,7 +963,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Aborts the transfer in progress.
    * @return true if a transfer was in progress, false otherwise
@@ -991,7 +993,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Causes the file specified to be deleted at the server site.
    * @param filename the file to delete
@@ -1013,7 +1015,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Causes the directory specified to be deleted.
    * This may be an absolute or relative pathname.
@@ -1057,7 +1059,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Returns the current working directory.
    */
@@ -1095,7 +1097,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Returns a listing of information about the specified pathname.
    * If the pathname specifies a directory or other group of files, the
@@ -1131,7 +1133,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Returns a directory listing. The pathname should specify a
    * directory or other system-specific file group descriptor; a null
@@ -1177,7 +1179,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Returns the type of operating system at the server.
    */
@@ -1203,7 +1205,7 @@ public class FTPConnection
         throw new FTPException(response);
       }
   }
-  
+
   /**
    * Does nothing.
    * This method can be used to ensure that the connection does not time
@@ -1286,7 +1288,7 @@ public class FTPConnection
       }
     else if (c == '-')
       {
-        StringBuffer buf = new StringBuffer(line.substring(4));
+        CPStringBuilder buf = new CPStringBuilder(line.substring(4));
         buf.append('\n');
         while(true)
           {
@@ -1314,7 +1316,7 @@ public class FTPConnection
         throw new ProtocolException(line);
       }
   }
-  
+
   /*
    * Parses the 3-digit numeric code at the beginning of the given line.
    * Returns -1 on failure.
@@ -1348,4 +1350,3 @@ public class FTPConnection
   }
 
 }
-

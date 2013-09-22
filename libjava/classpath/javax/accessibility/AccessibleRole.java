@@ -44,7 +44,7 @@ import java.util.Locale;
  * "table". This strongly typed "enumeration" supports localized strings. If
  * the constants of this class are not adequate, new ones may be added in a
  * similar matter, while avoiding a public constructor.
- * 
+ *
  * @author Eric Blake (ebb9@email.byu.edu)
  * @since 1.2
  * @status updated to 1.4
@@ -515,6 +515,19 @@ public class AccessibleRole extends AccessibleBundle
    */
   public static final AccessibleRole RULER
     = new AccessibleRole("ruler");
+
+  /**
+   * A HTML container is an accessible object which contains other
+   * accessible objects that together form some HTML content.  For example,
+   * the content may be a sequence of text containing a link, which
+   * would be represent as two children, one an {@link AccessibleText}
+   * object holding the normal text and the other an
+   * {@link AccessibleHypertext} object representing the link.
+   *
+   * @since 1.6
+   */
+  public static final AccessibleRole HTML_CONTAINER
+    = new AccessibleRole("HTML container");
 
   /**
    * Create a new constant with a locale independent key. Follow the example,

@@ -1,9 +1,9 @@
 # Configure script for libada.
-#   Copyright 2003, 2004 Free Software Foundation, Inc.
+#   Copyright 2003, 2004, 2009, 2012 Free Software Foundation, Inc.
 #
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 #
 # This program is distributed in the hope that it will be useful, but
@@ -12,11 +12,14 @@
 # General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
+
+sinclude(../config/acx.m4)
+sinclude(../config/override.m4)
 
 AC_INIT
-AC_PREREQ([2.59])
+AC_PREREQ([2.64])
 
 AC_CONFIG_SRCDIR([Makefile.in])
 
@@ -43,18 +46,10 @@ AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
-sinclude(../config/acx.m4)
 ACX_NONCANONICAL_TARGET
 
 # Need to pass this down for now :-P
 AC_PROG_LN_S
-
-# Determine x_ada_cflags
-case $host in
-  hppa*) x_ada_cflags=-mdisable-indexing ;;
-  *) x_ada_cflags= ;;
-esac
-AC_SUBST([x_ada_cflags])
 
 # Determine what to build for 'gnattools'
 if test $build = $target ; then
@@ -80,16 +75,14 @@ case "${target}" in
   | powerpc*-wrs-vxworks \
   | sparc*-wrs-vx* \
   | *86-wrs-vxworks \
-  | xscale*-wrs-vx* \
-  | xscale*-wrs-coff \
   | mips*-wrs-vx*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-vxworks.adb"
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-vxworks.adb"
     ;;
   sparc-sun-solaris*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-solaris.adb"
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-solaris.adb"
     ;;
-  *86-*-solaris2*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-solaris.adb"
+  *86-*-solaris2* | x86_64-*-solaris2.1[[0-9]]*)
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-solaris.adb"
     ;;
   *86-*-linux* \
   | powerpc*-*-linux* \
@@ -99,37 +92,31 @@ case "${target}" in
   | hppa*-*-linux* \
   | *x86_64-*-linux*)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-linux.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-linux.adb \
     indepsw.adb<indepsw-gnu.adb"
     ;;
   s390*-*-linux*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-linux.adb"
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-linux.adb"
     ;;
   *86-*-freebsd*)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-linux.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-linux.adb \
     indepsw.adb<indepsw-gnu.adb"
-    ;;
-  mips-sgi-irix*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-irix.adb"
     ;;
   hppa*-hp-hpux10*) # Unlike hpux11
     ;;
   hppa*-hp-hpux11*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-hpux.adb"
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-hpux.adb"
     ;;
   *-ibm-aix*)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-aix.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-aix.adb \
     indepsw.adb<indepsw-aix.adb"
-    ;;
-  alpha*-dec-osf*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-tru64.adb"
     ;;
   alpha*-dec-vms* | alpha*-dec-openvms* | alpha*-dec-vms* \
   | alpha*-hp-vms* | alpha*-hp-openvms* | alpha*-hp-vms*)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-vms-alpha.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-vms-alpha.adb \
     symbols.adb<symbols-vms.adb \
     symbols-processing.adb<symbols-processing-vms-alpha.adb"
 
@@ -138,7 +125,7 @@ case "${target}" in
   ia64*-dec-vms* | ia64*-dec-openvms* | ia64*-dec-vms* \
   | ia64*-hp-vms* | ia64*-hp-openvms* | ia64*-hp-vms*)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-vms-ia64.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-vms-ia64.adb \
     symbols.adb<symbols-vms.adb \
     symbols-processing.adb<symbols-processing-vms-ia64.adb"
 
@@ -146,19 +133,29 @@ case "${target}" in
     ;;
   *-*-cygwin32* | *-*-mingw32* | *-*-pe)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-mingw.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-mingw.adb \
     indepsw.adb<indepsw-mingw.adb"
     EXTRA_GNATTOOLS='../../gnatdll$(exeext)'
     ;;
-  powerpc-*-darwin* | *86-*-darwin*)
-    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-darwin.adb"
+  *-*-darwin*)
+    TOOLS_TARGET_PAIRS="mlib-tgt-specific.adb<mlib-tgt-specific-darwin.adb"
     ;;
   *-*-lynxos)
     TOOLS_TARGET_PAIRS="\
-    mlib-tgt-specific.adb<mlib-tgt-lynxos.adb \
+    mlib-tgt-specific.adb<mlib-tgt-specific-lynxos.adb \
     indepsw.adb<indepsw-gnu.adb"
     ;;
 esac
+
+# From user or toplevel makefile.
+AC_SUBST(ADA_CFLAGS)
+
+AC_PROG_CC
+warn_cflags=
+if test "x$GCC" = "xyes"; then
+  warn_cflags='$(GCC_WARN_CFLAGS)'
+fi
+AC_SUBST(warn_cflags)
 
 # Output: create a Makefile.
 AC_CONFIG_FILES([Makefile])

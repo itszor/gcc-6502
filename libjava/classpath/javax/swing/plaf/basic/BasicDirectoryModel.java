@@ -40,10 +40,8 @@ package javax.swing.plaf.basic;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Vector;
@@ -56,7 +54,7 @@ import javax.swing.filechooser.FileSystemView;
 
 /**
  * Implements an AbstractListModel for directories where the source
- * of the files is a JFileChooser object. 
+ * of the files is a JFileChooser object.
  *
  * This class is used for sorting and ordering the file list in
  * a JFileChooser L&F object.
@@ -190,7 +188,7 @@ public class BasicDirectoryModel extends AbstractListModel
           if (filechooser.accept(files[i]))
             accepted.add(files[i]);
         }
-      
+
       // Occasional check if we have been interrupted.
       if (isInterrupted())
         return;
@@ -288,7 +286,7 @@ public class BasicDirectoryModel extends AbstractListModel
 
               List added = newCache.subList(start, end);
               UpdateSwingRequest r = new UpdateSwingRequest(added, start,
-                                                            null, 0); 
+                                                            null, 0);
               invokeLater(r);
               newCache = null;
             }
@@ -334,10 +332,10 @@ public class BasicDirectoryModel extends AbstractListModel
     {
       public int compare(Object o1, Object o2)
       {
-	if (lt((File) o1, (File) o2))
-	  return -1;
-	else
-	  return 1;
+        if (lt((File) o1, (File) o2))
+          return -1;
+        else
+          return 1;
       }
     };
 
@@ -368,7 +366,7 @@ public class BasicDirectoryModel extends AbstractListModel
   }
 
   /**
-   * Fires a content change event. 
+   * Fires a content change event.
    */
   public void fireContentsChanged()
   {
@@ -399,7 +397,7 @@ public class BasicDirectoryModel extends AbstractListModel
   }
 
   /**
-   * Returns the (java.io.File) object at 
+   * Returns the (java.io.File) object at
    * an index in the list.
    *
    * @param index The list index
@@ -443,7 +441,7 @@ public class BasicDirectoryModel extends AbstractListModel
   }
 
   /**
-   * Returns the size of the list, which only includes directories 
+   * Returns the size of the list, which only includes directories
    * if the JFileChooser is set to DIRECTORIES_ONLY.
    *
    * Otherwise, both directories and files are included in the count.
@@ -539,12 +537,12 @@ public class BasicDirectoryModel extends AbstractListModel
         || property.equals(JFileChooser.FILE_VIEW_CHANGED_PROPERTY)
         )
       {
-	validateFileCache();
+        validateFileCache();
       }
   }
 
   /**
-   * Renames a file - However, does <I>not</I> re-sort the list 
+   * Renames a file - However, does <I>not</I> re-sort the list
    * or replace the old file with the new one in the list.
    *
    * @param oldFile The old file
@@ -586,4 +584,3 @@ public class BasicDirectoryModel extends AbstractListModel
       }
   }
 }
-

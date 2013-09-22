@@ -1,4 +1,4 @@
-/* RFC2631.java -- 
+/* RFC2631.java --
    Copyright (C) 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -136,7 +136,7 @@ public class RFC2631
           }
         // 8. Let counter = 0
         counter = 0;
-        step9: while (true)
+        while (true)
           {
             // 9. Set R = seed + 2*m' + (L' * counter)
             R = SEED

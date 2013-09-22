@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,14 +43,8 @@ package body Osint.C is
       Suffix : String) return File_Name_Type;
    --  Common processing for Create_List_File, Create_Repinfo_File and
    --  Create_Debug_File. Src is the file name used to create the required
-   --  output file and Suffix is the desired suffic (dg/rep/xxx for debug/
+   --  output file and Suffix is the desired suffix (dg/rep/xxx for debug/
    --  repinfo/list file where xxx is specified extension.
-
-   procedure Set_Library_Info_Name;
-   --  Sets a default ALI file name from the main compiler source name.
-   --  This is used by Create_Output_Library_Info, and by the version of
-   --  Read_Library_Info that takes a default file name. The name is in
-   --  Name_Buffer (with length in Name_Len) on return from the call.
 
    ----------------------
    -- Close_Debug_File --
@@ -64,8 +58,8 @@ package body Osint.C is
 
       if not Status then
          Fail
-           ("error while closing expanded source file ",
-            Get_Name_String (Output_File_Name));
+           ("error while closing expanded source file "
+            & Get_Name_String (Output_File_Name));
       end if;
    end Close_Debug_File;
 
@@ -81,8 +75,8 @@ package body Osint.C is
 
       if not Status then
          Fail
-           ("error while closing list file ",
-            Get_Name_String (Output_File_Name));
+           ("error while closing list file "
+            & Get_Name_String (Output_File_Name));
       end if;
    end Close_List_File;
 
@@ -98,8 +92,8 @@ package body Osint.C is
 
       if not Status then
          Fail
-           ("error while closing ALI file ",
-            Get_Name_String (Output_File_Name));
+           ("error while closing ALI file "
+            & Get_Name_String (Output_File_Name));
       end if;
    end Close_Output_Library_Info;
 
@@ -115,8 +109,8 @@ package body Osint.C is
 
       if not Status then
          Fail
-           ("error while closing representation info file ",
-            Get_Name_String (Output_File_Name));
+           ("error while closing representation info file "
+            & Get_Name_String (Output_File_Name));
       end if;
    end Close_Repinfo_File;
 
@@ -202,8 +196,12 @@ package body Osint.C is
    --------------------------------
 
    procedure Create_Output_Library_Info is
+      Dummy : Boolean;
+      pragma Unreferenced (Dummy);
+
    begin
       Set_Library_Info_Name;
+      Delete_File (Name_Buffer (1 .. Name_Len), Dummy);
       Create_File_And_Check (Output_FD, Text);
    end Create_Output_Library_Info;
 
@@ -235,6 +233,17 @@ package body Osint.C is
          return 2;
       end if;
    end Debug_File_Eol_Length;
+
+   ---------------------------------
+   -- Get_Output_Object_File_Name --
+   ---------------------------------
+
+   function Get_Output_Object_File_Name return String is
+   begin
+      pragma Assert (Output_Object_File_Name /= null);
+
+      return Output_Object_File_Name.all;
+   end Get_Output_Object_File_Name;
 
    -----------------------
    -- More_Source_Files --
@@ -315,14 +324,21 @@ package body Osint.C is
          --  Remove extension preparing to replace it
 
          declare
-            Name  : constant String  := Name_Buffer (1 .. Dot_Index);
+            Name  : String  := Name_Buffer (1 .. Dot_Index);
             First : Positive;
 
          begin
             Name_Buffer (1 .. Output_Object_File_Name'Length) :=
               Output_Object_File_Name.all;
-            Dot_Index := 0;
 
+            --  Put two names in canonical case, to allow object file names
+            --  with upper-case letters on Windows.
+
+            Canonical_Case_File_Name (Name);
+            Canonical_Case_File_Name
+              (Name_Buffer (1 .. Output_Object_File_Name'Length));
+
+            Dot_Index := 0;
             for J in reverse Output_Object_File_Name'Range loop
                if Name_Buffer (J) = '.' then
                   Dot_Index := J;
@@ -394,8 +410,8 @@ package body Osint.C is
 
       if not Status then
          Fail
-           ("error while closing tree file ",
-            Get_Name_String (Output_File_Name));
+           ("error while closing tree file "
+            & Get_Name_String (Output_File_Name));
       end if;
    end Tree_Close;
 
@@ -432,7 +448,7 @@ package body Osint.C is
 
       pragma Assert (Dot_Index /= 0);
 
-      --  Change exctension to adt
+      --  Change extension to adt
 
       Name_Buffer (Dot_Index) := '.';
       Name_Buffer (Dot_Index + 1) := 'a';

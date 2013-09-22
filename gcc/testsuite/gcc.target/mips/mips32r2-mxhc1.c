@@ -1,14 +1,15 @@
 /* { dg-do compile } */
-/* { dg-mips-options "-O -mabi=32 -mfp64" } */
-/* { dg-final { scan-assembler "mthc1" } } */
-/* { dg-final { scan-assembler "mfhc1" } } */
+/* { dg-options "-mabi=32 -mfp64" } */
+/* { dg-skip-if "code quality test" { *-*-* } { "-O0" } { "" } } */
+/* { dg-final { scan-assembler "\tmthc1\t" } } */
+/* { dg-final { scan-assembler "\tmfhc1\t" } } */
 
-double func1 (long long a)
+NOMIPS16 double func1 (long long a)
 {
   return a;
 }
 
-long long func2 (double b)
+NOMIPS16 long long func2 (double b)
 {
   return b;
 }

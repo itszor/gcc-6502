@@ -1,12 +1,11 @@
 // SGI's rope class -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  * Copyright (c) 1997
@@ -49,6 +43,8 @@
 #ifndef _ROPE
 #define _ROPE 1
 
+#pragma GCC system_header
+
 #include <algorithm>
 #include <iosfwd>
 #include <bits/stl_construct.h>
@@ -67,8 +63,8 @@
 
 #include <ext/memory> // For uninitialized_copy_n
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
-
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
   namespace __detail
   {
     enum { _S_max_rope_depth = 45 };
@@ -79,6 +75,24 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
   using std::ptrdiff_t;
   using std::allocator;
   using std::_Destroy;
+
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  // See libstdc++/36832.
+  template<typename _ForwardIterator, typename _Allocator>
+    void
+    _Destroy_const(_ForwardIterator __first,
+		   _ForwardIterator __last, _Allocator __alloc)
+    {
+      for (; __first != __last; ++__first)
+	__alloc.destroy(&*__first);
+    }
+
+  template<typename _ForwardIterator, typename _Tp>
+    inline void
+    _Destroy_const(_ForwardIterator __first,
+		   _ForwardIterator __last, allocator<_Tp>)
+    { _Destroy(__first, __last); }
 
   // The _S_eos function is used for those functions that
   // convert to/from C-like strings to detect the end of the string.
@@ -445,19 +459,27 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     volatile _RC_t _M_ref_count;
 
     // Constructor
-    __gthread_mutex_t _M_ref_count_lock;
-
-    _Refcount_Base(_RC_t __n) : _M_ref_count(__n), _M_ref_count_lock()
-    {
 #ifdef __GTHREAD_MUTEX_INIT
-      __gthread_mutex_t __tmp = __GTHREAD_MUTEX_INIT;
-      _M_ref_count_lock = __tmp;
-#elif defined(__GTHREAD_MUTEX_INIT_FUNCTION)
+    __gthread_mutex_t _M_ref_count_lock = __GTHREAD_MUTEX_INIT;
+#else
+    __gthread_mutex_t _M_ref_count_lock;
+#endif
+
+    _Refcount_Base(_RC_t __n) : _M_ref_count(__n)
+    {
+#ifndef __GTHREAD_MUTEX_INIT
+#ifdef __GTHREAD_MUTEX_INIT_FUNCTION
       __GTHREAD_MUTEX_INIT_FUNCTION (&_M_ref_count_lock);
 #else
 #error __GTHREAD_MUTEX_INIT or __GTHREAD_MUTEX_INIT_FUNCTION should be defined by gthr.h abstraction layer, report problem to libstdc++@gcc.gnu.org.
 #endif
+#endif
     }
+
+#ifndef __GTHREAD_MUTEX_INIT
+    ~_Refcount_Base()
+    { __gthread_mutex_destroy(&_M_ref_count_lock); }
+#endif
 
     void
     _M_incr()
@@ -568,7 +590,11 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       bool _M_is_balanced:8;
       unsigned char _M_depth;
       __GC_CONST _CharT* _M_c_string;
+#ifdef __GTHREAD_MUTEX_INIT
+      __gthread_mutex_t _M_c_string_lock = __GTHREAD_MUTEX_INIT;
+#else
       __gthread_mutex_t _M_c_string_lock;
+#endif
                         /* Flattened version of string, if needed.  */
                         /* typically 0.                             */
                         /* If it's not 0, then the memory is owned  */
@@ -589,13 +615,11 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 #endif
 	_M_tag(__t), _M_is_balanced(__b), _M_depth(__d), _M_c_string(0)
 #ifdef __GTHREAD_MUTEX_INIT
-    {
-      // Do not copy a POSIX/gthr mutex once in use.  However, bits are bits.
-      __gthread_mutex_t __tmp = __GTHREAD_MUTEX_INIT;
-      _M_c_string_lock = __tmp;
-    }
+      { }
 #else
-    { __GTHREAD_MUTEX_INIT_FUNCTION (&_M_c_string_lock); }
+      { __GTHREAD_MUTEX_INIT_FUNCTION (&_M_c_string_lock); }
+      ~_Rope_RopeRep()
+      { __gthread_mutex_destroy (&_M_c_string_lock); }
 #endif
 #ifdef __GC
       void
@@ -716,7 +740,7 @@ protected:
         if (_M_data != this->_M_c_string)
 	  this->_M_free_c_string();
 	
-        __STL_FREE_STRING(_M_data, this->_M_size, this->_M_get_allocator());
+	this->__STL_FREE_STRING(_M_data, this->_M_size, this->_M_get_allocator());
       }
 #endif
 protected:
@@ -1157,7 +1181,7 @@ protected:
       operator*()
       {
         if (0 == this->_M_buf_ptr)
-	  _S_setcache(*this);
+	  this->_S_setcache(*this);
         return *this->_M_buf_ptr;
       }
 
@@ -1286,7 +1310,7 @@ protected:
         _M_root_rope(__r)
       { _RopeRep::_S_ref(this->_M_root);
         if (!(__r -> empty()))
-	  _S_setcache(*this);
+	  this->_S_setcache(*this);
       }
 
       void _M_check();
@@ -1673,9 +1697,9 @@ protected:
 	
 	__uninitialized_copy_n_a(__s, __size, __buf, __a);
 	_S_cond_store_eos(__buf[__size]);
-	try
+	__try
 	  { return _S_new_RopeLeaf(__buf, __size, __a); }
-	catch(...)
+	__catch(...)
 	  {
 	    _RopeRep::__STL_FREE_STRING(__buf, __size, __a);
 	    __throw_exception_again;
@@ -1829,12 +1853,12 @@ protected:
 	_CharT* __buf = this->_Data_allocate(_S_rounded_up_size(1));
 	
 	_M_get_allocator().construct(__buf, __c);
-	try
+	__try
 	  {
 	    this->_M_tree_ptr = _S_new_RopeLeaf(__buf, 1,
 						_M_get_allocator());
 	  }
-	catch(...)
+	__catch(...)
 	  {
 	    _RopeRep::__STL_FREE_STRING(__buf, 1, _M_get_allocator());
 	    __throw_exception_again;
@@ -1908,13 +1932,13 @@ protected:
 	_RopeRep* __old = this->_M_tree_ptr;
 	_RopeRep* __left =
 	  __STL_ROPE_FROM_UNOWNED_CHAR_PTR(&__x, 1, _M_get_allocator());
-	try
+	__try
 	  {
 	    this->_M_tree_ptr = _S_concat(__left, this->_M_tree_ptr);
 	    _S_unref(__old);
 	    _S_unref(__left);
 	  }
-	catch(...)
+	__catch(...)
 	  {
 	    _S_unref(__left);
 	    __throw_exception_again;
@@ -1941,11 +1965,11 @@ protected:
 	this->_M_tree_ptr = _S_balance(this->_M_tree_ptr);
 	_S_unref(__old);
       }
-      
+
       void
       copy(_CharT* __buffer) const
       {
-	_Destroy(__buffer, __buffer + size(), _M_get_allocator());
+	_Destroy_const(__buffer, __buffer + size(), _M_get_allocator());
 	_S_flatten(this->_M_tree_ptr, __buffer);
       }
 
@@ -1959,8 +1983,8 @@ protected:
       {
 	size_t __size = size();
 	size_t __len = (__pos + __n > __size? __size - __pos : __n);
-	
-	_Destroy(__buffer, __buffer + __len, _M_get_allocator());
+
+	_Destroy_const(__buffer, __buffer + __len, _M_get_allocator());
 	_S_flatten(this->_M_tree_ptr, __pos, __len, __buffer);
 	return __len;
       }
@@ -2906,13 +2930,16 @@ protected:
     swap(rope<_CharT, _Alloc>& __x, rope<_CharT, _Alloc>& __y)
     { __x.swap(__y); }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 { 
 namespace tr1
 {
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
   template<>
     struct hash<__gnu_cxx::crope>
     {
@@ -2939,6 +2966,8 @@ namespace tr1
 	return 13 * __str[0] + 5 * __str[__size - 1] + __size;
       }
     };
+
+_GLIBCXX_END_NAMESPACE_VERSION
 } // namespace tr1
 } // namespace std
 

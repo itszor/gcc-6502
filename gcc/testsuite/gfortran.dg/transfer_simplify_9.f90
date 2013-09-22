@@ -20,4 +20,4 @@
   if (transfer(transfer(-1, t(:)), 0) /= -1) call abort
   if (any (transfer(transfer(-1, (/t(1:1)/)), (/0_1/)) /= -1)) call abort
   if (transfer(transfer(-1, t(1:1)), 0_1) /= -1) call abort
-end
+  end

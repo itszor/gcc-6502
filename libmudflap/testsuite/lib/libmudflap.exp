@@ -1,8 +1,8 @@
-# Copyright (C) 2001, 2002, 2003, 2004 Free Software Foundation, Inc.
+# Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 # 
 # This program is distributed in the hope that it will be useful,
@@ -11,8 +11,8 @@
 # GNU General Public License for more details.
 # 
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 
 # Define libmudflap callbacks for dg.exp.
 # This file is a copy of libstdc++-v3's dejagnu driver, with minor changes.
@@ -29,6 +29,9 @@ proc load_gcc_lib { filename } {
 load_lib mfdg.exp
 load_lib libgloss.exp
 load_gcc_lib target-libpath.exp
+load_gcc_lib target-supports.exp
+load_gcc_lib timeout.exp
+load_gcc_lib timeout-dg.exp
 
 proc libmudflap-init { language } {
     global env
@@ -120,9 +123,11 @@ proc libmudflap-init { language } {
 
     # If there is no static library then don't run tests with -static.
     global tool
+    global mfconfig_libs
     set opts "additional_flags=-static"
     lappend opts "additional_flags=-fmudflap"
     lappend opts "additional_flags=-lmudflap"
+    lappend opts "libs=$mfconfig_libs"
     set src stlm[pid].c
     set exe stlm[pid].x
 
@@ -185,7 +190,6 @@ proc libmudflap-dg-test { prog do_what extra_tool_flags } {
     lappend options "libs=$mfconfig_libs"
 
     set comp_output [libmudflap_target_compile "$prog" "$output_file" "$compile_type" $options];
-    set comp_output [prune_gcc_output $comp_output ];
 
     return [list $comp_output $output_file]
 }
@@ -213,6 +217,7 @@ proc libmudflap_target_compile { source dest type options } {
     set cxx_final [concat $cxx_final $libs]
 
     lappend options "compiler=$cxx_final"
+    lappend options "timeout=[timeout_value]"
 
     # Picks up the freshly-built testsuite library corresponding to the
     # multilib under test.
@@ -275,7 +280,26 @@ proc libmudflap-list-sourcefiles { } {
 }
 
 
+proc libmudflap-dg-prune { system text } {
+    global additional_prunes
+
+    set text [prune_gcc_output $text]
+
+    foreach p $additional_prunes {
+	if { [string length $p] > 0 } {
+	    # Following regexp matches a complete line containing $p.
+	    regsub -all "(^|\n)\[^\n\]*$p\[^\n\]*" $text "" text
+	}
+    }
+
+    return $text
+}
+
+
 proc prune_gcc_output { text } {
+    # Ignore caret diagnostics. Unfortunately dejaGNU trims leading
+    # spaces, so one cannot rely on them being present.
+    regsub -all "(^|\n)\[^\n\]+\n *\\^\n" $text "\n" text
     regsub -all {(^|\n)[^\n]*ld: warning: libgcc_s[^\n]*not found[^\n]*try using[^\n]*} $text "" text
     regsub -all {(^|\n)[^\n]*In function.*pthread_create[^\n]*} $text "" text
     regsub -all {(^|\n)[^\n]*the use of .pthread.*is deprecated[^\n]*} $text "" text

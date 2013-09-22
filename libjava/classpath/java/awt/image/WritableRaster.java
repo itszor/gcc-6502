@@ -42,30 +42,30 @@ import java.awt.Rectangle;
 
 /**
  * A raster with methods to support updating pixel values.
- * 
+ *
  * @author Rolf W. Rasmussen (rolfwr@ii.uib.no)
  */
 public class WritableRaster extends Raster
 {
   /**
    * Creates a new <code>WritableRaster</code>.
-   * 
+   *
    * @param sampleModel  the sample model.
    * @param origin  the origin.
    */
-  protected WritableRaster(SampleModel sampleModel, Point origin) 
+  protected WritableRaster(SampleModel sampleModel, Point origin)
   {
     this(sampleModel, sampleModel.createDataBuffer(), origin);
   }
-  
+
   /**
    * Creates a new <code>WritableRaster</code> instance.
-   * 
+   *
    * @param sampleModel  the sample model.
    * @param dataBuffer  the data buffer.
    * @param origin  the origin.
    */
-  protected WritableRaster(SampleModel sampleModel, DataBuffer dataBuffer, 
+  protected WritableRaster(SampleModel sampleModel, DataBuffer dataBuffer,
                            Point origin)
   {
     this(sampleModel, dataBuffer,
@@ -77,14 +77,14 @@ public class WritableRaster extends Raster
 
   /**
    * Creates a new <code>WritableRaster</code> instance.
-   * 
+   *
    * @param sampleModel  the sample model.
    * @param dataBuffer  the data buffer.
    * @param aRegion  the raster's bounds.
    * @param sampleModelTranslate  the translation.
    * @param parent  the parent.
    */
-  protected WritableRaster(SampleModel sampleModel, 
+  protected WritableRaster(SampleModel sampleModel,
                            DataBuffer dataBuffer,
                            Rectangle aRegion,
                            Point sampleModelTranslate,
@@ -95,14 +95,14 @@ public class WritableRaster extends Raster
 
   /**
    * Returns the raster's parent, cast as a {@link WritableRaster}.
-   * 
+   *
    * @return The raster's parent.
    */
   public WritableRaster getWritableParent()
   {
     return (WritableRaster) getParent();
   }
-  
+
   /**
    * @param childMinX
    * @param childMinY
@@ -111,17 +111,12 @@ public class WritableRaster extends Raster
   public WritableRaster createWritableTranslatedChild(int childMinX,
                                                       int childMinY)
   {
-    // This mirrors the code from the super class
-    int tcx = sampleModelTranslateX - minX + childMinX;
-    int tcy = sampleModelTranslateY - minY + childMinY;
-    
-    return new WritableRaster(sampleModel, dataBuffer,
-        new Rectangle(childMinX, childMinY, width, height), 
-        new Point(tcx, tcy), this);
+    return createWritableChild(minX, minY, width, height,
+                               childMinX, childMinY, null);
   }
 
   /**
-   * 
+   *
    * @param parentX
    * @param parentY
    * @param w
@@ -135,22 +130,24 @@ public class WritableRaster extends Raster
       int w, int h, int childMinX, int childMinY, int[] bandList)
   {
     // This mirrors the code from the super class
-    
+
     if (parentX < minX || parentX + w > minX + width
         || parentY < minY || parentY + h > minY + height)
       throw new RasterFormatException("Child raster extends beyond parent");
-    
+
     SampleModel sm = (bandList == null) ?
       sampleModel :
       sampleModel.createSubsetSampleModel(bandList);
-    
-    return new WritableRaster(sm, dataBuffer,
-        new Rectangle(childMinX, childMinY, w, h),
-        new Point(sampleModelTranslateX + childMinX - parentX,
-                  sampleModelTranslateY + childMinY - parentY),
-        this);
+
+    return new WritableRaster(sm, getDataBuffer(),
+                              new Rectangle(childMinX, childMinY, w, h),
+                              new Point(sampleModelTranslateX + childMinX -
+                                          parentX,
+                                        sampleModelTranslateY + childMinY -
+                                          parentY),
+                              this);
   }
-  
+
   public Raster createChild(int parentX, int parentY, int width,
                             int height, int childMinX, int childMinY,
                             int[] bandList)
@@ -158,7 +155,7 @@ public class WritableRaster extends Raster
     if (parentX < minX || parentX + width > minX + this.width
         || parentY < minY || parentY + height > minY + this.height)
       throw new RasterFormatException("Child raster extends beyond parent");
-    
+
     SampleModel sm = (bandList == null) ?
       sampleModel :
       sampleModel.createSubsetSampleModel(bandList);
@@ -172,7 +169,7 @@ public class WritableRaster extends Raster
 
   public void setDataElements(int x, int y, Object inData)
   {
-    sampleModel.setDataElements(x - sampleModelTranslateX, 
+    sampleModel.setDataElements(x - sampleModelTranslateX,
         y - sampleModelTranslateY, inData, dataBuffer);
   }
 
@@ -190,7 +187,7 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * 
+   *
    * @param srcRaster
    */
   public void setRect(Raster srcRaster)
@@ -199,31 +196,31 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * 
+   *
    * @param dx
    * @param dy
    * @param srcRaster
    */
-  public void setRect(int dx, int dy, Raster srcRaster) 
+  public void setRect(int dx, int dy, Raster srcRaster)
   {
     Rectangle targetUnclipped = new Rectangle(srcRaster.getMinX() + dx,
         srcRaster.getMinY() + dy, srcRaster.getWidth(), srcRaster.getHeight());
-        
+
     Rectangle target = getBounds().intersection(targetUnclipped);
 
     if (target.isEmpty()) return;
-    
+
     int sx = target.x - dx;
     int sy = target.y - dy;
-    
+
     // FIXME: Do tests on rasters and use get/set data instead.
-    
+
     /* The JDK documentation seems to imply this implementation.
        (the trucation of higher bits), but an implementation using
        get/setDataElements would be more efficient. None of the
        implementations would do anything sensible when the sample
        models don't match.
-       
+
        But this is probably not the place to consider such
        optimizations.*/
 
@@ -234,13 +231,13 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the samples for the pixel at (x, y) in the raster to the specified 
-   * values. 
-   * 
+   * Sets the samples for the pixel at (x, y) in the raster to the specified
+   * values.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
    * @param iArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>iArray</code> is <code>null</code>.
    */
   public void setPixel(int x, int y, int[] iArray)
@@ -250,13 +247,13 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the samples for the pixel at (x, y) in the raster to the specified 
-   * values. 
-   * 
+   * Sets the samples for the pixel at (x, y) in the raster to the specified
+   * values.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
    * @param fArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>fArray</code> is <code>null</code>.
    */
   public void setPixel(int x, int y, float[] fArray)
@@ -266,13 +263,13 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the samples for the pixel at (x, y) in the raster to the specified 
-   * values. 
-   * 
+   * Sets the samples for the pixel at (x, y) in the raster to the specified
+   * values.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
    * @param dArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>dArray</code> is <code>null</code>.
    */
   public void setPixel(int x, int y, double[] dArray)
@@ -282,17 +279,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for the pixels in the region specified by 
-   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all 
-   * the samples for the first pixel are grouped together, followed by all the 
-   * samples for the second pixel, and so on). 
-   *  
+   * Sets the sample values for the pixels in the region specified by
+   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all
+   * the samples for the first pixel are grouped together, followed by all the
+   * samples for the second pixel, and so on).
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
    * @param iArray  the pixel sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>iArray</code> is <code>null</code>.
    */
   public void setPixels(int x, int y, int w, int h, int[] iArray)
@@ -302,17 +299,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for the pixels in the region specified by 
-   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all 
-   * the samples for the first pixel are grouped together, followed by all the 
-   * samples for the second pixel, and so on). 
-   *  
+   * Sets the sample values for the pixels in the region specified by
+   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all
+   * the samples for the first pixel are grouped together, followed by all the
+   * samples for the second pixel, and so on).
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
    * @param fArray  the pixel sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>fArray</code> is <code>null</code>.
    */
   public void setPixels(int x, int y, int w, int h, float[] fArray)
@@ -322,17 +319,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for the pixels in the region specified by 
-   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all 
-   * the samples for the first pixel are grouped together, followed by all the 
-   * samples for the second pixel, and so on). 
-   *  
+   * Sets the sample values for the pixels in the region specified by
+   * (x, y, w, h) in the raster.  The array is ordered by pixels (that is, all
+   * the samples for the first pixel are grouped together, followed by all the
+   * samples for the second pixel, and so on).
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
    * @param dArray  the pixel sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>dArray</code> is <code>null</code>.
    */
   public void setPixels(int x, int y, int w, int h, double[] dArray)
@@ -342,11 +339,11 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample value for a band for the pixel at (x, y) in the raster. 
-   * 
+   * Sets the sample value for a band for the pixel at (x, y) in the raster.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     <code>getNumBands() - 1</code>).
    * @param s  the sample value.
    */
@@ -357,11 +354,11 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample value for a band for the pixel at (x, y) in the raster. 
-   * 
+   * Sets the sample value for a band for the pixel at (x, y) in the raster.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     <code>getNumBands() - 1</code>).
    * @param s  the sample value.
    */
@@ -372,11 +369,11 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample value for a band for the pixel at (x, y) in the raster. 
-   * 
+   * Sets the sample value for a band for the pixel at (x, y) in the raster.
+   *
    * @param x  the x-coordinate of the pixel.
    * @param y  the y-coordinate of the pixel.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     <code>getNumBands() - 1</code>).
    * @param s  the sample value.
    */
@@ -387,17 +384,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for one band for the pixels in the region 
-   * specified by (x, y, w, h) in the raster. 
-   * 
+   * Sets the sample values for one band for the pixels in the region
+   * specified by (x, y, w, h) in the raster.
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     </code>getNumBands() - 1</code>).
    * @param iArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>iArray</code> is <code>null</code>.
    */
   public void setSamples(int x, int y, int w, int h, int b,
@@ -408,17 +405,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for one band for the pixels in the region 
-   * specified by (x, y, w, h) in the raster. 
-   * 
+   * Sets the sample values for one band for the pixels in the region
+   * specified by (x, y, w, h) in the raster.
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     </code>getNumBands() - 1</code>).
    * @param fArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>fArray</code> is <code>null</code>.
    */
   public void setSamples(int x, int y, int w, int h, int b,
@@ -429,17 +426,17 @@ public class WritableRaster extends Raster
   }
 
   /**
-   * Sets the sample values for one band for the pixels in the region 
-   * specified by (x, y, w, h) in the raster. 
-   * 
+   * Sets the sample values for one band for the pixels in the region
+   * specified by (x, y, w, h) in the raster.
+   *
    * @param x  the x-coordinate of the top-left pixel.
    * @param y  the y-coordinate of the top-left pixel.
    * @param w  the width of the region of pixels.
    * @param h  the height of the region of pixels.
-   * @param b  the band (in the range <code>0</code> to 
+   * @param b  the band (in the range <code>0</code> to
    *     </code>getNumBands() - 1</code>).
    * @param dArray  the sample values (<code>null</code> not permitted).
-   * 
+   *
    * @throws NullPointerException if <code>dArray</code> is <code>null</code>.
    */
   public void setSamples(int x, int y, int w, int h, int b,

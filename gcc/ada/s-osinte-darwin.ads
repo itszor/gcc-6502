@@ -7,25 +7,23 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2011, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,12 +33,14 @@
 --  This is Darwin pthreads version of this package
 
 --  This package includes all direct interfaces to OS services that are needed
---  by children of System.
+--  by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Elaborate_Body. It is designed to be a bottom-level (leaf) package.
 
 with Interfaces.C;
+with System.OS_Constants;
+
 package System.OS_Interface is
    pragma Preelaborate;
 
@@ -108,17 +108,22 @@ package System.OS_Interface is
    SIGUSR1    : constant := 30; --  user defined signal 1
    SIGUSR2    : constant := 31; --  user defined signal 2
 
-   SIGADAABORT : constant := SIGTERM;
+   SIGADAABORT : constant := SIGABRT;
    --  Change this if you want to use another signal for task abort.
    --  SIGTERM might be a good one.
 
    type Signal_Set is array (Natural range <>) of Signal;
 
    Unmasked : constant Signal_Set :=
-     (SIGTTIN, SIGTTOU, SIGSTOP, SIGTSTP);
+                (SIGTTIN, SIGTTOU, SIGSTOP, SIGTSTP);
 
    Reserved : constant Signal_Set :=
-     (SIGKILL, SIGSTOP);
+                (SIGKILL, SIGSTOP);
+
+   Exception_Signals : constant Signal_Set :=
+                         (SIGFPE, SIGILL, SIGSEGV, SIGBUS);
+   --  These signals (when runtime or system) will be caught and converted
+   --  into an Ada exception.
 
    type sigset_t is private;
 
@@ -161,6 +166,7 @@ package System.OS_Interface is
    SIG_IGN : constant := 1;
 
    SA_SIGINFO : constant := 16#0040#;
+   SA_ONSTACK : constant := 16#0001#;
 
    function sigaction
      (sig  : Signal;
@@ -173,13 +179,11 @@ package System.OS_Interface is
    ----------
 
    Time_Slice_Supported : constant Boolean := True;
-   --  Indicates wether time slicing is supported
+   --  Indicates whether time slicing is supported
 
    type timespec is private;
 
-   type clockid_t is private;
-
-   CLOCK_REALTIME : constant clockid_t;
+   type clockid_t is new int;
 
    function clock_gettime
      (clock_id : clockid_t;
@@ -190,14 +194,6 @@ package System.OS_Interface is
 
    function To_Timespec (D : Duration) return timespec;
    pragma Inline (To_Timespec);
-
-   type struct_timeval is private;
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
 
    -------------------------
    -- Priority Scheduling --
@@ -228,10 +224,8 @@ package System.OS_Interface is
    ---------
 
    function lwp_self return System.Address;
-   --  lwp_self does not exist on this thread library, revert to pthread_self
-   --  which is the closest approximation (with getpid). This function is
-   --  needed to share 7staprop.adb across POSIX-like targets.
-   pragma Import (C, lwp_self, "pthread_self");
+   --  Return the mach thread bound to the current thread.  The value is not
+   --  used by the run-time library but made available to debuggers.
 
    -------------
    -- Threads --
@@ -259,26 +253,52 @@ package System.OS_Interface is
    PTHREAD_SCOPE_PROCESS : constant := 2;
    PTHREAD_SCOPE_SYSTEM  : constant := 1;
 
+   --  Read/Write lock not supported on Darwin. To add support both types
+   --  pthread_rwlock_t and pthread_rwlockattr_t must properly be defined
+   --  with the associated routines pthread_rwlock_[init/destroy] and
+   --  pthread_rwlock_[rdlock/wrlock/unlock].
+
+   subtype pthread_rwlock_t     is pthread_mutex_t;
+   subtype pthread_rwlockattr_t is pthread_mutexattr_t;
+
    -----------
    -- Stack --
    -----------
 
+   type stack_t is record
+      ss_sp    : System.Address;
+      ss_size  : size_t;
+      ss_flags : int;
+   end record;
+   pragma Convention (C, stack_t);
+
+   function sigaltstack
+     (ss  : not null access stack_t;
+      oss : access stack_t) return int;
+   pragma Import (C, sigaltstack, "sigaltstack");
+
+   Alternate_Stack : aliased System.Address;
+   pragma Import (C, Alternate_Stack, "__gnat_alternate_stack");
+   --  The alternate signal stack for stack overflows
+
+   Alternate_Stack_Size : constant := 32 * 1024;
+   --  This must be in keeping with init.c:__gnat_alternate_stack
+
    Stack_Base_Available : constant Boolean := False;
-   --  Indicates wether the stack base is available on this target.
-   --  This allows us to share s-osinte.adb between all the FSU run time.
-   --  Note that this value can only be true if pthread_t has a complete
-   --  definition that corresponds exactly to the C header files.
+   --  Indicates whether the stack base is available on this target. This
+   --  allows us to share s-osinte.adb between all the FSU run time. Note that
+   --  this value can only be true if pthread_t has a complete definition that
+   --  corresponds exactly to the C header files.
 
    function Get_Stack_Base (thread : pthread_t) return System.Address;
    pragma Inline (Get_Stack_Base);
-   --  returns the stack base of the specified thread.
-   --  Only call this function when Stack_Base_Available is True.
+   --  returns the stack base of the specified thread. Only call this function
+   --  when Stack_Base_Available is True.
 
    function Get_Page_Size return size_t;
    function Get_Page_Size return System.Address;
    pragma Import (C, Get_Page_Size, "getpagesize");
-   --  returns the size of a page, or 0 if this is not relevant on this
-   --  target
+   --  Returns the size of a page
 
    PROT_NONE  : constant := 0;
    PROT_READ  : constant := 1;
@@ -289,9 +309,10 @@ package System.OS_Interface is
    PROT_ON    : constant := PROT_NONE;
    PROT_OFF   : constant := PROT_ALL;
 
-   function mprotect (addr : System.Address;
-                      len : size_t;
-                      prot : int) return int;
+   function mprotect
+     (addr : System.Address;
+      len  : size_t;
+      prot : int) return int;
    pragma Import (C, mprotect);
 
    ---------------------------------------
@@ -496,23 +517,14 @@ private
 
    type timespec is record
       tv_sec  : time_t;
-      tv_nsec : int32_t;
+      tv_nsec : long;
    end record;
    pragma Convention (C, timespec);
-
-   type clockid_t is new int;
-   CLOCK_REALTIME : constant clockid_t := 0;
-
-   type struct_timeval is record
-      tv_sec  : int32_t;
-      tv_usec : int32_t;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    --
    --  Darwin specific signal implementation
    --
-   type Pad_Type is array (1 .. 7) of unsigned;
+   type Pad_Type is array (1 .. 7) of unsigned_long;
    type siginfo_t is record
       si_signo  : int;               --  signal number
       si_errno  : int;               --  errno association
@@ -526,13 +538,6 @@ private
       pad       : Pad_Type;          --  RFU
    end record;
    pragma Convention (C, siginfo_t);
-
-   type stack_t is record
-      ss_sp    : System.Address;
-      ss_size  : int;
-      ss_flags : int;
-   end record;
-   pragma Convention (C, stack_t);
 
    type mcontext_t is new System.Address;
 
@@ -551,41 +556,39 @@ private
    --
    type pthread_t is new System.Address;
 
-   type pthread_lock_t is new long;
-
    type pthread_attr_t is record
       sig    : long;
-      opaque : padding (1 .. 36);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_ATTR_SIZE);
    end record;
    pragma Convention (C, pthread_attr_t);
 
    type pthread_mutexattr_t is record
       sig    : long;
-      opaque : padding (1 .. 8);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_MUTEXATTR_SIZE);
    end record;
    pragma Convention (C, pthread_mutexattr_t);
 
    type pthread_mutex_t is record
       sig    : long;
-      opaque : padding (1 .. 40);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_MUTEX_SIZE);
    end record;
    pragma Convention (C, pthread_mutex_t);
 
    type pthread_condattr_t is record
       sig    : long;
-      opaque : padding (1 .. 4);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_CONDATTR_SIZE);
    end record;
    pragma Convention (C, pthread_condattr_t);
 
    type pthread_cond_t is record
       sig    : long;
-      opaque : padding (1 .. 24);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_COND_SIZE);
    end record;
    pragma Convention (C, pthread_cond_t);
 
    type pthread_once_t is record
       sig    : long;
-      opaque : padding (1 .. 4);
+      opaque : padding (1 .. System.OS_Constants.PTHREAD_ONCE_SIZE);
    end record;
    pragma Convention (C, pthread_once_t);
 

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1998-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -71,7 +69,7 @@ package body System.OS_Primitives is
    --  pidadr = address of process id to be woken up
    --  prcnam = name of process to be woken up
    --  daytim = time to wake up
-   --  reptim = repitition interval of wakeup calls
+   --  reptim = repetition interval of wakeup calls
    --
 
    procedure Sys_Schdwk
@@ -83,7 +81,7 @@ package body System.OS_Primitives is
       Reptim : Long_Integer := Long_Integer'Null_Parameter
      );
 
-   pragma Interface (External, Sys_Schdwk);
+   pragma Import (External, Sys_Schdwk);
    --  VMS system call to schedule a wakeup event
    pragma Import_Valued_Procedure
      (Sys_Schdwk, "SYS$SCHDWK",
@@ -107,7 +105,7 @@ package body System.OS_Primitives is
       Tim    : out OS_Time
      );
    --  VMS system call to get the current system time
-   pragma Interface (External, Sys_Gettim);
+   pragma Import (External, Sys_Gettim);
    pragma Import_Valued_Procedure
      (Sys_Gettim, "SYS$GETTIM",
       (Cond_Value_Type, OS_Time),
@@ -124,7 +122,7 @@ package body System.OS_Primitives is
 
    procedure Sys_Hiber (Status : out Cond_Value_Type);
    --  VMS system call to hibernate the current process
-   pragma Interface (External, Sys_Hiber);
+   pragma Import (External, Sys_Hiber);
    pragma Import_Valued_Procedure
      (Sys_Hiber, "SYS$HIBER",
       (Cond_Value_Type),

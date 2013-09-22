@@ -1,4 +1,4 @@
-/* NMTokensType.java -- 
+/* NMTokensType.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.validation.datatype;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.IOException;
 import javax.xml.XMLConstants;
@@ -79,7 +81,7 @@ final class NMTokensType
   {
     super.checkValid(value, context);
     int len = value.length();
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     for (int i = 0; i < len; i++)
       {
         char c = value.charAt(i);
@@ -118,7 +120,6 @@ final class NMTokensType
         throw e2;
       }
   }
-  
-  
-}
 
+
+}

@@ -1,4 +1,4 @@
-/* Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2013 Free Software Foundation, Inc.
 
    This file is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
@@ -24,6 +24,19 @@
             asm_output_aligned_bss (FILE, DECL, NAME, SIZE, ALIGN)
 
 
+/* The following macros define "native" directory locations; on the SPU,
+   these are used only when building the compiler with --with-sysroot.
+   This can be used to build a pair of PPU and SPU cross-compilers with
+   a common sysroot; the SPU compiler will search for its files in
+   ${sysroot}/include and ${sysroot}/lib.  */
+
+/* STANDARD_STARTFILE_PREFIX_1 is "/lib", which we keep.
+   STANDARD_STARTFILE_PREFIX_2 is "/usr/lib" -- we remove this.  */
+#undef STANDARD_STARTFILE_PREFIX_2
+#define STANDARD_STARTFILE_PREFIX_2 ""
+
+/* We do not provide any "/usr/local/include" directory on SPU.  */
+#undef LOCAL_INCLUDE_DIR
 
 /* Provide a STARTFILE_SPEC appropriate for GNU/Linux.  Here we add
    the GNU/Linux magical crtbegin.o file (see crtstuff.c) which
@@ -31,8 +44,9 @@
    object constructed before entering `main'.  */
 
 #undef  STARTFILE_SPEC 
-#define STARTFILE_SPEC "%{mstdmain: crt2.o%s} %{!mstdmain: crt1.o%s} \
-			crti.o%s crtbegin.o%s"
+#define STARTFILE_SPEC "%{mstdmain: %{pg|p:gcrt2.o%s;:crt2.o%s}}\
+                        %{!mstdmain: %{pg|p:gcrt1.o%s;:crt1.o%s}}\
+                        crti.o%s crtbegin.o%s"
 
 #undef  ENDFILE_SPEC
 #define ENDFILE_SPEC   "crtend.o%s crtn.o%s"
@@ -51,10 +65,11 @@
 
 #define LINK_SPEC "%{mlarge-mem: --defsym __stack=0xfffffff0 }"
 
-#define LIB_SPEC \
-	"-( %{!shared:%{g*:-lg}} -lc -lgloss -)"
-
-/* Turn off warnings in the assembler too. */
-#undef ASM_SPEC
-#define ASM_SPEC  "%{w:-W}"
-
+#define LIB_SPEC "-( %{!shared:%{g*:-lg}} -lc -lgloss -) \
+    %{mno-atomic-updates:-lgcc_cachemgr_nonatomic; :-lgcc_cachemgr} \
+    %{mcache-size=128:-lgcc_cache128k; \
+      mcache-size=64 :-lgcc_cache64k; \
+      mcache-size=32 :-lgcc_cache32k; \
+      mcache-size=16 :-lgcc_cache16k; \
+      mcache-size=8  :-lgcc_cache8k; \
+                     :-lgcc_cache64k}"

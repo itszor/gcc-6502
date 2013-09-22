@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -25,6 +25,16 @@
 
 --  This package keeps two mappings: from unit names to file names,
 --  and from file names to path names.
+--
+--  This mapping is used to communicate between the builder (gnatmake or
+--  gprbuild) and the compiler. The format of this mapping file is the
+--  following:
+--  For each source file, there are three lines in the mapping file:
+--    Unit name with %b or %s added depending on whether it is a body or a spec
+--              This line is omitted for file-based languages
+--    File name
+--    Path name (set to '/' if the file should be ignored in fact, ie for
+--               a Locally_Removed_File in a project)
 
 with Namet; use Namet;
 
@@ -64,13 +74,8 @@ package Fmap is
    --  compilation.
 
    procedure Add_Forbidden_File_Name (Name : File_Name_Type);
-   --  Indicate that a source file name is forbidden.
-   --  This is used by gnatmake when there are excluded sources in projects
-   --  (attributes Excluded_Source_Files or Locally_Removed_Files).
-
-   procedure Remove_Forbidden_File_Name (Name : File_Name_Type);
-   --  Indicate that a source file name that was forbidden is no longer
-   --  forbidden. Used by gnatmake when an excluded source is redefined
-   --  in another extending project.
+   --  Indicate that a source file name is forbidden. This is used when there
+   --  are excluded sources in projects (attributes Excluded_Source_Files or
+   --  Locally_Removed_Files).
 
 end Fmap;

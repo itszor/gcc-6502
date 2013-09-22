@@ -1,57 +1,50 @@
 /* decQuad module header for the decNumber C Library.
-   Copyright (C) 2007 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
    Contributed by IBM Corporation.  Author Mike Cowlishaw.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
-   Software Foundation; either version 2, or (at your option) any later
+   Software Foundation; either version 3, or (at your option) any later
    version.
-
-   In addition to the permissions in the GNU General Public License,
-   the Free Software Foundation gives you unlimited permission to link
-   the compiled version of this file into combinations with other
-   programs, and to distribute those combinations without any
-   restriction coming from the use of this file.  (The General Public
-   License restrictions do apply in other respects; for example, they
-   cover modification of the file, and distribution when not linked
-   into a combine executable.)
 
    GCC is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or
    FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
    for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 /* ------------------------------------------------------------------ */
 /* decQuad.h -- Decimal 128-bit format module header		      */
 /* ------------------------------------------------------------------ */
-/* Please see decFloats.h for an overview and documentation details.  */
-/* ------------------------------------------------------------------ */
 /* This include file is always included by decSingle and decDouble,   */
-/* and therefore also holds useful constants used by all three.	      */
+/* and therefore also holds useful constants used by all three.       */
 
 #if !defined(DECQUAD)
   #define DECQUAD
 
   #define DECQUADNAME	      "decimalQuad"	      /* Short name   */
   #define DECQUADTITLE	      "Decimal 128-bit datum" /* Verbose name */
-  #define DECQUADAUTHOR	      "Mike Cowlishaw"	      /* Who to blame */
+  #define DECQUADAUTHOR       "Mike Cowlishaw"	      /* Who to blame */
 
   /* parameters for decQuads */
-  #define DECQUAD_Bytes	   16	   /* length			      */
+  #define DECQUAD_Bytes    16	   /* length			      */
   #define DECQUAD_Pmax	   34	   /* maximum precision (digits)      */
-  #define DECQUAD_Emin	-6143	   /* minimum adjusted exponent	      */
-  #define DECQUAD_Emax	 6144	   /* maximum adjusted exponent	      */
-  #define DECQUAD_EmaxD	    4	   /* maximum exponent digits	      */
+  #define DECQUAD_Emin	-6143	   /* minimum adjusted exponent       */
+  #define DECQUAD_Emax	 6144	   /* maximum adjusted exponent       */
+  #define DECQUAD_EmaxD     4	   /* maximum exponent digits	      */
   #define DECQUAD_Bias	 6176	   /* bias for the exponent	      */
-  #define DECQUAD_String   43	   /* maximum string length, +1	      */
-  #define DECQUAD_EconL	   12	   /* exponent continuation length    */
+  #define DECQUAD_String   43	   /* maximum string length, +1       */
+  #define DECQUAD_EconL    12	   /* exponent continuation length    */
   #define DECQUAD_Declets  11	   /* count of declets		      */
   /* highest biased exponent (Elimit-1) */
   #define DECQUAD_Ehigh (DECQUAD_Emax + DECQUAD_Bias - (DECQUAD_Pmax-1))
@@ -59,9 +52,14 @@
   /* Required include						      */
   #include "decContext.h"
 
-  /* The decQuad decimal 128-bit type, accessible by bytes */
-  typedef struct {
-    uint8_t bytes[DECQUAD_Bytes];  /* fields: 1, 5, 12, 110 bits */
+  /* The decQuad decimal 128-bit type, accessible by all sizes */
+  typedef union {
+    uint8_t   bytes[DECQUAD_Bytes];	/* fields: 1, 5, 12, 110 bits */
+    uint16_t shorts[DECQUAD_Bytes/2];
+    uint32_t  words[DECQUAD_Bytes/4];
+    #if DECUSE64
+    uint64_t  longs[DECQUAD_Bytes/8];
+    #endif
     } decQuad;
 
   /* ---------------------------------------------------------------- */
@@ -70,21 +68,21 @@
 
   /* sign and special values [top 32-bits; last two bits are don't-care
      for Infinity on input, last bit don't-care for NaNs] */
-  #define DECFLOAT_Sign	 0x80000000	/* 1 00000 00 Sign */
+  #define DECFLOAT_Sign  0x80000000	/* 1 00000 00 Sign */
   #define DECFLOAT_NaN	 0x7c000000	/* 0 11111 00 NaN generic */
-  #define DECFLOAT_qNaN	 0x7c000000	/* 0 11111 00 qNaN */
-  #define DECFLOAT_sNaN	 0x7e000000	/* 0 11111 10 sNaN */
+  #define DECFLOAT_qNaN  0x7c000000	/* 0 11111 00 qNaN */
+  #define DECFLOAT_sNaN  0x7e000000	/* 0 11111 10 sNaN */
   #define DECFLOAT_Inf	 0x78000000	/* 0 11110 00 Infinity */
   #define DECFLOAT_MinSp 0x78000000	/* minimum special value */
 					/* [specials are all >=MinSp] */
   /* Sign nibble constants					      */
   #if !defined(DECPPLUSALT)
-    #define DECPPLUSALT	 0x0A /* alternate plus	 nibble		      */
-    #define DECPMINUSALT 0x0B /* alternate minus nibble		      */
-    #define DECPPLUS	 0x0C /* preferred plus	 nibble		      */
-    #define DECPMINUS	 0x0D /* preferred minus nibble		      */
-    #define DECPPLUSALT2 0x0E /* alternate plus	 nibble		      */
-    #define DECPUNSIGNED 0x0F /* alternate plus	 nibble (unsigned)    */
+    #define DECPPLUSALT  0x0A /* alternate plus  nibble 	      */
+    #define DECPMINUSALT 0x0B /* alternate minus nibble 	      */
+    #define DECPPLUS	 0x0C /* preferred plus  nibble 	      */
+    #define DECPMINUS	 0x0D /* preferred minus nibble 	      */
+    #define DECPPLUSALT2 0x0E /* alternate plus  nibble 	      */
+    #define DECPUNSIGNED 0x0F /* alternate plus  nibble (unsigned)    */
   #endif
 
   /* ---------------------------------------------------------------- */
@@ -97,6 +95,7 @@
   extern decQuad * decQuadFromBCD(decQuad *, int32_t, const uint8_t *, int32_t);
   extern decQuad * decQuadFromInt32(decQuad *, int32_t);
   extern decQuad * decQuadFromPacked(decQuad *, int32_t, const uint8_t *);
+  extern decQuad * decQuadFromPackedChecked(decQuad *, int32_t, const uint8_t *);
   extern decQuad * decQuadFromString(decQuad *, const char *, decContext *);
   extern decQuad * decQuadFromUInt32(decQuad *, uint32_t);
   extern int32_t   decQuadGetCoefficient(const decQuad *, uint8_t *);
@@ -180,7 +179,8 @@
 
   /* decNumber conversions; these are implemented as macros so as not  */
   /* to force a dependency on decimal128 and decNumber in decQuad.     */
+  /* decQuadFromNumber returns a decimal128 * to avoid warnings.       */
   #define decQuadToNumber(dq, dn) decimal128ToNumber((decimal128 *)(dq), dn)
-  #define decQuadFromNumber(dq, dn, set) (decQuad *)decimal128FromNumber((decimal128 *)(dq), dn, set)
+  #define decQuadFromNumber(dq, dn, set) decimal128FromNumber((decimal128 *)(dq), dn, set)
 
 #endif

@@ -2,30 +2,27 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---                      A D A . C O N T A I N E R S .                       --
---         I N D E F I N I T E _ O R D E R E D _ M U L T I S E T S          --
+--               ADA.CONTAINERS.INDEFINITE_ORDERED_MULTISETS                --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -41,7 +38,29 @@ pragma Elaborate_All (Ada.Containers.Red_Black_Trees.Generic_Keys);
 with Ada.Containers.Red_Black_Trees.Generic_Set_Operations;
 pragma Elaborate_All (Ada.Containers.Red_Black_Trees.Generic_Set_Operations);
 
+with System; use type System.Address;
+
 package body Ada.Containers.Indefinite_Ordered_Multisets is
+
+   type Iterator is new Limited_Controlled and
+     Set_Iterator_Interfaces.Reversible_Iterator with
+   record
+      Container : Set_Access;
+      Node      : Node_Access;
+   end record;
+
+   overriding procedure Finalize (Object : in out Iterator);
+
+   overriding function First (Object : Iterator) return Cursor;
+   overriding function Last  (Object : Iterator) return Cursor;
+
+   overriding function Next
+     (Object   : Iterator;
+      Position : Cursor) return Cursor;
+
+   overriding function Previous
+     (Object   : Iterator;
+      Position : Cursor) return Cursor;
 
    -----------------------------
    -- Node Access Subprograms --
@@ -301,13 +320,27 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       Adjust (Container.Tree);
    end Adjust;
 
+   ------------
+   -- Assign --
+   ------------
+
+   procedure Assign (Target : in out Set; Source : Set) is
+   begin
+      if Target'Address = Source'Address then
+         return;
+      end if;
+
+      Target.Clear;
+      Target.Union (Source);
+   end Assign;
+
    -------------
    -- Ceiling --
    -------------
 
    function Ceiling (Container : Set; Item : Element_Type) return Cursor is
       Node : constant Node_Access :=
-               Element_Keys.Ceiling (Container.Tree, Item);
+        Element_Keys.Ceiling (Container.Tree, Item);
 
    begin
       if Node = null then
@@ -346,6 +379,17 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
    begin
       return Find (Container, Item) /= No_Element;
    end Contains;
+
+   ----------
+   -- Copy --
+   ----------
+
+   function Copy (Source : Set) return Set is
+   begin
+      return Target : Set do
+         Target.Assign (Source);
+      end return;
+   end Copy;
 
    ---------------
    -- Copy_Node --
@@ -459,8 +503,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
    end Difference;
 
    function Difference (Left, Right : Set) return Set is
-      Tree : constant Tree_Type :=
-               Set_Ops.Difference (Left.Tree, Right.Tree);
+      Tree : constant Tree_Type := Set_Ops.Difference (Left.Tree, Right.Tree);
    begin
       return Set'(Controlled with Tree);
    end Difference;
@@ -557,8 +600,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
    ----------
 
    function Find (Container : Set; Item : Element_Type) return Cursor is
-      Node : constant Node_Access :=
-               Element_Keys.Find (Container.Tree, Item);
+      Node : constant Node_Access := Element_Keys.Find (Container.Tree, Item);
 
    begin
       if Node = null then
@@ -567,6 +609,17 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
 
       return Cursor'(Container'Unrestricted_Access, Node);
    end Find;
+
+   --------------
+   -- Finalize --
+   --------------
+
+   procedure Finalize (Object : in out Iterator) is
+      B : Natural renames Object.Container.Tree.Busy;
+      pragma Assert (B > 0);
+   begin
+      B := B - 1;
+   end Finalize;
 
    -----------
    -- First --
@@ -579,6 +632,28 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       end if;
 
       return Cursor'(Container'Unrestricted_Access, Container.Tree.First);
+   end First;
+
+   function First (Object : Iterator) return Cursor is
+   begin
+      --  The value of the iterator object's Node component influences the
+      --  behavior of the First (and Last) selector function.
+
+      --  When the Node component is null, this means the iterator object was
+      --  constructed without a start expression, in which case the (forward)
+      --  iteration starts from the (logical) beginning of the entire sequence
+      --  of items (corresponding to Container.First, for a forward iterator).
+
+      --  Otherwise, this is iteration over a partial sequence of items. When
+      --  the Node component is non-null, the iterator object was constructed
+      --  with a start expression, that specifies the position from which the
+      --  (forward) partial iteration begins.
+
+      if Object.Node = null then
+         return Object.Container.First;
+      else
+         return Cursor'(Object.Container, Object.Node);
+      end if;
    end First;
 
    -------------------
@@ -600,8 +675,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
    -----------
 
    function Floor (Container : Set; Item : Element_Type) return Cursor is
-      Node : constant Node_Access :=
-               Element_Keys.Floor (Container.Tree, Item);
+      Node : constant Node_Access := Element_Keys.Floor (Container.Tree, Item);
 
    begin
       if Node = null then
@@ -676,8 +750,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       -------------
 
       function Ceiling (Container : Set; Key : Key_Type) return Cursor is
-         Node : constant Node_Access :=
-                  Key_Keys.Ceiling (Container.Tree, Key);
+         Node : constant Node_Access := Key_Keys.Ceiling (Container.Tree, Key);
 
       begin
          if Node = null then
@@ -726,8 +799,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       -------------
 
       function Element (Container : Set; Key : Key_Type) return Element_Type is
-         Node : constant Node_Access :=
-                  Key_Keys.Find (Container.Tree, Key);
+         Node : constant Node_Access := Key_Keys.Find (Container.Tree, Key);
 
       begin
          if Node = null then
@@ -1090,6 +1162,12 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       --------------
 
       function New_Node return Node_Access is
+         --  The element allocator may need an accessibility check in the case
+         --  the actual type is class-wide or has access discriminants (see
+         --  RM 4.8(10.1) and AI12-0035).
+
+         pragma Unsuppress (Accessibility_Check);
+
          Element : Element_Access := new Element_Type'(New_Item);
 
       begin
@@ -1098,6 +1176,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
                                Right   => null,
                                Color   => Red_Black_Trees.Red,
                                Element => Element);
+
       exception
          when others =>
             Free_Element (Element);
@@ -1175,7 +1254,7 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
 
    function Intersection (Left, Right : Set) return Set is
       Tree : constant Tree_Type :=
-               Set_Ops.Intersection (Left.Tree, Right.Tree);
+        Set_Ops.Intersection (Left.Tree, Right.Tree);
    begin
       return Set'(Controlled with Tree);
    end Intersection;
@@ -1323,6 +1402,75 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       B := B - 1;
    end Iterate;
 
+   function Iterate (Container : Set)
+     return Set_Iterator_Interfaces.Reversible_Iterator'Class
+   is
+      S : constant Set_Access := Container'Unrestricted_Access;
+      B : Natural renames S.Tree.Busy;
+
+   begin
+      --  The value of the Node component influences the behavior of the First
+      --  and Last selector functions of the iterator object. When the Node
+      --  component is null (as is the case here), this means the iterator
+      --  object was constructed without a start expression. This is a complete
+      --  iterator, meaning that the iteration starts from the (logical)
+      --  beginning of the sequence of items.
+
+      --  Note: For a forward iterator, Container.First is the beginning, and
+      --  for a reverse iterator, Container.Last is the beginning.
+
+      return It : constant Iterator := (Limited_Controlled with S, null) do
+         B := B + 1;
+      end return;
+   end Iterate;
+
+   function Iterate (Container : Set; Start : Cursor)
+     return Set_Iterator_Interfaces.Reversible_Iterator'Class
+   is
+      S : constant Set_Access := Container'Unrestricted_Access;
+      B : Natural renames S.Tree.Busy;
+
+   begin
+      --  It was formerly the case that when Start = No_Element, the partial
+      --  iterator was defined to behave the same as for a complete iterator,
+      --  and iterate over the entire sequence of items. However, those
+      --  semantics were unintuitive and arguably error-prone (it is too easy
+      --  to accidentally create an endless loop), and so they were changed,
+      --  per the ARG meeting in Denver on 2011/11. However, there was no
+      --  consensus about what positive meaning this corner case should have,
+      --  and so it was decided to simply raise an exception. This does imply,
+      --  however, that it is not possible to use a partial iterator to specify
+      --  an empty sequence of items.
+
+      if Start = No_Element then
+         raise Constraint_Error with
+           "Start position for iterator equals No_Element";
+      end if;
+
+      if Start.Container /= Container'Unrestricted_Access then
+         raise Program_Error with
+           "Start cursor of Iterate designates wrong set";
+      end if;
+
+      pragma Assert (Vet (Container.Tree, Start.Node),
+                     "Start cursor of Iterate is bad");
+
+      --  The value of the Node component influences the behavior of the First
+      --  and Last selector functions of the iterator object. When the Node
+      --  component is non-null (as is the case here), it means that this is a
+      --  partial iteration, over a subset of the complete sequence of
+      --  items. The iterator object was constructed with a start expression,
+      --  indicating the position from which the iteration begins. Note that
+      --  the start position has the same value irrespective of whether this is
+      --  a forward or reverse iteration.
+
+      return It : constant Iterator :=
+                    (Limited_Controlled with S, Start.Node)
+      do
+         B := B + 1;
+      end return;
+   end Iterate;
+
    ----------
    -- Last --
    ----------
@@ -1334,6 +1482,28 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       end if;
 
       return Cursor'(Container'Unrestricted_Access, Container.Tree.Last);
+   end Last;
+
+   function Last (Object : Iterator) return Cursor is
+   begin
+      --  The value of the iterator object's Node component influences the
+      --  behavior of the Last (and First) selector function.
+
+      --  When the Node component is null, this means the iterator object was
+      --  constructed without a start expression, in which case the (reverse)
+      --  iteration starts from the (logical) beginning of the entire sequence
+      --  (corresponding to Container.Last, for a reverse iterator).
+
+      --  Otherwise, this is iteration over a partial sequence of items. When
+      --  the Node component is non-null, the iterator object was constructed
+      --  with a start expression, that specifies the position from which the
+      --  (reverse) partial iteration begins.
+
+      if Object.Node = null then
+         return Object.Container.Last;
+      else
+         return Cursor'(Object.Container, Object.Node);
+      end if;
    end Last;
 
    ------------------
@@ -1411,6 +1581,20 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       Position := Next (Position);
    end Next;
 
+   function Next (Object : Iterator; Position : Cursor) return Cursor is
+   begin
+      if Position.Container = null then
+         return No_Element;
+      end if;
+
+      if Position.Container /= Object.Container then
+         raise Program_Error with
+           "Position cursor of Next designates wrong set";
+      end if;
+
+      return Next (Position);
+   end Next;
+
    -------------
    -- Overlap --
    -------------
@@ -1458,6 +1642,20 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
    procedure Previous (Position : in out Cursor) is
    begin
       Position := Previous (Position);
+   end Previous;
+
+   function Previous (Object : Iterator; Position : Cursor) return Cursor is
+   begin
+      if Position.Container = null then
+         return No_Element;
+      end if;
+
+      if Position.Container /= Object.Container then
+         raise Program_Error with
+           "Position cursor of Previous designates wrong set";
+      end if;
+
+      return Previous (Position);
    end Previous;
 
    -------------------
@@ -1567,11 +1765,18 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
       else
          if Tree.Lock > 0 then
             raise Program_Error with
-              "attempt to tamper with cursors (set is locked)";
+              "attempt to tamper with elements (set is locked)";
          end if;
 
          declare
             X : Element_Access := Node.Element;
+
+            --  The element allocator may need an accessibility check in the
+            --  case the actual type is class-wide or has access discriminants
+            --  (see RM 4.8(10.1) and AI12-0035).
+
+            pragma Unsuppress (Accessibility_Check);
+
          begin
             Node.Element := new Element_Type'(Item);
             Free_Element (X);
@@ -1597,6 +1802,13 @@ package body Ada.Containers.Indefinite_Ordered_Multisets is
          --------------
 
          function New_Node return Node_Access is
+
+            --  The element allocator may need an accessibility check in the
+            --  case the actual type is class-wide or has access discriminants
+            --  (see RM 4.8(10.1) and AI12-0035).
+
+            pragma Unsuppress (Accessibility_Check);
+
          begin
             Node.Element := new Element_Type'(Item);  -- OK if fails
             Node.Color := Red_Black_Trees.Red;

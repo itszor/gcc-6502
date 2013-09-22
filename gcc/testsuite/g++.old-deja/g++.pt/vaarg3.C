@@ -14,13 +14,14 @@ void PrintArgs (Type somearg, ...)
 va_list argp;
 va_start (argp, somearg);
 Type value;
-value = va_arg (argp, Type); // { dg-error "" } cannot pass non-POD
+value = va_arg (argp, Type); // { dg-error "cannot receive" } cannot pass non-POD
 va_end (argp);
 }
 
 int main (void)
 {
 A dummy;
-PrintArgs (dummy, dummy); // { dg-error "" } cannot pass non-POD
+PrintArgs (dummy, dummy); // { dg-error "cannot pass" } cannot pass non-POD
+// { dg-message "required" "inst" { target *-*-* } 24 }
 return 0;
 }

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2003-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -38,11 +36,7 @@ pragma Compiler_Unit;
 pragma Warnings (On);
 
 with System.Standard_Library; use System.Standard_Library;
---  Used for Adafinal
-
 with System.Soft_Links;
---  Used for Task_Termination_Handler
---           Task_Termination_NT
 
 procedure Ada.Exceptions.Last_Chance_Handler
   (Except : Exception_Occurrence)
@@ -85,7 +79,7 @@ begin
    System.Soft_Links.Task_Termination_Handler :=
      System.Soft_Links.Task_Termination_NT'Access;
 
-   --  Let's shutdown the runtime now. The rest of the procedure needs to be
+   --  We shutdown the runtime now. The rest of the procedure needs to be
    --  careful not to use anything that would require runtime support. In
    --  particular, functions returning strings are banned since the sec stack
    --  is no longer functional. This is particularly important to note for the
@@ -99,11 +93,16 @@ begin
 
    System.Standard_Library.Adafinal;
 
+   --  Print a message only when exception traces are not active
+
+   if Exception_Trace /= RM_Convention then
+      null;
+
    --  Check for special case of raising _ABORT_SIGNAL, which is not
    --  really an exception at all. We recognize this by the fact that
    --  it is the only exception whose name starts with underscore.
 
-   if To_Ptr (Except.Id.Full_Name) (1) = '_' then
+   elsif To_Ptr (Except.Id.Full_Name) (1) = '_' then
       To_Stderr (Nline);
       To_Stderr ("Execution terminated by abort of environment task");
       To_Stderr (Nline);

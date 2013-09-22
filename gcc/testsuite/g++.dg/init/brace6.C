@@ -1,5 +1,5 @@
 /* PR c++/30759 */
-/* { dg-do "compile" } */
+/* { dg-do compile } */
 
 struct A {
    A(int) { }
@@ -18,8 +18,8 @@ int main()
 {
    int i = { 1 };
    int j = { 1, 2 }; /* { dg-error "requires one element" } */
-   A a = { 6 }; /* { dg-error "initializer for non" } */
-   B b = { 6 }; /* { dg-error "initializer for non" } */
+   A a = { 6 }; /* { dg-error "initialize" "" { target c++98 } } */
+   B b = { 6 }; /* { dg-error "" } */
    C c = { 6 }; /* { dg-error "too many initializers" } */
    D d = { 6 };
 }

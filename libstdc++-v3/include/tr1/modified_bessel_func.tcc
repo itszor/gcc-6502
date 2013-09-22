@@ -1,12 +1,11 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
-//
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file tr1/modified_bessel_func.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -54,16 +48,16 @@
 
 #include "special_function_util.h"
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
-
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /**
      *   @brief  Compute the modified Bessel functions @f$ I_\nu(x) @f$ and
@@ -83,7 +77,7 @@ namespace tr1
      */
     template <typename _Tp>
     void
-    __bessel_ik(const _Tp __nu, const _Tp __x,
+    __bessel_ik(_Tp __nu, _Tp __x,
                 _Tp & __Inu, _Tp & __Knu, _Tp & __Ipnu, _Tp & __Kpnu)
     {
       if (__x == _Tp(0))
@@ -138,7 +132,7 @@ namespace tr1
         }
       if (__i > __max_iter)
         std::__throw_runtime_error(__N("Argument x too large "
-                                       "in __bessel_jn; "
+                                       "in __bessel_ik; "
                                        "try asymptotic expansion."));
       _Tp __Inul = __fp_min;
       _Tp __Ipnul = __h * __Inul;
@@ -191,7 +185,7 @@ namespace tr1
             }
           if (__i > __max_iter)
             std::__throw_runtime_error(__N("Bessel k series failed to converge "
-                                           "in __bessel_jn."));
+                                           "in __bessel_ik."));
           __Kmu = __sum;
           __Knu1 = __sum1 * __xi2;
         }
@@ -227,7 +221,7 @@ namespace tr1
             }
           if (__i > __max_iter)
             std::__throw_runtime_error(__N("Steed's method failed "
-                                           "in __bessel_jn."));
+                                           "in __bessel_ik."));
           __h = __a1 * __h;
           __Kmu = std::sqrt(__numeric_constants<_Tp>::__pi() / (_Tp(2) * __x))
                 * std::exp(-__x) / __s;
@@ -267,7 +261,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __cyl_bessel_i(const _Tp __nu, const _Tp __x)
+    __cyl_bessel_i(_Tp __nu, _Tp __x)
     {
       if (__nu < _Tp(0) || __x < _Tp(0))
         std::__throw_domain_error(__N("Bad argument "
@@ -303,7 +297,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __cyl_bessel_k(const _Tp __nu, const _Tp __x)
+    __cyl_bessel_k(_Tp __nu, _Tp __x)
     {
       if (__nu < _Tp(0) || __x < _Tp(0))
         std::__throw_domain_error(__N("Bad argument "
@@ -337,7 +331,7 @@ namespace tr1
      */
     template <typename _Tp>
     void
-    __sph_bessel_ik(const unsigned int __n, const _Tp __x,
+    __sph_bessel_ik(unsigned int __n, _Tp __x,
                     _Tp & __i_n, _Tp & __k_n, _Tp & __ip_n, _Tp & __kp_n)
     {
       const _Tp __nu = _Tp(__n) + _Tp(0.5L);
@@ -372,8 +366,7 @@ namespace tr1
      */
     template <typename _Tp>
     void
-    __airy(const _Tp __x,
-           _Tp & __Ai, _Tp & __Bi, _Tp & __Aip, _Tp & __Bip)
+    __airy(_Tp __x, _Tp & __Ai, _Tp & __Bi, _Tp & __Aip, _Tp & __Bip)
     {
       const _Tp __absx = std::abs(__x);
       const _Tp __rootx = std::sqrt(__absx);
@@ -434,6 +427,7 @@ namespace tr1
       return;
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }

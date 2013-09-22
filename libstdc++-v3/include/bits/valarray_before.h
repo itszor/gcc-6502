@@ -1,12 +1,11 @@
 // The template and inlines for the -*- C++ -*- internal _Meta class.
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file valarray_before.h
+/** @file bits/valarray_before.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{valarray}
  */
 
 // Written by Gabriel Dos Reis <Gabriel.Dos-Reis@cmla.ens-cachan.fr>
@@ -42,7 +36,9 @@
 
 #include <bits/slice_array.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   //
   // Implementing a loosened valarray return value is tricky.
@@ -64,98 +60,98 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   //    2) efficiency -- object functions can be easily inlined
   //    3) be Koenig-lookup-friendly
 
-  struct __abs
+  struct _Abs
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return abs(__t); }
   };
 
-  struct __cos
+  struct _Cos
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return cos(__t); }
   };
 
-  struct __acos
+  struct _Acos
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return acos(__t); }
   };
 
-  struct __cosh
+  struct _Cosh
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return cosh(__t); }
   };
 
-  struct __sin
+  struct _Sin
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return sin(__t); }
   };
 
-  struct __asin
+  struct _Asin
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return asin(__t); }
   };
 
-  struct __sinh
+  struct _Sinh
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return sinh(__t); }
   };
 
-  struct __tan
+  struct _Tan
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return tan(__t); }
   };
 
-  struct __atan
+  struct _Atan
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return atan(__t); }
   };
 
-  struct __tanh
+  struct _Tanh
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return tanh(__t); }
   };
 
-  struct __exp
+  struct _Exp
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return exp(__t); }
   };
 
-  struct __log
+  struct _Log
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return log(__t); }
   };
 
-  struct __log10
+  struct _Log10
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
       { return log10(__t); }
   };
 
-  struct __sqrt
+  struct _Sqrt
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __t) const
@@ -274,7 +270,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   struct __logical_not
   {
     template<typename _Tp>
-      bool operator()(const _Tp& __x) const { return !__x; }
+      bool operator()(const _Tp& __x) const
+      { return !__x; }
   };
 
   struct __equal_to
@@ -320,14 +317,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   };
 
   // The few binary functions we miss.
-  struct __atan2
+  struct _Atan2
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __x, const _Tp& __y) const
       { return atan2(__x, __y); }
   };
 
-  struct __pow
+  struct _Pow
   {
     template<typename _Tp>
       _Tp operator()(const _Tp& __x, const _Tp& __y) const
@@ -730,6 +727,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       _SClos (_Array<_Tp> __a, const slice& __s) : _Base (__a, __s) {}
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _CPP_VALARRAY_BEFORE_H */

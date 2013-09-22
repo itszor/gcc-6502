@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -45,7 +43,7 @@
 --    described in RM 2.2 (13). Any of the characters FF, LF, CR or VT or any
 --    wide character that is a Line or Paragraph Separator acts as an end of
 --    logical line in this sense, and it is essentially irrelevant whether one
---    or more appears in sequence (since if sequence of such characters is
+--    or more appears in sequence (since if a sequence of such characters is
 --    regarded as separate ends of line, then the intervening logical lines
 --    are null in any case).
 
@@ -54,15 +52,13 @@
 --    significance, but they are significant for error reporting purposes,
 --    since errors are identified by line and column location.
 
---  In GNAT, a physical line is ended by any of the sequences LF, CR/LF, CR or
---  LF/CR. LF is used in typical Unix systems, CR/LF in DOS systems, and CR
---  alone in System 7. We don't know of any system using LF/CR, but it seems
---  reasonable to include this case for consistency. In addition, we recognize
---  any of these sequences in any of the operating systems, for better
---  behavior in treating foreign files (e.g. a Unix file with LF terminators
---  transferred to a DOS system). Finally, wide character codes in cagtegories
---  Separator, Line and Separator, Paragraph are considered to be physical
---  line terminators.
+--  In GNAT, a physical line is ended by any of the sequences LF, CR/LF, or
+--  CR. LF is used in typical Unix systems, CR/LF in DOS systems, and CR
+--  alone in System 7. In addition, we recognize any of these sequences in
+--  any of the operating systems, for better behavior in treating foreign
+--  files (e.g. a Unix file with LF terminators transferred to a DOS system).
+--  Finally, wide character codes in categories Separator, Line and Separator,
+--  Paragraph are considered to be physical line terminators.
 
 with Alloc;
 with Casing; use Casing;
@@ -86,6 +82,9 @@ package Sinput is
 
       Preproc);
       --  Source file with preprocessing commands to be preprocessed
+
+   type Instance_Id is new Nat;
+   No_Instance_Id : constant Instance_Id;
 
    ----------------------------
    -- Source License Control --
@@ -162,7 +161,7 @@ package Sinput is
 
    --  Note: fields marked read-only are set by Sinput or one of its child
    --  packages when a source file table entry is created, and cannot be
-   --  subsqently modified, or alternatively are set only by very special
+   --  subsequently modified, or alternatively are set only by very special
    --  circumstances, documented in the comments.
 
    --  File_Name : File_Name_Type (read-only)
@@ -202,6 +201,12 @@ package Sinput is
    --    Only processing in Sprint that generates this file is permitted to
    --    set this field.
 
+   --  Instance : Instance_Id (read-only)
+   --    For entries corresponding to a generic instantiation, unique
+   --    identifier denoting the full chain of nested instantiations. Set to
+   --    No_Instance_Id for the case of a normal, non-instantiation entry.
+   --    See below for details on the handling of generic instantiations.
+
    --  License : License_Type;
    --    License status of source file
 
@@ -236,7 +241,7 @@ package Sinput is
    --    later on in this spec for a description of the checksum algorithm.
 
    --  Last_Source_Line : Physical_Line_Number;
-   --    Physical line number of last source line. Whlie a file is being
+   --    Physical line number of last source line. While a file is being
    --    read, this refers to the last line scanned. Once a file has been
    --    completely scanned, it is the number of the last line in the file,
    --    and hence also gives the number of source lines in the file.
@@ -253,16 +258,16 @@ package Sinput is
    --    This value is used for formatting of error messages, and also is used
    --    in the detection of keywords misused as identifiers.
 
-   --  Instantiation : Source_Ptr;
-   --    Source file location of the instantiation if this source file entry
-   --    represents a generic instantiation. Set to No_Location for the case
-   --    of a normal non-instantiation entry. See section below for details.
+   --  Inlined_Call : Source_Ptr;
+   --    Source file location of the subprogram call if this source file entry
+   --    represents an inlined body. Set to No_Location otherwise.
    --    This field is read-only for clients.
 
    --  Inlined_Body : Boolean;
    --    This can only be set True if Instantiation has a value other than
    --    No_Location. If true it indicates that the instantiation is actually
    --    an instance of an inlined body.
+   --    ??? Redundant, always equal to (Inlined_Call /= No_Location)
 
    --  Template : Source_File_Index; (read-only)
    --    Source file index of the source file containing the template if this
@@ -293,7 +298,8 @@ package Sinput is
    function Full_Ref_Name     (S : SFI) return File_Name_Type;
    function Identifier_Casing (S : SFI) return Casing_Type;
    function Inlined_Body      (S : SFI) return Boolean;
-   function Instantiation     (S : SFI) return Source_Ptr;
+   function Inlined_Call      (S : SFI) return Source_Ptr;
+   function Instance          (S : SFI) return Instance_Id;
    function Keyword_Casing    (S : SFI) return Casing_Type;
    function Last_Source_Line  (S : SFI) return Physical_Line_Number;
    function License           (S : SFI) return License_Type;
@@ -412,23 +418,39 @@ package Sinput is
    --  to point to the same text, because of the virtual origin pointers used
    --  in the source table.
 
-   --  The Instantiation field of this source file index entry, usually set
-   --  to No_Source_File, instead contains the Sloc of the instantiation. In
-   --  the case of nested instantiations, this Sloc may itself refer to an
-   --  instantiation, so the complete chain can be traced.
+   --  The Instantiation_Id field of this source file index entry, set
+   --  to No_Instance_Id for normal entries, instead contains a value that
+   --  uniquely identifies a particular instantiation, and the associated
+   --  entry in the Instances table. The source location of the instantiation
+   --  can be retrieved using function Instantiation below. In the case of
+   --  nested instantiations, the Instances table can be used to trace the
+   --  complete chain of nested instantiations.
 
-   --  Two routines are used to build these special entries in the source
-   --  file table. Create_Instantiation_Source is first called to build
+   --  Two routines are used to build the special instance entries in the
+   --  source file table. Create_Instantiation_Source is first called to build
    --  the virtual source table entry for the instantiation, and then the
    --  Sloc values in the copy are adjusted using Adjust_Instantiation_Sloc.
    --  See child unit Sinput.L for details on these two routines.
+
+   generic
+      with procedure Process (Id : Instance_Id; Inst_Sloc : Source_Ptr);
+   procedure Iterate_On_Instances;
+   --  Execute Process for each entry in the instance table
+
+   function Instantiation (S : SFI) return Source_Ptr;
+   --  For a source file entry that represents an inlined body, source location
+   --  of the inlined call. Otherwise, for a source file entry that represents
+   --  a generic instantiation, source location of the instantiation. Returns
+   --  No_Location in all other cases.
 
    -----------------
    -- Global Data --
    -----------------
 
-   Current_Source_File : Source_File_Index;
-   --  Source_File table index of source file currently being scanned
+   Current_Source_File : Source_File_Index := No_Source_File;
+   --  Source_File table index of source file currently being scanned.
+   --  Initialized so that some tools (such as gprbuild) can be built with
+   --  -gnatVa and pragma Initialized_Scalars without problems.
 
    Current_Source_Unit : Unit_Number_Type;
    --  Unit number of source file currently being scanned. The special value
@@ -453,6 +475,75 @@ package Sinput is
                            Internal_Source'Unrestricted_Access;
    --  Pointer to internal source buffer
 
+   -----------------------------------------
+   -- Handling of Source Line Terminators --
+   -----------------------------------------
+
+   --  In this section we discuss in detail the issue of terminators used to
+   --  terminate source lines. The RM says that one or more format effectors
+   --  (other than horizontal tab) end a source line, and defines the set of
+   --  such format effectors, but does not talk about exactly how they are
+   --  represented in the source program (since in general the RM is not in
+   --  the business of specifying source program formats).
+
+   --  The type Types.Line_Terminator is defined as a subtype of Character
+   --  that includes CR/LF/VT/FF. The most common line enders in practice
+   --  are CR (some MAC systems), LF (Unix systems), and CR/LF (DOS/Windows
+   --  systems). Any of these sequences is recognized as ending a physical
+   --  source line, and if multiple such terminators appear (e.g. LF/LF),
+   --  then we consider we have an extra blank line.
+
+   --  VT and FF are recognized as terminating source lines, but they are
+   --  considered to end a logical line instead of a physical line, so that
+   --  the line numbering ignores such terminators. The use of VT and FF is
+   --  mandated by the standard, and correctly handled in a conforming manner
+   --  by GNAT, but their use is not recommended.
+
+   --  In addition to the set of characters defined by the type in Types, in
+   --  wide character encoding, then the codes returning True for a call to
+   --  System.UTF_32.Is_UTF_32_Line_Terminator are also recognized as ending a
+   --  source line. This includes the standard codes defined above in addition
+   --  to NEL (NEXT LINE), LINE SEPARATOR and PARAGRAPH SEPARATOR. Again, as in
+   --  the case of VT and FF, the standard requires we recognize these as line
+   --  terminators, but we consider them to be logical line terminators. The
+   --  only physical line terminators recognized are the standard ones (CR,
+   --  LF, or CR/LF).
+
+   --  However, we do not recognize the NEL (16#85#) character as having the
+   --  significance of an end of line character when operating in normal 8-bit
+   --  Latin-n input mode for the compiler. Instead the rule in this mode is
+   --  that all upper half control codes (16#80# .. 16#9F#) are illegal if they
+   --  occur in program text, and are ignored if they appear in comments.
+
+   --  First, note that this behavior is fully conforming with the standard.
+   --  The standard has nothing whatever to say about source representation
+   --  and implementations are completely free to make there own rules. In
+   --  this case, in 8-bit mode, GNAT decides that the 16#0085# character is
+   --  not a representation of the NEL character, even though it looks like it.
+   --  If you have NEL's in your program, which you expect to be treated as
+   --  end of line characters, you must use a wide character encoding such as
+   --  UTF-8 for this code to be recognized.
+
+   --  Second, an explanation of why we take this slightly surprising choice.
+   --  We have never encountered anyone actually using the NEL character to
+   --  end lines. One user raised the issue as a result of some experiments,
+   --  but no one has ever submitted a program encoded this way, in any of
+   --  the possible encodings. It seems that even when using wide character
+   --  codes extensively, the normal approach is to use standard line enders
+   --  (LF or CR/LF). So the failure to recognize NEL in this mode seems to
+   --  have no practical downside.
+
+   --  Moreover, what we have seen in a significant number of programs from
+   --  multiple sources is the practice of writing all program text in lower
+   --  half (ASCII) form, but using UTF-8 encoded wide characters freely in
+   --  comments, where the comments are terminated by normal line endings
+   --  (LF or CR/LF). The comments do not contain NEL codes, but they can and
+   --  do contain other UTF-8 encoding sequences where one of the bytes is the
+   --  NEL code. Now such programs can of course be compiled in UTF-8 mode,
+   --  but in practice they also compile fine in standard 8-bit mode without
+   --  specifying a character encoding. Since this is common practice, it would
+   --  be a signficant upwards incompatibility to recognize NEL in 8-bit mode.
+
    -----------------
    -- Subprograms --
    -----------------
@@ -465,13 +556,25 @@ package Sinput is
    --  that there definitely is a previous line in the source buffer.
 
    procedure Build_Location_String (Loc : Source_Ptr);
-   --  This function builds a string literal of the form "name:line",
-   --  where name is the file name corresponding to Loc, and line is
-   --  the line number. In the event that instantiations are involved,
-   --  additional suffixes of the same form are appended after the
-   --  separating string " instantiated at ". The returned string is
-   --  stored in Name_Buffer, terminated by ASCII.Nul, with Name_Length
-   --  indicating the length not including the terminating Nul.
+   --  This function builds a string literal of the form "name:line", where
+   --  name is the file name corresponding to Loc, and line is the line number.
+   --  In the event that instantiations are involved, additional suffixes of
+   --  the same form are appended after the separating string " instantiated at
+   --  ". The returned string is appended to the Name_Buffer, terminated by
+   --  ASCII.NUL, with Name_Length indicating the length not including the
+   --  terminating Nul.
+
+   function Build_Location_String (Loc : Source_Ptr) return String;
+   --  Functional form returning a string, which does not include a terminating
+   --  null character. The contents of Name_Buffer is destroyed.
+
+   procedure Check_For_BOM;
+   --  Check if the current source starts with a BOM. Scan_Ptr needs to be at
+   --  the start of the current source. If the current source starts with a
+   --  recognized BOM, then some flags such as Wide_Character_Encoding_Method
+   --  are set accordingly, and the Scan_Ptr on return points past this BOM.
+   --  An error message is output and Unrecoverable_Error raised if a non-
+   --  recognized BOM is detected. The call has no effect if no BOM is found.
 
    function Get_Column_Number (P : Source_Ptr) return Column_Number;
    --  The ones-origin column number of the specified Source_Ptr value is
@@ -488,6 +591,11 @@ package Sinput is
    --  reference pragma itself, then No_Line is returned. If no source
    --  reference pragmas have been encountered, the value returned is
    --  the same as the physical line number.
+
+   function Get_Logical_Line_Number_Img
+     (P : Source_Ptr) return String;
+   --  Same as above function, but returns the line number as a string of
+   --  decimal digits, with no leading space. Destroys Name_Buffer.
 
    function Get_Physical_Line_Number
      (P : Source_Ptr) return Physical_Line_Number;
@@ -517,7 +625,7 @@ package Sinput is
 
    function Num_Source_Lines (S : Source_File_Index) return Nat;
    --  Returns the number of source lines (this is equivalent to reading
-   --  the value of Last_Source_Line, but returns Nat rathern than a
+   --  the value of Last_Source_Line, but returns Nat rather than a
    --  physical line number.
 
    procedure Register_Source_Ref_Pragma
@@ -567,16 +675,24 @@ package Sinput is
       Physical : out Boolean);
    --  On entry, P points to a line terminator that has been encountered,
    --  which is one of FF,LF,VT,CR or a wide character sequence whose value is
-   --  in category Separator,Line or Separator,Paragraph. The purpose of this
-   --  P points just past the character that was scanned. The purpose of this
-   --  routine is to distinguish physical and logical line endings. A physical
-   --  line ending is one of:
+   --  in category Separator,Line or Separator,Paragraph. P points just past
+   --  the character that was scanned. The purpose of this routine is to
+   --  distinguish physical and logical line endings. A physical line ending
+   --  is one of:
    --
    --     CR on its own (MAC System 7)
    --     LF on its own (Unix and unix-like systems)
    --     CR/LF (DOS, Windows)
-   --     LF/CR (not used, but recognized in any case)
    --     Wide character in Separator,Line or Separator,Paragraph category
+   --
+   --     Note: we no longer recognize LF/CR (which we did in some earlier
+   --     versions of GNAT. The reason for this is that this sequence is not
+   --     used and recognizing it generated confusion. For example given the
+   --     sequence LF/CR/LF we were interpreting that as (LF/CR) ending the
+   --     first line and a blank line ending with CR following, but it is
+   --     clearly better to interpret this as LF, with a blank line terminated
+   --     by CR/LF, given that LF and CR/LF are both in common use, but no
+   --     system we know of uses LF/CR.
    --
    --  A logical line ending (that is not a physical line ending) is one of:
    --
@@ -588,6 +704,15 @@ package Sinput is
    --  physical end of line was encountered, in which case this routine also
    --  makes sure that the lines table for the current source file has an
    --  appropriate entry for the start of the new physical line.
+
+   procedure Sloc_Range (N : Node_Id; Min, Max : out Source_Ptr);
+   --  Given a node, returns the minimum and maximum source locations of any
+   --  node in the syntactic subtree for the node. This is not quite the same
+   --  as the locations of the first and last token in the node construct
+   --  because parentheses at the outer level do not have a recorded Sloc.
+   --
+   --  Note: if the tree for the expression contains no "real" Sloc values,
+   --  i.e. values > No_Location, then both Min and Max are set to Sloc (Expr).
 
    function Source_Offset (S : Source_Ptr) return Nat;
    --  Returns the zero-origin offset of the given source location from the
@@ -621,25 +746,37 @@ package Sinput is
 
 private
    pragma Inline (File_Name);
-   pragma Inline (First_Mapped_Line);
    pragma Inline (Full_File_Name);
-   pragma Inline (Identifier_Casing);
-   pragma Inline (Instantiation);
-   pragma Inline (Keyword_Casing);
-   pragma Inline (Last_Source_Line);
-   pragma Inline (Last_Source_File);
+   pragma Inline (File_Type);
+   pragma Inline (Reference_Name);
+   pragma Inline (Full_Ref_Name);
+   pragma Inline (Debug_Source_Name);
+   pragma Inline (Full_Debug_Name);
+   pragma Inline (Instance);
    pragma Inline (License);
    pragma Inline (Num_SRef_Pragmas);
-   pragma Inline (Num_Source_Files);
-   pragma Inline (Num_Source_Lines);
-   pragma Inline (Reference_Name);
-   pragma Inline (Set_Keyword_Casing);
-   pragma Inline (Set_Identifier_Casing);
+   pragma Inline (First_Mapped_Line);
+   pragma Inline (Source_Text);
    pragma Inline (Source_First);
    pragma Inline (Source_Last);
-   pragma Inline (Source_Text);
-   pragma Inline (Template);
    pragma Inline (Time_Stamp);
+   pragma Inline (Source_Checksum);
+   pragma Inline (Last_Source_Line);
+   pragma Inline (Keyword_Casing);
+   pragma Inline (Identifier_Casing);
+   pragma Inline (Inlined_Call);
+   pragma Inline (Inlined_Body);
+   pragma Inline (Template);
+   pragma Inline (Unit);
+
+   pragma Inline (Set_Keyword_Casing);
+   pragma Inline (Set_Identifier_Casing);
+
+   pragma Inline (Last_Source_File);
+   pragma Inline (Num_Source_Files);
+   pragma Inline (Num_Source_Lines);
+
+   No_Instance_Id : constant Instance_Id := 0;
 
    -------------------------
    -- Source_Lines Tables --
@@ -680,6 +817,7 @@ private
       Full_Debug_Name   : File_Name_Type;
       Full_File_Name    : File_Name_Type;
       Full_Ref_Name     : File_Name_Type;
+      Instance          : Instance_Id;
       Num_SRef_Pragmas  : Nat;
       First_Mapped_Line : Logical_Line_Number;
       Source_Text       : Source_Buffer_Ptr;
@@ -687,11 +825,11 @@ private
       Source_Last       : Source_Ptr;
       Source_Checksum   : Word;
       Last_Source_Line  : Physical_Line_Number;
-      Instantiation     : Source_Ptr;
       Template          : Source_File_Index;
       Unit              : Unit_Number_Type;
       Time_Stamp        : Time_Stamp_Type;
       File_Type         : Type_Of_File;
+      Inlined_Call      : Source_Ptr;
       Inlined_Body      : Boolean;
       License           : License_Type;
       Keyword_Casing    : Casing_Type;
@@ -703,7 +841,7 @@ private
       Sloc_Adjust : Source_Ptr;
       --  A value to be added to Sloc values for this file to reference the
       --  corresponding lines table. This is zero for the non-instantiation
-      --  case, and set so that the adition references the ultimate template
+      --  case, and set so that the addition references the ultimate template
       --  for the instantiation case. See Sinput-L for further details.
 
       Lines_Table : Lines_Table_Ptr;
@@ -738,17 +876,18 @@ private
       Full_Debug_Name     at 12 range 0 .. 31;
       Full_File_Name      at 16 range 0 .. 31;
       Full_Ref_Name       at 20 range 0 .. 31;
+      Instance            at 48 range 0 .. 31;
       Num_SRef_Pragmas    at 24 range 0 .. 31;
       First_Mapped_Line   at 28 range 0 .. 31;
       Source_First        at 32 range 0 .. 31;
       Source_Last         at 36 range 0 .. 31;
       Source_Checksum     at 40 range 0 .. 31;
       Last_Source_Line    at 44 range 0 .. 31;
-      Instantiation       at 48 range 0 .. 31;
       Template            at 52 range 0 .. 31;
       Unit                at 56 range 0 .. 31;
       Time_Stamp          at 60 range 0 .. 8 * Time_Stamp_Length - 1;
       File_Type           at 74 range 0 .. 7;
+      Inlined_Call        at 88 range 0 .. 31;
       Inlined_Body        at 75 range 0 .. 7;
       License             at 76 range 0 .. 7;
       Keyword_Casing      at 77 range 0 .. 7;
@@ -759,12 +898,12 @@ private
       --  The following fields are pointers, so we have to specialize their
       --  lengths using pointer size, obtained above as Standard'Address_Size.
 
-      Source_Text         at 88 range 0      .. AS - 1;
-      Lines_Table         at 88 range AS     .. AS * 2 - 1;
-      Logical_Lines_Table at 88 range AS * 2 .. AS * 3 - 1;
+      Source_Text         at 92 range 0      .. AS - 1;
+      Lines_Table         at 92 range AS     .. AS * 2 - 1;
+      Logical_Lines_Table at 92 range AS * 2 .. AS * 3 - 1;
    end record;
 
-   for Source_File_Record'Size use 88 * 8 + AS * 3;
+   for Source_File_Record'Size use 92 * 8 + AS * 3;
    --  This ensures that we did not leave out any fields
 
    package Source_File is new Table.Table (
@@ -774,6 +913,17 @@ private
      Table_Initial        => Alloc.Source_File_Initial,
      Table_Increment      => Alloc.Source_File_Increment,
      Table_Name           => "Source_File");
+
+   --  Auxiliary table containing source location of instantiations. Index 0
+   --  is used for code that does not come from an instance.
+
+   package Instances is new Table.Table (
+     Table_Component_Type => Source_Ptr,
+     Table_Index_Type     => Instance_Id,
+     Table_Low_Bound      => 0,
+     Table_Initial        => Alloc.Source_File_Initial,
+     Table_Increment      => Alloc.Source_File_Increment,
+     Table_Name           => "Instances");
 
    -----------------
    -- Subprograms --

@@ -1,6 +1,6 @@
 // jni.cc - JNI implementation, including the jump table.
 
-/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008
    Free Software Foundation
 
    This file is part of libgcj.
@@ -1332,6 +1332,9 @@ _Jv_JNI_NewStringUTF (JNIEnv *env, const char *bytes)
 {
   try
     {
+      // For compatibility with the JDK.
+      if (!bytes)
+	return NULL;
       jstring result = JvNewStringUTF (bytes);
       return (jstring) wrap_value (env, result);
     }
@@ -1802,6 +1805,13 @@ _Jv_JNI_GetDirectBufferCapacity (JNIEnv *, jobject buffer)
   return tmp->capacity();
 }
 
+static jobjectRefType JNICALL
+_Jv_JNI_GetObjectRefType (JNIEnv *, MAYBE_UNUSED jobject object)
+{
+  JvFail("GetObjectRefType not implemented");
+  return JNIInvalidRefType;
+}
+
 
 
 struct NativeMethodCacheEntry : public JNINativeMethod
@@ -2108,7 +2118,7 @@ _Jv_GetJNIEnvNewFrameWithLoader (::java::lang::ClassLoader *loader)
   if (__builtin_expect (env == NULL, false))
     {
       env = (JNIEnv *) _Jv_MallocUnchecked (sizeof (JNIEnv));
-      env->p = &_Jv_JNIFunctions;
+      env->functions = &_Jv_JNIFunctions;
       env->locals = NULL;
       // We set env->ex below.
 
@@ -2418,7 +2428,7 @@ _Jv_JNI_AttachCurrentThread (JavaVM *, jstring name, void **penv,
   env = (JNIEnv *) _Jv_MallocUnchecked (sizeof (JNIEnv));
   if (env == NULL)
     return JNI_ERR;
-  env->p = &_Jv_JNIFunctions;
+  env->functions = &_Jv_JNIFunctions;
   env->ex = NULL;
   env->bottom_locals
     = (_Jv_JNI_LocalFrame *) _Jv_MallocUnchecked (sizeof (_Jv_JNI_LocalFrame)
@@ -2875,7 +2885,9 @@ struct JNINativeInterface_ _Jv_JNIFunctions =
 
   _Jv_JNI_NewDirectByteBuffer,		    // NewDirectByteBuffer
   _Jv_JNI_GetDirectBufferAddress,	    // GetDirectBufferAddress
-  _Jv_JNI_GetDirectBufferCapacity	    // GetDirectBufferCapacity
+  _Jv_JNI_GetDirectBufferCapacity,	    // GetDirectBufferCapacity
+
+  _Jv_JNI_GetObjectRefType		    // GetObjectRefType
 };
 
 struct JNIInvokeInterface_ _Jv_JNI_InvokeFunctions =

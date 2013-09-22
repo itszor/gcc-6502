@@ -1,13 +1,12 @@
 # Process this file with autoconf to produce a configure script.
-#   Copyright 1994, 1995, 1996, 1997, 1998, 1999, 2001, 2002, 2003, 2004
-#   2005, 2006 Free Software Foundation, Inc.
+#   Copyright (C) 1994-2013 Free Software Foundation, Inc.
 #   Originally contributed by Dave Love (d.love@dl.ac.uk).
 #
 #This file is part of GCC.
 #
 #GCC is free software; you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
-#the Free Software Foundation; either version 2, or (at your option)
+#the Free Software Foundation; either version 3, or (at your option)
 #any later version.
 #
 #GCC is distributed in the hope that it will be useful,
@@ -16,11 +15,10 @@
 #GNU General Public License for more details.
 #
 #You should have received a copy of the GNU General Public License
-#along with GCC; see the file COPYING.  If not, write to
-#the Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-#02110-1301, USA.
+#along with GCC; see the file COPYING3.  If not see
+#<http://www.gnu.org/licenses/>.
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 AC_INIT(package-unused, version-unused,, libobjc)
 AC_CONFIG_SRCDIR([objc/objc.h])
 GCC_TOPLEV_SUBDIRS
@@ -28,7 +26,7 @@ GCC_TOPLEV_SUBDIRS
 # We need the following definitions because AC_PROG_LIBTOOL relies on them
 PACKAGE=libobjc
 # Version is pulled out to make it a bit easier to change using sed.
-VERSION=2:0:0
+VERSION=4:0:0
 AC_SUBST(VERSION)
 
 # This works around the fact that libtool configuration may change LD
@@ -64,15 +62,18 @@ AC_ARG_ENABLE(objc-gc,
                           the GNU Objective-C runtime.],
 [case $enable_objc_gc in
   no)
+    OBJC_GCFLAGS=''
     OBJC_BOEHM_GC=''
     OBJC_BOEHM_GC_INCLUDES=''
     ;;
   *)
-    OBJC_BOEHM_GC=libobjc_gc.la
+    OBJC_GCFLAGS='-DOBJC_WITH_GC=1'
+    OBJC_BOEHM_GC='libobjc_gc$(libsuffix).la'
     OBJC_BOEHM_GC_INCLUDES='-I$(top_srcdir)/../boehm-gc/include -I../boehm-gc/include'
     ;;
 esac],
-[OBJC_BOEHM_GC=''; OBJC_BOEHM_GC_INCLUDES=''])
+[OBJC_GCFLAGS=''; OBJC_BOEHM_GC=''; OBJC_BOEHM_GC_INCLUDES=''])
+AC_SUBST(OBJC_GCFLAGS)
 AC_SUBST(OBJC_BOEHM_GC)
 AC_SUBST(OBJC_BOEHM_GC_INCLUDES)
 
@@ -154,13 +155,18 @@ GCC_NO_EXECUTABLES
 m4_rename([_AC_ARG_VAR_PRECIOUS],[real_PRECIOUS])
 m4_define([_AC_ARG_VAR_PRECIOUS],[])
 AC_PROG_CC
-m4_rename([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
+m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 # extra LD Flags which are required for targets
+ACX_LT_HOST_FLAGS
 case "${host}" in
   *-darwin*)
     # Darwin needs -single_module when linking libobjc
-    extra_ldflags_libobjc=-Wl,-single_module
+    extra_ldflags_libobjc='$(lt_host_flags) -Wl,-single_module'
+    ;;
+  *-cygwin*|*-mingw*)
+    # Tell libtool to build DLLs on Windows
+    extra_ldflags_libobjc='$(lt_host_flags)'
     ;;
 esac
 AC_SUBST(extra_ldflags_libobjc)
@@ -203,15 +209,8 @@ AC_CHECK_HEADERS(sched.h)
 # Miscellanea
 # -----------
 
-AC_MSG_CHECKING([for thread model used by GCC])
-target_thread_file=`$CC -v 2>&1 | sed -n 's/^Thread model: //p'`
-AC_MSG_RESULT([$target_thread_file]) 
-
-if test $target_thread_file != single; then
-  AC_DEFINE(HAVE_GTHR_DEFAULT, 1,
-        [Define if the compiler has a thread header that is non single.])
-fi 
-
+# Check if we have thread-local storage
+GCC_CHECK_TLS
 
 AC_MSG_CHECKING([for exception model to use])
 AC_LANG_PUSH(C)

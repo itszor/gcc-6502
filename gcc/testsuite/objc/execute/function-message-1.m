@@ -1,6 +1,6 @@
-#include <objc/Object.h>
+#include "../../objc-obj-c++-shared/TestsuiteObject.m"
 
-@interface Foo : Object
+@interface Foo : TestsuiteObject
 + bar;
 @end
 

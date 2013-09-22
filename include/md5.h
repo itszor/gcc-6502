@@ -40,6 +40,11 @@
 # include <sys/types.h>
 typedef u_int32_t md5_uint32;
 typedef uintptr_t md5_uintptr;
+#elif defined (HAVE_SYS_TYPES_H) && defined (HAVE_STDINT_H)
+#include <stdint.h>
+#include <sys/types.h>
+typedef uint32_t md5_uint32;
+typedef uintptr_t md5_uintptr;
 #else
 #  define INT_MAX_32_BITS 2147483647
 
@@ -70,6 +75,10 @@ typedef uintptr_t md5_uintptr;
 /* We have to make a guess about the integer type equivalent in size
    to pointers which should always be correct.  */
 typedef unsigned long int md5_uintptr;
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* Structure to save state of computation between the single steps.  */
@@ -137,5 +146,9 @@ extern int md5_stream (FILE *stream, void *resblock);
    output yields to the wanted ASCII representation of the message
    digest.  */
 extern void *md5_buffer (const char *buffer, size_t len, void *resblock);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

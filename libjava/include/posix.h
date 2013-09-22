@@ -1,6 +1,6 @@
 // posix.h -- Helper functions for POSIX-flavored OSs.
 
-/* Copyright (C) 2000, 2002, 2003, 2006  Free Software Foundation
+/* Copyright (C) 2000, 2002, 2003, 2006, 2010, 2012  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -10,11 +10,6 @@ details.  */
 
 #ifndef __JV_POSIX_H__
 #define __JV_POSIX_H__
-
-/* Required on Tru64 UNIX V4/V5 so <sys/socket.h> defines prototypes of
-   socket functions with socklen_t instead of size_t.  This must be defined
-   early so <standards.h> defines the correct version of __PIIX.  */
-#define _POSIX_PII_SOCKET
 
 #include <time.h>
 #include <sys/types.h>
@@ -54,6 +49,11 @@ details.  */
 #define _Jv_platform_solib_suffix ".sl"
 #else
 #define _Jv_platform_solib_suffix ".so"
+#endif
+
+#if __MACH__ && (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 1060)
+#  undef _Unwind_FindEnclosingFunction
+#  define _Unwind_FindEnclosingFunction(PC) _darwin10_Unwind_FindEnclosingFunction(PC)
 #endif
 
 // Some POSIX systems don't have O_SYNC and O_DYSNC so we define them here.
@@ -149,15 +149,6 @@ _Jv_bind (int fd, struct sockaddr *addr, int addrlen)
 }
 
 #undef bind
-
-// Same problem with accept on Tru64 UNIX with _POSIX_PII_SOCKET
-inline int
-_Jv_accept (int fd, struct sockaddr *addr, socklen_t *addrlen)
-{
-  return ::accept (fd, addr, addrlen);
-}
-
-#undef accept
 
 inline int
 _Jv_listen (int fd, int backlog)

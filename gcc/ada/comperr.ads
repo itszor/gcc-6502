@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -33,6 +33,7 @@ package Comperr is
      (X            : String;
       Code         : Integer := 0;
       Fallback_Loc : String := "");
+   pragma No_Return (Compiler_Abort);
    --  Signals an internal compiler error. Never returns control. Depending on
    --  processing may end up raising Unrecoverable_Error, or exiting directly.
    --  The message output is a "bug box" containing the first string passed as
@@ -49,6 +50,9 @@ package Comperr is
    --  for a gigi abort (giving the gigi abort code), zero for a front
    --  end exception (with possible message stored in TSD.Current_Excep,
    --  and negative (an unused value) for a GCC abort.
+
+   procedure Delete_SCIL_Files;
+   --  Delete SCIL files associated with the main unit
 
    ------------------------------
    -- Use of gnat_bug.box File --

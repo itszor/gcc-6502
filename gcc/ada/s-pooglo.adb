@@ -6,32 +6,30 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2006, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with System.Storage_Pools;    use System.Storage_Pools;
+with System.Storage_Pools; use System.Storage_Pools;
 with System.Memory;
 
 package body System.Pool_Global is
@@ -42,19 +40,25 @@ package body System.Pool_Global is
    -- Allocate --
    --------------
 
-   procedure Allocate
+   overriding procedure Allocate
      (Pool         : in out Unbounded_No_Reclaim_Pool;
       Address      : out System.Address;
       Storage_Size : SSE.Storage_Count;
       Alignment    : SSE.Storage_Count)
    is
+      use SSE;
       pragma Warnings (Off, Pool);
-      pragma Warnings (Off, Alignment);
 
-      Allocated : System.Address;
+      Aligned_Size    : Storage_Count := Storage_Size;
+      Aligned_Address : System.Address;
+      Allocated       : System.Address;
 
    begin
-      Allocated := Memory.Alloc (Memory.size_t (Storage_Size));
+      if Alignment > Standard'System_Allocator_Alignment then
+         Aligned_Size := Aligned_Size + Alignment;
+      end if;
+
+      Allocated := Memory.Alloc (Memory.size_t (Aligned_Size));
 
       --  The call to Alloc returns an address whose alignment is compatible
       --  with the worst case alignment requirement for the machine; thus the
@@ -62,6 +66,33 @@ package body System.Pool_Global is
 
       if Allocated = Null_Address then
          raise Storage_Error;
+      end if;
+
+      --  Case where alignment requested is greater than the alignment that is
+      --  guaranteed to be provided by the system allocator.
+
+      if Alignment > Standard'System_Allocator_Alignment then
+
+         --  Realign the returned address
+
+         Aligned_Address := To_Address
+           (To_Integer (Allocated) + Integer_Address (Alignment)
+              - (To_Integer (Allocated) mod Integer_Address (Alignment)));
+
+         --  Save the block address
+
+         declare
+            Saved_Address : System.Address;
+            pragma Import (Ada, Saved_Address);
+            for Saved_Address'Address use
+               Aligned_Address
+               - Storage_Offset (System.Address'Size / Storage_Unit);
+         begin
+            Saved_Address := Allocated;
+         end;
+
+         Address := Aligned_Address;
+
       else
          Address := Allocated;
       end if;
@@ -71,25 +102,44 @@ package body System.Pool_Global is
    -- Deallocate --
    ----------------
 
-   procedure Deallocate
+   overriding procedure Deallocate
      (Pool         : in out Unbounded_No_Reclaim_Pool;
       Address      : System.Address;
       Storage_Size : SSE.Storage_Count;
       Alignment    : SSE.Storage_Count)
    is
+      use System.Storage_Elements;
       pragma Warnings (Off, Pool);
       pragma Warnings (Off, Storage_Size);
-      pragma Warnings (Off, Alignment);
 
    begin
-      Memory.Free (Address);
+      --  Case where the alignment of the block exceeds the guaranteed
+      --  alignment required by the system storage allocator, meaning that
+      --  this was specially wrapped at allocation time.
+
+      if Alignment > Standard'System_Allocator_Alignment then
+
+         --  Retrieve the block address
+
+         declare
+            Saved_Address : System.Address;
+            pragma Import (Ada, Saved_Address);
+            for Saved_Address'Address use
+              Address - Storage_Offset (System.Address'Size / Storage_Unit);
+         begin
+            Memory.Free (Saved_Address);
+         end;
+
+      else
+         Memory.Free (Address);
+      end if;
    end Deallocate;
 
    ------------------
    -- Storage_Size --
    ------------------
 
-   function Storage_Size
+   overriding function Storage_Size
      (Pool  : Unbounded_No_Reclaim_Pool)
       return  SSE.Storage_Count
    is

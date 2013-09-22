@@ -38,6 +38,7 @@ exception statement from your version. */
 
 package gnu.java.awt.peer.gtk;
 
+import gnu.classpath.Configuration;
 import gnu.java.awt.ClasspathGraphicsEnvironment;
 
 import java.awt.Font;
@@ -57,9 +58,9 @@ import gnu.classpath.Pointer;
 public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
 {
   private final int native_state = GtkGenericPeer.getUniqueInteger ();
-  
+
   private GdkScreenGraphicsDevice defaultDevice;
-  
+
   private GdkScreenGraphicsDevice[] devices;
 
   /**
@@ -72,19 +73,22 @@ public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
 
   static
   {
-    System.loadLibrary("gtkpeer");
+    if (true) // GCJ LOCAL
+      {
+        System.loadLibrary("gtkpeer");
+      }
 
     GtkToolkit.initializeGlobalIDs();
     initIDs();
   }
-  
+
   private static native void initIDs();
-  
+
   public GdkGraphicsEnvironment ()
   {
     nativeInitState();
   }
-  
+
   native void nativeInitState();
 
   public GraphicsDevice[] getScreenDevices ()
@@ -93,17 +97,17 @@ public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
       {
         devices = nativeGetScreenDevices();
       }
-    
+
     return (GraphicsDevice[]) devices.clone();
   }
-  
+
   private native GdkScreenGraphicsDevice[] nativeGetScreenDevices();
 
   public GraphicsDevice getDefaultScreenDevice ()
   {
     if (GraphicsEnvironment.isHeadless ())
       throw new HeadlessException ();
-    
+
     synchronized (GdkGraphicsEnvironment.class)
       {
         if (defaultDevice == null)
@@ -111,10 +115,10 @@ public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
             defaultDevice = nativeGetDefaultScreenDevice();
           }
       }
-    
+
     return defaultDevice;
   }
-  
+
   private native GdkScreenGraphicsDevice nativeGetDefaultScreenDevice();
 
   public Graphics2D createGraphics (BufferedImage image)
@@ -125,7 +129,7 @@ public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
 
     return new BufferedImageGraphics( image );
   }
-  
+
   private native int nativeGetNumFontFamilies();
   private native void nativeGetFontFamilies(String[] family_names);
 
@@ -153,10 +157,10 @@ public class GdkGraphicsEnvironment extends ClasspathGraphicsEnvironment
 
   /**
    * Used by GtkMouseInfoPeer.
-   */ 
+   */
   native int[] getMouseCoordinates();
   native boolean isWindowUnderMouse(GtkWindowPeer windowPeer);
-  
+
   public WritableRaster createRaster(ColorModel cm, SampleModel sm)
   {
     if (CairoSurface.isCompatibleSampleModel(sm)

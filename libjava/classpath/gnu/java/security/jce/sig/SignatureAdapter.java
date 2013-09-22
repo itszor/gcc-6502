@@ -1,5 +1,5 @@
-/* SignatureAdapter.java -- 
-   Copyright 2001, 2002, 2006 Free Software Foundation, Inc.
+/* SignatureAdapter.java --
+   Copyright 2001, 2002, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -75,7 +75,8 @@ class SignatureAdapter
     extends SignatureSpi
     implements Cloneable
 {
-  private static final Logger log = Logger.getLogger(SignatureAdapter.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(SignatureAdapter.class.getName()) : null;
 
   /** Our underlying signature instance. */
   private ISignature adaptee;
@@ -85,7 +86,7 @@ class SignatureAdapter
 
   /**
    * Trivial protected constructor.
-   * 
+   *
    * @param sigName the canonical name of the signature scheme.
    * @param codec the signature codec engine to use with this scheme.
    */
@@ -96,7 +97,7 @@ class SignatureAdapter
 
   /**
    * Private constructor for cloning purposes.
-   * 
+   *
    * @param adaptee a clone of the underlying signature scheme instance.
    * @param codec the signature codec engine to use with this scheme.
    */

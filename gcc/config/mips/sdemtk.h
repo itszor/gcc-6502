@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler.
    MIPS SDE version, for use with the SDE C library rather than newlib.
-   Copyright (C) 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -35,10 +34,7 @@ along with GCC; see the file COPYING3.  If not see
 	builtin_define ("__mipsfp64");			\
 							\
       if (TARGET_NO_FLOAT) 				\
-	{						\
-	  builtin_define ("__NO_FLOAT");		\
-	  builtin_define ("__mips_no_float");		\
-	}						\
+	builtin_define ("__NO_FLOAT");			\
       else if (TARGET_SOFT_FLOAT_ABI)			\
 	builtin_define ("__SOFT_FLOAT");		\
       else if (TARGET_SINGLE_FLOAT)			\
@@ -53,18 +49,6 @@ along with GCC; see the file COPYING3.  If not see
         {						\
 	  builtin_assert ("endian=little");		\
 	  builtin_assert ("cpu=mipsel");		\
-	}						\
-    }							\
-  while (0)
-
-#undef SUBTARGET_OVERRIDE_OPTIONS
-#define SUBTARGET_OVERRIDE_OPTIONS			\
-  do							\
-    {							\
-      if (TARGET_NO_FLOAT)				\
-	{						\
-	  target_flags |= MASK_SOFT_FLOAT_ABI;		\
-	  target_flags_explicit |= MASK_SOFT_FLOAT_ABI;	\
 	}						\
     }							\
   while (0)
@@ -86,22 +70,33 @@ extern void mips_sync_icache (void *beg, unsigned long len);
 #undef MIPS_ICACHE_SYNC
 #define MIPS_ICACHE_SYNC(ADDR, SIZE)					\
   emit_library_call (gen_rtx_SYMBOL_REF (Pmode, mips_cache_flush_func),	\
-		     0, VOIDmode, 2, ADDR, Pmode,			\
+		     LCT_NORMAL, VOIDmode, 2, ADDR, Pmode,		\
 		     SIZE, TYPE_MODE (sizetype))
 
 /* This version of _mcount does not pop 2 words from the stack.  */
 #undef FUNCTION_PROFILER
 #define FUNCTION_PROFILER(FILE, LABELNO)				\
   {									\
-    fprintf (FILE, "\t.set\tnoat\n");					\
+    mips_push_asm_switch (&mips_noat);					\
+    /* _mcount treats $2 as the static chain register.  */		\
+    if (cfun->static_chain_decl != NULL)				\
+      fprintf (FILE, "\tmove\t%s,%s\n", reg_names[2],			\
+	       reg_names[STATIC_CHAIN_REGNUM]);				\
     /* MIPS16 code passes saved $ra in $v1 instead of $at.  */		\
     fprintf (FILE, "\tmove\t%s,%s\n",					\
 	     reg_names[GP_REG_FIRST + (TARGET_MIPS16 ? 3 : 1)],		\
-	     reg_names[GP_REG_FIRST + 31]);				\
+	     reg_names[RETURN_ADDR_REGNUM]);				\
     fprintf (FILE, "\tjal\t_mcount\n");					\
-    fprintf (FILE, "\t.set\tat\n");					\
+    mips_pop_asm_switch (&mips_noat);					\
+    /* _mcount treats $2 as the static chain register.  */		\
+    if (cfun->static_chain_decl != NULL)				\
+      fprintf (FILE, "\tmove\t%s,%s\n", reg_names[STATIC_CHAIN_REGNUM],	\
+	       reg_names[2]);						\
   }
 
 /* ...nor does the call sequence preserve $31.  */
 #undef MIPS_SAVE_REG_FOR_PROFILING_P
-#define MIPS_SAVE_REG_FOR_PROFILING_P(REGNO) ((REGNO) == GP_REG_FIRST + 31)
+#define MIPS_SAVE_REG_FOR_PROFILING_P(REGNO) ((REGNO) == RETURN_ADDR_REGNUM)
+
+/* Compile in support for the -mno-float option.  */
+#define TARGET_SUPPORTS_NO_FLOAT 1

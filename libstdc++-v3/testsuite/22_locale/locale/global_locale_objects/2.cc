@@ -1,13 +1,14 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "en_PH" }
+// { dg-require-namedlocale "es_MX" }
 
 // 2000-09-13 Benjamin Kosnik <bkoz@redhat.com>
 
-// Copyright (C) 2000, 2002, 2003, 2005 Free Software Foundation
+// Copyright (C) 2000-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -16,9 +17,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.1.1.5 locale static members [lib.locale.statics]
 
@@ -34,7 +34,7 @@ void test02()
   
   const string ph("en_PH");
   const string mx("es_MX");
-  const char* orig = setlocale(LC_ALL, NULL);
+  const char* orig = setlocale(LC_ALL, 0);
   const char* testph = setlocale(LC_ALL, ph.c_str());
   const char* testmx = setlocale(LC_ALL, mx.c_str());
   setlocale(LC_ALL, orig);
@@ -55,7 +55,7 @@ void test02()
       
       // Change global locale.
       locale global_orig = locale::global(loc_mx);
-      const char* lc_all_mx = setlocale(LC_ALL, NULL);
+      const char* lc_all_mx = setlocale(LC_ALL, 0);
       if (lc_all_mx)
 	{
 	  VERIFY( mx == lc_all_mx );

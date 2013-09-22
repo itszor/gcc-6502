@@ -1,5 +1,5 @@
 /* GnuKeyring.java -- KeyStore adapter for a pair of private and public Keyrings
-   Copyright (C) 2003, 2006  Free Software Foundation, Inc.
+   Copyright (C) 2003, 2006, 2010  Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -77,7 +77,8 @@ import javax.crypto.SecretKey;
 public class GnuKeyring
     extends KeyStoreSpi
 {
-  private static final Logger log = Logger.getLogger(GnuKeyring.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(GnuKeyring.class.getName()) : null;
   private static final String NOT_LOADED = "not loaded";
 
   /** TRUE if the keystore is loaded; FALSE otherwise. */
@@ -263,7 +264,7 @@ public class GnuKeyring
           result = privateKR.getPublicKey(alias);
       }
     else if (privateKR.containsPrivateKey(alias))
-      result = privateKR.getPrivateKey(alias, password); 
+      result = privateKR.getPrivateKey(alias, password);
 
     if (Configuration.DEBUG)
       log.exiting(this.getClass().getName(), "engineGetKey",
@@ -400,7 +401,7 @@ public class GnuKeyring
 
   /**
    * Load the private keyring from the designated input stream.
-   * 
+   *
    * @param in the input stream to process.
    * @param password the password protecting the keyring.
    * @throws MalformedKeyringException if the keyring is not a private one.
@@ -433,7 +434,7 @@ public class GnuKeyring
 
   /**
    * Load the public keyring from the designated input stream.
-   * 
+   *
    * @param in the input stream to process.
    * @param password the password protecting the keyring.
    * @throws MalformedKeyringException if the keyring is not a public one.
@@ -466,7 +467,7 @@ public class GnuKeyring
 
   /**
    * Return the creation date of a named alias in a designated keyring.
-   * 
+   *
    * @param alias the alias to look for.
    * @param keyring the keyring to search.
    * @return the creattion date of the entry named <code>alias</code>. Return

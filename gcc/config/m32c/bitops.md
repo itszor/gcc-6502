@@ -1,6 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005, 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2005-2013 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -43,11 +42,11 @@
   [(set (match_operand:QI 0 "memsym_operand" "+Si")
 	(ior:QI (subreg:QI (ashift:HI (const_int 1)
 				      (subreg:QI (match_operand:HI 1 "a_qi_operand" "Raa") 0)) 0)
-		(match_operand:QI 2 "" "0")))]
+		(match_dup 0)))]
   "TARGET_A16"
   "bset\t%0[%1]"
   [(set_attr "flags" "n")]
-  )  
+  )
 
 (define_insn "bset_hi"
   [(set (zero_extract:HI (match_operand:QI 0 "memsym_operand" "+Si")
@@ -98,7 +97,7 @@
 (define_insn "andhi3_16"
   [(set (match_operand:HI 0 "mra_operand" "=Sp,Sp,Rhi,RhiSd,??Rmm,RhiSd,??Rmm")
 	(and:HI (match_operand:HI 1 "mra_operand" "%0,0,0,0,0,0,0")
-		(match_operand:HI 2 "mrai_operand" "Imb,Imw,Imw,iRhiSd,?Rmm,?Rmm,iRhiSd")))]
+		(match_operand:HI 2 "mrai_operand" "ImB,Imw,Imw,iRhiSd,?Rmm,?Rmm,iRhiSd")))]
   "TARGET_A16"
   "@
    
@@ -136,6 +135,8 @@
       return \"and.w %h2,%h0\;and.w %H2,%H0\";
     case 5:
       return \"and.w %h2,%h0\;and.w %H2,%H0\";
+    default:
+      gcc_unreachable ();
     }"
   [(set_attr "flags" "x,x,x,x,x,x")]
 )
@@ -159,7 +160,7 @@
 (define_insn "iorhi3_16"
   [(set (match_operand:HI 0 "mra_operand" "=Sp,Sp,Rhi,RhiSd,RhiSd,??Rmm,??Rmm")
 	(ior:HI (match_operand:HI 1 "mra_operand" "%0,0,0,0,0,0,0")
-		(match_operand:HI 2 "mrai_operand" "Imb,Imw,Ilw,iRhiSd,?Rmm,iRhiSd,?Rmm")))]
+		(match_operand:HI 2 "mrai_operand" "Ilb,Ilw,Ilw,iRhiSd,?Rmm,iRhiSd,?Rmm")))]
   "TARGET_A16"
   "@
    bset %B2,%0
@@ -190,9 +191,9 @@
   )
 
 (define_insn "andhi3_24"
-  [(set (match_operand:HI 0 "mra_operand" "=Sd,Sd,Rqi,Rqi,RhiSd,??Rmm,RhiSd,??Rmm")
+  [(set (match_operand:HI 0 "mra_operand" "=Sd,Sd,?Rhl,?Rhl,RhiSd,??Rmm,RhiSd,??Rmm")
 	(and:HI (match_operand:HI 1 "mra_operand" "%0,0,0,0,0,0,0,0")
-		(match_operand:HI 2 "mrai_operand" "Imb,Imw,Imb,Imw,iRhiSd,?Rmm,?Rmm,iRhiSd")))]
+		(match_operand:HI 2 "mrai_operand" "ImB,Imw,ImB,Imw,iRhiSd,?Rmm,?Rmm,iRhiSd")))]
   "TARGET_A24"
   "@
    bclr\t%B2,%0
@@ -223,7 +224,7 @@
   )
 
 (define_insn "iorhi3_24"
-  [(set (match_operand:HI 0 "mra_operand" "=Sd,Sd,Rqi,Rqi,RhiSd,RhiSd,??Rmm,??Rmm")
+  [(set (match_operand:HI 0 "mra_operand" "=Sd,Sd,?Rhl,?Rhl,RhiSd,RhiSd,??Rmm,??Rmm")
 	(ior:HI (match_operand:HI 1 "mra_operand" "%0,0,0,0,0,0,0,0")
 		(match_operand:HI 2 "mrai_operand" "Ilb,Ilw,Ilb,Ilw,iRhiSd,?Rmm,iRhiSd,?Rmm")))]
   "TARGET_A24"
@@ -314,6 +315,8 @@
       return \"or.w %h2,%h0\;or.w %H2,%H0\";
     case 5:
       return \"or.w %h2,%h0\;or.w %H2,%H0\";
+    default:
+      gcc_unreachable ();
     }"
   [(set_attr "flags" "x,x,x,x,x,x")]
 )
@@ -360,6 +363,8 @@
       return \"xor.w %h2,%h0\;xor.w %H2,%H0\";
     case 5:
       return \"xor.w %h2,%h0\;xor.w %H2,%H0\";
+    default:
+      gcc_unreachable ();
     }"
   [(set_attr "flags" "x,x,x,x,x,x")]
 )

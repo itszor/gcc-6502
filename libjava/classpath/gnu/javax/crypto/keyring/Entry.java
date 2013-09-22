@@ -1,5 +1,5 @@
-/* Entry.java -- 
-   Copyright (C) 2003, 2006 Free Software Foundation, Inc.
+/* Entry.java --
+   Copyright (C) 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -50,7 +50,8 @@ import java.util.logging.Logger;
  */
 public abstract class Entry
 {
-  private static final Logger log = Logger.getLogger(Entry.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(Entry.class.getName()) : null;
   private static final String[] TYPES = new String[] {
       "Encrypted",
       "PasswordEncrypted",
@@ -71,7 +72,7 @@ public abstract class Entry
 
   /**
    * Creates a new Entry.
-   * 
+   *
    * @param type This entry's type.
    * @param properties This entry's properties.
    * @throws IllegalArgumentException If the properties argument is null, or if
@@ -101,7 +102,7 @@ public abstract class Entry
   /**
    * Returns this entry's properties object. The properties are cloned before
    * being returned.
-   * 
+   *
    * @return The properties.
    */
   public Properties getProperties()
@@ -122,7 +123,7 @@ public abstract class Entry
   /**
    * This method is called when this entry needs to be written to an output
    * stream.
-   * 
+   *
    * @param out The stream to write to.
    * @throws IOException If an I/O exception occurs.
    */

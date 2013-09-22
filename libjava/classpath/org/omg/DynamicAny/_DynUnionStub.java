@@ -68,6 +68,7 @@ public class _DynUnionStub
   /**
    * The purpose and value of this field are not documented.
    */
+  @SuppressWarnings("rawtypes") // Needed for API compatibility
   public static final Class _opsClass = DynUnionOperations.class;
 
   /**
@@ -182,7 +183,7 @@ public class _DynUnionStub
   {
     throw new MARSHAL(_DynAnyStub.NOT_APPLICABLE);
   }
-  
+
   /**
    * The remote call of DynAny methods is not possible.
    *

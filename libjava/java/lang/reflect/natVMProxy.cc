@@ -79,7 +79,11 @@ typedef void (*closure_fun) (ffi_cif*, void*, void**, void*);
 static void *ncode (int method_index, jclass klass, _Jv_Method *self, closure_fun fun);
 static void run_proxy (ffi_cif*, void*, void**, void*);
 
-typedef jobject invoke_t (jobject, Proxy *, Method *, JArray< jobject > *);
+typedef jobject
+#if defined (X86_WIN32) && !defined (__CYGWIN__)
+ __attribute__ ((thiscall))
+#endif
+ invoke_t (jobject, Proxy *, Method *, JArray< jobject > *);
 
 // True if pc points to a proxy frame.
 
@@ -350,7 +354,8 @@ run_proxy (ffi_cif *cif,
   // than about Proxy.class itself.  FRAME_DESC has a destructor so it
   // cleans up automatically when this proxy invocation returns.
   Thread *thread = Thread::currentThread();
-  _Jv_InterpFrame frame_desc (self->self, thread, proxyClass);
+  _Jv_InterpFrame frame_desc (self->self, thread, proxyClass,
+			      NULL, frame_proxy);
 
   // The method to invoke is saved in $Proxy0.m[method_index].
   // FIXME: We could somewhat improve efficiency by storing a pointer

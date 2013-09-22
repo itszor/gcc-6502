@@ -6,32 +6,30 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This packages provides a special implementation of the Ada95 storage pools
+--  This packages provides a special implementation of the Ada 95 storage pools
 
 --  The goal of this debug pool is to detect incorrect uses of memory
 --  (multiple deallocations, access to invalid memory,...). Errors are reported
@@ -253,7 +251,7 @@ package GNAT.Debug_Pools is
    --  the Debug_Pool).
    --
    --  The information includes the stacktrace for the allocation or
-   --  deallocation of that memory chunck, its current status (allocated or
+   --  deallocation of that memory chunk, its current status (allocated or
    --  logically freed), etc.
 
 private
@@ -288,7 +286,7 @@ private
       Storage_Address          : System.Address;
       Size_In_Storage_Elements : Storage_Count;
       Alignment                : Storage_Count);
-   --  Check whether a derefence statement is valid, ie whether the pointer
+   --  Check whether a dereference statement is valid, i.e. whether the pointer
    --  was allocated through Pool. As documented above, errors will be
    --  reported either by a special error message or an exception, depending
    --  on the setup of the storage pool.
@@ -296,7 +294,7 @@ private
 
    type Byte_Count is mod System.Max_Binary_Modulus;
    --  Type used for maintaining byte counts, needs to be large enough
-   --  to accomodate counts allowing for repeated use of the same memory.
+   --  to accommodate counts allowing for repeated use of the same memory.
 
    type Debug_Pool is new System.Checked_Pools.Checked_Pool with record
       Stack_Trace_Depth              : Natural := Default_Stack_Trace_Depth;
@@ -322,7 +320,7 @@ private
 
       Marked_Blocks_Deallocated : Boolean := False;
       --  Set to true if some mark blocks had to be deallocated in the advanced
-      --  scanning scheme. Since this is potentially dangereous, this is
+      --  scanning scheme. Since this is potentially dangerous, this is
       --  reported to the user, who might want to rerun his program with a
       --  lower Minimum_To_Free value.
 

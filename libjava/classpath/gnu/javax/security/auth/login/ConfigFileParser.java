@@ -1,5 +1,5 @@
 /* ConfigFileParser.java -- JAAS Login Configuration default syntax parser
-   Copyright (C) 2006 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -81,7 +81,7 @@ import javax.security.auth.login.AppConfigurationEntry;
  *
  * <p>In the above context, a JAVA_IDENTIFIER is a sequence of tokens,
  * separated by the character '.'. Each of these tokens obeys the following:</p>
- * 
+ *
  * <ol>
  *   <li>its first character yields <code>true</code> when used as an input to
  *   the {@link java.lang.Character#isJavaIdentifierStart(char)}, and</li>
@@ -91,9 +91,11 @@ import javax.security.auth.login.AppConfigurationEntry;
  */
 public final class ConfigFileParser
 {
-  private static final Logger log = Logger.getLogger(ConfigFileParser.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(ConfigFileParser.class.getName()) : null;
+
   private ConfigFileTokenizer cft;
-  private Map map = new HashMap();
+  private final Map map = new HashMap();
 
   // default 0-arguments constructor
 
@@ -183,7 +185,7 @@ public final class ConfigFileParser
 
   /**
    * @return <code>true</code> if a LOGIN_MODULE_ENTRY was correctly parsed.
-   * Returns <code>false</code> otherwise. 
+   * Returns <code>false</code> otherwise.
    * @throws IOException if an exception occurs while parsing the input.
    */
   private boolean parseACE(List listOfACEs) throws IOException
@@ -278,7 +280,7 @@ public final class ConfigFileParser
         // we dont check the rest of the characters for isJavaIdentifierPart()
         // because that's what the tokenizer does.
       }
-    
+
     return cn;
   }
 

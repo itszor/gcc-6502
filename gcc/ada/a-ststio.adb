@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -34,6 +32,7 @@
 with Interfaces.C_Streams; use Interfaces.C_Streams;
 
 with System;               use System;
+with System.Communication; use System.Communication;
 with System.File_IO;
 with System.Soft_Links;
 with System.CRTL;
@@ -102,7 +101,7 @@ package body Ada.Streams.Stream_IO is
 
    procedure Close (File : in out File_Type) is
    begin
-      FIO.Close (AP (File));
+      FIO.Close (AP (File)'Unrestricted_Access);
    end Close;
 
    ------------
@@ -138,7 +137,7 @@ package body Ada.Streams.Stream_IO is
 
    procedure Delete (File : in out File_Type) is
    begin
-      FIO.Delete (AP (File));
+      FIO.Delete (AP (File)'Unrestricted_Access);
    end Delete;
 
    -----------------
@@ -148,7 +147,7 @@ package body Ada.Streams.Stream_IO is
    function End_Of_File (File : File_Type) return Boolean is
    begin
       FIO.Check_Read_Status (AP (File));
-      return Count (File.Index) > Size (File);
+      return File.Index > Size (File);
    end End_Of_File;
 
    -----------
@@ -176,7 +175,7 @@ package body Ada.Streams.Stream_IO is
    function Index (File : File_Type) return Positive_Count is
    begin
       FIO.Check_File_Open (AP (File));
-      return Count (File.Index);
+      return File.Index;
    end Index;
 
    -------------
@@ -243,11 +242,7 @@ package body Ada.Streams.Stream_IO is
       --  (and furthermore there are situations (such as the case of writing
       --  a sequential Posix FIFO file) where the lseek would cause problems.
 
-      if Mode = Out_File then
-         File.Last_Op := Op_Write;
-      else
-         File.Last_Op := Op_Read;
-      end if;
+      File.Last_Op := (if Mode = Out_File then Op_Write else Op_Read);
    end Open;
 
    ----------
@@ -299,8 +294,8 @@ package body Ada.Streams.Stream_IO is
       end if;
 
       File.Index := File.Index + Count (Nread);
-      Last := Item'First + Stream_Element_Offset (Nread) - 1;
       File.Last_Op := Op_Read;
+      Last := Last_Index (Item'First, Nread);
    end Read;
 
    --  This version of Read is the primitive operation on the underlying
@@ -362,7 +357,7 @@ package body Ada.Streams.Stream_IO is
       if ((File.Mode = FCB.In_File) /= (Mode = In_File))
         and then not File.Update_Mode
       then
-         FIO.Reset (AP (File), FCB.Inout_File);
+         FIO.Reset (AP (File)'Unrestricted_Access, FCB.Inout_File);
          File.Update_Mode := True;
       end if;
 
@@ -372,7 +367,11 @@ package body Ada.Streams.Stream_IO is
       FIO.Append_Set (AP (File));
 
       if File.Mode = FCB.Append_File then
-         File.Index := Count (ftell (File.Stream)) + 1;
+         if Standard'Address_Size = 64 then
+            File.Index := Count (ftell64 (File.Stream)) + 1;
+         else
+            File.Index := Count (ftell (File.Stream)) + 1;
+         end if;
       end if;
 
       File.Last_Op := Op_Other;
@@ -384,10 +383,18 @@ package body Ada.Streams.Stream_IO is
 
    procedure Set_Position (File : File_Type) is
       use type System.CRTL.long;
+      use type System.CRTL.ssize_t;
+      R : int;
    begin
-      if fseek (File.Stream,
-                System.CRTL.long (File.Index) - 1, SEEK_SET) /= 0
-      then
+      if Standard'Address_Size = 64 then
+         R := fseek64 (File.Stream,
+                       System.CRTL.ssize_t (File.Index) - 1, SEEK_SET);
+      else
+         R := fseek (File.Stream,
+                     System.CRTL.long (File.Index) - 1, SEEK_SET);
+      end if;
+
+      if R /= 0 then
          raise Use_Error;
       end if;
    end Set_Position;
@@ -407,7 +414,11 @@ package body Ada.Streams.Stream_IO is
             raise Device_Error;
          end if;
 
-         File.File_Size := Stream_Element_Offset (ftell (File.Stream));
+         if Standard'Address_Size = 64 then
+            File.File_Size := Stream_Element_Offset (ftell64 (File.Stream));
+         else
+            File.File_Size := Stream_Element_Offset (ftell (File.Stream));
+         end if;
       end if;
 
       return Count (File.File_Size);

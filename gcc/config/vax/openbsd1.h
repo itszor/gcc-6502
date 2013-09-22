@@ -1,5 +1,5 @@
 /* Configuration fragment for a VAX OpenBSD target.
-   Copyright (C) 2000, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -18,5 +18,5 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* Set up definitions before picking up the common openbsd.h file.  */
-#define OBSD_OLD_GAS 
+#define OBSD_OLD_GAS
 #define OBSD_NO_DYNAMIC_LIBRARIES

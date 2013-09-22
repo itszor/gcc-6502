@@ -180,6 +180,7 @@ Java_java_net_VMInetAddress_getHostByAddr (JNIEnv * env,
 
   /* Resolve the address and return the name */
   result = cpnet_getHostByAddr (env, addr, hostname, sizeof (hostname));
+  cpnet_freeAddress (env, addr);
   if (result != CPNATIVE_OK)
     {
       JCL_ThrowException (env, UNKNOWN_HOST_EXCEPTION,
@@ -225,7 +226,7 @@ Java_java_net_VMInetAddress_getHostByName (JNIEnv * env,
   result = cpnet_getHostByName (env, hostname, &addresses, &addresses_count);
   if (result != CPNATIVE_OK || addresses_count == 0)
     {
-      JCL_ThrowException (env, UNKNOWN_HOST_EXCEPTION, (char *) hostname);
+      JCL_ThrowException (env, UNKNOWN_HOST_EXCEPTION, hostname);
       return (jobjectArray) NULL;
     }
   (*env)->ReleaseStringUTFChars (env, host, hostname);
@@ -330,6 +331,7 @@ Java_java_net_VMInetAddress_aton (JNIEnv *env,
     }
 
   result = cpnet_aton (env, hostname, &address);
+  (*env)->ReleaseStringUTFChars (env, host, hostname);
   if (result != CPNATIVE_OK)
     {
       JCL_ThrowException (env, UNKNOWN_HOST_EXCEPTION, "Internal Error");

@@ -39,6 +39,8 @@ exception statement from your version. */
 
 package java.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 import java.lang.reflect.Array;
 
@@ -74,7 +76,7 @@ public class Arrays
   {
   }
 
-
+
 // binarySearch
   /**
    * Perform a binary search of a byte array for a key. The array must be
@@ -120,10 +122,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
@@ -184,10 +186,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
@@ -248,10 +250,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
@@ -312,10 +314,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
@@ -376,10 +378,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
@@ -440,10 +442,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     // Must use Float.compare to take into account NaN, +-0.
     int mid = 0;
     while (low <= hi)
@@ -505,10 +507,10 @@ public class Arrays
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     // Must use Double.compare to take into account NaN, +-0.
     int mid = 0;
     while (low <= hi)
@@ -627,21 +629,21 @@ public class Arrays
    *                                        <code>hi > a.length</code>.
    */
   public static <T> int binarySearch(T[] a, int low, int hi, T key,
-				     Comparator<? super T> c)
+                                     Comparator<? super T> c)
   {
     if (low > hi)
       throw new IllegalArgumentException("The start index is higher than " +
-					 "the finish index.");
+                                         "the finish index.");
     if (low < 0 || hi > a.length)
       throw new ArrayIndexOutOfBoundsException("One of the indices is out " +
-					       "of bounds.");
+                                               "of bounds.");
     int mid = 0;
     while (low <= hi)
       {
         mid = (low + hi) >>> 1;
-	// NOTE: Please keep the order of a[mid] and key.  Although
-	// not required by the specs, the RI has it in this order as
-	// well, and real programs (erroneously) depend on it.
+        // NOTE: Please keep the order of a[mid] and key.  Although
+        // not required by the specs, the RI has it in this order as
+        // well, and real programs (erroneously) depend on it.
         final int d = Collections.compare(a[mid], key, c);
         if (d == 0)
           return mid;
@@ -654,7 +656,7 @@ public class Arrays
     return -mid - 1;
   }
 
-
+
 // equals
   /**
    * Compare two boolean arrays for equality.
@@ -673,15 +675,15 @@ public class Arrays
 
     if (null == a1 || null == a2)
       return false;
-    
+
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -707,11 +709,11 @@ public class Arrays
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -733,15 +735,15 @@ public class Arrays
 
     if (null == a1 || null == a2)
       return false;
-    
+
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -767,11 +769,11 @@ public class Arrays
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -797,11 +799,11 @@ public class Arrays
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -827,11 +829,11 @@ public class Arrays
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (a1[i] != a2[i])
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (a1[i] != a2[i])
+            return false;
+        return true;
       }
     return false;
   }
@@ -858,11 +860,11 @@ public class Arrays
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (Float.compare(a1[i], a2[i]) != 0)
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (Float.compare(a1[i], a2[i]) != 0)
+            return false;
+        return true;
       }
     return false;
   }
@@ -884,16 +886,16 @@ public class Arrays
 
     if (null == a1 || null == a2)
       return false;
-    
+
     // Must use Double.compare to take into account NaN, +-0.
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (Double.compare(a1[i], a2[i]) != 0)
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (Double.compare(a1[i], a2[i]) != 0)
+            return false;
+        return true;
       }
     return false;
   }
@@ -916,20 +918,20 @@ public class Arrays
 
     if (null == a1 || null == a2)
       return false;
-    
+
     // If they're the same length, test each element
     if (a1.length == a2.length)
       {
-	int i = a1.length;
-	while (--i >= 0)
-	  if (! AbstractCollection.equals(a1[i], a2[i]))
-	    return false;
-	return true;
+        int i = a1.length;
+        while (--i >= 0)
+          if (! AbstractCollection.equals(a1[i], a2[i]))
+            return false;
+        return true;
       }
     return false;
   }
 
-
+
 // fill
   /**
    * Fill an array with a boolean value.
@@ -1205,7 +1207,7 @@ public class Arrays
       a[i] = val;
   }
 
-
+
 // sort
   // Thanks to Paul Fisher (rao@gnu.org) for finding this quicksort algorithm
   // as specified by Sun and porting it to Java. The algorithm is an optimised
@@ -1631,8 +1633,8 @@ public class Arrays
     if (count <= 7)
       {
         for (int i = from + 1; i < from + count; i++)
-	  for (int j = i; j > from && array[j - 1] > array[j]; j--)
-	    swap(j, j - 1, array);
+          for (int j = i; j > from && array[j - 1] > array[j]; j--)
+            swap(j, j - 1, array);
         return;
       }
 
@@ -2486,7 +2488,7 @@ public class Arrays
    *         ordering (only possible when c is null)
    */
   public static <T> void sort(T[] a, int fromIndex, int toIndex,
-			      Comparator<? super T> c)
+                              Comparator<? super T> c)
   {
     if (fromIndex > toIndex)
       throw new IllegalArgumentException("fromIndex " + fromIndex
@@ -2616,7 +2618,7 @@ public class Arrays
    *
    * @param a the array to return a view of (<code>null</code> not permitted)
    * @return a fixed-size list, changes to which "write through" to the array
-   * 
+   *
    * @throws NullPointerException if <code>a</code> is <code>null</code>.
    * @see Serializable
    * @see RandomAccess
@@ -2627,7 +2629,7 @@ public class Arrays
     return new Arrays.ArrayList(a);
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of long numbers.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2638,7 +2640,7 @@ public class Arrays
    * @param v an array of long numbers for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(long[] v)
   {
@@ -2647,13 +2649,13 @@ public class Arrays
     int result = 1;
     for (int i = 0; i < v.length; ++i)
       {
-	int elt = (int) (v[i] ^ (v[i] >>> 32));
-	result = 31 * result + elt;
+        int elt = (int) (v[i] ^ (v[i] >>> 32));
+        result = 31 * result + elt;
       }
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of integer numbers.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2664,7 +2666,7 @@ public class Arrays
    * @param v an array of integer numbers for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(int[] v)
   {
@@ -2676,7 +2678,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of short numbers.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2687,7 +2689,7 @@ public class Arrays
    * @param v an array of short numbers for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(short[] v)
   {
@@ -2699,7 +2701,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of characters.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2710,7 +2712,7 @@ public class Arrays
    * @param v an array of characters for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(char[] v)
   {
@@ -2722,7 +2724,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of bytes.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2733,7 +2735,7 @@ public class Arrays
    * @param v an array of bytes for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(byte[] v)
   {
@@ -2745,7 +2747,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of booleans.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2756,7 +2758,7 @@ public class Arrays
    * @param v an array of booleans for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(boolean[] v)
   {
@@ -2768,7 +2770,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of floats.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2779,7 +2781,7 @@ public class Arrays
    * @param v an array of floats for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(float[] v)
   {
@@ -2791,7 +2793,7 @@ public class Arrays
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of doubles.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
@@ -2802,7 +2804,7 @@ public class Arrays
    * @param v an array of doubles for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(double[] v)
   {
@@ -2811,24 +2813,24 @@ public class Arrays
     int result = 1;
     for (int i = 0; i < v.length; ++i)
       {
-	long l = Double.doubleToLongBits(v[i]);
-	int elt = (int) (l ^ (l >>> 32));
-	result = 31 * result + elt;
+        long l = Double.doubleToLongBits(v[i]);
+        int elt = (int) (l ^ (l >>> 32));
+        result = 31 * result + elt;
       }
     return result;
   }
 
-  /** 
+  /**
    * Returns the hashcode of an array of objects.  If two arrays
    * are equal, according to <code>equals()</code>, they should have the
    * same hashcode.  The hashcode returned by the method is equal to that
-   * obtained by the corresponding <code>List</code> object.  
+   * obtained by the corresponding <code>List</code> object.
    * For <code>null</code>, 0 is returned.
    *
    * @param v an array of integer numbers for which the hash code should be
    *          computed.
    * @return the hash code of the array, or 0 if null was given.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int hashCode(Object[] v)
   {
@@ -2837,8 +2839,8 @@ public class Arrays
     int result = 1;
     for (int i = 0; i < v.length; ++i)
       {
-	int elt = v[i] == null ? 0 : v[i].hashCode();
-	result = 31 * result + elt;
+        int elt = v[i] == null ? 0 : v[i].hashCode();
+        result = 31 * result + elt;
       }
     return result;
   }
@@ -2850,30 +2852,30 @@ public class Arrays
     int result = 1;
     for (int i = 0; i < v.length; ++i)
       {
-	int elt;
-	if (v[i] == null)
-	  elt = 0;
-	else if (v[i] instanceof boolean[])
-	  elt = hashCode((boolean[]) v[i]);
-	else if (v[i] instanceof byte[])
-	  elt = hashCode((byte[]) v[i]);
-	else if (v[i] instanceof char[])
-	  elt = hashCode((char[]) v[i]);
-	else if (v[i] instanceof short[])
-	  elt = hashCode((short[]) v[i]);
-	else if (v[i] instanceof int[])
-	  elt = hashCode((int[]) v[i]);
-	else if (v[i] instanceof long[])
-	  elt = hashCode((long[]) v[i]);
-	else if (v[i] instanceof float[])
-	  elt = hashCode((float[]) v[i]);
-	else if (v[i] instanceof double[])
-	  elt = hashCode((double[]) v[i]);
-	else if (v[i] instanceof Object[])
-	  elt = hashCode((Object[]) v[i]);
-	else
-	  elt = v[i].hashCode();
-	result = 31 * result + elt;
+        int elt;
+        if (v[i] == null)
+          elt = 0;
+        else if (v[i] instanceof boolean[])
+          elt = hashCode((boolean[]) v[i]);
+        else if (v[i] instanceof byte[])
+          elt = hashCode((byte[]) v[i]);
+        else if (v[i] instanceof char[])
+          elt = hashCode((char[]) v[i]);
+        else if (v[i] instanceof short[])
+          elt = hashCode((short[]) v[i]);
+        else if (v[i] instanceof int[])
+          elt = hashCode((int[]) v[i]);
+        else if (v[i] instanceof long[])
+          elt = hashCode((long[]) v[i]);
+        else if (v[i] instanceof float[])
+          elt = hashCode((float[]) v[i]);
+        else if (v[i] instanceof double[])
+          elt = hashCode((double[]) v[i]);
+        else if (v[i] instanceof Object[])
+          elt = hashCode((Object[]) v[i]);
+        else
+          elt = v[i].hashCode();
+        result = 31 * result + elt;
       }
     return result;
   }
@@ -2888,37 +2890,37 @@ public class Arrays
 
     for (int i = 0; i < v1.length; ++i)
       {
-	Object e1 = v1[i];
-	Object e2 = v2[i];
+        Object e1 = v1[i];
+        Object e2 = v2[i];
 
-	if (e1 == e2)
-	  continue;
-	if (e1 == null || e2 == null)
-	  return false;
+        if (e1 == e2)
+          continue;
+        if (e1 == null || e2 == null)
+          return false;
 
-	boolean check;
-	if (e1 instanceof boolean[] && e2 instanceof boolean[])
-	  check = equals((boolean[]) e1, (boolean[]) e2);
-	else if (e1 instanceof byte[] && e2 instanceof byte[])
-	  check = equals((byte[]) e1, (byte[]) e2);
-	else if (e1 instanceof char[] && e2 instanceof char[])
-	  check = equals((char[]) e1, (char[]) e2);
-	else if (e1 instanceof short[] && e2 instanceof short[])
-	  check = equals((short[]) e1, (short[]) e2);
-	else if (e1 instanceof int[] && e2 instanceof int[])
-	  check = equals((int[]) e1, (int[]) e2);
-	else if (e1 instanceof long[] && e2 instanceof long[])
-	  check = equals((long[]) e1, (long[]) e2);
-	else if (e1 instanceof float[] && e2 instanceof float[])
-	  check = equals((float[]) e1, (float[]) e2);
-	else if (e1 instanceof double[] && e2 instanceof double[])
-	  check = equals((double[]) e1, (double[]) e2);
-	else if (e1 instanceof Object[] && e2 instanceof Object[])
-	  check = equals((Object[]) e1, (Object[]) e2);
-	else
-	  check = e1.equals(e2);
-	if (! check)
-	  return false;
+        boolean check;
+        if (e1 instanceof boolean[] && e2 instanceof boolean[])
+          check = equals((boolean[]) e1, (boolean[]) e2);
+        else if (e1 instanceof byte[] && e2 instanceof byte[])
+          check = equals((byte[]) e1, (byte[]) e2);
+        else if (e1 instanceof char[] && e2 instanceof char[])
+          check = equals((char[]) e1, (char[]) e2);
+        else if (e1 instanceof short[] && e2 instanceof short[])
+          check = equals((short[]) e1, (short[]) e2);
+        else if (e1 instanceof int[] && e2 instanceof int[])
+          check = equals((int[]) e1, (int[]) e2);
+        else if (e1 instanceof long[] && e2 instanceof long[])
+          check = equals((long[]) e1, (long[]) e2);
+        else if (e1 instanceof float[] && e2 instanceof float[])
+          check = equals((float[]) e1, (float[]) e2);
+        else if (e1 instanceof double[] && e2 instanceof double[])
+          check = equals((double[]) e1, (double[]) e2);
+        else if (e1 instanceof Object[] && e2 instanceof Object[])
+          check = equals((Object[]) e1, (Object[]) e2);
+        else
+          check = e1.equals(e2);
+        if (! check)
+          return false;
       }
 
     return true;
@@ -2935,12 +2937,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -2957,12 +2959,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -2979,12 +2981,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3001,12 +3003,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3023,12 +3025,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3045,12 +3047,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3067,12 +3069,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3089,12 +3091,12 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
@@ -3111,56 +3113,56 @@ public class Arrays
   {
     if (v == null)
       return "null";
-    StringBuilder b = new StringBuilder("[");
+    CPStringBuilder b = new CPStringBuilder("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	b.append(v[i]);
+        if (i > 0)
+          b.append(", ");
+        b.append(v[i]);
       }
     b.append("]");
     return b.toString();
   }
 
-  private static void deepToString(Object[] v, StringBuilder b, HashSet seen)
+  private static void deepToString(Object[] v, CPStringBuilder b, HashSet seen)
   {
     b.append("[");
     for (int i = 0; i < v.length; ++i)
       {
-	if (i > 0)
-	  b.append(", ");
-	Object elt = v[i];
-	if (elt == null)
-	  b.append("null");
-	else if (elt instanceof boolean[])
-	  b.append(toString((boolean[]) elt));
-	else if (elt instanceof byte[])
-	  b.append(toString((byte[]) elt));
-	else if (elt instanceof char[])
-	  b.append(toString((char[]) elt));
-	else if (elt instanceof short[])
-	  b.append(toString((short[]) elt));
-	else if (elt instanceof int[])
-	  b.append(toString((int[]) elt));
-	else if (elt instanceof long[])
-	  b.append(toString((long[]) elt));
-	else if (elt instanceof float[])
-	  b.append(toString((float[]) elt));
-	else if (elt instanceof double[])
-	  b.append(toString((double[]) elt));
-	else if (elt instanceof Object[])
-	  {
-	    Object[] os = (Object[]) elt;
-	    if (seen.contains(os))
-	      b.append("[...]");
-	    else
-	      {
-		seen.add(os);
-		deepToString(os, b, seen);
-	      }
-	  }
-	else
-	  b.append(elt);
+        if (i > 0)
+          b.append(", ");
+        Object elt = v[i];
+        if (elt == null)
+          b.append("null");
+        else if (elt instanceof boolean[])
+          b.append(toString((boolean[]) elt));
+        else if (elt instanceof byte[])
+          b.append(toString((byte[]) elt));
+        else if (elt instanceof char[])
+          b.append(toString((char[]) elt));
+        else if (elt instanceof short[])
+          b.append(toString((short[]) elt));
+        else if (elt instanceof int[])
+          b.append(toString((int[]) elt));
+        else if (elt instanceof long[])
+          b.append(toString((long[]) elt));
+        else if (elt instanceof float[])
+          b.append(toString((float[]) elt));
+        else if (elt instanceof double[])
+          b.append(toString((double[]) elt));
+        else if (elt instanceof Object[])
+          {
+            Object[] os = (Object[]) elt;
+            if (seen.contains(os))
+              b.append("[...]");
+            else
+              {
+                seen.add(os);
+                deepToString(os, b, seen);
+              }
+          }
+        else
+          b.append(elt);
       }
     b.append("]");
   }
@@ -3171,7 +3173,7 @@ public class Arrays
     if (v == null)
       return "null";
     HashSet seen = new HashSet();
-    StringBuilder b = new StringBuilder();
+    CPStringBuilder b = new CPStringBuilder();
     deepToString(v, b, seen);
     return b.toString();
   }
@@ -3221,7 +3223,7 @@ public class Arrays
      *
      * @param index The index to retrieve an object from.
      * @return The object at the array index specified.
-     */ 
+     */
     public E get(int index)
     {
       return a[index];
@@ -3323,7 +3325,7 @@ public class Arrays
       int size = a.length;
       if (array.length < size)
         array = (T[]) Array.newInstance(array.getClass().getComponentType(),
-					size);
+                                        size);
       else if (array.length > size)
         array[size] = null;
 
@@ -3388,13 +3390,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     boolean[] newArray = new boolean[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, false);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, false);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3457,13 +3459,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     byte[] newArray = new byte[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, (byte)0);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, (byte)0);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3526,13 +3528,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     char[] newArray = new char[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, '\0');
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, '\0');
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3595,13 +3597,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     double[] newArray = new double[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, 0d);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, 0d);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3664,13 +3666,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     float[] newArray = new float[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, 0f);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, 0f);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3733,13 +3735,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     int[] newArray = new int[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, 0);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, 0);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3802,13 +3804,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     long[] newArray = new long[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, 0L);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, 0L);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3871,13 +3873,13 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     short[] newArray = new short[to - from];
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, (short)0);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, (short)0);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3940,14 +3942,14 @@ public class Arrays
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     Class elemType = original.getClass().getComponentType();
     T[] newArray = (T[]) Array.newInstance(elemType, to - from);
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, null);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, null);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);
@@ -3975,7 +3977,7 @@ public class Arrays
    * @see #copyOfRange(U[],int,int,Class)
    */
   public static <T,U> T[] copyOf(U[] original, int newLength,
-				 Class<? extends T[]> newType)
+                                 Class<? extends T[]> newType)
   {
     if (newLength < 0)
       throw new NegativeArraySizeException("The array size is negative.");
@@ -4012,18 +4014,18 @@ public class Arrays
    * @see #copyOf(T[],int)
    */
   public static <T,U> T[] copyOfRange(U[] original, int from, int to,
-				      Class<? extends T[]> newType)
+                                      Class<? extends T[]> newType)
   {
     if (from > to)
       throw new IllegalArgumentException("The initial index is after " +
-					 "the final index.");
+                                         "the final index.");
     T[] newArray = (T[]) Array.newInstance(newType.getComponentType(),
-					   to - from);
+                                           to - from);
     if (to > original.length)
       {
-	System.arraycopy(original, from, newArray, 0,
-			 original.length - from);
-	fill(newArray, original.length, newArray.length, null);
+        System.arraycopy(original, from, newArray, 0,
+                         original.length - from);
+        fill(newArray, original.length, newArray.length, null);
       }
     else
       System.arraycopy(original, from, newArray, 0, to - from);

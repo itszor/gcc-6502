@@ -68,7 +68,7 @@ public class TabularDataSupport
    *
    * @serial the map of rows to column values.
    */
-  private Map<Object,Object> dataMap;
+  private HashMap<Object,Object> dataMap;
 
   /**
    * The tabular type which represents this tabular data instance.
@@ -115,7 +115,7 @@ public class TabularDataSupport
     tabularType = type;
     dataMap = new HashMap<Object,Object>(cap, lf);
   }
-   
+
   /**
    * Calculates the index the specified {@link CompositeData} value
    * would have, if it was to be added to this {@link TabularData}
@@ -127,7 +127,7 @@ public class TabularDataSupport
    * this instance's tabular type.  The returned indices are the
    * values of the fields in the supplied {@link CompositeData}
    * instance that match the names given in the {@link TabularType}.
-   * 
+   *
    * @param val the {@link CompositeData} value whose index should
    *            be calculated.
    * @return the index the value would take on, if it were to be added.
@@ -139,16 +139,12 @@ public class TabularDataSupport
   {
     if (!(val.getCompositeType().equals(tabularType.getRowType())))
       throw new InvalidOpenTypeException("The type of the given value " +
-					 "does not match the row type " +
-					 "of this instance.");
-    List indexNames = tabularType.getIndexNames();
-    List matchingIndicies = new ArrayList(indexNames.size());
-    Iterator it = indexNames.iterator();
-    while (it.hasNext())
-      {
-	String name = (String) it.next();
-	matchingIndicies.add(val.get(name));
-      }
+                                         "does not match the row type " +
+                                         "of this instance.");
+    List<String> indexNames = tabularType.getIndexNames();
+    List<String> matchingIndicies = new ArrayList<String>(indexNames.size());
+    for (String name : indexNames)
+      matchingIndicies.add(val.get(name).toString());
     return matchingIndicies.toArray();
   }
 
@@ -167,17 +163,18 @@ public class TabularDataSupport
    *
    * @return a shallow clone of this {@link TabularDataSupport}.
    */
+  @SuppressWarnings("unchecked")
   public Object clone()
   {
     TabularDataSupport clone = null;
     try
       {
-	clone = (TabularDataSupport) super.clone();
-	clone.setMap((HashMap) ((HashMap) dataMap).clone());
+        clone = (TabularDataSupport) super.clone();
+        clone.setMap((HashMap<Object,Object>) dataMap.clone());
       }
     catch (CloneNotSupportedException e)
       {
-	/* This won't happen as we implement Cloneable */
+        /* This won't happen as we implement Cloneable */
       }
     return clone;
   }
@@ -339,7 +336,7 @@ public class TabularDataSupport
   {
     if (!(isKeyValid(key)))
       throw new InvalidKeyException("The key does not match the " +
-				    "tabular type of this instance.");
+                                    "tabular type of this instance.");
     return (CompositeData) dataMap.get(key);
   }
 
@@ -372,7 +369,7 @@ public class TabularDataSupport
   /**
    * Returns true if this {@link TabularData} instance
    * contains no {@link CompositeData} values.
-   * 
+   *
    * @return true if the instance is devoid of rows.
    */
   public boolean isEmpty()
@@ -390,13 +387,13 @@ public class TabularDataSupport
    */
   private boolean isKeyValid(Object[] key)
   {
-    Iterator it = tabularType.getIndexNames().iterator();
+    Iterator<String> it = tabularType.getIndexNames().iterator();
     CompositeType rowType = tabularType.getRowType();
     for (int a = 0; it.hasNext(); ++a)
       {
-	OpenType type = rowType.getType((String) it.next());
-	if (!(type.isValue(key[a])))
-	  return false;
+        OpenType<?> type = rowType.getType(it.next());
+        if (!(type.isValue(key[a])))
+          return false;
       }
     return true;
   }
@@ -425,7 +422,7 @@ public class TabularDataSupport
    * the same index as an existing value.  The index is
    * calculated using the index names of the
    * {@link TabularType} for this instance.
-   * 
+   *
    * @param val the {@link CompositeData} value to add.
    * @throws NullPointerException if <code>val</code> is
    *                              <code>null</code>.
@@ -441,7 +438,7 @@ public class TabularDataSupport
     Object[] key = calculateIndex(val);
     if (dataMap.containsKey(key))
       throw new KeyAlreadyExistsException("A value with this index " +
-					  "already exists.");
+                                          "already exists.");
     dataMap.put(key, val);
   }
 
@@ -479,7 +476,7 @@ public class TabularDataSupport
    * value can not be added, then none of the values should
    * be.  If the array is <code>null</code> or empty, the
    * method simply returns.
-   * 
+   *
    * @param vals the {@link CompositeData} values to add.
    * @throws NullPointerException if a value from the array is
    *                              <code>null</code>.
@@ -496,15 +493,15 @@ public class TabularDataSupport
   {
     if (vals == null || vals.length == 0)
       return;
-    Map mapToAdd = new HashMap(vals.length);
+    Map<Object,Object> mapToAdd = new HashMap<Object,Object>(vals.length);
     for (int a = 0; a < vals.length; ++a)
       {
-	Object[] key = calculateIndex(vals[a]);
-	if (dataMap.containsKey(key))
-	  throw new KeyAlreadyExistsException("Element " + a + ": A " +
-					      "value with this index " +
-					      "already exists.");
-	mapToAdd.put(key, vals[a]);
+        Object[] key = calculateIndex(vals[a]);
+        if (dataMap.containsKey(key))
+          throw new KeyAlreadyExistsException("Element " + a + ": A " +
+                                              "value with this index " +
+                                              "already exists.");
+        mapToAdd.put(key, vals[a]);
       }
     dataMap.putAll(mapToAdd);
   }
@@ -539,12 +536,12 @@ public class TabularDataSupport
   {
     if (m == null || m.size() == 0)
       return;
-    Collection vals = m.values();
+    Collection<?> vals = m.values();
     CompositeData[] data = new CompositeData[vals.size()];
-    Iterator it = vals.iterator();
+    Iterator<?> it = vals.iterator();
     for (int a = 0; it.hasNext(); ++a)
       {
-	data[a] = (CompositeData) it.next();
+        data[a] = (CompositeData) it.next();
       }
     putAll(data);
   }
@@ -586,17 +583,17 @@ public class TabularDataSupport
   {
     if (!(isKeyValid(key)))
       throw new InvalidKeyException("The key does not match the " +
-				    "tabular type of this instance.");
+                                    "tabular type of this instance.");
     return (CompositeData) dataMap.remove(key);
   }
 
   /**
-   * Package-private method to set the internal {@link java.util.Map}
+   * Private method to set the internal {@link java.util.Map}
    * instance (used in cloning).
    *
    * @param map the new map used.
    */
-  void setMap(Map map)
+  private void setMap(HashMap<Object,Object> map)
   {
     dataMap = map;
   }
@@ -625,11 +622,11 @@ public class TabularDataSupport
   public String toString()
   {
     return getClass().getName()
-      + "[tabularType=" + tabularType 
+      + "[tabularType=" + tabularType
       + ",dataMap=" + dataMap
       + "]";
   }
- 
+
   /**
    * Returns a collection (or bag) view of the values in this Map.  The
    * collection is backed by the map, so that changes in one show up in
@@ -649,4 +646,3 @@ public class TabularDataSupport
   }
 
 }
-

@@ -107,7 +107,7 @@ class ResolverCache
   /**
    * Return the hostname for the specified IP address.
    *
-   * @param ip The IP address as a byte array
+   * @param addr The IP address as a byte array
    *
    * @return The hostname
    *
@@ -116,24 +116,24 @@ class ResolverCache
   public static String getHostByAddr(byte[] addr) throws UnknownHostException
   {
     Object key = makeHashableAddress(addr);
-    Entry entry = (Entry) get(key);
+    Entry entry = get(key);
     if (entry != null)
       {
-	if (entry.value == null)
-	  throw new UnknownHostException();
-	return (String) entry.value;
+        if (entry.value == null)
+          throw new UnknownHostException();
+        return (String) entry.value;
       }
 
     try
       {
-	String hostname = VMInetAddress.getHostByAddr(addr);
-	put(new Entry(key, hostname));
-	return hostname;
+        String hostname = VMInetAddress.getHostByAddr(addr);
+        put(new Entry(key, hostname));
+        return hostname;
       }
     catch (UnknownHostException e)
       {
-	put(new Entry(key, null));
-	throw e;
+        put(new Entry(key, null));
+        throw e;
       }
   }
 
@@ -149,24 +149,24 @@ class ResolverCache
   public static byte[][] getHostByName(String hostname)
     throws UnknownHostException
   {
-    Entry entry = (Entry) get(hostname);
+    Entry entry = get(hostname);
     if (entry != null)
       {
-	if (entry.value == null)
-	  throw new UnknownHostException();
-	return (byte[][]) entry.value;
+        if (entry.value == null)
+          throw new UnknownHostException();
+        return (byte[][]) entry.value;
       }
 
     try
       {
-	byte[][] addrs = VMInetAddress.getHostByName(hostname);
-	put(new Entry(hostname, addrs));
-	return addrs;
+        byte[][] addrs = VMInetAddress.getHostByName(hostname);
+        put(new Entry(hostname, addrs));
+        return addrs;
       }
     catch (UnknownHostException e)
       {
-	put(new Entry(hostname, null));
-	throw e;
+        put(new Entry(hostname, null));
+        throw e;
       }
   }
 
@@ -201,9 +201,9 @@ class ResolverCache
     reap();
     if (entry.expires != 0)
       {
-	if (entry.expires != -1)
-	  killqueue.add(entry);
-	cache.put(entry.key, entry);
+        if (entry.expires != -1)
+          killqueue.add(entry);
+        cache.put(entry.key, entry);
       }
   }
 
@@ -215,20 +215,20 @@ class ResolverCache
   {
     if (!killqueue.isEmpty())
       {
-	long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
 
-	Iterator iter = killqueue.iterator();
-	while (iter.hasNext())
-	  {
-	    Entry entry = (Entry) iter.next();
-	    if (entry.expires > now)
-	      break;
-	    cache.remove(entry.key);
-	    iter.remove();
-	  }
+        Iterator iter = killqueue.iterator();
+        while (iter.hasNext())
+          {
+            Entry entry = (Entry) iter.next();
+            if (entry.expires > now)
+              break;
+            cache.remove(entry.key);
+            iter.remove();
+          }
       }
   }
-  
+
   /**
    * An entry in the cache.
    */
@@ -243,7 +243,7 @@ class ResolverCache
      * The entry itself.  A null value indicates a failed lookup.
      */
     public final Object value;
-    
+
     /**
      * The time when this cache entry expires.  If set to -1 then
      * this entry will never expire.  If set to 0 then this entry
@@ -261,9 +261,9 @@ class ResolverCache
 
       int ttl = value != null ? POSITIVE_TTL : NEGATIVE_TTL;
       if (ttl < 1)
-	expires = ttl;
+        expires = ttl;
       else
-	expires = System.currentTimeMillis() + ttl * 1000;
+        expires = System.currentTimeMillis() + ttl * 1000;
     }
   }
 }

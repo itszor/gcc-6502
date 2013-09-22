@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -37,25 +35,14 @@
 --  Any changes to this interface may require corresponding compiler changes.
 
 with Ada.Exceptions;
---  Used for Exception_Id
---           Exception_Occurrence
+with Ada.Unchecked_Conversion;
 
 with System.Parameters;
---  used for Size_Type
-
 with System.Task_Info;
---  used for Task_Info_Type
-
 with System.Soft_Links;
---  used for TSD
-
 with System.Task_Primitives;
---  used for Private_Data
-
 with System.Stack_Usage;
---  used for Stack_Analyzer
-
-with Ada.Unchecked_Conversion;
+with System.Multiprocessors;
 
 package System.Tasking is
    pragma Preelaborate;
@@ -72,7 +59,7 @@ package System.Tasking is
    --  Never undefer abort while holding a lock
 
    --  Overlapping critical sections must be properly nested, and locks must
-   --  be released in LIFO order. e.g., the following is not allowed:
+   --  be released in LIFO order. E.g., the following is not allowed:
 
    --         Lock (X);
    --         ...
@@ -118,6 +105,7 @@ package System.Tasking is
    type Ada_Task_Control_Block;
 
    type Task_Id is access all Ada_Task_Control_Block;
+   for Task_Id'Size use System.Task_Primitives.Task_Address_Size;
 
    Null_Task : constant Task_Id;
 
@@ -129,9 +117,11 @@ package System.Tasking is
    --  from the run-time system.
 
    function To_Task_Id is
-     new Ada.Unchecked_Conversion (System.Address, Task_Id);
+     new Ada.Unchecked_Conversion
+       (System.Task_Primitives.Task_Address, Task_Id);
    function To_Address is
-     new Ada.Unchecked_Conversion (Task_Id, System.Address);
+     new Ada.Unchecked_Conversion
+       (Task_Id, System.Task_Primitives.Task_Address);
 
    -----------------------
    -- Enumeration types --
@@ -139,17 +129,18 @@ package System.Tasking is
 
    type Task_States is
      (Unactivated,
-      --  Task has been created but has not been activated.
+      --  TCB initialized but not task has not been created.
       --  It cannot be executing.
+
+--    Activating,
+--    --  ??? Temporarily at end of list for GDB compatibility
+--    --  Task has been created and is being made Runnable.
 
       --  Active states
       --  For all states from here down, the task has been activated.
       --  For all states from here down, except for Terminated, the task
       --  may be executing.
       --  Activator = null iff it has not yet completed activating.
-
-      --  For all states from here down,
-      --  the task has been activated, and may be executing.
 
       Runnable,
       --  Task is not blocked for any reason known to Ada.
@@ -165,7 +156,11 @@ package System.Tasking is
       --  Task is waiting for created tasks to complete activation
 
       Acceptor_Sleep,
-      --  Task is waiting on an accept or selective wait statement
+      --  Task is waiting on an accept or select with terminate
+
+--    Acceptor_Delay_Sleep,
+--    --  ??? Temporarily at end of list for GDB compatibility
+--    --  Task is waiting on an selective wait statement
 
       Entry_Caller_Sleep,
       --  Task is waiting on an entry call
@@ -201,9 +196,15 @@ package System.Tasking is
       Asynchronous_Hold,
       --  The task has been held by Asynchronous_Task_Control.Hold_Task
 
-      Interrupt_Server_Blocked_On_Event_Flag
+      Interrupt_Server_Blocked_On_Event_Flag,
       --  The task has been blocked on a system call waiting for a
       --  completion event/signal to occur.
+
+      Activating,
+      --  Task has been created and is being made Runnable
+
+      Acceptor_Delay_Sleep
+      --  Task is waiting on an selective wait statement
      );
 
    type Call_Modes is
@@ -246,6 +247,16 @@ package System.Tasking is
    type Task_Entry_Queue_Array is
      array (Task_Entry_Index range <>) of Entry_Queue;
 
+   --  A data structure which contains the string names of entries and entry
+   --  family members.
+
+   type String_Access is access all String;
+
+   type Task_Entry_Names_Array is
+     array (Entry_Index range <>) of String_Access;
+
+   type Task_Entry_Names_Access is access all Task_Entry_Names_Array;
+
    ----------------------------------
    -- Entry_Call_Record definition --
    ----------------------------------
@@ -269,32 +280,31 @@ package System.Tasking is
       Cancelled
       --  the call was asynchronous, and was cancelled
      );
+   pragma Ordered (Entry_Call_State);
 
-   --  Never_Abortable is used for calls that are made in a abort
-   --  deferred region (see ARM 9.8(5-11), 9.8 (20)).
-   --  Such a call is never abortable.
+   --  Never_Abortable is used for calls that are made in a abort deferred
+   --  region (see ARM 9.8(5-11), 9.8 (20)). Such a call is never abortable.
 
-   --  The Was_ vs. Not_Yet_ distinction is needed to decide whether it
-   --  is OK to advance into the abortable part of an async. select stmt.
-   --  That is allowed iff the mode is Now_ or Was_.
+   --  The Was_ vs. Not_Yet_ distinction is needed to decide whether it is OK
+   --  to advance into the abortable part of an async. select stmt. That is
+   --  allowed iff the mode is Now_ or Was_.
 
-   --  Done indicates the call has been completed, without cancellation,
-   --  or no call has been made yet at this ATC nesting level,
-   --  and so aborting the call is no longer an issue.
-   --  Completion of the call does not necessarily indicate "success";
-   --  the call may be returning an exception if Exception_To_Raise is
-   --  non-null.
+   --  Done indicates the call has been completed, without cancellation, or no
+   --  call has been made yet at this ATC nesting level, and so aborting the
+   --  call is no longer an issue. Completion of the call does not necessarily
+   --  indicate "success"; the call may be returning an exception if
+   --  Exception_To_Raise is non-null.
 
-   --  Cancelled indicates the call was cancelled,
-   --  and so aborting the call is no longer an issue.
+   --  Cancelled indicates the call was cancelled, and so aborting the call is
+   --  no longer an issue.
 
-   --  The call is on an entry queue unless
-   --  State >= Done, in which case it may or may not be still Onqueue.
+   --  The call is on an entry queue unless State >= Done, in which case it may
+   --  or may not be still Onqueue.
 
-   --  Please do not modify the order of the values, without checking
-   --  all uses of this type. We rely on partial "monotonicity" of
-   --  Entry_Call_Record.State to avoid locking when we access this
-   --  value for certain tests. In particular:
+   --  Please do not modify the order of the values, without checking all uses
+   --  of this type. We rely on partial "monotonicity" of
+   --  Entry_Call_Record.State to avoid locking when we access this value for
+   --  certain tests. In particular:
 
    --  1)  Once State >= Done, we can rely that the call has been
    --      completed. If State >= Done, it will not
@@ -352,7 +362,7 @@ package System.Tasking is
    --    Abnormal means that the task terminates because it is being aborted
 
    --    handled_Exception means that the task terminates because of exception
-   --    raised by by the execution of its task_body.
+   --    raised by the execution of its task_body.
 
    type Termination_Handler is access protected procedure
      (Cause : Cause_Of_Termination;
@@ -360,6 +370,66 @@ package System.Tasking is
       X     : Ada.Exceptions.Exception_Occurrence);
    --  Used to represent protected procedures to be executed when task
    --  terminates.
+
+   ------------------------------------
+   -- Dispatching domain definitions --
+   ------------------------------------
+
+   --  We need to redefine here these types (already defined in
+   --  System.Multiprocessor.Dispatching_Domains) for avoiding circular
+   --  dependencies.
+
+   type Dispatching_Domain is
+     array (System.Multiprocessors.CPU range <>) of Boolean;
+   --  A dispatching domain needs to contain the set of processors belonging
+   --  to it. This is a processor mask where a True indicates that the
+   --  processor belongs to the dispatching domain.
+   --  Do not use the full range of CPU_Range because it would create a very
+   --  long array. This way we can use the exact range of processors available
+   --  in the system.
+
+   type Dispatching_Domain_Access is access Dispatching_Domain;
+
+   System_Domain : Dispatching_Domain_Access;
+   --  All processors belong to default system dispatching domain at start up.
+   --  We use a pointer which creates the actual variable for the reasons
+   --  explained bellow in Dispatching_Domain_Tasks.
+
+   Dispatching_Domains_Frozen : Boolean := False;
+   --  True when the main procedure has been called. Hence, no new dispatching
+   --  domains can be created when this flag is True.
+
+   type Array_Allocated_Tasks is
+     array (System.Multiprocessors.CPU range <>) of Natural;
+   --  At start-up time, we need to store the number of tasks attached to
+   --  concrete processors within the system domain (we can only create
+   --  dispatching domains with processors belonging to the system domain and
+   --  without tasks allocated).
+
+   type Array_Allocated_Tasks_Access is access Array_Allocated_Tasks;
+
+   Dispatching_Domain_Tasks : Array_Allocated_Tasks_Access;
+   --  We need to store whether there are tasks allocated to concrete
+   --  processors in the default system dispatching domain because we need to
+   --  check it before creating a new dispatching domain. Two comments about
+   --  why we use a pointer here and not in package Dispatching_Domains:
+   --
+   --    1) We use an array created dynamically in procedure Initialize which
+   --    is called at the beginning of the initialization of the run-time
+   --    library. Declaring a static array here in the spec would not work
+   --    across different installations because it would get the value of
+   --    Number_Of_CPUs from the machine where the run-time library is built,
+   --    and not from the machine where the application is executed. That is
+   --    the reason why we create the array (CPU'First .. Number_Of_CPUs) at
+   --    execution time in the procedure body, ensuring that the function
+   --    Number_Of_CPUs is executed at execution time (the same trick as we
+   --    use for System_Domain).
+   --
+   --    2) We have moved this declaration from package Dispatching_Domains
+   --    because when we use a pragma CPU, the affinity is passed through the
+   --    call to Create_Task. Hence, at this point, we may need to update the
+   --    number of tasks associated to the processor, but we do not want to
+   --    force a dependency from this package on Dispatching_Domains.
 
    ------------------------------------
    -- Task related other definitions --
@@ -383,9 +453,17 @@ package System.Tasking is
 
    function Storage_Size (T : Task_Id) return System.Parameters.Size_Type;
    --  Retrieve from the TCB of the task the allocated size of its stack,
-   --  either the system default or the size specified by a pragma. This
-   --  is in general a non-static value that can depend on discriminants
-   --  of the task.
+   --  either the system default or the size specified by a pragma. This is in
+   --  general a non-static value that can depend on discriminants of the task.
+
+   type Bit_Array is array (Integer range <>) of Boolean;
+   pragma Pack (Bit_Array);
+
+   subtype Debug_Event_Array is Bit_Array (1 .. 16);
+
+   Global_Task_Debug_Event_Set : Boolean := False;
+   --  Set True when running under debugger control and a task debug event
+   --  signal has been requested.
 
    ----------------------------------------------
    -- Ada_Task_Control_Block (ATCB) definition --
@@ -443,6 +521,11 @@ package System.Tasking is
       --
       --  Protection: Only written by Self, accessed by anyone
 
+      Base_CPU : System.Multiprocessors.CPU_Range;
+      --  Base CPU, only changed via dispatching domains package.
+      --
+      --  Protection: Self.L
+
       Current_Priority : System.Any_Priority;
       --  Active priority, except that the effects of protected object
       --  priority ceilings are not reflected. This only reflects explicit
@@ -450,19 +533,17 @@ package System.Tasking is
       --  and rendezvous.
       --
       --  Ada 95 notes: In Ada 95, this field will be transferred to the
-      --  Priority field of an Entry_Calls component when an entry call
-      --  is initiated. The Priority of the Entry_Calls component will not
-      --  change for the duration of the call. The accepting task can
-      --  use it to boost its own priority without fear of its changing in
-      --  the meantime.
+      --  Priority field of an Entry_Calls component when an entry call is
+      --  initiated. The Priority of the Entry_Calls component will not change
+      --  for the duration of the call. The accepting task can use it to boost
+      --  its own priority without fear of its changing in the meantime.
       --
-      --  This can safely be used in the priority ordering
-      --  of entry queues. Once a call is queued, its priority does not
-      --  change.
+      --  This can safely be used in the priority ordering of entry queues.
+      --  Once a call is queued, its priority does not change.
       --
-      --  Since an entry call cannot be made while executing
-      --  a protected action, the priority of a task will never reflect a
-      --  priority ceiling change at the point of an entry call.
+      --  Since an entry call cannot be made while executing a protected
+      --  action, the priority of a task will never reflect a priority ceiling
+      --  change at the point of an entry call.
       --
       --  Protection: Only written by Self, and only accessed when Acceptor
       --  accepts an entry or when Created activates, at which points Self is
@@ -476,8 +557,8 @@ package System.Tasking is
       --  can be read/written from protected interrupt handlers.
 
       Task_Image : String (1 .. System.Parameters.Max_Task_Image_Length);
-      --  Hold a string that provides a readable id for task,
-      --  built from the variable of which it is a value or component.
+      --  Hold a string that provides a readable id for task, built from the
+      --  variable of which it is a value or component.
 
       Task_Image_Len : Natural;
       --  Actual length of Task_Image
@@ -498,11 +579,16 @@ package System.Tasking is
 
       Task_Arg : System.Address;
       --  The argument to task procedure. Provide a handle for discriminant
-      --  information
+      --  information.
       --
       --  Protection: Part of the synchronization between Self and Activator.
       --  Activator writes it, once, before Self starts executing. Thereafter,
       --  Self only reads it.
+
+      Task_Alternate_Stack : System.Address;
+      --  The address of the alternate signal stack for this task, if any
+      --
+      --  Protection: Only accessed by Self
 
       Task_Entry_Point : Task_Procedure_Access;
       --  Information needed to call the procedure containing the code for
@@ -536,7 +622,7 @@ package System.Tasking is
       --  Protection: Set by Activator before Self is activated, and only read
       --  and modified by Self after that.
 
-      Wait_Count : Integer;
+      Wait_Count : Natural;
       --  This count is used by a task that is waiting for other tasks. At all
       --  other times, the value should be zero. It is used differently in
       --  several different states. Since a task cannot be in more than one of
@@ -555,8 +641,8 @@ package System.Tasking is
       --  Master_Completion_Sleep (phase 1)
 
       --  This is the number dependent tasks of a master being completed by
-      --  Self that are not activated, not terminated, and not waiting on a
-      --  terminate alternative.
+      --  Self that are activated, but have not yet terminated, and are not
+      --  waiting on a terminate alternative.
 
       --  Master_Completion_2_Sleep (phase 2)
 
@@ -603,16 +689,29 @@ package System.Tasking is
       --  any of its dependent tasks.
       --
       --  Protection: Self.L
+
+      Debug_Events : Debug_Event_Array;
+      --  Word length array of per task debug events, of which 11 kinds are
+      --  currently defined in System.Tasking.Debugging package.
+
+      Domain : Dispatching_Domain_Access;
+      --  Domain is the dispatching domain to which the task belongs. It is
+      --  only changed via dispatching domains package. This field is made
+      --  part of the Common_ATCB, even when restricted run-times (namely
+      --  Ravenscar) do not use it, because this way the field is always
+      --  available to the underlying layers to set the affinity and we do not
+      --  need to do different things depending on the situation.
+      --
+      --  Protection: Self.L
    end record;
 
    ---------------------------------------
    -- Restricted_Ada_Task_Control_Block --
    ---------------------------------------
 
-   --  This type should only be used by the restricted GNARLI and by
-   --  restricted GNULL implementations to allocate an ATCB (see
-   --  System.Task_Primitives.Operations.New_ATCB) that will take
-   --  significantly less memory.
+   --  This type should only be used by the restricted GNARLI and by restricted
+   --  GNULL implementations to allocate an ATCB (see System.Task_Primitives.
+   --  Operations.New_ATCB) that will take significantly less memory.
 
    --  Note that the restricted GNARLI should only access fields that are
    --  present in the Restricted_Ada_Task_Control_Block structure.
@@ -667,9 +766,9 @@ package System.Tasking is
    Independent_Task_Level : constant Master_Level := 2;
    Library_Task_Level     : constant Master_Level := 3;
 
-   ------------------------------
-   -- Task size, priority info --
-   ------------------------------
+   -------------------
+   -- Priority info --
+   -------------------
 
    Unspecified_Priority : constant Integer := System.Priority'First - 1;
 
@@ -678,6 +777,13 @@ package System.Tasking is
 
    subtype Rendezvous_Priority is Integer
      range Priority_Not_Boosted .. System.Any_Priority'Last;
+
+   -------------------
+   -- Affinity info --
+   -------------------
+
+   Unspecified_CPU : constant := -1;
+   --  No affinity specified
 
    ------------------------------------
    -- Rendezvous related definitions --
@@ -813,7 +919,8 @@ package System.Tasking is
    ------------------------------------
 
    type Access_Address is access all System.Address;
-   --  Comment on what this is used for ???
+   --  Anonymous pointer used to implement task attributes (see s-tataat.adb
+   --  and a-tasatt.adb)
 
    pragma No_Strict_Aliasing (Access_Address);
    --  This type is used in contexts where aliasing may be an issue (see
@@ -829,7 +936,7 @@ package System.Tasking is
 
    type Direct_Index is range 0 .. Parameters.Default_Attribute_Count;
    subtype Direct_Index_Range is Direct_Index range 1 .. Direct_Index'Last;
-   --  Attributes with indices in this range are stored directly in the task
+   --  Attributes with indexes in this range are stored directly in the task
    --  control block. Such attributes must be Address-sized. Other attributes
    --  will be held in dynamically allocated records chained off of the task
    --  control block.
@@ -857,6 +964,14 @@ package System.Tasking is
       --  Protection: The elements of this array are on entry call queues
       --  associated with protected objects or task entries, and are protected
       --  by the protected object lock or Acceptor.L, respectively.
+
+      Entry_Names : Task_Entry_Names_Access := null;
+      --  An array of string names which denotes entry [family member] names.
+      --  The structure is indexed by task entry index and contains Entry_Num
+      --  components.
+      --
+      --  Protection: The array is populated during task initialization, before
+      --  the task has been activated. No protection is required in this case.
 
       New_Base_Priority : System.Any_Priority;
       --  New value for Base_Priority (for dynamic priorities package)
@@ -896,13 +1011,13 @@ package System.Tasking is
       --  not write this field until the master is complete, the
       --  synchronization should be adequate to prevent races.
 
-      Alive_Count : Integer := 0;
+      Alive_Count : Natural := 0;
       --  Number of tasks directly dependent on this task (including itself)
       --  that are still "alive", i.e. not terminated.
       --
       --  Protection: Self.L
 
-      Awake_Count : Integer := 0;
+      Awake_Count : Natural := 0;
       --  Number of tasks directly dependent on this task (including itself)
       --  still "awake", i.e., are not terminated and not waiting on a
       --  terminate alternative.
@@ -1011,7 +1126,7 @@ package System.Tasking is
       --  Protection: Self.L
 
       Serial_Number : Task_Serial_Number;
-      --  A growing number to provide some way to check locking  rules/ordering
+      --  Monotonic counter to provide some way to check locking rules/ordering
 
       Known_Tasks_Index : Integer := -1;
       --  Index in the System.Tasking.Debug.Known_Tasks array
@@ -1035,6 +1150,12 @@ package System.Tasking is
       --
       --  Protection: Self.L. Once a task has set Self.Stage to Completing, it
       --  has exclusive access to this field.
+
+      Free_On_Termination : Boolean := False;
+      --  Deallocate the ATCB when the task terminates. This flag is normally
+      --  False, and is set True when Unchecked_Deallocation is called on a
+      --  non-terminated task so that the associated storage is automatically
+      --  reclaimed when the task terminates.
    end record;
 
    --------------------
@@ -1058,6 +1179,8 @@ package System.Tasking is
       Parent           : Task_Id;
       Elaborated       : Access_Boolean;
       Base_Priority    : System.Any_Priority;
+      Base_CPU         : System.Multiprocessors.CPU_Range;
+      Domain           : Dispatching_Domain_Access;
       Task_Info        : System.Task_Info.Task_Info_Type;
       Stack_Size       : System.Parameters.Size_Type;
       T                : Task_Id;
@@ -1079,5 +1202,13 @@ private
    --  abnormally after creating task components, and these must be properly
    --  registered for removal (Expunge_Unactivated_Tasks). The "limited" forces
    --  Activation_Chain to be a by-reference type; see RM-6.2(4).
+
+   function Number_Of_Entries (Self_Id : Task_Id) return Entry_Index;
+   --  Given a task, return the number of entries it contains
+
+   procedure Set_Entry_Names
+     (Self_Id : Task_Id;
+      Names   : Task_Entry_Names_Access);
+   --  Associate an array of strings denotinge entry [family] names with a task
 
 end System.Tasking;

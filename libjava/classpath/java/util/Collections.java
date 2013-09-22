@@ -39,6 +39,8 @@ exception statement from your version. */
 
 package java.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 
 /**
@@ -118,10 +120,10 @@ public class Collections
    * @return an empty parameterized set.
    * @since 1.5
    */
+  @SuppressWarnings("unchecked")
   public static final <T> Set<T> emptySet()
   {
-    /* FIXME: Could this be optimized? */
-    return new EmptySet<T>();
+    return (Set<T>) EMPTY_SET;
   }
 
   /**
@@ -159,6 +161,7 @@ public class Collections
      * @return A non-iterating iterator.
      */
     // This is really cheating! I think it's perfectly valid, though.
+    @SuppressWarnings("unchecked")
     public Iterator<T> iterator()
     {
       return (Iterator<T>) EMPTY_LIST.iterator();
@@ -194,7 +197,7 @@ public class Collections
      */
     public boolean equals(Object o)
     {
-      return o instanceof Set && ((Set) o).isEmpty();
+      return o instanceof Set<?> && ((Set<?>) o).isEmpty();
     }
 
     /**
@@ -286,10 +289,10 @@ public class Collections
    * @return an empty parameterized list.
    * @since 1.5
    */
+  @SuppressWarnings("unchecked")
   public static final <T> List<T> emptyList()
   {
-    /* FIXME: Could this be optimized? */
-    return new EmptyList<T>();
+    return (List<T>) EMPTY_LIST;
   }
 
   /**
@@ -352,7 +355,7 @@ public class Collections
      * This is true only if the given collection is also empty.
      * @param c The collection of objects, which should be compared
      *          against the members of this list.
-     * @return <code>true</code> if c is also empty. 
+     * @return <code>true</code> if c is also empty.
      */
     public boolean containsAll(Collection<?> c)
     {
@@ -367,7 +370,7 @@ public class Collections
      */
     public boolean equals(Object o)
     {
-      return o instanceof List && ((List) o).isEmpty();
+      return o instanceof List<?> && ((List<?>) o).isEmpty();
     }
 
     /**
@@ -478,10 +481,10 @@ public class Collections
    * @return an empty parameterized map.
    * @since 1.5
    */
+  @SuppressWarnings("unchecked")
   public static final <K,V> Map<K,V> emptyMap()
   {
-    /* FIXME: Could this be optimized? */
-    return new EmptyMap<K,V>();
+    return (Map<K,V>) EMPTY_MAP;
   }
 
   /**
@@ -509,9 +512,10 @@ public class Collections
      * There are no entries.
      * @return The empty set.
      */
+    @SuppressWarnings("unchecked")
     public Set<Map.Entry<K, V>> entrySet()
     {
-      return EMPTY_SET;
+      return (Set<Map.Entry<K, V>>) EMPTY_SET;
     }
 
     // The remaining methods are optional, but provide a performance
@@ -544,13 +548,13 @@ public class Collections
      */
     public boolean equals(Object o)
     {
-      return o instanceof Map && ((Map) o).isEmpty();
+      return o instanceof Map<?,?> && ((Map<?,?>) o).isEmpty();
     }
 
     /**
      * No mappings, so this returns null.
      * @param o The key of the object to retrieve.
-     * @return null. 
+     * @return null.
      */
     public V get(Object o)
     {
@@ -570,9 +574,10 @@ public class Collections
      * No entries.
      * @return The empty set.
      */
+    @SuppressWarnings("unchecked")
     public Set<K> keySet()
     {
-      return EMPTY_SET;
+      return (Set<K>) EMPTY_SET;
     }
 
     /**
@@ -599,9 +604,10 @@ public class Collections
      * Collection, will work. Besides, that's what the JDK uses!
      * @return The empty set.
      */
+    @SuppressWarnings("unchecked")
     public Collection<V> values()
     {
-      return EMPTY_SET;
+      return (Collection<V>) EMPTY_SET;
     }
 
     /**
@@ -615,7 +621,7 @@ public class Collections
     }
   } // class EmptyMap
 
-
+
   /**
    * Compare two objects with or without a Comparator. If c is null, uses the
    * natural ordering. Slightly slower than doing it inline if the JVM isn't
@@ -651,8 +657,8 @@ public class Collections
    * @throws NullPointerException if a null element has compareTo called
    * @see #sort(List)
    */
-  public static <T> int binarySearch(List<? extends Comparable<? super T>> l, 
-				     T key)
+  public static <T> int binarySearch(List<? extends Comparable<? super T>> l,
+                                     T key)
   {
     return binarySearch(l, key, null);
   }
@@ -685,7 +691,7 @@ public class Collections
    * @see #sort(List, Comparator)
    */
   public static <T> int binarySearch(List<? extends T> l, T key,
-				     Comparator<? super T> c)
+                                     Comparator<? super T> c)
   {
     int pos = 0;
     int low = 0;
@@ -695,53 +701,53 @@ public class Collections
     // if the list is sequential-access.
     if (isSequential(l))
       {
-	ListIterator<T> itr = ((List<T>) l).listIterator();
+        ListIterator<T> itr = ((List<T>) l).listIterator();
         int i = 0;
-	T o = itr.next(); // Assumes list is not empty (see isSequential)
-	boolean forward = true;
+        T o = itr.next(); // Assumes list is not empty (see isSequential)
+        boolean forward = true;
         while (low <= hi)
           {
             pos = (low + hi) >>> 1;
             if (i < pos)
-	      {
-		if (!forward)
-		  itr.next(); // Changing direction first.
-		for ( ; i != pos; i++, o = itr.next())
+              {
+                if (!forward)
+                  itr.next(); // Changing direction first.
+                for ( ; i != pos; i++, o = itr.next())
                   ;
-		forward = true;
-	      }
+                forward = true;
+              }
             else
-	      {
-		if (forward)
-		  itr.previous(); // Changing direction first.
-		for ( ; i != pos; i--, o = itr.previous())
+              {
+                if (forward)
+                  itr.previous(); // Changing direction first.
+                for ( ; i != pos; i--, o = itr.previous())
                   ;
-		forward = false;
-	      }
-	    final int d = compare(o, key, c);
-	    if (d == 0)
+                forward = false;
+              }
+            final int d = compare(o, key, c);
+            if (d == 0)
               return pos;
-	    else if (d > 0)
+            else if (d > 0)
               hi = pos - 1;
-	    else
+            else
               // This gets the insertion point right on the last loop
               low = ++pos;
           }
       }
     else
       {
-	while (low <= hi)
-	  {
-	    pos = (low + hi) >>> 1;
-	    final int d = compare(((List<T>) l).get(pos), key, c);
-	    if (d == 0)
+        while (low <= hi)
+          {
+            pos = (low + hi) >>> 1;
+            final int d = compare(((List<T>) l).get(pos), key, c);
+            if (d == 0)
               return pos;
-	    else if (d > 0)
+            else if (d > 0)
               hi = pos - 1;
-	    else
+            else
               // This gets the insertion point right on the last loop
               low = ++pos;
-	  }
+          }
       }
 
     // If we failed to find it, we do the same whichever search we did.
@@ -797,7 +803,7 @@ public class Collections
        */
       public final boolean hasMoreElements()
       {
-	return i.hasNext();
+        return i.hasNext();
       }
 
       /**
@@ -808,7 +814,7 @@ public class Collections
        */
       public final T nextElement()
       {
-	return i.next();
+        return i.next();
       }
     };
   }
@@ -827,8 +833,8 @@ public class Collections
     ListIterator<? super T> itr = l.listIterator();
     for (int i = l.size() - 1; i >= 0; --i)
       {
-	itr.next();
-	itr.set(val);
+        itr.next();
+        itr.set(val);
       }
   }
 
@@ -926,16 +932,16 @@ public class Collections
    *        (only possible when order is null)
    */
   public static <T> T max(Collection<? extends T> c,
-			  Comparator<? super T> order)
+                          Comparator<? super T> order)
   {
     Iterator<? extends T> itr = c.iterator();
     T max = itr.next(); // throws NoSuchElementException
     int csize = c.size();
     for (int i = 1; i < csize; i++)
       {
-	T o = itr.next();
-	if (compare(max, o, order) < 0)
-	  max = o;
+        T o = itr.next();
+        if (compare(max, o, order) < 0)
+          max = o;
       }
     return max;
   }
@@ -972,16 +978,16 @@ public class Collections
    *        (only possible when order is null)
    */
   public static <T> T min(Collection<? extends T> c,
-			  Comparator<? super T> order)
+                          Comparator<? super T> order)
   {
     Iterator<? extends T> itr = c.iterator();
-    T min = itr.next();	// throws NoSuchElementExcception
+    T min = itr.next(); // throws NoSuchElementExcception
     int csize = c.size();
     for (int i = 1; i < csize; i++)
       {
-	T o = itr.next();
-	if (compare(min, o, order) > 0)
-	  min = o;
+        T o = itr.next();
+        if (compare(min, o, order) > 0)
+          min = o;
       }
     return min;
   }
@@ -1042,7 +1048,7 @@ public class Collections
     CopiesList(int n, T o)
     {
       if (n < 0)
-	throw new IllegalArgumentException();
+        throw new IllegalArgumentException();
       this.n = n;
       element = o;
     }
@@ -1135,7 +1141,7 @@ public class Collections
      */
     public String toString()
     {
-      StringBuffer r = new StringBuffer("{");
+      CPStringBuilder r = new CPStringBuilder("{");
       for (int i = n - 1; --i > 0; )
         r.append(element).append(", ");
       r.append(element).append("}");
@@ -1188,12 +1194,12 @@ public class Collections
     ListIterator i2 = l.listIterator(pos2);
     while (pos1 < pos2)
       {
-	Object o1 = i1.next();
+        Object o1 = i1.next();
     Object o2 = i2.previous();
-	i1.set(o2);
-	i2.set(o1);
-	++pos1;
-	--pos2;
+        i1.set(o2);
+        i2.set(o1);
+        ++pos1;
+        --pos2;
       }
   }
 
@@ -1219,7 +1225,7 @@ public class Collections
     {
       public int compare(T a, T b)
       {
-	return - c.compare(a, b);
+        return - c.compare(a, b);
       }
     };
   }
@@ -1342,7 +1348,7 @@ public class Collections
 
         // Now, make the swaps. We must take the remainder every time through
         // the inner loop so that we don't overflow i to negative values.
-	List<Object> objList = (List<Object>) list;
+        List<Object> objList = (List<Object>) list;
         while (--lcm >= 0)
           {
             Object o = objList.get(lcm);
@@ -1379,10 +1385,10 @@ public class Collections
     if (defaultRandom == null)
       {
         synchronized (Collections.class)
-	  {
-	    if (defaultRandom == null)
-	      defaultRandom = new Random();
-	  }
+          {
+            if (defaultRandom == null)
+              defaultRandom = new Random();
+          }
       }
     shuffle(l, defaultRandom);
   }
@@ -1430,12 +1436,12 @@ public class Collections
 
     for (int pos = lsize - 1; pos > 0; --pos)
       {
-	// Obtain a random position to swap with. pos + 1 is used so that the
-	// range of the random number includes the current position.
-	int swap = r.nextInt(pos + 1);
+        // Obtain a random position to swap with. pos + 1 is used so that the
+        // range of the random number includes the current position.
+        int swap = r.nextInt(pos + 1);
 
-	// Swap the desired element.
-	Object o;
+        // Swap the desired element.
+        Object o;
         if (sequential)
           {
             o = a[swap];
@@ -1444,7 +1450,7 @@ public class Collections
         else
           o = list.set(swap, i.previous());
 
-	i.set(o);
+        i.set(o);
       }
   }
 
@@ -1453,11 +1459,11 @@ public class Collections
    * collection.  The frequency represents the number of occurrences of
    * elements within the collection which return <code>true</code> when
    * compared with the object using the <code>equals</code> method.
-   * 
+   *
    * @param c the collection to scan for occurrences of the object.
    * @param o the object to locate occurrances of within the collection.
    * @throws NullPointerException if the collection is <code>null</code>.
-   * @since 1.5 
+   * @since 1.5
    */
   public static int frequency (Collection<?> c, Object o)
   {
@@ -1465,9 +1471,9 @@ public class Collections
     final Iterator<?> it = c.iterator();
     while (it.hasNext())
       {
-	Object v = it.next();
-	if (AbstractCollection.equals(o, v))
-	  ++result;
+        Object v = it.next();
+        if (AbstractCollection.equals(o, v))
+          ++result;
       }
     return result;
   }
@@ -1503,9 +1509,9 @@ public class Collections
 
     for (T element : a)
       {
-	boolean result = c.add(element);
-	if (result)
-	  overall = true;
+        boolean result = c.add(element);
+        if (result)
+          overall = true;
       }
     return overall;
   }
@@ -1529,11 +1535,11 @@ public class Collections
     final Iterator<Object> it = oc1.iterator();
     while (it.hasNext())
       if (c2.contains(it.next()))
-	return false;
+        return false;
     return true;
   }
 
-
+
   /**
    * Obtain an immutable Set consisting of a single element. The return value
    * of this method is Serializable.
@@ -1593,30 +1599,30 @@ public class Collections
     {
       return new Iterator<T>()
       {
-	/**
-	 * Flag to indicate whether or not the element has
-	 * been retrieved.
-	 */
+        /**
+         * Flag to indicate whether or not the element has
+         * been retrieved.
+         */
         private boolean hasNext = true;
 
-	/**
-	 * Returns <code>true</code> if elements still remain to be
-	 * iterated through.
-	 *
-	 * @return <code>true</code> if the element has not yet been returned.
-	 */
+        /**
+         * Returns <code>true</code> if elements still remain to be
+         * iterated through.
+         *
+         * @return <code>true</code> if the element has not yet been returned.
+         */
         public boolean hasNext()
         {
           return hasNext;
         }
 
-	/**
-	 * Returns the element.
-	 *
-	 * @return The element used by this singleton.
-	 * @throws NoSuchElementException if the object
-	 *         has already been retrieved.
-	 */ 
+        /**
+         * Returns the element.
+         *
+         * @return The element used by this singleton.
+         * @throws NoSuchElementException if the object
+         *         has already been retrieved.
+         */
         public T next()
         {
           if (hasNext)
@@ -1628,15 +1634,15 @@ public class Collections
             throw new NoSuchElementException();
         }
 
-	/**
-	 * Removes the element from the singleton.
-	 * As this set is immutable, this will always
-	 * throw an exception.
-	 *
-	 * @throws UnsupportedOperationException as the
-	 *         singleton set doesn't support
-	 *         <code>remove()</code>.
-	 */
+        /**
+         * Removes the element from the singleton.
+         * As this set is immutable, this will always
+         * throw an exception.
+         *
+         * @throws UnsupportedOperationException as the
+         *         singleton set doesn't support
+         *         <code>remove()</code>.
+         */
         public void remove()
         {
           throw new UnsupportedOperationException();
@@ -1676,7 +1682,7 @@ public class Collections
 
     /**
      * The hash is just that of the element.
-     * 
+     *
      * @return The hashcode of the element.
      */
     public int hashCode()
@@ -1840,7 +1846,7 @@ public class Collections
 
     /**
      * Sublists are limited in scope.
-     * 
+     *
      * @param from The starting bound for the sublist.
      * @param to The ending bound for the sublist.
      * @return Either an empty list if both bounds are
@@ -1852,7 +1858,7 @@ public class Collections
     public List<T> subList(int from, int to)
     {
       if (from == to && (to == 0 || to == 1))
-        return EMPTY_LIST;
+        return emptyList();
       if (from == 0 && to == 1)
         return this;
       if (from > to)
@@ -1874,7 +1880,7 @@ public class Collections
      * Obvious string.
      *
      * @return The string surrounded by enclosing
-     *         square brackets. 
+     *         square brackets.
      */
     public String toString()
     {
@@ -1947,25 +1953,25 @@ public class Collections
     public Set<Map.Entry<K, V>> entrySet()
     {
       if (entries == null)
-	{
-	  Map.Entry<K,V> entry = new AbstractMap.SimpleEntry<K, V>(k, v)
-	  {
-	    /**
-	     * Sets the value of the map entry to the supplied value.
-	     * An exception is always thrown, as the map is immutable.
-	     *
-	     * @param o The new value.
-	     * @return The old value.
-	     * @throws UnsupportedOperationException as setting the value
-	     *         is not supported.
-	     */
-	    public V setValue(V o)
-	    {
-	      throw new UnsupportedOperationException();
-	    }
-	  };
-	  entries = singleton(entry);
-	}
+        {
+          Map.Entry<K,V> entry = new AbstractMap.SimpleEntry<K, V>(k, v)
+          {
+            /**
+             * Sets the value of the map entry to the supplied value.
+             * An exception is always thrown, as the map is immutable.
+             *
+             * @param o The new value.
+             * @return The old value.
+             * @throws UnsupportedOperationException as setting the value
+             *         is not supported.
+             */
+            public V setValue(V o)
+            {
+              throw new UnsupportedOperationException();
+            }
+          };
+          entries = singleton(entry);
+        }
       return entries;
     }
 
@@ -2098,10 +2104,10 @@ public class Collections
    *        <code>null</code> for natural ordering
    * @throws ClassCastException if c will not compare some pair of items
    * @throws UnsupportedOperationException if the List is not modifiable
-   * @throws NullPointerException if the List is <code>null</code> or 
-   *         <code>null</code> is compared by natural ordering (only possible 
+   * @throws NullPointerException if the List is <code>null</code> or
+   *         <code>null</code> is compared by natural ordering (only possible
    *         when c is <code>null</code>)
-   *         
+   *
    * @see Arrays#sort(Object[], Comparator)
    */
   public static <T> void sort(List<T> l, Comparator<? super T> c)
@@ -2111,8 +2117,8 @@ public class Collections
     ListIterator<T> i = l.listIterator();
     for (int pos = 0, alen = a.length;  pos < alen;  pos++)
       {
-	i.next();
-	i.set(a[pos]);
+        i.next();
+        i.set(a[pos]);
       }
   }
 
@@ -2134,7 +2140,7 @@ public class Collections
     list.set(i, list.set(j, list.get(i)));
   }
 
-
+
   /**
    * Returns a synchronized (thread-safe) collection wrapper backed by the
    * given collection. Notice that element access through the iterators
@@ -2478,7 +2484,7 @@ public class Collections
      * @throws ArrayStoreException if the type of any element of the
      *         collection is not a subtype of the element type of a.
      */
-    public <T> T[] toArray(T[] a)
+    public <E> E[] toArray(E[] a)
     {
       synchronized (mutex)
         {
@@ -2534,7 +2540,7 @@ public class Collections
     /**
      * Retrieves the next object in the underlying collection.
      * A lock is obtained on the mutex before the collection is accessed.
-     * 
+     *
      * @return The next object in the collection.
      * @throws NoSuchElementException if there are no more elements
      */
@@ -2693,7 +2699,7 @@ public class Collections
 
   /**
    * Add the contents of a collection to the underlying list at the given
-   * index (optional operation).  If the list imposes restraints on what 
+   * index (optional operation).  If the list imposes restraints on what
    * can be inserted, such as no null elements, this should be documented.
    * A lock is obtained on the mutex before any of the elements are added.
    *
@@ -2852,7 +2858,7 @@ public class Collections
       synchronized (mutex)
         {
           return new SynchronizedListIterator<T>(mutex,
-						 list.listIterator(index));
+                                                 list.listIterator(index));
         }
     }
 
@@ -2924,7 +2930,7 @@ public class Collections
       synchronized (mutex)
         {
           return new SynchronizedList<T>(mutex,
-					 list.subList(fromIndex, toIndex));
+                                         list.subList(fromIndex, toIndex));
         }
     }
   } // class SynchronizedList
@@ -2989,8 +2995,8 @@ public class Collections
       synchronized (mutex)
         {
           return new SynchronizedRandomAccessList<T>(mutex,
-						     list.subList(fromIndex,
-								  toIndex));
+                                                     list.subList(fromIndex,
+                                                                  toIndex));
         }
     }
   } // class SynchronizedRandomAccessList
@@ -3306,14 +3312,14 @@ public class Collections
           e = o;
         }
 
-	/**
-	 * Returns <code>true</code> if the object, o, implements <code>Map.Entry</code>
-	 * with the same key and value as the underlying entry.  A lock is
-	 * obtained on the mutex before the comparison takes place.
-	 *
-	 * @param o The object to compare with this entry.
-	 * @return <code>true</code> if o is equivalent to the underlying map entry.
-	 */
+        /**
+         * Returns <code>true</code> if the object, o, implements <code>Map.Entry</code>
+         * with the same key and value as the underlying entry.  A lock is
+         * obtained on the mutex before the comparison takes place.
+         *
+         * @param o The object to compare with this entry.
+         * @return <code>true</code> if o is equivalent to the underlying map entry.
+         */
         public boolean equals(Object o)
         {
           synchronized (mutex)
@@ -3322,12 +3328,12 @@ public class Collections
             }
         }
 
-	/**
-	 * Returns the key used in the underlying map entry.  A lock is obtained
-	 * on the mutex before the key is retrieved.
-	 *
-	 * @return The key of the underlying map entry.
-	 */
+        /**
+         * Returns the key used in the underlying map entry.  A lock is obtained
+         * on the mutex before the key is retrieved.
+         *
+         * @return The key of the underlying map entry.
+         */
         public K getKey()
         {
           synchronized (mutex)
@@ -3336,12 +3342,12 @@ public class Collections
             }
         }
 
-	/**
-	 * Returns the value used in the underlying map entry.  A lock is obtained
-	 * on the mutex before the value is retrieved.
-	 *
-	 * @return The value of the underlying map entry.
-	 */
+        /**
+         * Returns the value used in the underlying map entry.  A lock is obtained
+         * on the mutex before the value is retrieved.
+         *
+         * @return The value of the underlying map entry.
+         */
         public V getValue()
         {
           synchronized (mutex)
@@ -3350,15 +3356,15 @@ public class Collections
             }
         }
 
-	/**
-	 * Computes the hash code for the underlying map entry.
-	 * This computation is described in the documentation for the
-	 * <code>Map</code> interface.  A lock is obtained on the mutex
-	 * before the underlying map is accessed.
-	 *
-	 * @return The hash code of the underlying map entry.
-	 * @see Map#hashCode()
-	 */
+        /**
+         * Computes the hash code for the underlying map entry.
+         * This computation is described in the documentation for the
+         * <code>Map</code> interface.  A lock is obtained on the mutex
+         * before the underlying map is accessed.
+         *
+         * @return The hash code of the underlying map entry.
+         * @see Map#hashCode()
+         */
         public int hashCode()
         {
           synchronized (mutex)
@@ -3367,22 +3373,22 @@ public class Collections
             }
         }
 
-	/**
-	 * Replaces the value in the underlying map entry with the specified
-	 * object (optional operation).  A lock is obtained on the mutex
-	 * before the map is altered.  The map entry, in turn, will alter
-	 * the underlying map object.  The operation is undefined if the
-	 * <code>remove()</code> method of the iterator has been called
-	 * beforehand.
-	 *
-	 * @param value the new value to store
-	 * @return the old value
-	 * @throws UnsupportedOperationException if the operation is not supported.
-	 * @throws ClassCastException if the value is of the wrong type.
-	 * @throws IllegalArgumentException if something about the value
-	 *         prevents it from existing in this map.
-	 * @throws NullPointerException if the map forbids null values.
-	 */
+        /**
+         * Replaces the value in the underlying map entry with the specified
+         * object (optional operation).  A lock is obtained on the mutex
+         * before the map is altered.  The map entry, in turn, will alter
+         * the underlying map object.  The operation is undefined if the
+         * <code>remove()</code> method of the iterator has been called
+         * beforehand.
+         *
+         * @param value the new value to store
+         * @return the old value
+         * @throws UnsupportedOperationException if the operation is not supported.
+         * @throws ClassCastException if the value is of the wrong type.
+         * @throws IllegalArgumentException if something about the value
+         *         prevents it from existing in this map.
+         * @throws NullPointerException if the map forbids null values.
+         */
         public V setValue(V value)
         {
           synchronized (mutex)
@@ -3391,12 +3397,12 @@ public class Collections
             }
         }
 
-	/**
-	 * Returns a textual representation of the underlying map entry.
-	 * A lock is obtained on the mutex before the entry is accessed.
-	 *
-	 * @return The contents of the map entry in <code>String</code> form.
-	 */
+        /**
+         * Returns a textual representation of the underlying map entry.
+         * A lock is obtained on the mutex before the entry is accessed.
+         *
+         * @return The contents of the map entry in <code>String</code> form.
+         */
         public String toString()
         {
           synchronized (mutex)
@@ -3412,29 +3418,29 @@ public class Collections
           {
             entries = new SynchronizedSet<Map.Entry<K, V>>(mutex, m.entrySet())
             {
-	      /**
-	       * Returns an iterator over the set.  The iterator has no specific order,
-	       * unless further specified.  A lock is obtained on the set's mutex
-	       * before the iterator is created.  The created iterator is also
-	       * thread-safe.
-	       *
-	       * @return A synchronized set iterator.
-	       */
+              /**
+               * Returns an iterator over the set.  The iterator has no specific order,
+               * unless further specified.  A lock is obtained on the set's mutex
+               * before the iterator is created.  The created iterator is also
+               * thread-safe.
+               *
+               * @return A synchronized set iterator.
+               */
               public Iterator<Map.Entry<K, V>> iterator()
               {
                 synchronized (super.mutex)
                   {
                     return new SynchronizedIterator<Map.Entry<K, V>>(super.mutex,
-								     c.iterator())
+                                                                     c.iterator())
                     {
-		      /**
-		       * Retrieves the next map entry from the iterator.
-		       * A lock is obtained on the iterator's mutex before
-		       * the entry is created.  The new map entry is enclosed in
-		       * a thread-safe wrapper.
-		       *
-		       * @return A synchronized map entry.
-		       */
+                      /**
+                       * Retrieves the next map entry from the iterator.
+                       * A lock is obtained on the iterator's mutex before
+                       * the entry is created.  The new map entry is enclosed in
+                       * a thread-safe wrapper.
+                       *
+                       * @return A synchronized map entry.
+                       */
                       public Map.Entry<K, V> next()
                       {
                         synchronized (super.mutex)
@@ -3656,7 +3662,7 @@ public class Collections
      * <code>add</code> or <code>addAll</code>, is not supported via this
      * collection.  A lock is obtained on the mutex before the collection
      * is created.
-     * 
+     *
      * @return the collection of all values in the underlying map.
      */
     public Collection<V> values()
@@ -3944,7 +3950,7 @@ public class Collections
       synchronized (mutex)
         {
           return new SynchronizedSortedMap<K, V>(mutex,
-						 sm.subMap(fromKey, toKey));
+                                                 sm.subMap(fromKey, toKey));
         }
     }
 
@@ -4142,8 +4148,8 @@ public class Collections
       synchronized (mutex)
         {
           return new SynchronizedSortedSet<T>(mutex,
-					      ss.subSet(fromElement,
-							toElement));
+                                              ss.subSet(fromElement,
+                                                        toElement));
         }
     }
 
@@ -4172,7 +4178,7 @@ public class Collections
     }
   } // class SynchronizedSortedSet
 
-
+
   /**
    * Returns an unmodifiable view of the given collection. This allows
    * "read-only" access, although changes in the backing collection show up
@@ -4495,7 +4501,7 @@ public class Collections
    * via sublists, will fail with {@link UnsupportedOperationException}.
    * Although this view prevents changes to the structure of the list and
    * its elements, the values referenced by the objects in the list can
-   * still be modified.   
+   * still be modified.
    * <p>
    *
    * The returned List implements Serializable, but can only be serialized if
@@ -4866,7 +4872,7 @@ public class Collections
    * iterators will fail with {@link UnsupportedOperationException}.
    * Although this view prevents changes to the structure of the map and its
    * entries, the values referenced by the objects in the map can still be
-   * modified.   
+   * modified.
    * <p>
    *
    * The returned Map implements Serializable, but can only be serialized if
@@ -4877,7 +4883,7 @@ public class Collections
    * @see Serializable
    */
   public static <K, V> Map<K, V> unmodifiableMap(Map<? extends K,
-						 ? extends V> m)
+                                                 ? extends V> m)
   {
     return new UnmodifiableMap<K, V>(m);
   }
@@ -5017,7 +5023,7 @@ public class Collections
         /**
          * Returns <code>true</code> if the object, o, is also a map entry
          * with an identical key and value.
-         * 
+         *
          * @param o the object to compare.
          * @return <code>true</code> if o is an equivalent map entry.
          */
@@ -5028,7 +5034,7 @@ public class Collections
 
         /**
          * Returns the key of this map entry.
-         * 
+         *
          * @return the key.
          */
         public K getKey()
@@ -5038,7 +5044,7 @@ public class Collections
 
         /**
          * Returns the value of this map entry.
-         * 
+         *
          * @return the value.
          */
         public V getValue()
@@ -5049,7 +5055,7 @@ public class Collections
         /**
          * Computes the hash code of this map entry. The computation is
          * described in the <code>Map</code> interface documentation.
-         * 
+         *
          * @return the hash code of this entry.
          * @see Map#hashCode()
          */
@@ -5061,7 +5067,7 @@ public class Collections
         /**
          * Blocks the alteration of the value of this map entry. This method
          * never returns, throwing an exception instead.
-         * 
+         *
          * @param value The new value.
          * @throws UnsupportedOperationException as an unmodifiable map entry
          *           does not support the <code>setValue()</code> operation.
@@ -5073,7 +5079,7 @@ public class Collections
 
         /**
          * Returns a textual representation of the map entry.
-         * 
+         *
          * @return The map entry as a <code>String</code>.
          */
         public String toString()
@@ -5100,20 +5106,20 @@ public class Collections
       public Iterator<Map.Entry<K,V>> iterator()
       {
         return new UnmodifiableIterator<Map.Entry<K,V>>(c.iterator())
-	{
-	  /**
-	   * Obtains the next element from the underlying set of
-	   * map entries.
-	   *
-	   * @return the next element in the collection.
-	   * @throws NoSuchElementException if there are no more elements.
-	   */
+        {
+          /**
+           * Obtains the next element from the underlying set of
+           * map entries.
+           *
+           * @return the next element in the collection.
+           * @throws NoSuchElementException if there are no more elements.
+           */
           public Map.Entry<K,V> next()
           {
             final Map.Entry<K,V> e = super.next();
-	    return new UnmodifiableMapEntry<K,V>(e);
-	  }
-	};
+            return new UnmodifiableMapEntry<K,V>(e);
+          }
+        };
       }
 
       // The array returned is an array of UnmodifiableMapEntry instead of
@@ -5122,14 +5128,14 @@ public class Collections
       {
         Object[] mapEntryResult = super.toArray();
         UnmodifiableMapEntry<K,V> result[] = null;
-  
+
         if (mapEntryResult != null)
           {
             result = (UnmodifiableMapEntry<K,V>[])
-	      new UnmodifiableMapEntry[mapEntryResult.length];
+              new UnmodifiableMapEntry[mapEntryResult.length];
             for (int i = 0; i < mapEntryResult.length; ++i)
-	      result[i] = new UnmodifiableMapEntry<K,V>((Map.Entry<K,V>)mapEntryResult[i]);
-	  }
+              result[i] = new UnmodifiableMapEntry<K,V>((Map.Entry<K,V>)mapEntryResult[i]);
+          }
         return result;
       }
 
@@ -5138,14 +5144,14 @@ public class Collections
       public <S> S[] toArray(S[] array)
       {
         S[] result = super.toArray(array);
-  
+
         if (result != null)
-	  for (int i = 0; i < result.length; i++)
-	    array[i] =
-	      (S) new UnmodifiableMapEntry<K,V>((Map.Entry<K,V>) result[i]);
+          for (int i = 0; i < result.length; i++)
+            array[i] =
+              (S) new UnmodifiableMapEntry<K,V>((Map.Entry<K,V>) result[i]);
         return array;
       }
-      
+
 
     } // class UnmodifiableEntrySet
 
@@ -5309,7 +5315,7 @@ public class Collections
    * will fail with {@link UnsupportedOperationException}.
    * Although this view prevents changes to the structure of the set and its
    * entries, the values referenced by the objects in the set can still be
-   * modified.   
+   * modified.
    * <p>
    *
    * The returned Set implements Serializable, but can only be serialized if
@@ -5364,7 +5370,7 @@ public class Collections
      * hash codes of all elements within the set.
      *
      * @return the hash code of the set.
-     */ 
+     */
     public int hashCode()
     {
       return c.hashCode();
@@ -5378,7 +5384,7 @@ public class Collections
    * views, or iterators, will fail with {@link UnsupportedOperationException}.
    * Although this view prevents changes to the structure of the map and its
    * entries, the values referenced by the objects in the map can still be
-   * modified.   
+   * modified.
    * <p>
    *
    * The returned SortedMap implements Serializable, but can only be
@@ -5389,7 +5395,7 @@ public class Collections
    * @see Serializable
    */
   public static <K, V> SortedMap<K, V> unmodifiableSortedMap(SortedMap<K,
-							     ? extends V> m)
+                                                             ? extends V> m)
   {
     return new UnmodifiableSortedMap<K, V>(m);
   }
@@ -5553,7 +5559,7 @@ public class Collections
    * iterators, will fail with {@link UnsupportedOperationException}.
    * Although this view prevents changes to the structure of the set and its
    * entries, the values referenced by the objects in the set can still be
-   * modified.   
+   * modified.
    * <p>
    *
    * The returns SortedSet implements Serializable, but can only be
@@ -5722,7 +5728,7 @@ public class Collections
   } // class UnmodifiableSortedSet
 
   /**
-   * <p> 
+   * <p>
    * Returns a dynamically typesafe view of the given collection,
    * where any modification is first checked to ensure that the type
    * of the new data is appropriate.  Although the addition of
@@ -5738,7 +5744,7 @@ public class Collections
    * <code>ClassCastException</code> caused by erroneous casting, or
    * for protecting collections from corruption by external libraries.
    * </p>
-   * <p> 
+   * <p>
    * Since the collection might be a List or a Set, and those
    * have incompatible equals and hashCode requirements, this relies
    * on Object's implementation rather than passing those calls on to
@@ -5746,7 +5752,7 @@ public class Collections
    * Serializable, but can only be serialized if the collection it
    * wraps is likewise Serializable.
    * </p>
-   * 
+   *
    * @param c the collection to wrap in a dynamically typesafe wrapper
    * @param type the type of elements the collection should hold.
    * @return a dynamically typesafe view of the collection.
@@ -5754,7 +5760,7 @@ public class Collections
    * @since 1.5
    */
   public static <E> Collection<E> checkedCollection(Collection<E> c,
-						    Class<E> type)
+                                                    Class<E> type)
   {
     return new CheckedCollection<E>(c, type);
   }
@@ -5773,7 +5779,7 @@ public class Collections
      * Compatible with JDK 1.5.
      */
     private static final long serialVersionUID = 1578914078182001775L;
-    
+
     /**
      * The wrapped collection. Package visible for use by subclasses.
      * @serial the real collection
@@ -5812,9 +5818,9 @@ public class Collections
     public boolean add(E o)
     {
       if (type.isInstance(o))
-	return c.add(o);
+        return c.add(o);
       else
-	throw new ClassCastException("The element is of the incorrect type.");
+        throw new ClassCastException("The element is of the incorrect type.");
     }
 
     /**
@@ -5832,11 +5838,11 @@ public class Collections
       Collection<E> typedColl = (Collection<E>) c;
       final Iterator<E> it = typedColl.iterator();
       while (it.hasNext())
-	{
-	  final E element = it.next();
-	  if (!type.isInstance(element))
-	    throw new ClassCastException("A member of the collection is not of the correct type.");
-	}
+        {
+          final E element = it.next();
+          if (!type.isInstance(element))
+            throw new ClassCastException("A member of the collection is not of the correct type.");
+        }
       return c.addAll(typedColl);
     }
 
@@ -6073,7 +6079,7 @@ public class Collections
   } // class CheckedIterator
 
   /**
-   * <p> 
+   * <p>
    * Returns a dynamically typesafe view of the given list,
    * where any modification is first checked to ensure that the type
    * of the new data is appropriate.  Although the addition of
@@ -6116,7 +6122,7 @@ public class Collections
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.5
    */
-  private static class CheckedList<E> 
+  private static class CheckedList<E>
     extends CheckedCollection<E>
     implements List<E>
   {
@@ -6156,9 +6162,9 @@ public class Collections
     public void add(int index, E o)
     {
       if (type.isInstance(o))
-	list.add(index, o);
+        list.add(index, o);
       else
-	throw new ClassCastException("The object is of the wrong type.");
+        throw new ClassCastException("The object is of the wrong type.");
     }
 
     /**
@@ -6167,7 +6173,7 @@ public class Collections
      * correct type.
      *
      * @param index the index at which to place the new element.
-     * @param c the collections of objects to add.
+     * @param coll the collections of objects to add.
      * @throws ClassCastException if the type of any element in c is not a
      *                            valid type for the underlying collection.
      */
@@ -6176,10 +6182,10 @@ public class Collections
       Collection<E> typedColl = (Collection<E>) coll;
       final Iterator<E> it = typedColl.iterator();
       while (it.hasNext())
-	{
-	  if (!type.isInstance(it.next()))
-	    throw new ClassCastException("A member of the collection is not of the correct type.");
-	}
+        {
+          if (!type.isInstance(it.next()))
+            throw new ClassCastException("A member of the collection is not of the correct type.");
+        }
       return list.addAll(index, coll);
     }
 
@@ -6397,9 +6403,9 @@ public class Collections
     public void add(E o)
     {
       if (type.isInstance(o))
-	li.add(o);
+        li.add(o);
       else
-	throw new ClassCastException("The object is of the wrong type.");
+        throw new ClassCastException("The object is of the wrong type.");
     }
 
     /**
@@ -6464,14 +6470,14 @@ public class Collections
     public void set(E o)
     {
       if (type.isInstance(o))
-	li.set(o);
+        li.set(o);
       else
-	throw new ClassCastException("The object is of the wrong type.");
+        throw new ClassCastException("The object is of the wrong type.");
     }
   } // class CheckedListIterator
 
   /**
-   * <p> 
+   * <p>
    * Returns a dynamically typesafe view of the given map,
    * where any modification is first checked to ensure that the type
    * of the new data is appropriate.  Although the addition of
@@ -6499,7 +6505,7 @@ public class Collections
    * @see Serializable
    */
   public static <K, V> Map<K, V> checkedMap(Map<K, V> m, Class<K> keyType,
-					    Class<V> valueType)
+                                            Class<V> valueType)
   {
     return new CheckedMap<K, V>(m, keyType, valueType);
   }
@@ -6511,7 +6517,7 @@ public class Collections
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.5
    */
-  private static class CheckedMap<K, V> 
+  private static class CheckedMap<K, V>
     implements Map<K, V>, Serializable
   {
     /**
@@ -6619,7 +6625,7 @@ public class Collections
      * <p>
      * The set is backed by the map, so that changes in one show up in the
      * other.  Modifications made while an iterator is in progress cause
-     * undefined behavior.  
+     * undefined behavior.
      * </p>
      *
      * @return the checked set view of all mapping entries.
@@ -6628,14 +6634,14 @@ public class Collections
     public Set<Map.Entry<K, V>> entrySet()
     {
       if (entries == null)
-	{
-	  Class<Map.Entry<K,V>> klass =
-	    (Class<Map.Entry<K,V>>) (Class) Map.Entry.class;
-	  entries = new CheckedEntrySet<Map.Entry<K,V>,K,V>(m.entrySet(),
-							    klass,
-							    keyType,
-							    valueType);
-	}
+        {
+          Class<Map.Entry<K,V>> klass =
+            (Class<Map.Entry<K,V>>) (Class) Map.Entry.class;
+          entries = new CheckedEntrySet<Map.Entry<K,V>,K,V>(m.entrySet(),
+                                                            klass,
+                                                            keyType,
+                                                            valueType);
+        }
       return entries;
     }
 
@@ -6654,13 +6660,13 @@ public class Collections
        * @serial the key type.
        */
       private final Class<SK> keyType;
-      
+
       /**
        * The type of the map's values.
        * @serial the value type.
        */
       private final Class<SV> valueType;
-      
+
       /**
        * Wrap a given set of map entries.
        *
@@ -6670,104 +6676,104 @@ public class Collections
        * @param valueType the type of the map's values.
        */
       CheckedEntrySet(Set<E> s, Class<E> type, Class<SK> keyType,
-		      Class<SV> valueType)
+                      Class<SV> valueType)
       {
         super(s, type);
-	this.keyType = keyType;
-	this.valueType = valueType;
+        this.keyType = keyType;
+        this.valueType = valueType;
       }
 
       // The iterator must return checked map entries.
       public Iterator<E> iterator()
       {
         return new CheckedIterator<E>(c.iterator(), type)
-	{
-	  /**
-	   * Obtains the next element from the underlying set of
-	   * map entries.
-	   *
-	   * @return the next element in the collection.
-	   * @throws NoSuchElementException if there are no more elements.
-	   */
+        {
+          /**
+           * Obtains the next element from the underlying set of
+           * map entries.
+           *
+           * @return the next element in the collection.
+           * @throws NoSuchElementException if there are no more elements.
+           */
           public E next()
           {
             final Map.Entry e = (Map.Entry) super.next();
             return (E) new Map.Entry()
-	    {
-	      /**
-	       * Returns <code>true</code> if the object, o, is also a map
-	       * entry with an identical key and value.
-	       *
-	       * @param o the object to compare.
-	       * @return <code>true</code> if o is an equivalent map entry.
-	       */
+            {
+              /**
+               * Returns <code>true</code> if the object, o, is also a map
+               * entry with an identical key and value.
+               *
+               * @param o the object to compare.
+               * @return <code>true</code> if o is an equivalent map entry.
+               */
               public boolean equals(Object o)
               {
                 return e.equals(o);
               }
-	      
-	      /**
-	       * Returns the key of this map entry.
-	       *
-	       * @return the key.
-	       */
+
+              /**
+               * Returns the key of this map entry.
+               *
+               * @return the key.
+               */
               public Object getKey()
               {
                 return e.getKey();
               }
 
-	      /**
-	       * Returns the value of this map entry.
-	       *
-	       * @return the value.
-	       */
+              /**
+               * Returns the value of this map entry.
+               *
+               * @return the value.
+               */
               public Object getValue()
               {
                 return e.getValue();
               }
 
-	      /**
-	       * Computes the hash code of this map entry.
-	       * The computation is described in the <code>Map</code>
-	       * interface documentation.
-	       *
-	       * @return the hash code of this entry.
-	       * @see Map#hashCode()
-	       */ 
-	      public int hashCode()
+              /**
+               * Computes the hash code of this map entry.
+               * The computation is described in the <code>Map</code>
+               * interface documentation.
+               *
+               * @return the hash code of this entry.
+               * @see Map#hashCode()
+               */
+              public int hashCode()
               {
                 return e.hashCode();
               }
 
-	      /**
-	       * Sets the value of this map entry, provided it is of the
-	       * right type.
-	       *
-	       * @param value The new value.
-	       * @throws ClassCastException if the type of the value is not
-	       *                            a valid type for the underlying
-	       *                             map.
-	       */
+              /**
+               * Sets the value of this map entry, provided it is of the
+               * right type.
+               *
+               * @param value The new value.
+               * @throws ClassCastException if the type of the value is not
+               *                            a valid type for the underlying
+               *                             map.
+               */
               public Object setValue(Object value)
               {
-		if (valueType.isInstance(value))
-		  return e.setValue(value);
-		else
-		  throw new ClassCastException("The value is of the wrong type.");
+                if (valueType.isInstance(value))
+                  return e.setValue(value);
+                else
+                  throw new ClassCastException("The value is of the wrong type.");
               }
 
-	      /**
-	       * Returns a textual representation of the map entry.
-	       *
-	       * @return The map entry as a <code>String</code>.
-	       */
+              /**
+               * Returns a textual representation of the map entry.
+               *
+               * @return The map entry as a <code>String</code>.
+               */
               public String toString()
               {
                 return e.toString();
               }
-	    };
+            };
           }
-	};
+        };
       }
     } // class CheckedEntrySet
 
@@ -6809,17 +6815,17 @@ public class Collections
      * @param value The new value.
      * @return the previous value of the key, or null if there was no mapping.
      * @throws ClassCastException if the type of the key or the value is
-     *                            not a valid type for the underlying map.    
+     *                            not a valid type for the underlying map.
      */
     public V put(K key, V value)
     {
       if (keyType.isInstance(key))
-	{
-	  if (valueType.isInstance(value))
-	    return m.put(key,value);
-	  else
-	    throw new ClassCastException("The value is of the wrong type.");
-	}
+        {
+          if (valueType.isInstance(value))
+            return m.put(key,value);
+          else
+            throw new ClassCastException("The value is of the wrong type.");
+        }
       throw new ClassCastException("The key is of the wrong type.");
     }
 
@@ -6870,23 +6876,23 @@ public class Collections
      * Adds all pairs within the supplied map to the underlying map,
      * provided they are all have the correct key and value types.
      *
-     * @param m the map, the entries of which should be added
+     * @param map the map, the entries of which should be added
      *          to the underlying map.
      * @throws ClassCastException if the type of a key or value is
-     *                            not a valid type for the underlying map.    
+     *                            not a valid type for the underlying map.
      */
     public void putAll(Map<? extends K, ? extends V> map)
     {
       Map<K,V> typedMap = (Map<K,V>) map;
       final Iterator<Map.Entry<K,V>> it = typedMap.entrySet().iterator();
       while (it.hasNext())
-	{
-	  final Map.Entry<K,V> entry = it.next();
-	  if (!keyType.isInstance(entry.getKey()))
-	    throw new ClassCastException("A key is of the wrong type.");
-	  if (!valueType.isInstance(entry.getValue()))
-	    throw new ClassCastException("A value is of the wrong type.");
-	}
+        {
+          final Map.Entry<K,V> entry = it.next();
+          if (!keyType.isInstance(entry.getKey()))
+            throw new ClassCastException("A key is of the wrong type.");
+          if (!valueType.isInstance(entry.getValue()))
+            throw new ClassCastException("A value is of the wrong type.");
+        }
       m.putAll(typedMap);
     }
 
@@ -6939,7 +6945,7 @@ public class Collections
      * behavior.  These modifications are again limited to the values of
      * the keys.
      * </p>
-     * 
+     *
      * @return the collection view of all values.
      */
     public Collection<V> values()
@@ -6951,7 +6957,7 @@ public class Collections
   } // class CheckedMap
 
   /**
-   * <p> 
+   * <p>
    * Returns a dynamically typesafe view of the given set,
    * where any modification is first checked to ensure that the type
    * of the new data is appropriate.  Although the addition of
@@ -6989,7 +6995,7 @@ public class Collections
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.5
    */
-  private static class CheckedSet<E> 
+  private static class CheckedSet<E>
     extends CheckedCollection<E>
     implements Set<E>
   {
@@ -7025,7 +7031,7 @@ public class Collections
      * hash codes of all elements within the set.
      *
      * @return the hash code of the set.
-     */ 
+     */
     public int hashCode()
     {
       return c.hashCode();
@@ -7033,7 +7039,7 @@ public class Collections
   } // class CheckedSet
 
   /**
-   * <p> 
+   * <p>
    * Returns a dynamically typesafe view of the given sorted map,
    * where any modification is first checked to ensure that the type
    * of the new data is appropriate.  Although the addition of
@@ -7061,8 +7067,8 @@ public class Collections
    * @see Serializable
    */
   public static <K, V> SortedMap<K, V> checkedSortedMap(SortedMap<K, V> m,
-							Class<K> keyType,
-							Class<V> valueType)
+                                                        Class<K> keyType,
+                                                        Class<V> valueType)
   {
     return new CheckedSortedMap<K, V>(m, keyType, valueType);
   }
@@ -7197,8 +7203,8 @@ public class Collections
      */
     public SortedMap<K, V> subMap(K fromKey, K toKey)
     {
-      return new CheckedSortedMap<K, V>(sm.subMap(fromKey, toKey), keyType, 
-					valueType);
+      return new CheckedSortedMap<K, V>(sm.subMap(fromKey, toKey), keyType,
+                                        valueType);
     }
 
     /**
@@ -7229,7 +7235,7 @@ public class Collections
     public SortedMap<K, V> tailMap(K fromKey)
     {
       return new CheckedSortedMap<K, V>(sm.tailMap(fromKey), keyType,
-					valueType);
+                                        valueType);
     }
   } // class CheckedSortedMap
 
@@ -7261,7 +7267,7 @@ public class Collections
    * @see Serializable
    */
   public static <E> SortedSet<E> checkedSortedSet(SortedSet<E> s,
-						  Class<E> type)
+                                                  Class<E> type)
   {
     return new CheckedSortedSet<E>(s, type);
   }
@@ -7273,7 +7279,7 @@ public class Collections
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.5
    */
-  private static class CheckedSortedSet<E> 
+  private static class CheckedSortedSet<E>
     extends CheckedSet<E>
     implements SortedSet<E>
   {
@@ -7285,7 +7291,7 @@ public class Collections
     /**
      * The wrapped set; stored both here and in the superclass to avoid
      * excessive casting.
-     * 
+     *
      * @serial the wrapped set
      */
     private SortedSet<E> ss;
@@ -7386,7 +7392,7 @@ public class Collections
      * new Integer(highlimit.intValue() + 1))</code> to reverse
      * the inclusiveness of both endpoints.
      * </p>
-     * 
+     *
      * @param fromElement the inclusive lower range of the subset.
      * @param toElement the exclusive upper range of the subset.
      * @return the subset.
@@ -7469,7 +7475,7 @@ public class Collections
   }
 
   /**
-   * The implementation of {@link #asLIFOQueue(Deque)}. 
+   * The implementation of {@link #asLIFOQueue(Deque)}.
    *
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.6
@@ -7477,7 +7483,7 @@ public class Collections
   private static class LIFOQueue<T>
     extends AbstractQueue<T>
   {
-    
+
     /**
      * The backing deque.
      */
@@ -7498,36 +7504,36 @@ public class Collections
     {
       return deque.offerFirst(e);
     }
-    
+
     public boolean addAll(Collection<? extends T> c)
     {
       boolean result = false;
       final Iterator<? extends T> it = c.iterator();
       while (it.hasNext())
-	result |= deque.offerFirst(it.next());
+        result |= deque.offerFirst(it.next());
       return result;
     }
-    
+
     public void clear()
     {
       deque.clear();
     }
-    
+
     public boolean isEmpty()
     {
       return deque.isEmpty();
     }
-    
+
     public Iterator<T> iterator()
     {
       return deque.iterator();
     }
-    
+
     public boolean offer(T e)
     {
       return deque.offerFirst(e);
     }
-    
+
     public T peek()
     {
       return deque.peek();
@@ -7537,7 +7543,7 @@ public class Collections
     {
       return deque.poll();
     }
-    
+
     public int size()
     {
       return deque.size();
@@ -7545,7 +7551,7 @@ public class Collections
   } // class LIFOQueue
 
   /**
-   * The implementation of {@link #newSetFromMap(Map)}. 
+   * The implementation of {@link #newSetFromMap(Map)}.
    *
    * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
    * @since 1.6
@@ -7553,7 +7559,7 @@ public class Collections
   private static class MapSet<E>
     extends AbstractSet<E>
   {
-    
+
     /**
      * The backing map.
      */
@@ -7569,7 +7575,7 @@ public class Collections
     public MapSet(Map<E,Boolean> map)
     {
       if (!map.isEmpty())
-	throw new IllegalArgumentException("The map must be empty.");
+        throw new IllegalArgumentException("The map must be empty.");
       this.map = map;
     }
 
@@ -7577,45 +7583,45 @@ public class Collections
     {
       return map.put(e, true) == null;
     }
-    
+
     public boolean addAll(Collection<? extends E> c)
     {
       boolean result = false;
       final Iterator<? extends E> it = c.iterator();
       while (it.hasNext())
-	result |= (map.put(it.next(), true) == null);
+        result |= (map.put(it.next(), true) == null);
       return result;
     }
-    
+
     public void clear()
     {
       map.clear();
     }
-    
+
     public boolean contains(Object o)
     {
       return map.containsKey(o);
     }
-    
+
     public boolean isEmpty()
     {
       return map.isEmpty();
     }
-    
+
     public Iterator<E> iterator()
     {
       return map.keySet().iterator();
     }
-    
+
     public boolean remove(Object o)
     {
       return map.remove(o) != null;
     }
-    
+
     public int size()
     {
       return map.size();
     }
   } // class MapSet
-  
+
 } // class Collections

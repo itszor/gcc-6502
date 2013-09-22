@@ -1,6 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-forwprop2" } */
-
+/* { dg-options "-O2 -fno-tree-sra -fdump-tree-forwprop2" } */
 
 struct YY {
   double e[3];  };
@@ -19,7 +18,5 @@ int foo(const struct XX* r) {
   return 1;
 }
 
-/* { dg-final { scan-tree-dump-times "&" 0 "forwprop2" } } */
+/* { dg-final { scan-tree-dump-times "= &" 0 "forwprop2" } } */
 /* { dg-final { cleanup-tree-dump "forwprop2" } } */
-
-

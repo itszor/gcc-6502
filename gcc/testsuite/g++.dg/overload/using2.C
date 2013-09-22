@@ -20,21 +20,21 @@ namespace std {
   extern "C" void *malloc (__SIZE_TYPE__) throw () __attribute__((malloc));
 
   void abort (void) throw (); // these aren't
-  void _exit (int) throw (); // { dg-error "std::_exit" }
+  void _exit (int) throw (); // { dg-message "std::_exit" }
 
   extern "C" void c1 (void) throw ();
-  void C1 (void) throw (); // { dg-error "std::C1" }
+  void C1 (void) throw (); // { dg-message "std::C1" }
 
   extern "C" void c2 (void) throw ();
   void C2 (void) throw ();
 
   extern "C" void c3 (void) throw ();
-  void C3 (void) throw (); // { dg-error "std::C3" }
+  void C3 (void) throw (); // { dg-message "std::C3" }
 }
 
 namespace other {
   extern "C" void c3 (void) throw ();
-  void C3 (void) throw (); // { dg-error "other::C3" }
+  void C3 (void) throw (); // { dg-message "other::C3" }
 }
 
 using std::exit;
@@ -46,10 +46,12 @@ using std::C1;
   extern "C" void *malloc (__SIZE_TYPE__) throw () __attribute__((malloc));
 
   void abort (void) throw ();
-  void _exit (int) throw (); // { dg-error "conflicts|void _exit" }
+  void _exit (int) throw (); // { dg-error "conflicts" "conflicts" }
+                             // { dg-message "void _exit" "_exit" { target *-*-* } 49 }
 
   extern "C" void c1 (void) throw ();
-  void C1 (void) throw (); // { dg-error "conflicts|void C1" }
+  void C1 (void) throw (); // { dg-error "conflicts" "conflicts" }
+                           // { dg-message "void C1" "C1" { target *-*-* } 53 }
 
   extern "C" void c2 (void) throw ();
   void C2 (void) throw ();
@@ -71,10 +73,12 @@ int main () {
   exit (0);
 
   _exit (0); // { dg-error "ambiguous" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 75 }
   abort ();
 
   c1 ();
   C1 (); // { dg-error "ambiguous" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 80 }
 
   c2 ();
   C2 (); // one might expect an ambiguous call error here as well, but
@@ -82,6 +86,7 @@ int main () {
 
   c3 ();
   C3 (); // { dg-error "ambiguous" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 88 }
   C3 (0);
   C3 (0l);
 }

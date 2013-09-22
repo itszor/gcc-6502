@@ -14,5 +14,3 @@ USE MODULE_A
 USE MODULE_B
 a = 0
 END
-
-! { dg-final { cleanup-modules "MODULE_A MODULE_B" } }

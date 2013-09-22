@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Tests a set of patches from a directory.
-# Copyright (C) 2007  Free Software Foundation, Inc.
+# Copyright (C) 2007, 2008, 2011  Free Software Foundation, Inc.
 # Contributed by Sebastian Pop <sebastian.pop@amd.com>
 
 # This program is free software; you can redistribute it and/or modify
@@ -29,17 +29,21 @@ EOF
 
 args=$@
 
+svnpath=svn://gcc.gnu.org/svn/gcc
 dashj=
 default_standby=1
 standby=$default_standby
 default_watermark=0.60
 watermark=$default_watermark
 savecompilers=false
+nopristinecache=false
 nogpg=false
+stop=false
 
 usage() {
     cat <<EOF
 patch_tester.sh [-j<N>] [-standby N] [-watermark N] [-savecompilers] [-nogpg]
+                [-svnpath URL] [-stop] [-nopristinecache]
                 <source_dir> [patches_dir [state_dir [build_dir]]]
 
     J is the flag passed to make.  Default is empty string.
@@ -48,13 +52,23 @@ patch_tester.sh [-j<N>] [-standby N] [-watermark N] [-savecompilers] [-nogpg]
     PATCHES_DIR.  Default is ${default_standby} minutes.
 
     WATERMARK is the 5 minute average system charge under which a new
-    compile can start.  Default is ${default_watermark}.  Note that the comparison 
-    is done in lexicographical order, so don't forget the leading 0.
+    compile can start.  Default is ${default_watermark}.
 
     SAVECOMPILERS copies the compilers in the same directory as the
     test results for the non patched version.  Default is not copy.
 
+    NOPRISTINECACHE prevents use of cached test results from any earlier
+    test runs on the pristine version of the branch and revision under
+    test (the default behaviour).  This should be used when testing the
+    same revision and patch with multiple sets of configure options, as
+    these may affect the set of baseline failures.
+
     NOGPG can be used to avoid checking the GPG signature of patches.
+
+    URL is the location of the GCC SVN repository.  The default is
+    ${svnpath}.
+
+    STOP exits when PATCHES_DIR is empty.
 
     SOURCE_DIR is the directory containing GCC's toplevel configure.
 
@@ -69,6 +83,15 @@ patch_tester.sh [-j<N>] [-standby N] [-watermark N] [-savecompilers] [-nogpg]
 
 EOF
     exit 1
+}
+
+makedir () {
+    DIRNAME=$1
+    mkdir -p $DIRNAME
+    if [ $? -ne 0 ]; then
+	echo "ERROR: could not make directory $DIRNAME"
+	exit 1
+    fi
 }
 
 while [ $# -ne 0 ]; do
@@ -87,8 +110,17 @@ while [ $# -ne 0 ]; do
 	-savecompilers)
 	    savecompilers=true; shift
 	    ;;
+	-nopristinecache)
+	    nopristinecache=true; shift
+	    ;;
 	-nogpg)
 	    nogpg=true; shift
+	    ;;
+	-stop)
+	    stop=true; shift
+	    ;;
+	-svnpath)
+	    svnpath=$2; shift; shift
 	    ;;
 	-*) 
 	    echo "Invalid option: $1"
@@ -123,14 +155,24 @@ else
     BUILD=$4
 fi
 
-[ -d $PATCHES ] || mkdir -p $PATCHES
-[ -d $STATE ] || mkdir -p $STATE
-[ -d $STATE/patched ] || mkdir -p $STATE/patched
-[ -d $SOURCE ] || mkdir -p $SOURCE
+[ -d $PATCHES ] || makedir $PATCHES
+[ -d $STATE ] || makedir $STATE
+[ -d $STATE/patched ] || makedir $STATE/patched
+[ -d $SOURCE ] || makedir $SOURCE
 [ -f $SOURCE/config.guess ] || {
     cd $SOURCE
-    svn -q co svn://gcc.gnu.org/svn/gcc/trunk .
+    svn -q co $svnpath/trunk .
+    if [ $? -ne 0 ]; then
+	echo "ERROR: initial svn checkout failed"
+	exit 1
+    fi
 }
+
+# This can contain required local settings:
+#  default_config  configure options, always passed
+#  default_make    make bootstrap options, always passed
+#  default_check   make check options, always passed
+[ -f $STATE/defaults ] && . $STATE/defaults
 
 VERSION=`svn info $SOURCE | grep "^Revision:" | sed -e "s/^Revision://g" -e "s/ //g"`
 
@@ -165,7 +207,7 @@ now () {
 }
 
 report () {
-    echo "Checker: (`now`): $@" >> $REPORT
+    echo "$@" >> $REPORT
 }
 
 freport () {
@@ -182,7 +224,7 @@ cleanup () {
 }
 
 selfexec () {
-    exec ${CONFIG_SHELL-/bin/sh} $SOURCE/contrib/patch_tester.sh $args
+    exec ${CONFIG_SHELL-/bin/sh} $0 $args
 }
 
 update () {
@@ -200,15 +242,15 @@ update () {
     cd $SOURCE
     case $svn_branch in
 	trunk)
-	    if ! svn switch -r $svn_revision svn://gcc.gnu.org/svn/gcc/trunk &> $TESTING/svn ; then
+	    if ! svn switch -r $svn_revision $svnpath/trunk &> $TESTING/svn ; then
 		report "failed to update svn sources with"
-		report "svn switch -r $svn_revision svn://gcc.gnu.org/svn/gcc/trunk"
+		report "svn switch -r $svn_revision $svnpath/trunk"
 		freport $TESTING/svn
 		return 1
 	    fi
 	    ;;
 
-	svn://gcc.gnu.org/svn/gcc/*)
+	${svnpath}*)
 	    if ! svn switch -r $svn_revision $svn_branch &> $TESTING/svn ; then
 		report "failed to update svn sources with"
 		report "svn switch -r $svn_revision $svn_branch"
@@ -218,14 +260,15 @@ update () {
 	    ;;
 
 	*)
-	    if ! svn switch -r $svn_revision svn://gcc.gnu.org/svn/gcc/branches/$svn_branch &> $TESTING/svn ; then
+	    if ! svn switch -r $svn_revision $svnpath/branches/$svn_branch &> $TESTING/svn ; then
 		report "failed to update svn sources with"
-		report "svn switch -r $svn_revision svn://gcc.gnu.org/svn/gcc/branches/$svn_branch"
+		report "svn switch -r $svn_revision $svnpath/branches/$svn_branch"
 		freport $TESTING/svn
 		return 1
 	    fi
 	    ;;
     esac
+    contrib/gcc_update --touch
 
     current_version=`svn info $SOURCE | grep "^Revision:" | sed -e "s/^Revision://g" -e "s/ //g"`
     if [[ $VERSION < $current_version ]]; then
@@ -246,23 +289,24 @@ apply_patch () {
 	fi
     fi
 
-    # Detect if the patch was created in toplev GCC.
-    grep "^Index: " $PATCH | grep "gcc/"
-    if [ $? = 0 ]; then
-	cd $SOURCE
-	if ! patch -p0 < $PATCH &> $TESTING/patching ; then
-	    report "your patch failed to apply:"
-	    freport $TESTING/patching
-	    return 1
-	fi
-    else
-	cd $SOURCE/gcc
-	if ! patch -p0 < $PATCH &> $TESTING/patching ; then
-	    report "your patch failed to apply:"
-	    freport $TESTING/patching
-	    return 1
-	fi
+    cd $SOURCE
+    if ! patch -p0 < $PATCH &> $TESTING/patching ; then
+	report "your patch failed to apply:"
+	report "(check that the patch was created at the top level)"
+	freport $TESTING/patching
+	return 1
     fi
+
+    # Just assume indexes for now -- not really great, but svn always
+    # makes them.
+    grep "^Index: " $PATCH | sed -e 's/Index: //' | while read file; do
+	# If the patch resulted in an empty file, delete it.
+	# This is how svn reports deletions.
+	if [ ! -s $file ]; then
+	    rm -f $file
+	    report "Deleting empty file $file"
+	fi
+    done
 }
 
 save_compilers () {
@@ -279,14 +323,17 @@ bootntest () {
     cd $BUILD
 
     CONFIG_OPTIONS=`grep "^configure:" $PATCH | sed -e "s/^configure://g"`
-    if ! $SOURCE/configure $CONFIG_OPTIONS &> $1/configure ; then
-	report "configure failed with:"
+    CONFIG_OPTIONS="$default_config $CONFIG_OPTIONS"
+    if ! eval $SOURCE/configure $CONFIG_OPTIONS &> $1/configure ; then
+	report "configure with `basename $1` version failed with:"
 	freport $1/configure
 	return 1
     fi
 
-    if ! make $dashj `grep "^make:" $PATCH | sed -e "s/^make://g"` bootstrap &> $1/bootstrap ; then
-	report "bootstrap failed with last lines:"
+    MAKE_ARGS=`grep "^make:" $PATCH | sed -e "s/^make://g"`
+    MAKE_ARGS="$default_make $MAKE_ARGS"
+    if ! eval make $dashj $MAKE_ARGS &> $1/bootstrap ; then
+	report "bootstrap with `basename $1` version failed with last lines:"
 	tail -30 $1/bootstrap > $1/last_bootstrap
 	freport $1/last_bootstrap
 	report "grep --context=20 Error bootstrap:"
@@ -296,7 +343,14 @@ bootntest () {
     fi
 
     CHECK_OPTIONS=`grep "^check:" $PATCH | sed -e "s/^check://g"`
-    make $dashj $CHECK_OPTIONS -k check &> $1/check
+    CHECK_OPTIONS="$default_check $CHECK_OPTIONS"
+    eval make $dashj $CHECK_OPTIONS -k check &> $1/check
+
+    SUITESRUN="`grep 'Summary ===' $1/check | cut -d' ' -f 2 | sort`"
+    if [ x$SUITESRUN = x ]; then
+	report "check with `basename $1` version failed, no testsuites were run"
+	return 1
+    fi
 
     for LOG in $TESTLOGS ; do
 	if [ -f $BUILD/$LOG ]; then
@@ -318,10 +372,13 @@ bootntest_patched () {
 # Build the pristine tree with exactly the same options as the patch under test.
 bootntest_pristine () {
     cleanup
-    current_branch=`svn info $SOURCE | grep "^URL:" | sed -e "s/URL: //g" -e "s/svn:\/\/gcc.gnu.org\/svn\/gcc\///g"`
+    current_branch=`svn info $SOURCE | grep "^URL:" | sed -e "s/URL: //g" -e "s,${svnpath},,g"`
     current_version=`svn info $SOURCE | grep "^Revision:" | sed -e "s/^Revision://g" -e "s/ //g"`
     PRISTINE=$STATE/$current_branch/$current_version
 
+    if [ $nopristinecache = true ]; then
+      rm -rf $PRISTINE
+    fi
     if [ -d $PRISTINE ]; then
 	ln -s $PRISTINE $TESTING/pristine
 	return 0
@@ -428,11 +485,22 @@ if [ -d $TESTING ]; then
     fi
 fi
 
+firstpatch=true
 while true; do
     PATCH=`ls -rt -1 $PATCHES | head -1`
     if [ x$PATCH = x ]; then
+	if [ $stop = true ]; then
+	    if [ $firstpatch = true ]; then
+		echo "No patches ready to test, quitting."
+		exit 1
+	    else
+		echo "No more patches to test."
+		exit 0
+	    fi
+	fi
 	sleep ${standby}m
     else
+	firstpatch=false
 	sysload=`uptime | cut -d, -f 5`
 	if [[ $sysload > $watermark ]]; then
 	    # Wait a bit when system load is too high.

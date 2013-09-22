@@ -1,7 +1,6 @@
 /* Test floating-point conversions.  Standard types and double.  */
 /* Origin: Joseph Myers <joseph@codesourcery.com> */
-/* Skipped for MIPS16 targets because of PR 35232 */
-/* { dg-do run { target { { ! mips*-*-* } || nomips16 } } } */
+/* { dg-do run } */
 /* { dg-options "" } */
 
 #include <float.h>

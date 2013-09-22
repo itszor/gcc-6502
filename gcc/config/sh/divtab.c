@@ -1,28 +1,24 @@
-/* Copyright (C) 2003 Free Software Foundation, Inc.
+/* Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
 This file is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
+Free Software Foundation; either version 3, or (at your option) any
 later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 This file is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with this program; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
+
 
 /* Calculate division table for SH5Media integer division
    Contributed by Joern Rennecke
@@ -57,7 +53,8 @@ double max_defect3 = 0.;
 double max_defect3_x;
 int max_defect3_val;
 
-static double note_defect3 (int val, double d2, double y2d, double x)
+static double
+note_defect3 (int val, double d2, double y2d, double x)
 {
   int cutoff_val = val >> CUTOFF_BITS;
   double cutoff;
@@ -176,8 +173,10 @@ main ()
     printf ("   Min defect: %e at %e\n", min_defect, min_defect_x);
     printf ("   Max 2nd step defect: %e at %e\n", max_defect2, max_defect2_x);
     printf ("   Min 2nd step defect: %e at %e\n", min_defect2, min_defect2_x);
-    printf ("   Max div defect: %e at %d:%e\n", max_defect3, max_defect3_val, max_defect3_x);
-    printf ("   Min div defect: %e at %d:%e\n", min_defect3, min_defect3_val, min_defect3_x);
+    printf ("   Max div defect: %e at %d:%e\n", max_defect3, max_defect3_val,
+						max_defect3_x);
+    printf ("   Min div defect: %e at %d:%e\n", min_defect3, min_defect3_val,
+						min_defect3_x);
     printf ("   Defect at 1: %e\n",
 	    calc_defect (1., constants[0], factors[0]));
     printf ("   Defect at -2: %e */\n",

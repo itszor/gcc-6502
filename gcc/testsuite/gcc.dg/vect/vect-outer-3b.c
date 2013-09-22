@@ -3,7 +3,7 @@
 #include "tree-vect.h"
 
 #define N 40
-float image[N][N] __attribute__ ((__aligned__(16)));
+float image[N][N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 float out[N];
 
 /* Outer-loop vectorization with non-consecutive access. Not vectorized yet.  */
@@ -49,5 +49,6 @@ int main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "OUTER LOOP VECTORIZED" 1 "vect" { xfail *-*-* } } } */
-/* { dg-final { scan-tree-dump-times "strided access in outer loop" 2 "vect" } } */
+/* { dg-final { scan-tree-dump-times "grouped access in outer loop" 2 "vect" { target { ! vect_multiple_sizes } } } } */
+/* { dg-final { scan-tree-dump-times "grouped access in outer loop" 4 "vect" { target vect_multiple_sizes } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

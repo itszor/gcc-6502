@@ -1,29 +1,28 @@
 /****************************************************************************
  *                                                                          *
- *                         GNAT COMPILER COMPONENTS                         *
+ *                         GNAT RUN-TIME COMPONENTS                         *
  *                                                                          *
  *                               E X P E C T                                *
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *                     Copyright (C) 2001-2007, AdaCore                     *
+ *                     Copyright (C) 2001-2011, AdaCore                     *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -80,40 +79,48 @@
 
 #include <windows.h>
 #include <process.h>
+#include <signal.h>
+#include <io.h>
+#include "mingw32.h"
 
 void
 __gnat_kill (int pid, int sig, int close)
 {
+  HANDLE h = OpenProcess (PROCESS_ALL_ACCESS, FALSE, pid);
+  if (h == NULL)
+    return;
   if (sig == 9)
     {
-      if ((HANDLE)pid != NULL)
-	{
-	  TerminateProcess ((HANDLE)pid, 0);
-	  if (close)
-	    CloseHandle ((HANDLE)pid);
-	}
+      TerminateProcess (h, 0);
+      __gnat_win32_remove_handle (NULL, pid);
     }
-  else if (sig == 2)
-    {
-      GenerateConsoleCtrlEvent (CTRL_C_EVENT, (HANDLE)pid);
-      if (close)
-	CloseHandle ((HANDLE)pid);
-    }
+  else if (sig == SIGINT)
+    GenerateConsoleCtrlEvent (CTRL_C_EVENT, pid);
+  else if (sig == SIGBREAK)
+    GenerateConsoleCtrlEvent (CTRL_BREAK_EVENT, pid);
+  /* ??? The last two alternatives don't really work. SIGBREAK requires setting
+     up process groups at start time which we don't do; treating SIGINT is just
+     not possible apparently. So we really only support signal 9. Fortunately
+     that's all we use in GNAT.Expect */
+
+  CloseHandle (h);
 }
 
 int
 __gnat_waitpid (int pid)
 {
+  HANDLE h = OpenProcess (PROCESS_ALL_ACCESS, FALSE, pid);
   DWORD exitcode = 1;
   DWORD res;
 
-  if ((HANDLE)pid != NULL)
+  if (h != NULL)
     {
-      res = WaitForSingleObject ((HANDLE)pid, INFINITE);
-      GetExitCodeProcess ((HANDLE)pid, &exitcode);
-      CloseHandle ((HANDLE)pid);
+      res = WaitForSingleObject (h, INFINITE);
+      GetExitCodeProcess (h, &exitcode);
+      CloseHandle (h);
     }
 
+  __gnat_win32_remove_handle (NULL, pid);
   return (int) exitcode;
 }
 
@@ -126,61 +133,7 @@ __gnat_expect_fork (void)
 void
 __gnat_expect_portable_execvp (int *pid, char *cmd, char *argv[])
 {
-  BOOL result;
-  STARTUPINFO SI;
-  PROCESS_INFORMATION PI;
-  SECURITY_ATTRIBUTES SA;
-  int csize = 1;
-  char *full_command;
-  int k;
-
-  /* compute the total command line length.  */
-  k = 0;
-  while (argv[k])
-    {
-      csize += strlen (argv[k]) + 1;
-      k++;
-    }
-
-  full_command = (char *) malloc (csize);
-  full_command[0] = '\0';
-
-  /* Startup info. */
-  SI.cb          = sizeof (STARTUPINFO);
-  SI.lpReserved  = NULL;
-  SI.lpReserved2 = NULL;
-  SI.lpDesktop   = NULL;
-  SI.cbReserved2 = 0;
-  SI.lpTitle     = NULL;
-  SI.dwFlags     = 0;
-  SI.wShowWindow = SW_HIDE;
-
-  /* Security attributes. */
-  SA.nLength = sizeof (SECURITY_ATTRIBUTES);
-  SA.bInheritHandle = TRUE;
-  SA.lpSecurityDescriptor = NULL;
-
-  k = 0;
-  while (argv[k])
-    {
-      strcat (full_command, argv[k]);
-      strcat (full_command, " ");
-      k++;
-    }
-
-  result = CreateProcess
-	     (NULL, (char *) full_command, &SA, NULL, TRUE,
-              GetPriorityClass (GetCurrentProcess()), NULL, NULL, &SI, &PI);
-
-  free (full_command);
-
-  if (result == TRUE)
-    {
-      CloseHandle (PI.hThread);
-      *pid = (int) PI.hProcess;
-    }
-  else
-    *pid = -1;
+  *pid = __gnat_portable_no_block_spawn (argv);
 }
 
 int
@@ -189,8 +142,8 @@ __gnat_pipe (int *fd)
   HANDLE read, write;
 
   CreatePipe (&read, &write, NULL, 0);
-  fd[0]=_open_osfhandle ((long)read, 0);
-  fd[1]=_open_osfhandle ((long)write, 0);
+  fd[0]=_open_osfhandle ((intptr_t)read, 0);
+  fd[1]=_open_osfhandle ((intptr_t)write, 0);
   return 0;  /* always success */
 }
 

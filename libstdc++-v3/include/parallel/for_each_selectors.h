@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/for_each_selectors.h
  *  @brief Functors representing different tasks to be plugged into the
@@ -43,324 +37,313 @@
 
 namespace __gnu_parallel
 {
-
-  /** @brief Generic selector for embarrassingly parallel functions. */
-  template<typename It>
-  struct generic_for_each_selector
-  {
-    /** @brief Iterator on last element processed; needed for some
-     *  algorithms (e. g. std::transform()).
-     */
-    It finish_iterator;
-  };
-
+  /** @brief Generic __selector for embarrassingly parallel functions. */
+  template<typename _It>
+    struct __generic_for_each_selector
+    {
+      /** @brief _Iterator on last element processed; needed for some
+       *  algorithms (e. g. std::transform()).
+       */
+      _It _M_finish_iterator;
+    };
 
   /** @brief std::for_each() selector. */
-  template<typename It>
-    struct for_each_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __for_each_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object. */
-      template<typename Op>
+       *  @param __o Operator.
+       *  @param __i iterator referencing object. */
+      template<typename _Op>
         bool
-        operator()(Op& o, It i)
-	{
-	  o(*i);
-	  return true;
-	}
+        operator()(_Op& __o, _It __i)
+        {
+          __o(*__i);
+          return true;
+        }
     };
 
   /** @brief std::generate() selector. */
-  template<typename It>
-    struct generate_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __generate_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object. */
-      template<typename Op>
+       *  @param __o Operator.
+       *  @param __i iterator referencing object. */
+      template<typename _Op>
         bool
-        operator()(Op& o, It i)
+        operator()(_Op& __o, _It __i)
         {
-	  *i = o();
-	  return true;
-	}
+          *__i = __o();
+          return true;
+        }
     };
 
   /** @brief std::fill() selector. */
-  template<typename It>
-    struct fill_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __fill_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param v Current value.
-       *  @param i Iterator referencing object. */
-      template<typename Val>
+       *  @param __v Current value.
+       *  @param __i iterator referencing object. */
+      template<typename _ValueType>
         bool
-        operator()(Val& v, It i)
-	{
-	  *i = v;
-	  return true;
-	}
+        operator()(_ValueType& __v, _It __i)
+        {
+          *__i = __v;
+          return true;
+        }
     };
 
-  /** @brief std::transform() selector, one input sequence variant. */
-  template<typename It>
-    struct transform1_selector : public generic_for_each_selector<It>
+  /** @brief std::transform() __selector, one input sequence variant. */
+  template<typename _It>
+    struct __transform1_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object. */
-      template<typename Op>
+       *  @param __o Operator.
+       *  @param __i iterator referencing object. */
+      template<typename _Op>
         bool
-        operator()(Op& o, It i)
-	{
-	  *i.second = o(*i.first);
-	  return true;
-	}
+        operator()(_Op& __o, _It __i)
+        {
+          *__i.second = __o(*__i.first);
+          return true;
+        }
     };
 
-  /** @brief std::transform() selector, two input sequences variant. */
-  template<typename It>
-    struct transform2_selector : public generic_for_each_selector<It>
+  /** @brief std::transform() __selector, two input sequences variant. */
+  template<typename _It>
+    struct __transform2_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object. */
-      template<typename Op>
+       *  @param __o Operator.
+       *  @param __i iterator referencing object. */
+      template<typename _Op>
         bool
-        operator()(Op& o, It i)
-	{
-	  *i.third = o(*i.first, *i.second);
-	  return true;
-	}
+        operator()(_Op& __o, _It __i)
+        {
+          *__i._M_third = __o(*__i._M_first, *__i._M_second);
+          return true;
+        }
     };
 
   /** @brief std::replace() selector. */
-  template<typename It, typename T>
-    struct replace_selector : public generic_for_each_selector<It>
+  template<typename _It, typename _Tp>
+    struct __replace_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Value to replace with. */
-      const T& new_val;
+      const _Tp& __new_val;
 
       /** @brief Constructor
-       *  @param new_val Value to replace with. */
+       *  @param __new_val Value to replace with. */
       explicit
-      replace_selector(const T &new_val) : new_val(new_val) {}
+      __replace_selector(const _Tp &__new_val) : __new_val(__new_val) {}
 
       /** @brief Functor execution.
-       *  @param v Current value.
-       *  @param i Iterator referencing object. */
+       *  @param __v Current value.
+       *  @param __i iterator referencing object. */
       bool
-      operator()(T& v, It i)
+      operator()(_Tp& __v, _It __i)
       {
-	if (*i == v)
-	  *i = new_val;
-	return true;
+        if (*__i == __v)
+          *__i = __new_val;
+        return true;
       }
     };
 
   /** @brief std::replace() selector. */
-  template<typename It, typename Op, typename T>
-    struct replace_if_selector : public generic_for_each_selector<It>
+  template<typename _It, typename _Op, typename _Tp>
+    struct __replace_if_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Value to replace with. */
-      const T& new_val;
+      const _Tp& __new_val;
 
       /** @brief Constructor.
-       *  @param new_val Value to replace with. */
+       *  @param __new_val Value to replace with. */
       explicit
-      replace_if_selector(const T &new_val) : new_val(new_val) { }
+      __replace_if_selector(const _Tp &__new_val) : __new_val(__new_val) { }
 
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object. */
+       *  @param __o Operator.
+       *  @param __i iterator referencing object. */
       bool
-      operator()(Op& o, It i)
+      operator()(_Op& __o, _It __i)
       {
-	if (o(*i))
-	  *i = new_val;
-	return true;
+        if (__o(*__i))
+          *__i = __new_val;
+        return true;
       }
     };
 
   /** @brief std::count() selector. */
-  template<typename It, typename Diff>
-    struct count_selector : public generic_for_each_selector<It>
+  template<typename _It, typename _Diff>
+    struct __count_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param v Current value.
-       *  @param i Iterator referencing object.
+       *  @param __v Current value.
+       *  @param __i iterator referencing object.
        *  @return 1 if count, 0 if does not count. */
-      template<typename Val>
-        Diff
-        operator()(Val& v, It i)
-	{ return (v == *i) ? 1 : 0; }
+      template<typename _ValueType>
+        _Diff
+        operator()(_ValueType& __v, _It __i)
+        { return (__v == *__i) ? 1 : 0; }
     };
 
   /** @brief std::count_if () selector. */
-  template<typename It, typename Diff>
-    struct count_if_selector : public generic_for_each_selector<It>
+  template<typename _It, typename _Diff>
+    struct __count_if_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator.
-       *  @param i Iterator referencing object.
+       *  @param __o Operator.
+       *  @param __i iterator referencing object.
        *  @return 1 if count, 0 if does not count. */
-      template<typename Op>
-        Diff
-        operator()(Op& o, It i)
-	{ return (o(*i)) ? 1 : 0; }
+      template<typename _Op>
+        _Diff
+        operator()(_Op& __o, _It __i)
+        { return (__o(*__i)) ? 1 : 0; }
     };
 
   /** @brief std::accumulate() selector. */
-  template<typename It>
-    struct accumulate_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __accumulate_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator (unused).
-       *  @param i Iterator referencing object.
+       *  @param __o Operator (unused).
+       *  @param __i iterator referencing object.
        *  @return The current value. */
-      template<typename Op>
-        typename std::iterator_traits<It>::value_type operator()(Op o, It i)
-	{ return *i; }
+      template<typename _Op>
+        typename std::iterator_traits<_It>::value_type
+        operator()(_Op __o, _It __i)
+        { return *__i; }
     };
 
   /** @brief std::inner_product() selector. */
-  template<typename It, typename It2, typename T>
-    struct inner_product_selector : public generic_for_each_selector<It>
+  template<typename _It, typename _It2, typename _Tp>
+    struct __inner_product_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Begin iterator of first sequence. */
-      It begin1_iterator;
+      _It  __begin1_iterator;
 
       /** @brief Begin iterator of second sequence. */
-      It2 begin2_iterator;
+      _It2 __begin2_iterator;
 
       /** @brief Constructor.
-       *  @param b1 Begin iterator of first sequence.
-       *  @param b2 Begin iterator of second sequence. */
+       *  @param __b1 Begin iterator of first sequence.
+       *  @param __b2 Begin iterator of second sequence. */
       explicit
-      inner_product_selector(It b1, It2 b2)
-      : begin1_iterator(b1), begin2_iterator(b2) { }
+      __inner_product_selector(_It __b1, _It2 __b2)
+      : __begin1_iterator(__b1), __begin2_iterator(__b2) { }
 
       /** @brief Functor execution.
-       *  @param mult Multiplication functor.
-       *  @param current Iterator referencing object.
-       *  @return Inner product elemental result. */
-      template<typename Op>
-        T
-        operator()(Op mult, It current)
-	{
-	  typename std::iterator_traits<It>::difference_type position
-	    = current - begin1_iterator;
-	  return mult(*current, *(begin2_iterator + position));
-	}
+       *  @param __mult Multiplication functor.
+       *  @param __current iterator referencing object.
+       *  @return Inner product elemental __result. */
+      template<typename _Op>
+        _Tp
+        operator()(_Op __mult, _It __current)
+        {
+          typename std::iterator_traits<_It>::difference_type __position
+            = __current - __begin1_iterator;
+          return __mult(*__current, *(__begin2_iterator + __position));
+        }
     };
 
   /** @brief Selector that just returns the passed iterator. */
-  template<typename It>
-    struct identity_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __identity_selector : public __generic_for_each_selector<_It>
     {
       /** @brief Functor execution.
-       *  @param o Operator (unused).
-       *  @param i Iterator referencing object.
+       *  @param __o Operator (unused).
+       *  @param __i iterator referencing object.
        *  @return Passed iterator. */
-      template<typename Op>
-        It
-        operator()(Op o, It i)
-	{ return i; }
+      template<typename _Op>
+        _It
+        operator()(_Op __o, _It __i)
+        { return __i; }
     };
 
   /** @brief Selector that returns the difference between two adjacent
-   *  elements.
+   *  __elements.
    */
-  template<typename It>
-    struct adjacent_difference_selector : public generic_for_each_selector<It>
+  template<typename _It>
+    struct __adjacent_difference_selector
+    : public __generic_for_each_selector<_It>
     {
-      template<typename Op>
+      template<typename _Op>
         bool
-        operator()(Op& o, It i)
-	{
-	  typename It::first_type go_back_one = i.first;
-	  --go_back_one;
-	  *i.second = o(*i.first, *go_back_one);
-	  return true;
-	}
+        operator()(_Op& __o, _It __i)
+        {
+          typename _It::first_type __go_back_one = __i.first;
+          --__go_back_one;
+          *__i.second = __o(*__i.first, *__go_back_one);
+          return true;
+        }
     };
 
-  // XXX move into type_traits?
   /** @brief Functor doing nothing
    *
-   *  For some reduction tasks (this is not a function object, but is
-   *  passed as selector dummy parameter.
+   *  For some __reduction tasks (this is not a function object, but is
+   *  passed as __selector __dummy parameter.
    */
-  struct nothing
+  struct _Nothing
   {
     /** @brief Functor execution.
-     *  @param i Iterator referencing object. */
-    template<typename It>
+     *  @param __i iterator referencing object. */
+    template<typename _It>
       void
-      operator()(It i) { }
+      operator()(_It __i) { }
   };
 
   /** @brief Reduction function doing nothing. */
-  struct dummy_reduct
+  struct _DummyReduct
   {
     bool
-    operator()(bool /*x*/, bool /*y*/) const
+    operator()(bool, bool) const
     { return true; }
   };
 
   /** @brief Reduction for finding the maximum element, using a comparator. */
-  template<typename Comp, typename It>
-    struct min_element_reduct
+  template<typename _Compare, typename _It>
+    struct __min_element_reduct
     {
-      Comp& comp;
+      _Compare& __comp;
 
       explicit
-      min_element_reduct(Comp &c) : comp(c) { }
+      __min_element_reduct(_Compare &__c) : __comp(__c) { }
 
-      It
-      operator()(It x, It y)
-      {
-	if (comp(*x, *y))
-	  return x;
-	else
-	  return y;
-      }
+      _It
+      operator()(_It __x, _It __y)
+      { return (__comp(*__x, *__y)) ? __x : __y; }
     };
 
   /** @brief Reduction for finding the maximum element, using a comparator. */
-  template<typename Comp, typename It>
-    struct max_element_reduct
+  template<typename _Compare, typename _It>
+    struct __max_element_reduct
     {
-      Comp& comp;
+      _Compare& __comp;
 
       explicit
-      max_element_reduct(Comp& c) : comp(c) { }
+      __max_element_reduct(_Compare& __c) : __comp(__c) { }
 
-      It
-      operator()(It x, It y)
-      {
-	if (comp(*x, *y))
-	  return y;
-	else
-	  return x;
-      }
+      _It
+      operator()(_It __x, _It __y)
+      { return (__comp(*__x, *__y)) ? __y : __x; }
     };
 
   /** @brief General reduction, using a binary operator. */
-  template<typename BinOp>
-    struct accumulate_binop_reduct
+  template<typename _BinOp>
+    struct __accumulate_binop_reduct
     {
-      BinOp& binop;
+      _BinOp& __binop;
 
       explicit
-      accumulate_binop_reduct(BinOp& b) : binop(b) { }
+      __accumulate_binop_reduct(_BinOp& __b) : __binop(__b) { }
 
-      template<typename Result, typename Addend>
-        Result
-        operator()(const Result& x, const Addend& y)
-	{ return binop(x, y); }
+      template<typename _Result, typename _Addend>
+        _Result
+        operator()(const _Result& __x, const _Addend& __y)
+        { return __binop(__x, __y); }
     };
 }
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_FOR_EACH_SELECTORS_H */

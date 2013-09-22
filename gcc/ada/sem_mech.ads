@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -95,6 +95,14 @@ package Sem_Mech is
    By_Descriptor_SB   : constant Mechanism_Type := -8;
    By_Descriptor_A    : constant Mechanism_Type := -9;
    By_Descriptor_NCA  : constant Mechanism_Type := -10;
+   By_Short_Descriptor      : constant Mechanism_Type := -11;
+   By_Short_Descriptor_UBS  : constant Mechanism_Type := -12;
+   By_Short_Descriptor_UBSB : constant Mechanism_Type := -13;
+   By_Short_Descriptor_UBA  : constant Mechanism_Type := -14;
+   By_Short_Descriptor_S    : constant Mechanism_Type := -15;
+   By_Short_Descriptor_SB   : constant Mechanism_Type := -16;
+   By_Short_Descriptor_A    : constant Mechanism_Type := -17;
+   By_Short_Descriptor_NCA  : constant Mechanism_Type := -18;
    --  These values are used only in OpenVMS ports of GNAT. Pass by descriptor
    --  is forced, as described in the OpenVMS ABI. The suffix indicates the
    --  descriptor type:
@@ -113,7 +121,7 @@ package Sem_Mech is
    --  type based on the Ada type in accordance with the OpenVMS ABI.
 
    subtype Descriptor_Codes is Mechanism_Type
-     range By_Descriptor_NCA .. By_Descriptor;
+     range By_Short_Descriptor_NCA .. By_Descriptor;
    --  Subtype including all descriptor mechanisms
 
    --  All the above special values are non-positive. Positive values for
@@ -144,7 +152,7 @@ package Sem_Mech is
    --  this call is to set mechanism values for formals and for the
    --  function return if they have not already been explicitly set by
    --  a use of an extended Import or Export pragma. The idea is to set
-   --  mechanism values whereever the semantics is dictated by either
+   --  mechanism values wherever the semantics is dictated by either
    --  requirements or implementation advice in the RM, and to leave
    --  the mechanism set to Default if there is no requirement, so that
    --  the back-end is free to choose the most efficient method.

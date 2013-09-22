@@ -1,12 +1,12 @@
 // -*- C++ -*-
 // Iterator Wrappers for the C++ library testsuite. 
 //
-// Copyright (C) 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -15,18 +15,9 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 //
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 // This file provides the following:
 //
@@ -38,7 +29,10 @@
 
 #include <testsuite_hooks.h>
 #include <bits/stl_iterator_base_types.h>
-#include <bits/stl_move.h>
+
+#if __cplusplus >= 201103L
+#include <bits/move.h>
+#endif
 
 #ifndef _TESTSUITE_ITERATORS
 #define _TESTSUITE_ITERATORS
@@ -96,6 +90,16 @@ namespace __gnu_test
 	ptr(ptr_in), SharedInfo(SharedInfo_in)
       { }
 
+#if __cplusplus >= 201103L
+      template<class U>
+      void
+      operator=(U&& new_val)
+      {
+	ITERATOR_VERIFY(SharedInfo->writtento[ptr - SharedInfo->first] == 0);
+	SharedInfo->writtento[ptr - SharedInfo->first] = 1;
+	*ptr = std::forward<U>(new_val);
+      }
+#else
       template<class U>
       void
       operator=(const U& new_val)
@@ -103,16 +107,6 @@ namespace __gnu_test
 	ITERATOR_VERIFY(SharedInfo->writtento[ptr - SharedInfo->first] == 0);
 	SharedInfo->writtento[ptr - SharedInfo->first] = 1;
 	*ptr = new_val;
-      }
-
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      template<class U>
-      void
-      operator=(U&& new_val)
-      {
-	ITERATOR_VERIFY(SharedInfo->writtento[ptr - SharedInfo->first] == 0);
-	SharedInfo->writtento[ptr - SharedInfo->first] = 1;
-	*ptr = std::move(new_val);
       }
 #endif
     };
@@ -126,7 +120,7 @@ namespace __gnu_test
    */
   template<class T>
   struct output_iterator_wrapper
-  : public std::iterator<std::output_iterator_tag, T, ptrdiff_t, T*, T&>
+  : public std::iterator<std::output_iterator_tag, T, std::ptrdiff_t, T*, T&>
   {
     typedef OutputContainer<T> ContainerType;
     T* ptr;
@@ -187,7 +181,7 @@ namespace __gnu_test
    */
   template<class T>
   class input_iterator_wrapper
-  : public std::iterator<std::input_iterator_tag, T, ptrdiff_t, T*, T&>
+  : public std::iterator<std::input_iterator_tag, T, std::ptrdiff_t, T*, T&>
   {
   protected:
     input_iterator_wrapper()
@@ -209,7 +203,7 @@ namespace __gnu_test
     bool
     operator==(const input_iterator_wrapper& in) const
     {
-      ITERATOR_VERIFY(SharedInfo != NULL && SharedInfo == in.SharedInfo);
+      ITERATOR_VERIFY(SharedInfo && SharedInfo == in.SharedInfo);
       ITERATOR_VERIFY(ptr>=SharedInfo->first && in.ptr>=SharedInfo->first);
       return ptr == in.ptr;
     }
@@ -282,8 +276,8 @@ namespace __gnu_test
 
     forward_iterator_wrapper()
     {
-      this->ptr = NULL;
-      this->SharedInfo = NULL;
+      this->ptr = 0;
+      this->SharedInfo = 0;
     }
 
     T&
@@ -443,7 +437,7 @@ namespace __gnu_test
     }
 
     random_access_iterator_wrapper&
-    operator+=(ptrdiff_t n)
+    operator+=(std::ptrdiff_t n)
     {
       if(n > 0)
 	{
@@ -459,17 +453,17 @@ namespace __gnu_test
     }
 
     random_access_iterator_wrapper&
-    operator-=(ptrdiff_t n)
+    operator-=(std::ptrdiff_t n)
     { return *this += -n; }
 
     random_access_iterator_wrapper
-    operator-(ptrdiff_t n) const
+    operator-(std::ptrdiff_t n) const
     {
       random_access_iterator_wrapper<T> tmp = *this;
       return tmp -= n;
     }
 
-    ptrdiff_t
+    std::ptrdiff_t
     operator-(const random_access_iterator_wrapper<T>& in) const
     {
       ITERATOR_VERIFY(this->SharedInfo == in.SharedInfo);
@@ -477,7 +471,7 @@ namespace __gnu_test
     }
 
     T&
-    operator[](ptrdiff_t n) const
+    operator[](std::ptrdiff_t n) const
     { return *(*this + n); }
 
     bool
@@ -508,12 +502,12 @@ namespace __gnu_test
 
   template<typename T>
     random_access_iterator_wrapper<T>
-    operator+(random_access_iterator_wrapper<T> it, ptrdiff_t n)
+    operator+(random_access_iterator_wrapper<T> it, std::ptrdiff_t n)
     { return it += n; }
 
   template<typename T>
     random_access_iterator_wrapper<T>
-    operator+(ptrdiff_t n, random_access_iterator_wrapper<T> it) 
+    operator+(std::ptrdiff_t n, random_access_iterator_wrapper<T> it) 
     { return it += n; }
 
 

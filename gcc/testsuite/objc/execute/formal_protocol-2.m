@@ -1,6 +1,7 @@
 /* Contributed by Nicola Pero - Fri Mar  9 21:35:47 CET 2001 */
-#include <objc/objc.h>
-#include <objc/Object.h>
+
+#include <stdlib.h>
+#include "../../objc-obj-c++-shared/TestsuiteObject.m"
 
 /* Test defining a protocol, a class adopting it, and using an object
    of type `id <protocol>'. */
@@ -10,7 +11,7 @@
 - (void) setEnabled: (BOOL)flag;
 @end
 
-@interface Feature : Object <Enabling>
+@interface Feature : TestsuiteObject <Enabling>
 {
   const char *name;
   BOOL isEnabled;

@@ -1,6 +1,5 @@
 /* Post reload partially redundant load elimination
-   Copyright (C) 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -22,7 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 
 #include "rtl.h"
 #include "tree.h"
@@ -30,11 +29,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "flags.h"
-#include "real.h"
 #include "insn-config.h"
 #include "recog.h"
 #include "basic-block.h"
-#include "output.h"
 #include "function.h"
 #include "expr.h"
 #include "except.h"
@@ -43,7 +40,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "hashtab.h"
 #include "params.h"
 #include "target.h"
-#include "timevar.h"
 #include "tree-pass.h"
 #include "dbgcnt.h"
 
@@ -310,7 +306,7 @@ expr_equiv_p (const void *exp1p, const void *exp2p)
   const struct expr *const exp1 = (const struct expr *) exp1p;
   const struct expr *const exp2 = (const struct expr *) exp2p;
   int equiv_p = exp_equiv_p (exp1->expr, exp2->expr, 0, true);
-  
+
   gcc_assert (!equiv_p || exp1->hash == exp2->hash);
   return equiv_p;
 }
@@ -349,7 +345,7 @@ insert_expr_in_table (rtx x, rtx insn)
 
   slot = (struct expr **) htab_find_slot_with_hash (expr_table, cur_expr,
 						    hash, INSERT);
-  
+
   if (! (*slot))
     /* The expression isn't found, so insert it.  */
     *slot = cur_expr;
@@ -363,7 +359,8 @@ insert_expr_in_table (rtx x, rtx insn)
 
   /* Search for another occurrence in the same basic block.  */
   avail_occr = cur_expr->avail_occr;
-  while (avail_occr && BLOCK_NUM (avail_occr->insn) != BLOCK_NUM (insn))
+  while (avail_occr
+	 && BLOCK_FOR_INSN (avail_occr->insn) != BLOCK_FOR_INSN (insn))
     {
       /* If an occurrence isn't found, save a pointer to the end of
 	 the list.  */
@@ -521,10 +518,7 @@ oprs_unchanged_p (rtx x, rtx insn, bool after_insn)
     case PC:
     case CC0: /*FIXME*/
     case CONST:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case LABEL_REF:
     case ADDR_VEC:
@@ -589,8 +583,7 @@ find_mem_conflicts (rtx dest, const_rtx setter ATTRIBUTE_UNUSED,
   if (! MEM_P (dest))
     return;
 
-  if (true_dependence (dest, GET_MODE (dest), mem_op,
-		       rtx_addr_varies_p))
+  if (true_dependence (dest, GET_MODE (dest), mem_op))
     mems_conflict_p = 1;
 }
 
@@ -742,10 +735,9 @@ record_opr_changes (rtx insn)
     {
       unsigned int regno;
       rtx link, x;
-
-      for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
-	if (TEST_HARD_REG_BIT (regs_invalidated_by_call, regno))
-	  record_last_reg_set_info_regno (insn, regno);
+      hard_reg_set_iterator hrsi;
+      EXECUTE_IF_SET_IN_HARD_REG_SET (regs_invalidated_by_call, 0, regno, hrsi)
+	record_last_reg_set_info_regno (insn, regno);
 
       for (link = CALL_INSN_FUNCTION_USAGE (insn); link; link = XEXP (link, 1))
 	if (GET_CODE (XEXP (link, 0)) == CLOBBER)
@@ -758,7 +750,7 @@ record_opr_changes (rtx insn)
 	      }
 	  }
 
-      if (! CONST_OR_PURE_CALL_P (insn))
+      if (! RTL_CONST_OR_PURE_CALL_P (insn))
 	record_last_mem_set_info (insn);
     }
 }
@@ -923,6 +915,9 @@ bb_has_well_behaved_predecessors (basic_block bb)
       if ((pred->flags & EDGE_ABNORMAL) && EDGE_CRITICAL_P (pred))
 	return false;
 
+      if ((pred->flags & EDGE_ABNORMAL_CALL) && cfun->has_nonlocal_label)
+	return false;
+
       if (JUMP_TABLE_DATA_P (BB_END (pred->src)))
 	return false;
     }
@@ -1002,7 +997,7 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
 	  avail_insn = a_occr->insn;
 	  avail_reg = get_avail_load_store_reg (avail_insn);
 	  gcc_assert (avail_reg);
-	  
+
 	  /* Make sure we can generate a move from register avail_reg to
 	     dest.  */
 	  extract_insn (gen_move_insn (copy_rtx (dest),
@@ -1065,9 +1060,9 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
 
   if (/* No load can be replaced by copy.  */
       npred_ok == 0
-      /* Prevent exploding the code.  */ 
-      || (optimize_size && npred_ok > 1)
-      /* If we don't have profile information we cannot tell if splitting 
+      /* Prevent exploding the code.  */
+      || (optimize_bb_for_size_p (bb) && npred_ok > 1)
+      /* If we don't have profile information we cannot tell if splitting
          a critical edge is profitable or not so don't do it.  */
       || ((! profile_info || ! flag_branch_probabilities
 	   || targetm.cannot_modify_jumps_p ())
@@ -1128,7 +1123,8 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
      discover additional redundancies, so mark it for later deletion.  */
   for (a_occr = get_bb_avail_insn (bb, expr->avail_occr);
        a_occr && (a_occr->insn != insn);
-       a_occr = get_bb_avail_insn (bb, a_occr->next));
+       a_occr = get_bb_avail_insn (bb, a_occr->next))
+    ;
 
   if (!a_occr)
     {
@@ -1173,7 +1169,7 @@ eliminate_partially_redundant_loads (void)
 	continue;
 
       /* Do not try anything on cold basic blocks.  */
-      if (probably_cold_bb_p (bb))
+      if (optimize_bb_for_size_p (bb))
 	continue;
 
       /* Reset the table of things changed since the start of the current
@@ -1200,7 +1196,7 @@ eliminate_partially_redundant_loads (void)
 		  /* Are the operands unchanged since the start of the
 		     block?  */
 		  && oprs_unchanged_p (src, insn, false)
-		  && !(flag_non_call_exceptions && may_trap_p (src))
+		  && !(cfun->can_throw_non_call_exceptions && may_trap_p (src))
 		  && !side_effects_p (src)
 		  /* Is the expression recorded?  */
 		  && (expr = lookup_expr_in_table (src)) != NULL)
@@ -1269,7 +1265,7 @@ gcse_after_reload_main (rtx f ATTRIBUTE_UNUSED)
 
   memset (&stats, 0, sizeof (stats));
 
-  /* Allocate ememory for this pass.
+  /* Allocate memory for this pass.
      Also computes and initializes the insns' CUIDs.  */
   alloc_mem ();
 
@@ -1294,8 +1290,15 @@ gcse_after_reload_main (rtx f ATTRIBUTE_UNUSED)
 	  fprintf (dump_file, "insns deleted:   %d\n", stats.insns_deleted);
 	  fprintf (dump_file, "\n\n");
 	}
+
+      statistics_counter_event (cfun, "copies inserted",
+				stats.copies_inserted);
+      statistics_counter_event (cfun, "moves inserted",
+				stats.moves_inserted);
+      statistics_counter_event (cfun, "insns deleted",
+				stats.insns_deleted);
     }
-    
+
   /* We are finished with alias.  */
   end_alias_analysis ();
 
@@ -1306,7 +1309,8 @@ gcse_after_reload_main (rtx f ATTRIBUTE_UNUSED)
 static bool
 gate_handle_gcse2 (void)
 {
-  return (optimize > 0 && flag_gcse_after_reload);
+  return (optimize > 0 && flag_gcse_after_reload
+	  && optimize_function_for_speed_p (cfun));
 }
 
 
@@ -1318,9 +1322,12 @@ rest_of_handle_gcse2 (void)
   return 0;
 }
 
-struct tree_opt_pass pass_gcse2 =
+struct rtl_opt_pass pass_gcse2 =
 {
+ {
+  RTL_PASS,
   "gcse2",                              /* name */
+  OPTGROUP_NONE,                        /* optinfo_flags */
   gate_handle_gcse2,                    /* gate */
   rest_of_handle_gcse2,                 /* execute */
   NULL,                                 /* sub */
@@ -1331,8 +1338,7 @@ struct tree_opt_pass pass_gcse2 =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func | TODO_verify_rtl_sharing
-  | TODO_verify_flow | TODO_ggc_collect,/* todo_flags_finish */
-  'J'                                   /* letter */
+  TODO_verify_rtl_sharing
+  | TODO_verify_flow | TODO_ggc_collect /* todo_flags_finish */
+ }
 };
-

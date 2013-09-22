@@ -1,7 +1,6 @@
 /* C++-specific tree lowering bits; see also c-gimplify.c and tree-gimple.c.
 
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008
-   Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Jason Merrill <jason@redhat.com>
 
 This file is part of GCC.
@@ -26,12 +25,18 @@ along with GCC; see the file COPYING3.  If not see
 #include "tm.h"
 #include "tree.h"
 #include "cp-tree.h"
-#include "c-common.h"
-#include "toplev.h"
-#include "tree-gimple.h"
+#include "c-family/c-common.h"
+#include "tree-iterator.h"
+#include "gimple.h"
 #include "hashtab.h"
 #include "pointer-set.h"
 #include "flags.h"
+#include "splay-tree.h"
+
+/* Forward declarations.  */
+
+static tree cp_genericize_r (tree *, int *, void *);
+static void cp_genericize_tree (tree*);
 
 /* Local declarations.  */
 
@@ -44,66 +49,49 @@ static tree bc_label[2];
 /* Begin a scope which can be exited by a break or continue statement.  BC
    indicates which.
 
-   Just creates a label and pushes it into the current context.  */
+   Just creates a label with location LOCATION and pushes it into the current
+   context.  */
 
 static tree
-begin_bc_block (enum bc_t bc)
+begin_bc_block (enum bc_t bc, location_t location)
 {
-  tree label = create_artificial_label ();
-  TREE_CHAIN (label) = bc_label[bc];
+  tree label = create_artificial_label (location);
+  DECL_CHAIN (label) = bc_label[bc];
   bc_label[bc] = label;
   return label;
 }
 
 /* Finish a scope which can be exited by a break or continue statement.
-   LABEL was returned from the most recent call to begin_bc_block.  BODY is
+   LABEL was returned from the most recent call to begin_bc_block.  BLOCK is
    an expression for the contents of the scope.
 
    If we saw a break (or continue) in the scope, append a LABEL_EXPR to
-   body.  Otherwise, just forget the label.  */
+   BLOCK.  Otherwise, just forget the label.  */
 
-static tree
-finish_bc_block (enum bc_t bc, tree label, tree body)
+static void
+finish_bc_block (tree *block, enum bc_t bc, tree label)
 {
   gcc_assert (label == bc_label[bc]);
 
   if (TREE_USED (label))
-    {
-      tree t, sl = NULL;
+    append_to_statement_list (build1 (LABEL_EXPR, void_type_node, label),
+			      block);
 
-      t = build1 (LABEL_EXPR, void_type_node, label);
-
-      append_to_statement_list (body, &sl);
-      append_to_statement_list (t, &sl);
-      body = sl;
-    }
-
-  bc_label[bc] = TREE_CHAIN (label);
-  TREE_CHAIN (label) = NULL_TREE;
-  return body;
+  bc_label[bc] = DECL_CHAIN (label);
+  DECL_CHAIN (label) = NULL_TREE;
 }
 
-/* Build a GOTO_EXPR to represent a break or continue statement.  BC
-   indicates which.  */
+/* Get the LABEL_EXPR to represent a break or continue statement
+   in the current block scope.  BC indicates which.  */
 
 static tree
-build_bc_goto (enum bc_t bc)
+get_bc_label (enum bc_t bc)
 {
   tree label = bc_label[bc];
 
-  if (label == NULL_TREE)
-    {
-      if (bc == bc_break)
-	error ("break statement not within loop or switch");
-      else
-	error ("continue statement not within loop or switch");
-
-      return NULL_TREE;
-    }
-
   /* Mark the label used for finish_bc_block.  */
   TREE_USED (label) = 1;
-  return build1 (GOTO_EXPR, void_type_node, label);
+  return label;
 }
 
 /* Genericize a TRY_BLOCK.  */
@@ -113,13 +101,6 @@ genericize_try_block (tree *stmt_p)
 {
   tree body = TRY_STMTS (*stmt_p);
   tree cleanup = TRY_HANDLERS (*stmt_p);
-
-  gimplify_stmt (&body);
-
-  if (CLEANUP_P (*stmt_p))
-    /* A cleanup is an expression, so it doesn't need to be genericized.  */;
-  else
-    gimplify_stmt (&cleanup);
 
   *stmt_p = build2 (TRY_CATCH_EXPR, void_type_node, body, cleanup);
 }
@@ -132,10 +113,26 @@ genericize_catch_block (tree *stmt_p)
   tree type = HANDLER_TYPE (*stmt_p);
   tree body = HANDLER_BODY (*stmt_p);
 
-  gimplify_stmt (&body);
-
   /* FIXME should the caught type go in TREE_TYPE?  */
   *stmt_p = build2 (CATCH_EXPR, void_type_node, type, body);
+}
+
+/* A terser interface for building a representation of an exception
+   specification.  */
+
+static tree
+build_gimple_eh_filter_tree (tree body, tree allowed, tree failure)
+{
+  tree t;
+
+  /* FIXME should the allowed types go in TREE_TYPE?  */
+  t = build2 (EH_FILTER_EXPR, void_type_node, allowed, NULL_TREE);
+  append_to_statement_list (failure, &EH_FILTER_FAILURE (t));
+
+  t = build2 (TRY_CATCH_EXPR, void_type_node, NULL_TREE, t);
+  append_to_statement_list (body, &TREE_OPERAND (t, 0));
+
+  return t;
 }
 
 /* Genericize an EH_SPEC_BLOCK by converting it to a
@@ -147,17 +144,19 @@ genericize_eh_spec_block (tree *stmt_p)
   tree body = EH_SPEC_STMTS (*stmt_p);
   tree allowed = EH_SPEC_RAISES (*stmt_p);
   tree failure = build_call_n (call_unexpected_node, 1, build_exc_ptr ());
-  gimplify_stmt (&body);
 
-  *stmt_p = gimple_build_eh_filter (body, allowed, failure);
+  *stmt_p = build_gimple_eh_filter_tree (body, allowed, failure);
+  TREE_NO_WARNING (*stmt_p) = true;
+  TREE_NO_WARNING (TREE_OPERAND (*stmt_p, 1)) = true;
 }
 
 /* Genericize an IF_STMT by turning it into a COND_EXPR.  */
 
 static void
-gimplify_if_stmt (tree *stmt_p)
+genericize_if_stmt (tree *stmt_p)
 {
   tree stmt, cond, then_, else_;
+  location_t locus = EXPR_LOCATION (*stmt_p);
 
   stmt = *stmt_p;
   cond = IF_COND (stmt);
@@ -165,9 +164,9 @@ gimplify_if_stmt (tree *stmt_p)
   else_ = ELSE_CLAUSE (stmt);
 
   if (!then_)
-    then_ = build_empty_stmt ();
+    then_ = build_empty_stmt (locus);
   if (!else_)
-    else_ = build_empty_stmt ();
+    else_ = build_empty_stmt (locus);
 
   if (integer_nonzerop (cond) && !TREE_SIDE_EFFECTS (else_))
     stmt = then_;
@@ -175,6 +174,8 @@ gimplify_if_stmt (tree *stmt_p)
     stmt = else_;
   else
     stmt = build3 (COND_EXPR, void_type_node, cond, then_, else_);
+  if (CAN_HAVE_LOCATION_P (stmt) && !EXPR_HAS_LOCATION (stmt))
+    SET_EXPR_LOCATION (stmt, locus);
   *stmt_p = stmt;
 }
 
@@ -185,161 +186,217 @@ gimplify_if_stmt (tree *stmt_p)
    evaluated before the loop body as in while and for loops, or after the
    loop body as in do-while loops.  */
 
-static tree
-gimplify_cp_loop (tree cond, tree body, tree incr, bool cond_is_first)
+static void
+genericize_cp_loop (tree *stmt_p, location_t start_locus, tree cond, tree body,
+		    tree incr, bool cond_is_first, int *walk_subtrees,
+		    void *data)
 {
-  tree top, entry, exit, cont_block, break_block, stmt_list, t;
-  location_t stmt_locus;
+  tree blab, clab;
+  tree entry = NULL, exit = NULL, t;
+  tree stmt_list = NULL;
 
-  stmt_locus = input_location;
-  stmt_list = NULL_TREE;
-  entry = NULL_TREE;
+  blab = begin_bc_block (bc_break, start_locus);
+  clab = begin_bc_block (bc_continue, start_locus);
 
-  break_block = begin_bc_block (bc_break);
-  cont_block = begin_bc_block (bc_continue);
+  if (incr && EXPR_P (incr))
+    SET_EXPR_LOCATION (incr, start_locus);
+
+  cp_walk_tree (&cond, cp_genericize_r, data, NULL);
+  cp_walk_tree (&body, cp_genericize_r, data, NULL);
+  cp_walk_tree (&incr, cp_genericize_r, data, NULL);
+  *walk_subtrees = 0;
 
   /* If condition is zero don't generate a loop construct.  */
   if (cond && integer_zerop (cond))
     {
-      top = NULL_TREE;
-      exit = NULL_TREE;
       if (cond_is_first)
 	{
-	  t = build_bc_goto (bc_break);
+	  t = build1_loc (start_locus, GOTO_EXPR, void_type_node,
+			  get_bc_label (bc_break));
 	  append_to_statement_list (t, &stmt_list);
 	}
     }
   else
     {
-      /* If we use a LOOP_EXPR here, we have to feed the whole thing
-	 back through the main gimplifier to lower it.  Given that we
-	 have to gimplify the loop body NOW so that we can resolve
-	 break/continue stmts, seems easier to just expand to gotos.  */
-      top = build1 (LABEL_EXPR, void_type_node, NULL_TREE);
+      /* Expand to gotos, just like c_finish_loop.  TODO: Use LOOP_EXPR.  */
+      tree top = build1 (LABEL_EXPR, void_type_node,
+			 create_artificial_label (start_locus));
 
       /* If we have an exit condition, then we build an IF with gotos either
 	 out of the loop, or to the top of it.  If there's no exit condition,
 	 then we just build a jump back to the top.  */
-      exit = build_and_jump (&LABEL_EXPR_LABEL (top));
+      exit = build1 (GOTO_EXPR, void_type_node, LABEL_EXPR_LABEL (top));
+
       if (cond && !integer_nonzerop (cond))
 	{
-	  t = build_bc_goto (bc_break);
-	  exit = fold_build3 (COND_EXPR, void_type_node, cond, exit, t);
-	  gimplify_stmt (&exit);
-
+	  /* Canonicalize the loop condition to the end.  This means
+	     generating a branch to the loop condition.  Reuse the
+	     continue label, if possible.  */
 	  if (cond_is_first)
 	    {
 	      if (incr)
 		{
-		  entry = build1 (LABEL_EXPR, void_type_node, NULL_TREE);
-		  t = build_and_jump (&LABEL_EXPR_LABEL (entry));
+		  entry = build1 (LABEL_EXPR, void_type_node,
+				  create_artificial_label (start_locus));
+		  t = build1_loc (start_locus, GOTO_EXPR, void_type_node,
+				  LABEL_EXPR_LABEL (entry));
 		}
 	      else
-		t = build_bc_goto (bc_continue);
+		t = build1_loc (start_locus, GOTO_EXPR, void_type_node,
+				get_bc_label (bc_continue));
 	      append_to_statement_list (t, &stmt_list);
 	    }
+
+	  t = build1 (GOTO_EXPR, void_type_node, get_bc_label (bc_break));
+	  exit = fold_build3_loc (start_locus,
+				  COND_EXPR, void_type_node, cond, exit, t);
 	}
+
+      append_to_statement_list (top, &stmt_list);
     }
 
-  gimplify_stmt (&body);
-  gimplify_stmt (&incr);
-
-  body = finish_bc_block (bc_continue, cont_block, body);
-
-  append_to_statement_list (top, &stmt_list);
   append_to_statement_list (body, &stmt_list);
+  finish_bc_block (&stmt_list, bc_continue, clab);
   append_to_statement_list (incr, &stmt_list);
   append_to_statement_list (entry, &stmt_list);
   append_to_statement_list (exit, &stmt_list);
+  finish_bc_block (&stmt_list, bc_break, blab);
 
-  annotate_all_with_locus (&stmt_list, stmt_locus);
+  if (stmt_list == NULL_TREE)
+    stmt_list = build1 (NOP_EXPR, void_type_node, integer_zero_node);
 
-  return finish_bc_block (bc_break, break_block, stmt_list);
+  *stmt_p = stmt_list;
 }
 
-/* Gimplify a FOR_STMT node.  Move the stuff in the for-init-stmt into the
-   prequeue and hand off to gimplify_cp_loop.  */
+/* Genericize a FOR_STMT node *STMT_P.  */
 
 static void
-gimplify_for_stmt (tree *stmt_p, tree *pre_p)
+genericize_for_stmt (tree *stmt_p, int *walk_subtrees, void *data)
 {
   tree stmt = *stmt_p;
+  tree expr = NULL;
+  tree loop;
+  tree init = FOR_INIT_STMT (stmt);
 
-  if (FOR_INIT_STMT (stmt))
-    gimplify_and_add (FOR_INIT_STMT (stmt), pre_p);
+  if (init)
+    {
+      cp_walk_tree (&init, cp_genericize_r, data, NULL);
+      append_to_statement_list (init, &expr);
+    }
 
-  *stmt_p = gimplify_cp_loop (FOR_COND (stmt), FOR_BODY (stmt),
-			      FOR_EXPR (stmt), 1);
+  genericize_cp_loop (&loop, EXPR_LOCATION (stmt), FOR_COND (stmt),
+		      FOR_BODY (stmt), FOR_EXPR (stmt), 1, walk_subtrees, data);
+  append_to_statement_list (loop, &expr);
+  *stmt_p = expr;
 }
 
-/* Gimplify a WHILE_STMT node.  */
+/* Genericize a WHILE_STMT node *STMT_P.  */
 
 static void
-gimplify_while_stmt (tree *stmt_p)
+genericize_while_stmt (tree *stmt_p, int *walk_subtrees, void *data)
 {
   tree stmt = *stmt_p;
-  *stmt_p = gimplify_cp_loop (WHILE_COND (stmt), WHILE_BODY (stmt),
-			      NULL_TREE, 1);
+  genericize_cp_loop (stmt_p, EXPR_LOCATION (stmt), WHILE_COND (stmt),
+		      WHILE_BODY (stmt), NULL_TREE, 1, walk_subtrees, data);
 }
 
-/* Gimplify a DO_STMT node.  */
+/* Genericize a DO_STMT node *STMT_P.  */
 
 static void
-gimplify_do_stmt (tree *stmt_p)
+genericize_do_stmt (tree *stmt_p, int *walk_subtrees, void *data)
 {
   tree stmt = *stmt_p;
-  *stmt_p = gimplify_cp_loop (DO_COND (stmt), DO_BODY (stmt),
-			      NULL_TREE, 0);
+  genericize_cp_loop (stmt_p, EXPR_LOCATION (stmt), DO_COND (stmt),
+		      DO_BODY (stmt), NULL_TREE, 0, walk_subtrees, data);
 }
 
-/* Genericize a SWITCH_STMT by turning it into a SWITCH_EXPR.  */
+/* Genericize a SWITCH_STMT node *STMT_P by turning it into a SWITCH_EXPR.  */
 
 static void
-gimplify_switch_stmt (tree *stmt_p)
+genericize_switch_stmt (tree *stmt_p, int *walk_subtrees, void *data)
 {
   tree stmt = *stmt_p;
-  tree break_block, body;
-  location_t stmt_locus = input_location;
+  tree break_block, body, cond, type;
+  location_t stmt_locus = EXPR_LOCATION (stmt);
 
-  break_block = begin_bc_block (bc_break);
+  break_block = begin_bc_block (bc_break, stmt_locus);
 
   body = SWITCH_STMT_BODY (stmt);
   if (!body)
-    body = build_empty_stmt ();
+    body = build_empty_stmt (stmt_locus);
+  cond = SWITCH_STMT_COND (stmt);
+  type = SWITCH_STMT_TYPE (stmt);
 
-  *stmt_p = build3 (SWITCH_EXPR, SWITCH_STMT_TYPE (stmt),
-		    SWITCH_STMT_COND (stmt), body, NULL_TREE);
-  SET_EXPR_LOCATION (*stmt_p, stmt_locus);
-  gimplify_stmt (stmt_p);
+  cp_walk_tree (&body, cp_genericize_r, data, NULL);
+  cp_walk_tree (&cond, cp_genericize_r, data, NULL);
+  cp_walk_tree (&type, cp_genericize_r, data, NULL);
+  *walk_subtrees = 0;
 
-  *stmt_p = finish_bc_block (bc_break, break_block, *stmt_p);
+  *stmt_p = build3_loc (stmt_locus, SWITCH_EXPR, type, cond, body, NULL_TREE);
+  finish_bc_block (stmt_p, bc_break, break_block);
 }
 
-/* Hook into the middle of gimplifying an OMP_FOR node.  This is required
-   in order to properly gimplify CONTINUE statements.  Here we merely
-   manage the continue stack; the rest of the job is performed by the
-   regular gimplifier.  */
+/* Genericize a CONTINUE_STMT node *STMT_P.  */
+
+static void
+genericize_continue_stmt (tree *stmt_p)
+{
+  tree stmt_list = NULL;
+  tree pred = build_predict_expr (PRED_CONTINUE, NOT_TAKEN);
+  tree label = get_bc_label (bc_continue);
+  location_t location = EXPR_LOCATION (*stmt_p);
+  tree jump = build1_loc (location, GOTO_EXPR, void_type_node, label);
+  append_to_statement_list (pred, &stmt_list);
+  append_to_statement_list (jump, &stmt_list);
+  *stmt_p = stmt_list;
+}
+
+/* Genericize a BREAK_STMT node *STMT_P.  */
+
+static void
+genericize_break_stmt (tree *stmt_p)
+{
+  tree label = get_bc_label (bc_break);
+  location_t location = EXPR_LOCATION (*stmt_p);
+  *stmt_p = build1_loc (location, GOTO_EXPR, void_type_node, label);
+}
+
+/* Genericize a OMP_FOR node *STMT_P.  */
+
+static void
+genericize_omp_for_stmt (tree *stmt_p, int *walk_subtrees, void *data)
+{
+  tree stmt = *stmt_p;
+  location_t locus = EXPR_LOCATION (stmt);
+  tree clab = begin_bc_block (bc_continue, locus);
+
+  cp_walk_tree (&OMP_FOR_BODY (stmt), cp_genericize_r, data, NULL);
+  cp_walk_tree (&OMP_FOR_CLAUSES (stmt), cp_genericize_r, data, NULL);
+  cp_walk_tree (&OMP_FOR_INIT (stmt), cp_genericize_r, data, NULL);
+  cp_walk_tree (&OMP_FOR_COND (stmt), cp_genericize_r, data, NULL);
+  cp_walk_tree (&OMP_FOR_INCR (stmt), cp_genericize_r, data, NULL);
+  cp_walk_tree (&OMP_FOR_PRE_BODY (stmt), cp_genericize_r, data, NULL);
+  *walk_subtrees = 0;
+
+  finish_bc_block (&OMP_FOR_BODY (stmt), bc_continue, clab);
+}
+
+/* Hook into the middle of gimplifying an OMP_FOR node.  */
 
 static enum gimplify_status
-cp_gimplify_omp_for (tree *expr_p)
+cp_gimplify_omp_for (tree *expr_p, gimple_seq *pre_p)
 {
   tree for_stmt = *expr_p;
-  tree cont_block;
+  gimple_seq seq = NULL;
 
   /* Protect ourselves from recursion.  */
   if (OMP_FOR_GIMPLIFYING_P (for_stmt))
     return GS_UNHANDLED;
   OMP_FOR_GIMPLIFYING_P (for_stmt) = 1;
 
-  /* Note that while technically the continue label is enabled too soon
-     here, we should have already diagnosed invalid continues nested within
-     statement expressions within the INIT, COND, or INCR expressions.  */
-  cont_block = begin_bc_block (bc_continue);
+  gimplify_and_add (for_stmt, &seq);
+  gimple_seq_add_seq (pre_p, seq);
 
-  gimplify_stmt (expr_p);
-
-  OMP_FOR_BODY (for_stmt)
-    = finish_bc_block (bc_continue, cont_block, OMP_FOR_BODY (for_stmt));
   OMP_FOR_GIMPLIFYING_P (for_stmt) = 0;
 
   return GS_ALL_DONE;
@@ -383,22 +440,18 @@ gimplify_expr_stmt (tree *stmt_p)
 /* Gimplify initialization from an AGGR_INIT_EXPR.  */
 
 static void
-cp_gimplify_init_expr (tree *expr_p, tree *pre_p, tree *post_p)
+cp_gimplify_init_expr (tree *expr_p)
 {
   tree from = TREE_OPERAND (*expr_p, 1);
   tree to = TREE_OPERAND (*expr_p, 0);
   tree t;
-  tree slot = NULL_TREE;
 
   /* What about code that pulls out the temp and uses it elsewhere?  I
      think that such code never uses the TARGET_EXPR as an initializer.  If
      I'm wrong, we'll abort because the temp won't have any RTL.  In that
      case, I guess we'll need to replace references somehow.  */
   if (TREE_CODE (from) == TARGET_EXPR)
-    {
-      slot = TARGET_EXPR_SLOT (from);
-      from = TARGET_EXPR_INITIAL (from);
-    }
+    from = TARGET_EXPR_INITIAL (from);
 
   /* Look through any COMPOUND_EXPRs, since build_compound_expr pushes them
      inside the TARGET_EXPR.  */
@@ -411,24 +464,19 @@ cp_gimplify_init_expr (tree *expr_p, tree *pre_p, tree *post_p)
 
 	 Should we add a target parm to gimplify_expr instead?  No, as in this
 	 case we want to replace the INIT_EXPR.  */
-      if (TREE_CODE (sub) == AGGR_INIT_EXPR)
+      if (TREE_CODE (sub) == AGGR_INIT_EXPR
+	  || TREE_CODE (sub) == VEC_INIT_EXPR)
 	{
-	  gimplify_expr (&to, pre_p, post_p, is_gimple_lvalue, fb_lvalue);
-	  AGGR_INIT_EXPR_SLOT (sub) = to;
+	  if (TREE_CODE (sub) == AGGR_INIT_EXPR)
+	    AGGR_INIT_EXPR_SLOT (sub) = to;
+	  else
+	    VEC_INIT_EXPR_SLOT (sub) = to;
 	  *expr_p = from;
 
 	  /* The initialization is now a side-effect, so the container can
 	     become void.  */
 	  if (from != sub)
 	    TREE_TYPE (from) = void_type_node;
-	}
-      else if (TREE_CODE (sub) == INIT_EXPR
-	       && TREE_OPERAND (sub, 0) == slot)
-	{
-	  /* An INIT_EXPR under TARGET_EXPR created by build_value_init,
-	     will be followed by an AGGR_INIT_EXPR.  */
-	  gimplify_expr (&to, pre_p, post_p, is_gimple_lvalue, fb_lvalue);
-	  TREE_OPERAND (sub, 0) = to;
 	}
 
       if (t == sub)
@@ -441,31 +489,36 @@ cp_gimplify_init_expr (tree *expr_p, tree *pre_p, tree *post_p)
 
 /* Gimplify a MUST_NOT_THROW_EXPR.  */
 
-static void
-gimplify_must_not_throw_expr (tree *expr_p, tree *pre_p)
+static enum gimplify_status
+gimplify_must_not_throw_expr (tree *expr_p, gimple_seq *pre_p)
 {
   tree stmt = *expr_p;
   tree temp = voidify_wrapper_expr (stmt, NULL);
   tree body = TREE_OPERAND (stmt, 0);
+  gimple_seq try_ = NULL;
+  gimple_seq catch_ = NULL;
+  gimple mnt;
 
-  gimplify_stmt (&body);
+  gimplify_and_add (body, &try_);
+  mnt = gimple_build_eh_must_not_throw (terminate_node);
+  gimple_seq_add_stmt_without_update (&catch_, mnt);
+  mnt = gimple_build_try (try_, catch_, GIMPLE_TRY_CATCH);
 
-  stmt = gimple_build_eh_filter (body, NULL_TREE,
-				 build_call_n (terminate_node, 0));
-
+  gimple_seq_add_stmt_without_update (pre_p, mnt);
   if (temp)
     {
-      append_to_statement_list (stmt, pre_p);
       *expr_p = temp;
+      return GS_OK;
     }
-  else
-    *expr_p = stmt;
+
+  *expr_p = NULL;
+  return GS_ALL_DONE;
 }
 
 /* Do C++-specific gimplification.  Args are as for gimplify_expr.  */
 
 int
-cp_gimplify_expr (tree *expr_p, tree *pre_p, tree *post_p)
+cp_gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p)
 {
   int saved_stmts_are_full_exprs_p = 0;
   enum tree_code code = TREE_CODE (*expr_p);
@@ -490,6 +543,23 @@ cp_gimplify_expr (tree *expr_p, tree *pre_p, tree *post_p)
       ret = GS_OK;
       break;
 
+    case VEC_INIT_EXPR:
+      {
+	location_t loc = input_location;
+	tree init = VEC_INIT_EXPR_INIT (*expr_p);
+	int from_array = (init && TREE_CODE (TREE_TYPE (init)) == ARRAY_TYPE);
+	gcc_assert (EXPR_HAS_LOCATION (*expr_p));
+	input_location = EXPR_LOCATION (*expr_p);
+	*expr_p = build_vec_init (VEC_INIT_EXPR_SLOT (*expr_p), NULL_TREE,
+				  init, VEC_INIT_EXPR_VALUE_INIT (*expr_p),
+				  from_array,
+				  tf_warning_or_error);
+	cp_genericize_tree (expr_p);
+	ret = GS_OK;
+	input_location = loc;
+      }
+      break;
+
     case THROW_EXPR:
       /* FIXME communicate throw type to back end, probably by moving
 	 THROW_EXPR into ../tree.def.  */
@@ -498,15 +568,66 @@ cp_gimplify_expr (tree *expr_p, tree *pre_p, tree *post_p)
       break;
 
     case MUST_NOT_THROW_EXPR:
-      gimplify_must_not_throw_expr (expr_p, pre_p);
-      ret = GS_OK;
+      ret = gimplify_must_not_throw_expr (expr_p, pre_p);
       break;
 
-      /* We used to do this for GIMPLE_MODIFY_STMT as well, but that's unsafe; the
+      /* We used to do this for MODIFY_EXPR as well, but that's unsafe; the
 	 LHS of an assignment might also be involved in the RHS, as in bug
 	 25979.  */
     case INIT_EXPR:
-      cp_gimplify_init_expr (expr_p, pre_p, post_p);
+      cp_gimplify_init_expr (expr_p);
+      if (TREE_CODE (*expr_p) != INIT_EXPR)
+	return GS_OK;
+      /* Otherwise fall through.  */
+    case MODIFY_EXPR:
+      {
+	/* If the back end isn't clever enough to know that the lhs and rhs
+	   types are the same, add an explicit conversion.  */
+	tree op0 = TREE_OPERAND (*expr_p, 0);
+	tree op1 = TREE_OPERAND (*expr_p, 1);
+
+	if (!error_operand_p (op0)
+	    && !error_operand_p (op1)
+	    && (TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (op0))
+		|| TYPE_STRUCTURAL_EQUALITY_P (TREE_TYPE (op1)))
+	    && !useless_type_conversion_p (TREE_TYPE (op1), TREE_TYPE (op0)))
+	  TREE_OPERAND (*expr_p, 1) = build1 (VIEW_CONVERT_EXPR,
+					      TREE_TYPE (op0), op1);
+
+	else if ((is_gimple_lvalue (op1) || INDIRECT_REF_P (op1)
+		  || (TREE_CODE (op1) == CONSTRUCTOR
+		      && CONSTRUCTOR_NELTS (op1) == 0
+		      && !TREE_CLOBBER_P (op1))
+		  || (TREE_CODE (op1) == CALL_EXPR
+		      && !CALL_EXPR_RETURN_SLOT_OPT (op1)))
+		 && is_really_empty_class (TREE_TYPE (op0)))
+	  {
+	    /* Remove any copies of empty classes.  We check that the RHS
+	       has a simple form so that TARGET_EXPRs and non-empty
+	       CONSTRUCTORs get reduced properly, and we leave the return
+	       slot optimization alone because it isn't a copy (FIXME so it
+	       shouldn't be represented as one).
+
+	       Also drop volatile variables on the RHS to avoid infinite
+	       recursion from gimplify_expr trying to load the value.  */
+	    if (!TREE_SIDE_EFFECTS (op1)
+		|| (DECL_P (op1) && TREE_THIS_VOLATILE (op1)))
+	      *expr_p = op0;
+	    else if (TREE_CODE (op1) == MEM_REF
+		     && TREE_THIS_VOLATILE (op1))
+	      {
+		/* Similarly for volatile MEM_REFs on the RHS.  */
+		if (!TREE_SIDE_EFFECTS (TREE_OPERAND (op1, 0)))
+		  *expr_p = op0;
+		else
+		  *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
+				    TREE_OPERAND (op1, 0), op0);
+	      }
+	    else
+	      *expr_p = build2 (COMPOUND_EXPR, TREE_TYPE (*expr_p),
+				op0, op1);
+	  }
+      }
       ret = GS_OK;
       break;
 
@@ -537,49 +658,18 @@ cp_gimplify_expr (tree *expr_p, tree *pre_p, tree *post_p)
       break;
 
     case USING_STMT:
-      /* Just ignore for now.  Eventually we will want to pass this on to
-	 the debugger.  */
-      *expr_p = build_empty_stmt ();
-      ret = GS_ALL_DONE;
-      break;
-
-    case IF_STMT:
-      gimplify_if_stmt (expr_p);
-      ret = GS_OK;
-      break;
+      gcc_unreachable ();
 
     case FOR_STMT:
-      gimplify_for_stmt (expr_p, pre_p);
-      ret = GS_ALL_DONE;
-      break;
-
     case WHILE_STMT:
-      gimplify_while_stmt (expr_p);
-      ret = GS_ALL_DONE;
-      break;
-
     case DO_STMT:
-      gimplify_do_stmt (expr_p);
-      ret = GS_ALL_DONE;
-      break;
-
     case SWITCH_STMT:
-      gimplify_switch_stmt (expr_p);
-      ret = GS_ALL_DONE;
-      break;
+    case CONTINUE_STMT:
+    case BREAK_STMT:
+      gcc_unreachable ();
 
     case OMP_FOR:
-      ret = cp_gimplify_omp_for (expr_p);
-      break;
-
-    case CONTINUE_STMT:
-      *expr_p = build_bc_goto (bc_continue);
-      ret = GS_ALL_DONE;
-      break;
-
-    case BREAK_STMT:
-      *expr_p = build_bc_goto (bc_break);
-      ret = GS_ALL_DONE;
+      ret = cp_gimplify_omp_for (expr_p, pre_p);
       break;
 
     case EXPR_STMT:
@@ -598,7 +688,7 @@ cp_gimplify_expr (tree *expr_p, tree *pre_p, tree *post_p)
       break;
 
     default:
-      ret = c_gimplify_expr (expr_p, pre_p, post_p);
+      ret = (enum gimplify_status) c_gimplify_expr (expr_p, pre_p, post_p);
       break;
     }
 
@@ -635,6 +725,107 @@ cxx_int_tree_map_hash (const void *item)
   return ((const struct cxx_int_tree_map *)item)->uid;
 }
 
+/* A stable comparison routine for use with splay trees and DECLs.  */
+
+static int
+splay_tree_compare_decl_uid (splay_tree_key xa, splay_tree_key xb)
+{
+  tree a = (tree) xa;
+  tree b = (tree) xb;
+
+  return DECL_UID (a) - DECL_UID (b);
+}
+
+/* OpenMP context during genericization.  */
+
+struct cp_genericize_omp_taskreg
+{
+  bool is_parallel;
+  bool default_shared;
+  struct cp_genericize_omp_taskreg *outer;
+  splay_tree variables;
+};
+
+/* Return true if genericization should try to determine if
+   DECL is firstprivate or shared within task regions.  */
+
+static bool
+omp_var_to_track (tree decl)
+{
+  tree type = TREE_TYPE (decl);
+  if (is_invisiref_parm (decl))
+    type = TREE_TYPE (type);
+  while (TREE_CODE (type) == ARRAY_TYPE)
+    type = TREE_TYPE (type);
+  if (type == error_mark_node || !CLASS_TYPE_P (type))
+    return false;
+  if (TREE_CODE (decl) == VAR_DECL && DECL_THREAD_LOCAL_P (decl))
+    return false;
+  if (cxx_omp_predetermined_sharing (decl) != OMP_CLAUSE_DEFAULT_UNSPECIFIED)
+    return false;
+  return true;
+}
+
+/* Note DECL use in OpenMP region OMP_CTX during genericization.  */
+
+static void
+omp_cxx_notice_variable (struct cp_genericize_omp_taskreg *omp_ctx, tree decl)
+{
+  splay_tree_node n = splay_tree_lookup (omp_ctx->variables,
+					 (splay_tree_key) decl);
+  if (n == NULL)
+    {
+      int flags = OMP_CLAUSE_DEFAULT_SHARED;
+      if (omp_ctx->outer)
+	omp_cxx_notice_variable (omp_ctx->outer, decl);
+      if (!omp_ctx->default_shared)
+	{
+	  struct cp_genericize_omp_taskreg *octx;
+
+	  for (octx = omp_ctx->outer; octx; octx = octx->outer)
+	    {
+	      n = splay_tree_lookup (octx->variables, (splay_tree_key) decl);
+	      if (n && n->value != OMP_CLAUSE_DEFAULT_SHARED)
+		{
+		  flags = OMP_CLAUSE_DEFAULT_FIRSTPRIVATE;
+		  break;
+		}
+	      if (octx->is_parallel)
+		break;
+	    }
+	  if (octx == NULL
+	      && (TREE_CODE (decl) == PARM_DECL
+		  || (!(TREE_STATIC (decl) || DECL_EXTERNAL (decl))
+		      && DECL_CONTEXT (decl) == current_function_decl)))
+	    flags = OMP_CLAUSE_DEFAULT_FIRSTPRIVATE;
+	  if (flags == OMP_CLAUSE_DEFAULT_FIRSTPRIVATE)
+	    {
+	      /* DECL is implicitly determined firstprivate in
+		 the current task construct.  Ensure copy ctor and
+		 dtor are instantiated, because during gimplification
+		 it will be already too late.  */
+	      tree type = TREE_TYPE (decl);
+	      if (is_invisiref_parm (decl))
+		type = TREE_TYPE (type);
+	      while (TREE_CODE (type) == ARRAY_TYPE)
+		type = TREE_TYPE (type);
+	      get_copy_ctor (type, tf_none);
+	      get_dtor (type, tf_none);
+	    }
+	}
+      splay_tree_insert (omp_ctx->variables, (splay_tree_key) decl, flags);
+    }
+}
+
+/* Genericization context.  */
+
+struct cp_genericize_data
+{
+  struct pointer_set_t *p_set;
+  vec<tree> bind_expr_stack;
+  struct cp_genericize_omp_taskreg *omp_ctx;
+};
+
 /* Perform any pre-gimplification lowering of C++ front end trees to
    GENERIC.  */
 
@@ -642,7 +833,16 @@ static tree
 cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
 {
   tree stmt = *stmt_p;
-  struct pointer_set_t *p_set = (struct pointer_set_t*) data;
+  struct cp_genericize_data *wtd = (struct cp_genericize_data *) data;
+  struct pointer_set_t *p_set = wtd->p_set;
+
+  /* If in an OpenMP context, note var uses.  */
+  if (__builtin_expect (wtd->omp_ctx != NULL, 0)
+      && (TREE_CODE (stmt) == VAR_DECL
+	  || TREE_CODE (stmt) == PARM_DECL
+	  || TREE_CODE (stmt) == RESULT_DECL)
+      && omp_var_to_track (stmt))
+    omp_cxx_notice_variable (wtd->omp_ctx, stmt);
 
   if (is_invisiref_parm (stmt)
       /* Don't dereference parms in a thunk, pass the references through. */
@@ -683,6 +883,10 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
   if (TREE_CODE (stmt) == ADDR_EXPR
       && is_invisiref_parm (TREE_OPERAND (stmt, 0)))
     {
+      /* If in an OpenMP context, note var uses.  */
+      if (__builtin_expect (wtd->omp_ctx != NULL, 0)
+	  && omp_var_to_track (TREE_OPERAND (stmt, 0)))
+	omp_cxx_notice_variable (wtd->omp_ctx, TREE_OPERAND (stmt, 0));
       *stmt_p = convert (TREE_TYPE (stmt), TREE_OPERAND (stmt, 0));
       *walk_subtrees = 0;
     }
@@ -694,10 +898,35 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
   else if (TREE_CODE (stmt) == OMP_CLAUSE)
     switch (OMP_CLAUSE_CODE (stmt))
       {
+      case OMP_CLAUSE_LASTPRIVATE:
+	/* Don't dereference an invisiref in OpenMP clauses.  */
+	if (is_invisiref_parm (OMP_CLAUSE_DECL (stmt)))
+	  {
+	    *walk_subtrees = 0;
+	    if (OMP_CLAUSE_LASTPRIVATE_STMT (stmt))
+	      cp_walk_tree (&OMP_CLAUSE_LASTPRIVATE_STMT (stmt),
+			    cp_genericize_r, data, NULL);
+	  }
+	break;
       case OMP_CLAUSE_PRIVATE:
+	/* Don't dereference an invisiref in OpenMP clauses.  */
+	if (is_invisiref_parm (OMP_CLAUSE_DECL (stmt)))
+	  *walk_subtrees = 0;
+	else if (wtd->omp_ctx != NULL)
+	  {
+	    /* Private clause doesn't cause any references to the
+	       var in outer contexts, avoid calling
+	       omp_cxx_notice_variable for it.  */
+	    struct cp_genericize_omp_taskreg *old = wtd->omp_ctx;
+	    wtd->omp_ctx = NULL;
+	    cp_walk_tree (&OMP_CLAUSE_DECL (stmt), cp_genericize_r,
+			  data, NULL);
+	    wtd->omp_ctx = old;
+	    *walk_subtrees = 0;
+	  }
+	break;
       case OMP_CLAUSE_SHARED:
       case OMP_CLAUSE_FIRSTPRIVATE:
-      case OMP_CLAUSE_LASTPRIVATE:
       case OMP_CLAUSE_COPYIN:
       case OMP_CLAUSE_COPYPRIVATE:
 	/* Don't dereference an invisiref in OpenMP clauses.  */
@@ -717,25 +946,222 @@ cp_genericize_r (tree *stmt_p, int *walk_subtrees, void *data)
      to lower this construct before scanning it, so we need to lower these
      before doing anything else.  */
   else if (TREE_CODE (stmt) == CLEANUP_STMT)
-    *stmt_p = build2 (CLEANUP_EH_ONLY (stmt) ? TRY_CATCH_EXPR
-					     : TRY_FINALLY_EXPR,
-		      void_type_node,
-		      CLEANUP_BODY (stmt),
-		      CLEANUP_EXPR (stmt));
+    *stmt_p = build2_loc (EXPR_LOCATION (stmt),
+			  CLEANUP_EH_ONLY (stmt) ? TRY_CATCH_EXPR
+						 : TRY_FINALLY_EXPR,
+			  void_type_node,
+			  CLEANUP_BODY (stmt),
+			  CLEANUP_EXPR (stmt));
+
+  else if (TREE_CODE (stmt) == IF_STMT)
+    {
+      genericize_if_stmt (stmt_p);
+      /* *stmt_p has changed, tail recurse to handle it again.  */
+      return cp_genericize_r (stmt_p, walk_subtrees, data);
+    }
+
+  /* COND_EXPR might have incompatible types in branches if one or both
+     arms are bitfields.  Fix it up now.  */
+  else if (TREE_CODE (stmt) == COND_EXPR)
+    {
+      tree type_left
+	= (TREE_OPERAND (stmt, 1)
+	   ? is_bitfield_expr_with_lowered_type (TREE_OPERAND (stmt, 1))
+	   : NULL_TREE);
+      tree type_right
+	= (TREE_OPERAND (stmt, 2)
+	   ? is_bitfield_expr_with_lowered_type (TREE_OPERAND (stmt, 2))
+	   : NULL_TREE);
+      if (type_left
+	  && !useless_type_conversion_p (TREE_TYPE (stmt),
+					 TREE_TYPE (TREE_OPERAND (stmt, 1))))
+	{
+	  TREE_OPERAND (stmt, 1)
+	    = fold_convert (type_left, TREE_OPERAND (stmt, 1));
+	  gcc_assert (useless_type_conversion_p (TREE_TYPE (stmt),
+						 type_left));
+	}
+      if (type_right
+	  && !useless_type_conversion_p (TREE_TYPE (stmt),
+					 TREE_TYPE (TREE_OPERAND (stmt, 2))))
+	{
+	  TREE_OPERAND (stmt, 2)
+	    = fold_convert (type_right, TREE_OPERAND (stmt, 2));
+	  gcc_assert (useless_type_conversion_p (TREE_TYPE (stmt),
+						 type_right));
+	}
+    }
+
+  else if (TREE_CODE (stmt) == BIND_EXPR)
+    {
+      if (__builtin_expect (wtd->omp_ctx != NULL, 0))
+	{
+	  tree decl;
+	  for (decl = BIND_EXPR_VARS (stmt); decl; decl = DECL_CHAIN (decl))
+	    if (TREE_CODE (decl) == VAR_DECL
+		&& !DECL_EXTERNAL (decl)
+		&& omp_var_to_track (decl))
+	      {
+		splay_tree_node n
+		  = splay_tree_lookup (wtd->omp_ctx->variables,
+				       (splay_tree_key) decl);
+		if (n == NULL)
+		  splay_tree_insert (wtd->omp_ctx->variables,
+				     (splay_tree_key) decl,
+				     TREE_STATIC (decl)
+				     ? OMP_CLAUSE_DEFAULT_SHARED
+				     : OMP_CLAUSE_DEFAULT_PRIVATE);
+	      }
+	}
+      wtd->bind_expr_stack.safe_push (stmt);
+      cp_walk_tree (&BIND_EXPR_BODY (stmt),
+		    cp_genericize_r, data, NULL);
+      wtd->bind_expr_stack.pop ();
+    }
+
+  else if (TREE_CODE (stmt) == USING_STMT)
+    {
+      tree block = NULL_TREE;
+
+      /* Get the innermost inclosing GIMPLE_BIND that has a non NULL
+         BLOCK, and append an IMPORTED_DECL to its
+	 BLOCK_VARS chained list.  */
+      if (wtd->bind_expr_stack.exists ())
+	{
+	  int i;
+	  for (i = wtd->bind_expr_stack.length () - 1; i >= 0; i--)
+	    if ((block = BIND_EXPR_BLOCK (wtd->bind_expr_stack[i])))
+	      break;
+	}
+      if (block)
+	{
+	  tree using_directive;
+	  gcc_assert (TREE_OPERAND (stmt, 0));
+
+	  using_directive = make_node (IMPORTED_DECL);
+	  TREE_TYPE (using_directive) = void_type_node;
+
+	  IMPORTED_DECL_ASSOCIATED_DECL (using_directive)
+	    = TREE_OPERAND (stmt, 0);
+	  DECL_CHAIN (using_directive) = BLOCK_VARS (block);
+	  BLOCK_VARS (block) = using_directive;
+	}
+      /* The USING_STMT won't appear in GENERIC.  */
+      *stmt_p = build1 (NOP_EXPR, void_type_node, integer_zero_node);
+      *walk_subtrees = 0;
+    }
+
+  else if (TREE_CODE (stmt) == DECL_EXPR
+	   && TREE_CODE (DECL_EXPR_DECL (stmt)) == USING_DECL)
+    {
+      /* Using decls inside DECL_EXPRs are just dropped on the floor.  */
+      *stmt_p = build1 (NOP_EXPR, void_type_node, integer_zero_node);
+      *walk_subtrees = 0;
+    }
+  else if (TREE_CODE (stmt) == OMP_PARALLEL || TREE_CODE (stmt) == OMP_TASK)
+    {
+      struct cp_genericize_omp_taskreg omp_ctx;
+      tree c, decl;
+      splay_tree_node n;
+
+      *walk_subtrees = 0;
+      cp_walk_tree (&OMP_CLAUSES (stmt), cp_genericize_r, data, NULL);
+      omp_ctx.is_parallel = TREE_CODE (stmt) == OMP_PARALLEL;
+      omp_ctx.default_shared = omp_ctx.is_parallel;
+      omp_ctx.outer = wtd->omp_ctx;
+      omp_ctx.variables = splay_tree_new (splay_tree_compare_decl_uid, 0, 0);
+      wtd->omp_ctx = &omp_ctx;
+      for (c = OMP_CLAUSES (stmt); c; c = OMP_CLAUSE_CHAIN (c))
+	switch (OMP_CLAUSE_CODE (c))
+	  {
+	  case OMP_CLAUSE_SHARED:
+	  case OMP_CLAUSE_PRIVATE:
+	  case OMP_CLAUSE_FIRSTPRIVATE:
+	  case OMP_CLAUSE_LASTPRIVATE:
+	    decl = OMP_CLAUSE_DECL (c);
+	    if (decl == error_mark_node || !omp_var_to_track (decl))
+	      break;
+	    n = splay_tree_lookup (omp_ctx.variables, (splay_tree_key) decl);
+	    if (n != NULL)
+	      break;
+	    splay_tree_insert (omp_ctx.variables, (splay_tree_key) decl,
+			       OMP_CLAUSE_CODE (c) == OMP_CLAUSE_SHARED
+			       ? OMP_CLAUSE_DEFAULT_SHARED
+			       : OMP_CLAUSE_DEFAULT_PRIVATE);
+	    if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_PRIVATE
+		&& omp_ctx.outer)
+	      omp_cxx_notice_variable (omp_ctx.outer, decl);
+	    break;
+	  case OMP_CLAUSE_DEFAULT:
+	    if (OMP_CLAUSE_DEFAULT_KIND (c) == OMP_CLAUSE_DEFAULT_SHARED)
+	      omp_ctx.default_shared = true;
+	  default:
+	    break;
+	  }
+      cp_walk_tree (&OMP_BODY (stmt), cp_genericize_r, data, NULL);
+      wtd->omp_ctx = omp_ctx.outer;
+      splay_tree_delete (omp_ctx.variables);
+    }
+  else if (TREE_CODE (stmt) == CONVERT_EXPR)
+    gcc_assert (!CONVERT_EXPR_VBASE_PATH (stmt));
+  else if (TREE_CODE (stmt) == FOR_STMT)
+    genericize_for_stmt (stmt_p, walk_subtrees, data);
+  else if (TREE_CODE (stmt) == WHILE_STMT)
+    genericize_while_stmt (stmt_p, walk_subtrees, data);
+  else if (TREE_CODE (stmt) == DO_STMT)
+    genericize_do_stmt (stmt_p, walk_subtrees, data);
+  else if (TREE_CODE (stmt) == SWITCH_STMT)
+    genericize_switch_stmt (stmt_p, walk_subtrees, data);
+  else if (TREE_CODE (stmt) == CONTINUE_STMT)
+    genericize_continue_stmt (stmt_p);
+  else if (TREE_CODE (stmt) == BREAK_STMT)
+    genericize_break_stmt (stmt_p);
+  else if (TREE_CODE (stmt) == OMP_FOR)
+    genericize_omp_for_stmt (stmt_p, walk_subtrees, data);
+  else if (TREE_CODE (stmt) == SIZEOF_EXPR)
+    {
+      if (SIZEOF_EXPR_TYPE_P (stmt))
+	*stmt_p
+	  = cxx_sizeof_or_alignof_type (TREE_TYPE (TREE_OPERAND (stmt, 0)),
+					SIZEOF_EXPR, false);
+      else if (TYPE_P (TREE_OPERAND (stmt, 0)))
+	*stmt_p = cxx_sizeof_or_alignof_type (TREE_OPERAND (stmt, 0),
+					      SIZEOF_EXPR, false);
+      else
+	*stmt_p = cxx_sizeof_or_alignof_expr (TREE_OPERAND (stmt, 0),
+					      SIZEOF_EXPR, false);
+      if (*stmt_p == error_mark_node)
+	*stmt_p = size_one_node;
+      return NULL;
+    }    
 
   pointer_set_insert (p_set, *stmt_p);
 
   return NULL;
 }
 
+/* Lower C++ front end trees to GENERIC in T_P.  */
+
+static void
+cp_genericize_tree (tree* t_p)
+{
+  struct cp_genericize_data wtd;
+
+  wtd.p_set = pointer_set_create ();
+  wtd.bind_expr_stack.create (0);
+  wtd.omp_ctx = NULL;
+  cp_walk_tree (t_p, cp_genericize_r, &wtd, NULL);
+  pointer_set_destroy (wtd.p_set);
+  wtd.bind_expr_stack.release ();
+}
+
 void
 cp_genericize (tree fndecl)
 {
   tree t;
-  struct pointer_set_t *p_set;
 
   /* Fix up the types of parms passed by invisible reference.  */
-  for (t = DECL_ARGUMENTS (fndecl); t; t = TREE_CHAIN (t))
+  for (t = DECL_ARGUMENTS (fndecl); t; t = DECL_CHAIN (t))
     if (TREE_ADDRESSABLE (TREE_TYPE (t)))
       {
 	/* If a function's arguments are copied to create a thunk,
@@ -758,6 +1184,23 @@ cp_genericize (tree fndecl)
       DECL_BY_REFERENCE (t) = 1;
       TREE_ADDRESSABLE (t) = 0;
       relayout_decl (t);
+      if (DECL_NAME (t))
+	{
+	  /* Adjust DECL_VALUE_EXPR of the original var.  */
+	  tree outer = outer_curly_brace_block (current_function_decl);
+	  tree var;
+
+	  if (outer)
+	    for (var = BLOCK_VARS (outer); var; var = DECL_CHAIN (var))
+	      if (DECL_NAME (t) == DECL_NAME (var)
+		  && DECL_HAS_VALUE_EXPR_P (var)
+		  && DECL_VALUE_EXPR (var) == t)
+		{
+		  tree val = convert_from_reference (t);
+		  SET_DECL_VALUE_EXPR (var, val);
+		  break;
+		}
+	}
     }
 
   /* If we're a clone, the body is already GIMPLE.  */
@@ -766,9 +1209,7 @@ cp_genericize (tree fndecl)
 
   /* We do want to see every occurrence of the parms, so we can't just use
      walk_tree's hash functionality.  */
-  p_set = pointer_set_create ();
-  cp_walk_tree (&DECL_SAVED_TREE (fndecl), cp_genericize_r, p_set, NULL);
-  pointer_set_destroy (p_set);
+  cp_genericize_tree (&DECL_SAVED_TREE (fndecl));
 
   /* Do everything else.  */
   c_genericize (fndecl);
@@ -793,7 +1234,7 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
     return NULL;
 
   nargs = list_length (DECL_ARGUMENTS (fn));
-  argarray = (tree *) alloca (nargs * sizeof (tree));
+  argarray = XALLOCAVEC (tree, nargs);
 
   defparm = TREE_CHAIN (TYPE_ARG_TYPES (TREE_TYPE (fn)));
   if (arg2)
@@ -818,25 +1259,25 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
 			     size_zero_node, NULL, NULL);
 	}
       while (TREE_CODE (inner_type) == ARRAY_TYPE);
-      start1 = build_fold_addr_expr (start1);
+      start1 = build_fold_addr_expr_loc (input_location, start1);
       if (arg2)
-	start2 = build_fold_addr_expr (start2);
+	start2 = build_fold_addr_expr_loc (input_location, start2);
 
       end1 = TYPE_SIZE_UNIT (TREE_TYPE (arg1));
-      end1 = build2 (POINTER_PLUS_EXPR, TREE_TYPE (start1), start1, end1);
+      end1 = fold_build_pointer_plus (start1, end1);
 
       p1 = create_tmp_var (TREE_TYPE (start1), NULL);
-      t = build2 (GIMPLE_MODIFY_STMT, void_type_node, p1, start1);
+      t = build2 (MODIFY_EXPR, TREE_TYPE (p1), p1, start1);
       append_to_statement_list (t, &ret);
 
       if (arg2)
 	{
 	  p2 = create_tmp_var (TREE_TYPE (start2), NULL);
-	  t = build2 (GIMPLE_MODIFY_STMT, void_type_node, p2, start2);
+	  t = build2 (MODIFY_EXPR, TREE_TYPE (p2), p2, start2);
 	  append_to_statement_list (t, &ret);
 	}
 
-      lab = create_artificial_label ();
+      lab = create_artificial_label (input_location);
       t = build1 (LABEL_EXPR, void_type_node, lab);
       append_to_statement_list (t, &ret);
 
@@ -847,22 +1288,21 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
       for (parm = defparm; parm && parm != void_list_node;
 	   parm = TREE_CHAIN (parm), i++)
 	argarray[i] = convert_default_arg (TREE_VALUE (parm),
-					   TREE_PURPOSE (parm), fn, i);
+					   TREE_PURPOSE (parm), fn, i,
+					   tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
       t = fold_convert (void_type_node, t);
       t = fold_build_cleanup_point_expr (TREE_TYPE (t), t);
       append_to_statement_list (t, &ret);
 
-      t = TYPE_SIZE_UNIT (inner_type);
-      t = build2 (POINTER_PLUS_EXPR, TREE_TYPE (p1), p1, t);
-      t = build2 (GIMPLE_MODIFY_STMT, void_type_node, p1, t);
+      t = fold_build_pointer_plus (p1, TYPE_SIZE_UNIT (inner_type));
+      t = build2 (MODIFY_EXPR, TREE_TYPE (p1), p1, t);
       append_to_statement_list (t, &ret);
 
       if (arg2)
 	{
-	  t = TYPE_SIZE_UNIT (inner_type);
-	  t = build2 (POINTER_PLUS_EXPR, TREE_TYPE (p2), p2, t);
-	  t = build2 (GIMPLE_MODIFY_STMT, void_type_node, p2, t);
+	  t = fold_build_pointer_plus (p2, TYPE_SIZE_UNIT (inner_type));
+	  t = build2 (MODIFY_EXPR, TREE_TYPE (p2), p2, t);
 	  append_to_statement_list (t, &ret);
 	}
 
@@ -874,15 +1314,15 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
     }
   else
     {
-      argarray[i++] = build_fold_addr_expr (arg1);
+      argarray[i++] = build_fold_addr_expr_loc (input_location, arg1);
       if (arg2)
-	argarray[i++] = build_fold_addr_expr (arg2);
+	argarray[i++] = build_fold_addr_expr_loc (input_location, arg2);
       /* Handle default arguments.  */
       for (parm = defparm; parm && parm != void_list_node;
 	   parm = TREE_CHAIN (parm), i++)
 	argarray[i] = convert_default_arg (TREE_VALUE (parm),
 					   TREE_PURPOSE (parm),
-					   fn, i);
+					   fn, i, tf_warning_or_error);
       t = build_call_a (fn, i, argarray);
       t = fold_convert (void_type_node, t);
       return fold_build_cleanup_point_expr (TREE_TYPE (t), t);
@@ -893,7 +1333,7 @@ cxx_omp_clause_apply_fn (tree fn, tree arg1, tree arg2)
    NULL if there's nothing to do.  */
 
 tree
-cxx_omp_clause_default_ctor (tree clause, tree decl)
+cxx_omp_clause_default_ctor (tree clause, tree decl, tree /*outer*/)
 {
   tree info = CP_OMP_CLAUSE_INFO (clause);
   tree ret = NULL;
@@ -915,7 +1355,7 @@ cxx_omp_clause_copy_ctor (tree clause, tree dst, tree src)
   if (info)
     ret = cxx_omp_clause_apply_fn (TREE_VEC_ELT (info, 0), dst, src);
   if (ret == NULL)
-    ret = build2 (GIMPLE_MODIFY_STMT, void_type_node, dst, src);
+    ret = build2 (MODIFY_EXPR, TREE_TYPE (dst), dst, src);
 
   return ret;
 }
@@ -931,7 +1371,7 @@ cxx_omp_clause_assign_op (tree clause, tree dst, tree src)
   if (info)
     ret = cxx_omp_clause_apply_fn (TREE_VEC_ELT (info, 2), dst, src);
   if (ret == NULL)
-    ret = build2 (GIMPLE_MODIFY_STMT, void_type_node, dst, src);
+    ret = build2 (MODIFY_EXPR, TREE_TYPE (dst), dst, src);
 
   return ret;
 }
@@ -957,4 +1397,111 @@ bool
 cxx_omp_privatize_by_reference (const_tree decl)
 {
   return is_invisiref_parm (decl);
+}
+
+/* Return true if DECL is const qualified var having no mutable member.  */
+bool
+cxx_omp_const_qual_no_mutable (tree decl)
+{
+  tree type = TREE_TYPE (decl);
+  if (TREE_CODE (type) == REFERENCE_TYPE)
+    {
+      if (!is_invisiref_parm (decl))
+	return false;
+      type = TREE_TYPE (type);
+
+      if (TREE_CODE (decl) == RESULT_DECL && DECL_NAME (decl))
+	{
+	  /* NVR doesn't preserve const qualification of the
+	     variable's type.  */
+	  tree outer = outer_curly_brace_block (current_function_decl);
+	  tree var;
+
+	  if (outer)
+	    for (var = BLOCK_VARS (outer); var; var = DECL_CHAIN (var))
+	      if (DECL_NAME (decl) == DECL_NAME (var)
+		  && (TYPE_MAIN_VARIANT (type)
+		      == TYPE_MAIN_VARIANT (TREE_TYPE (var))))
+		{
+		  if (TYPE_READONLY (TREE_TYPE (var)))
+		    type = TREE_TYPE (var);
+		  break;
+		}
+	}
+    }
+
+  if (type == error_mark_node)
+    return false;
+
+  /* Variables with const-qualified type having no mutable member
+     are predetermined shared.  */
+  if (TYPE_READONLY (type) && !cp_has_mutable_p (type))
+    return true;
+
+  return false;
+}
+
+/* True if OpenMP sharing attribute of DECL is predetermined.  */
+
+enum omp_clause_default_kind
+cxx_omp_predetermined_sharing (tree decl)
+{
+  /* Static data members are predetermined shared.  */
+  if (TREE_STATIC (decl))
+    {
+      tree ctx = CP_DECL_CONTEXT (decl);
+      if (TYPE_P (ctx) && MAYBE_CLASS_TYPE_P (ctx))
+	return OMP_CLAUSE_DEFAULT_SHARED;
+    }
+
+  /* Const qualified vars having no mutable member are predetermined
+     shared.  */
+  if (cxx_omp_const_qual_no_mutable (decl))
+    return OMP_CLAUSE_DEFAULT_SHARED;
+
+  return OMP_CLAUSE_DEFAULT_UNSPECIFIED;
+}
+
+/* Finalize an implicitly determined clause.  */
+
+void
+cxx_omp_finish_clause (tree c)
+{
+  tree decl, inner_type;
+  bool make_shared = false;
+
+  if (OMP_CLAUSE_CODE (c) != OMP_CLAUSE_FIRSTPRIVATE)
+    return;
+
+  decl = OMP_CLAUSE_DECL (c);
+  decl = require_complete_type (decl);
+  inner_type = TREE_TYPE (decl);
+  if (decl == error_mark_node)
+    make_shared = true;
+  else if (TREE_CODE (TREE_TYPE (decl)) == REFERENCE_TYPE)
+    {
+      if (is_invisiref_parm (decl))
+	inner_type = TREE_TYPE (inner_type);
+      else
+	{
+	  error ("%qE implicitly determined as %<firstprivate%> has reference type",
+		 decl);
+	  make_shared = true;
+	}
+    }
+
+  /* We're interested in the base element, not arrays.  */
+  while (TREE_CODE (inner_type) == ARRAY_TYPE)
+    inner_type = TREE_TYPE (inner_type);
+
+  /* Check for special function availability by building a call to one.
+     Save the results, because later we won't be in the right context
+     for making these queries.  */
+  if (!make_shared
+      && CLASS_TYPE_P (inner_type)
+      && cxx_omp_create_clause_info (c, inner_type, false, true, false))
+    make_shared = true;
+
+  if (make_shared)
+    OMP_CLAUSE_CODE (c) = OMP_CLAUSE_SHARED;
 }

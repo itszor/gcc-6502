@@ -1,4 +1,4 @@
-// { dg-do "compile" }
+// { dg-do compile }
 // { dg-options "-std=gnu++0x" }
 
 template<typename T, typename U> 
@@ -45,8 +45,8 @@ int bar(char);
 int bar(int); 
 CHECK_DECLTYPE(decltype(foo), int(char));
 
-decltype(bar) z; // { dg-error "overload" }
-// { dg-error "invalid type" "" { target *-*-* } 48 }
+decltype(bar) z; // { dg-error "overload" "overload" }
+// { dg-error "invalid type" "invalid" { target *-*-* } 48 }
 
 CHECK_DECLTYPE(decltype(&foo), int(*)(char));
 CHECK_DECLTYPE(decltype(*&foo), int(&)(char));

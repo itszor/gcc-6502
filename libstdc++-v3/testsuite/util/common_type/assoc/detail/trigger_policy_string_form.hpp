@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -14,19 +14,9 @@
 // General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// along with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -63,15 +53,15 @@ namespace __gnu_pbds
       template<typename Trigger_Policy>
       struct trigger_policy_string_form;
 
-      template<typename Allocator,
-	       typename Allocator::size_type Min_Load_Nom,
-	       typename Allocator::size_type Min_Load_Denom,
-	       typename Allocator::size_type Max_Load_Nom,
-	       typename Allocator::size_type Max_Load_Denom,
+      template<typename _Alloc,
+	       typename _Alloc::size_type Min_Load_Nom,
+	       typename _Alloc::size_type Min_Load_Denom,
+	       typename _Alloc::size_type Max_Load_Nom,
+	       typename _Alloc::size_type Max_Load_Denom,
 	       bool External_Access>
       struct trigger_policy_string_form<
 	__gnu_pbds::test::hash_load_check_resize_trigger_t_<
-        Allocator,
+        _Alloc,
         Min_Load_Nom,
         Min_Load_Denom,
         Max_Load_Nom,
@@ -94,25 +84,24 @@ namespace __gnu_pbds
         desc()
 	{
 	  const std::string ext_access_desc =
-            make_xml_tag(
-			 "External_Access",
+            make_xml_tag("External_Access",
 			 "value",(External_Access? "true" : "false"));
 
 	  const std::string loads_desc =
-            make_xml_tag(                "alpha_min",  "nom", Min_Load_Nom,  "denom", Min_Load_Denom) +
-            make_xml_tag(                "alpha_max",  "nom", Max_Load_Nom,  "denom", Max_Load_Denom);
+            make_xml_tag("alpha_min", "nom", Min_Load_Nom, "denom", Min_Load_Denom) +
+            make_xml_tag("alpha_max", "nom", Max_Load_Nom, "denom", Max_Load_Denom);
 
-	  return (make_xml_tag(            "Trigger_Policy", "value", "hash_load_check_resize_trigger", ext_access_desc + loads_desc));
+	  return (make_xml_tag("Trigger_Policy", "value", "hash_load_check_resize_trigger", ext_access_desc + loads_desc));
 	}
       };
 
-      template<typename Allocator,
-	       typename Allocator::size_type Load_Nom,
-	       typename Allocator::size_type Load_Denom,
+      template<typename _Alloc,
+	       typename _Alloc::size_type Load_Nom,
+	       typename _Alloc::size_type Load_Denom,
 	       bool External_Access>
       struct trigger_policy_string_form<
 	__gnu_pbds::test::cc_hash_max_collision_check_resize_trigger_t_<
-        Allocator,
+        _Alloc,
         Load_Nom,
         Load_Denom,
         External_Access> >
@@ -132,14 +121,13 @@ namespace __gnu_pbds
         desc()
 	{
 	  const std::string ext_access_desc =
-            make_xml_tag(
-			 "External_Access",
+            make_xml_tag("External_Access",
 			 "value",(External_Access? "true" : "false"));
 
 	  const std::string load_desc =
-            make_xml_tag(                "alpha",  "nom", Load_Nom,  "denom", Load_Denom);
+            make_xml_tag("alpha",  "nom", Load_Nom,  "denom", Load_Denom);
 
-	  return (make_xml_tag(            "Trigger_Policy", "value", "cc_hash_max_collision_check_resize_trigger", ext_access_desc + load_desc));
+	  return (make_xml_tag("Trigger_Policy", "value", "cc_hash_max_collision_check_resize_trigger", ext_access_desc + load_desc));
 	}
       };
 

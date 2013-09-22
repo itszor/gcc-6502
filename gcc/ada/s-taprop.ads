@@ -6,42 +6,35 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package contains all the GNULL primitives that interface directly
---  with the underlying OS.
+--  This package contains all the GNULL primitives that interface directly with
+--  the underlying OS.
 
 with System.Parameters;
---  used for Size_Type
-
 with System.Tasking;
---  used for Task_Id
-
 with System.OS_Interface;
---  used for Thread_Id
 
 package System.Task_Primitives.Operations is
    pragma Preelaborate;
@@ -94,9 +87,24 @@ package System.Task_Primitives.Operations is
    --  The effects of further calls to operations defined below on the task
    --  are undefined thereafter.
 
-   function New_ATCB (Entry_Num : ST.Task_Entry_Index) return ST.Task_Id;
-   pragma Inline (New_ATCB);
-   --  Allocate a new ATCB with the specified number of entries
+   ----------------------------------
+   -- ATCB allocation/deallocation --
+   ----------------------------------
+
+   package ATCB_Allocation is
+
+      function New_ATCB (Entry_Num : ST.Task_Entry_Index) return ST.Task_Id;
+      pragma Inline (New_ATCB);
+      --  Allocate a new ATCB with the specified number of entries
+
+      procedure Free_ATCB (T : ST.Task_Id);
+      pragma Inline (Free_ATCB);
+      --  Deallocate an ATCB previously allocated by New_ATCB
+
+   end ATCB_Allocation;
+
+   function New_ATCB (Entry_Num : ST.Task_Entry_Index) return ST.Task_Id
+     renames ATCB_Allocation.New_ATCB;
 
    procedure Initialize_TCB (Self_ID : ST.Task_Id; Succeeded : out Boolean);
    pragma Inline (Initialize_TCB);
@@ -255,7 +263,7 @@ package System.Task_Primitives.Operations is
 
    --  It is not clear what to do about ceiling violations due to RTS calls
    --  done at interrupt priority. In general, it is not acceptable to give
-   --  all RTS locks interrupt priority, since that whould give terrible
+   --  all RTS locks interrupt priority, since that would give terrible
    --  performance on systems where this has the effect of masking hardware
    --  interrupts, though we could get away allowing Interrupt_Priority'last
    --  where we are layered on an OS that does not allow us to mask interrupts.
@@ -305,10 +313,11 @@ package System.Task_Primitives.Operations is
 
    procedure Yield (Do_Yield : Boolean := True);
    pragma Inline (Yield);
-   --  Yield the processor. Add the calling task to the tail of the ready
-   --  queue for its active_priority. The Do_Yield argument is only used in
-   --  some very rare cases very a yield should have an effect on a specific
-   --  target and not on regular ones.
+   --  Yield the processor. Add the calling task to the tail of the ready queue
+   --  for its active_priority. On most platforms, Yield is a no-op if Do_Yield
+   --  is False. But on some platforms (notably VxWorks), Do_Yield is ignored.
+   --  This is only used in some very rare cases where a Yield should have an
+   --  effect on a specific target and not on regular ones.
 
    procedure Set_Priority
      (T : ST.Task_Id;
@@ -418,7 +427,7 @@ package System.Task_Primitives.Operations is
    --  thread of control in the RTS. Since we intend these routines to be used
    --  for implementing the Single_Lock RTS, Lock_RTS should follow the first
    --  Defer_Abort operation entering RTS. In the same fashion Unlock_RTS
-   --  should preceed the last Undefer_Abort exiting RTS.
+   --  should precede the last Undefer_Abort exiting RTS.
    --
    --  These routines also replace the functions Lock/Unlock_All_Tasks_List
 
@@ -549,5 +558,14 @@ package System.Task_Primitives.Operations is
    --  Continue a specific task when the underlying thread library provides
    --  such functionality. Such functionality is needed by gdb on some targets
    --  (e.g VxWorks) Return True is the operation is successful
+
+   -------------------
+   -- Task affinity --
+   -------------------
+
+   procedure Set_Task_Affinity (T : ST.Task_Id);
+   --  Enforce at the operating system level the task affinity defined in the
+   --  Ada Task Control Block. Has no effect if the underlying operating system
+   --  does not support this capability.
 
 end System.Task_Primitives.Operations;

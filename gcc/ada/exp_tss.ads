@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -50,9 +50,9 @@ package Exp_Tss is
    -------------------------
 
    --  In the current version of this package, only the case of generating a
-   --  TSS at the point of declaration of the type is accomodated. A clear
+   --  TSS at the point of declaration of the type is accommodated. A clear
    --  improvement would be to follow through with the full implementation
-   --  as described above, and also accomodate the requirement of generating
+   --  as described above, and also accommodate the requirement of generating
    --  only one copy in a given object file.
 
    --  For now, we deal with the local case by generating duplicate versions
@@ -72,7 +72,8 @@ package Exp_Tss is
 
    --  The following codes are used to denote TSSs:
 
-   --  Note: When making additions to this list, update the list in snames.adb
+   --  Note: When making additions to this list, make the corresponding change
+   --  to the list in snames.adb-tmpl.
 
    type TSS_Name_Type is new String (1 .. 2);
    subtype TNT is TSS_Name_Type;
@@ -81,10 +82,12 @@ package Exp_Tss is
    TSS_Deep_Finalize      : constant TNT := "DF";  -- Deep Finalize
    TSS_Deep_Initialize    : constant TNT := "DI";  -- Deep Initialize
    TSS_Composite_Equality : constant TNT := "EQ";  -- Composite Equality
+   TSS_Finalize_Address   : constant TNT := "FD";  -- Finalize Address
    TSS_From_Any           : constant TNT := "FA";  -- PolyORB/DSA From_Any
    TSS_Init_Proc          : constant TNT := "IP";  -- Initialization Procedure
+   TSS_CPP_Init_Proc      : constant TNT := "IC";  -- Init C++ dispatch tables
    TSS_RAS_Access         : constant TNT := "RA";  -- RAS type access
-   TSS_RAS_Dereference    : constant TNT := "RD";  -- RAS type deference
+   TSS_RAS_Dereference    : constant TNT := "RD";  -- RAS type dereference
    TSS_Rep_To_Pos         : constant TNT := "RP";  -- Rep to Pos conversion
    TSS_Slice_Assign       : constant TNT := "SA";  -- Slice assignment
    TSS_Stream_Input       : constant TNT := "SI";  -- Stream Input attribute
@@ -101,8 +104,10 @@ package Exp_Tss is
       TSS_Deep_Finalize,
       TSS_Deep_Initialize,
       TSS_Composite_Equality,
+      TSS_Finalize_Address,
       TSS_From_Any,
       TSS_Init_Proc,
+      TSS_CPP_Init_Proc,
       TSS_RAS_Access,
       TSS_RAS_Dereference,
       TSS_Rep_To_Pos,
@@ -139,14 +144,17 @@ package Exp_Tss is
    function Make_Init_Proc_Name (Typ : Entity_Id) return Name_Id;
    --  Version for init procs, same as Make_TSS_Name (Typ, TSS_Init_Proc)
 
+   function Is_CPP_Init_Proc (E : Entity_Id) return Boolean;
+   --  Version for CPP init procs, same as Is_TSS (E, TSS_CPP_Init_Proc);
+
+   function Is_Init_Proc (E : Entity_Id) return Boolean;
+   --  Version for init procs, same as Is_TSS (E, TSS_Init_Proc);
+
    function Is_TSS (E : Entity_Id; Nam : TSS_Name_Type) return Boolean;
    --  Determines if given entity (E) is the name of a TSS identified by Nam
 
    function Is_TSS (N : Name_Id; Nam : TSS_Name_Type) return Boolean;
    --  Same test applied directly to a Name_Id value
-
-   function Is_Init_Proc (E : Entity_Id) return Boolean;
-   --  Version for init procs, same as Is_TSS (E, TSS_Init_Proc);
 
    -----------------------------------------
    -- TSS Data structures and Subprograms --
@@ -187,8 +195,14 @@ package Exp_Tss is
    --  used to initially install a TSS in the case where the subprogram for the
    --  TSS has already been created and its declaration processed.
 
-   function Init_Proc (Typ : Entity_Id) return Entity_Id;
-   pragma Inline (Init_Proc);
+   function CPP_Init_Proc (Typ : Entity_Id) return Entity_Id;
+   --  Obtains the CPP_Init TSS entity the given type. The CPP_Init TSS is a
+   --  procedure used to initialize the C++ part of the primary and secondary
+   --  dispatch tables of a tagged type derived from CPP types.
+
+   function Init_Proc
+     (Typ : Entity_Id;
+      Ref : Entity_Id := Empty) return Entity_Id;
    --  Obtains the _init TSS entry for the given type. This function call is
    --  equivalent to TSS (Typ, Name_uInit). The _init TSS is the procedure
    --  used to initialize otherwise uninitialized instances of a type. If
@@ -198,14 +212,21 @@ package Exp_Tss is
    --  the corresponding base type (see Base_Init_Proc function). A special
    --  case arises for concurrent types. Such types do not themselves have an
    --  init proc TSS, but initialization is required. The init proc used is
-   --  the one for the corresponding record type (see Base_Init_Proc).
+   --  the one for the corresponding record type (see Base_Init_Proc). If
+   --  Ref is present it is call to a subprogram whose profile matches the
+   --  profile of the required constructor (this argument is used to handle
+   --  non-default CPP constructors).
 
-   function Base_Init_Proc (Typ : Entity_Id) return Entity_Id;
+   function Base_Init_Proc
+     (Typ : Entity_Id;
+      Ref : Entity_Id := Empty) return Entity_Id;
    --  Obtains the _Init TSS entry from the base type of the entity, and also
    --  deals with going indirect through the Corresponding_Record_Type field
    --  for concurrent objects (which are initialized with the initialization
-   --  routine for the corresponding record type). Returns Empty if there is
-   --  no _Init TSS entry for the base type.
+   --  routine for the corresponding record type). Returns Empty if there is no
+   --  _Init TSS entry for the base type. If Ref is present it is a call to a
+   --  subprogram whose profile matches the profile of the required constructor
+   --  (this argument is used to handle non-default CPP constructors).
 
    procedure Set_Init_Proc (Typ : Entity_Id; Init : Entity_Id);
    pragma Inline (Set_Init_Proc);
@@ -215,7 +236,7 @@ package Exp_Tss is
    function Has_Non_Null_Base_Init_Proc (Typ : Entity_Id) return Boolean;
    --  Returns true if the given type has a defined Base_Init_Proc and
    --  this init proc is not a null init proc (null init procs occur as
-   --  a result of the processing for Initialize_Scalars. This function
+   --  a result of the processing for Initialize_Scalars). This function
    --  is used to test for the presence of an init proc in cases where
    --  a null init proc is considered equivalent to no init proc.
 

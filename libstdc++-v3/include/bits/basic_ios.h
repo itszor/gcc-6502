@@ -1,13 +1,11 @@
 // Iostreams base classes -*- C++ -*-
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file basic_ios.h
+/** @file bits/basic_ios.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ios}
  */
 
 #ifndef _BASIC_IOS_H
@@ -44,7 +37,9 @@
 #include <bits/locale_facets.h>
 #include <bits/streambuf_iterator.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Facet>
     inline const _Facet&
@@ -55,9 +50,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       return *__f;
     }
 
-  // 27.4.5  Template class basic_ios
   /**
-   *  @brief  Virtual base class for all stream classes.
+   *  @brief Template class basic_ios, virtual base class for all
+   *  stream classes. 
+   *  @ingroup io
+   *
+   *  @tparam _CharT  Type of character stream.
+   *  @tparam _Traits  Traits for character type, defaults to
+   *                   char_traits<_CharT>.
    *
    *  Most of the member functions called dispatched on stream objects
    *  (e.g., @c std::cout.foo(bar);) are consolidated in this class.
@@ -69,7 +69,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       //@{
       /**
        *  These are standard types.  They permit a standardized way of
-       *  referring to names of (or names dependant on) the template
+       *  referring to names of (or names dependent on) the template
        *  parameters, which are specific to the implementation.
       */
       typedef _CharT                                 char_type;
@@ -110,7 +110,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @brief  The quick-and-easy status check.
        *
        *  This allows you to write constructs such as
-       *  "if (!a_stream) ..." and "while (a_stream) ..."
+       *  <code>if (!a_stream) ...</code> and <code>while (a_stream) ...</code>
       */
       operator void*() const
       { return this->fail() ? 0 : const_cast<basic_ios*>(this); }
@@ -133,7 +133,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  [Re]sets the error state.
-       *  @param  state  The new state flag(s) to set.
+       *  @param  __state  The new state flag(s) to set.
        *
        *  See std::ios_base::iostate for the possible bit values.  Most
        *  users will not need to pass an argument.
@@ -143,7 +143,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Sets additional flags in the error state.
-       *  @param  state  The additional state flag(s) to set.
+       *  @param  __state  The additional state flag(s) to set.
        *
        *  See std::ios_base::iostate for the possible bit values.
       */
@@ -218,7 +218,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Throwing exceptions on errors.
-       *  @param  except  The new exceptions mask.
+       *  @param  __except  The new exceptions mask.
        *
        *  By default, error flags are set silently.  You can set an
        *  exceptions mask for each stream; if a bit in the mask becomes set
@@ -291,7 +291,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Ties this stream to an output stream.
-       *  @param  tiestr  The output stream.
+       *  @param  __tiestr  The output stream.
        *  @return  The previously tied output stream, or NULL if the stream
        *           was not tied.
        *
@@ -317,7 +317,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Changing the underlying buffer.
-       *  @param  sb  The new stream buffer.
+       *  @param  __sb  The new stream buffer.
        *  @return  The previous stream buffer.
        *
        *  Associates a new buffer with the current stream, and clears the
@@ -355,7 +355,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       copyfmt(const basic_ios& __rhs);
 
       /**
-       *  @brief  Retrieves the "empty" character.
+       *  @brief  Retrieves the @a empty character.
        *  @return  The current fill character.
        *
        *  It defaults to a space (' ') in the current locale.
@@ -372,8 +372,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       }
 
       /**
-       *  @brief  Sets a new "empty" character.
-       *  @param  ch  The new character.
+       *  @brief  Sets a new @a empty character.
+       *  @param  __ch  The new character.
        *  @return  The previous fill character.
        *
        *  The fill character is used to fill out space when P+ characters
@@ -391,22 +391,22 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // Locales:
       /**
        *  @brief  Moves to a new locale.
-       *  @param  loc  The new locale.
+       *  @param  __loc  The new locale.
        *  @return  The previous locale.
        *
        *  Calls @c ios_base::imbue(loc), and if a stream buffer is associated
        *  with this stream, calls that buffer's @c pubimbue(loc).
        *
        *  Additional l10n notes are at
-       *  http://gcc.gnu.org/onlinedocs/libstdc++/22_locale/howto.html
+       *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/localization.html
       */
       locale
       imbue(const locale& __loc);
 
       /**
        *  @brief  Squeezes characters.
-       *  @param  c  The character to narrow.
-       *  @param  dfault  The character to narrow.
+       *  @param  __c  The character to narrow.
+       *  @param  __dfault  The character to narrow.
        *  @return  The narrowed character.
        *
        *  Maps a character of @c char_type to a character of @c char,
@@ -418,7 +418,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @endcode
        *
        *  Additional l10n notes are at
-       *  http://gcc.gnu.org/onlinedocs/libstdc++/22_locale/howto.html
+       *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/localization.html
       */
       char
       narrow(char_type __c, char __dfault) const
@@ -426,7 +426,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
       /**
        *  @brief  Widens characters.
-       *  @param  c  The character to widen.
+       *  @param  __c  The character to widen.
        *  @return  The widened character.
        *
        *  Maps a character of @c char to a character of @c char_type.
@@ -437,7 +437,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
        *  @endcode
        *
        *  Additional l10n notes are at
-       *  http://gcc.gnu.org/onlinedocs/libstdc++/22_locale/howto.html
+       *  http://gcc.gnu.org/onlinedocs/libstdc++/manual/localization.html
       */
       char_type
       widen(char __c) const
@@ -469,10 +469,9 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       _M_cache_locale(const locale& __loc);
     };
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
-#ifndef _GLIBCXX_EXPORT_TEMPLATE
 #include <bits/basic_ios.tcc>
-#endif
 
 #endif /* _BASIC_IOS_H */

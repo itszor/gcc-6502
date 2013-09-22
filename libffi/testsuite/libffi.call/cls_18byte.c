@@ -47,29 +47,21 @@ cls_struct_18byte_gn(ffi_cif* cif __UNUSED__, void* resp, void** args,
 int main (void)
 {
   ffi_cif cif;
-#ifndef USING_MMAP
-  static ffi_closure cl;
-#endif
-  ffi_closure *pcl;
+  void *code;
+  ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
   void* args_dbl[3];
   ffi_type* cls_struct_fields[5];
   ffi_type cls_struct_type;
   ffi_type* dbl_arg_types[3];
 
-#ifdef USING_MMAP
-  pcl = allocate_mmap (sizeof(ffi_closure));
-#else
-  pcl = &cl;
-#endif
+  struct cls_struct_18byte g_dbl = { 1.0, 127, 126, 3.0 };
+  struct cls_struct_18byte f_dbl = { 4.0, 125, 124, 5.0 };
+  struct cls_struct_18byte res_dbl;
 
   cls_struct_type.size = 0;
   cls_struct_type.alignment = 0;
   cls_struct_type.type = FFI_TYPE_STRUCT;
   cls_struct_type.elements = cls_struct_fields;
-
-  struct cls_struct_18byte g_dbl = { 1.0, 127, 126, 3.0 };
-  struct cls_struct_18byte f_dbl = { 4.0, 125, 124, 5.0 };
-  struct cls_struct_18byte res_dbl;
 
   cls_struct_fields[0] = &ffi_type_double;
   cls_struct_fields[1] = &ffi_type_uchar;
@@ -93,9 +85,9 @@ int main (void)
   printf("res: %g %d %d %g\n", res_dbl.a, res_dbl.b, res_dbl.c, res_dbl.d);
   /* { dg-output "\nres: 5 252 250 8" } */
 
-  CHECK(ffi_prep_closure(pcl, &cif, cls_struct_18byte_gn, NULL) == FFI_OK);
+  CHECK(ffi_prep_closure_loc(pcl, &cif, cls_struct_18byte_gn, NULL, code) == FFI_OK);
 
-  res_dbl = ((cls_struct_18byte(*)(cls_struct_18byte, cls_struct_18byte))(pcl))(g_dbl, f_dbl);
+  res_dbl = ((cls_struct_18byte(*)(cls_struct_18byte, cls_struct_18byte))(code))(g_dbl, f_dbl);
   /* { dg-output "\n1 127 126 3 4 125 124 5: 5 252 250 8" } */
   printf("res: %g %d %d %g\n", res_dbl.a, res_dbl.b, res_dbl.c, res_dbl.d);
   /* { dg-output "\nres: 5 252 250 8" } */

@@ -1,4 +1,4 @@
-// { dg-do "run" }
+// { dg-do run }
 #include <cassert>
 
 struct A
@@ -96,7 +96,7 @@ int main()
   assert (NTEST (C));
   assert (NTEST (D));
   assert (PTEST (E));
-  assert (NTEST (E[]));
+  assert (PTEST (E[]));
   assert (PTEST (F));
   assert (NTEST (G));
   assert (NTEST (const A));

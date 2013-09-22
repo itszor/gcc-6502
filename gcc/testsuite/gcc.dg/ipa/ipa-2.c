@@ -1,6 +1,6 @@
 /* { dg-do compile } */
-/* { dg-options "-O3 -fipa-cp -fdump-ipa-cp -fno-early-inlining"  } */
-/* { dg-skip-if "PR 25442" { "*-*-*" } { "-fpic" "-fPIC" } { "" } } */
+/* { dg-options "-O3 -fipa-cp -fipa-cp-clone -fdump-ipa-cp -fno-early-inlining"  } */
+/* { dg-add-options bind_pic_locally } */
 
 #include <stdio.h>
 int g (int b, int c)
@@ -15,11 +15,13 @@ int f (int a)
 }
 int main ()
 {
-  f (7);
-  return 0;	
+  int i;
+  for (i = 0; i < 100; i++)
+    f (7);
+  return 0;
 }
 
 
-/* { dg-final { scan-ipa-dump-times "versioned function" 2 "cp"  } } */
-/* { dg-final { scan-ipa-dump-times "replacing param with const" 2 "cp"  } } */
+/* { dg-final { scan-ipa-dump "Creating a specialized node of f" "cp" } } */
+/* { dg-final { scan-ipa-dump "replacing param a with const 7" "cp"  } } */
 /* { dg-final { cleanup-ipa-dump "cp" } } */

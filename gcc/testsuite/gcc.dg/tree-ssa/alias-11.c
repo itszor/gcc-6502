@@ -14,6 +14,8 @@ int bar(void)
   return a[0] + *p.a;
 }
 
-/* { dg-final { scan-tree-dump "return \\*p\\.a \\\+ a.0.;" "optimized" } } */
+/* We need to have both: a load from "a[0]" and a load from "*p.a",
+   the latter is an ssa temporary.  */
+/* { dg-final { scan-tree-dump "= a.0.;" "optimized" } } */
+/* { dg-final { scan-tree-dump "= \\*\[^\r\n\]*_.;" "optimized" } } */
 /* { dg-final { cleanup-tree-dump "optimized" } } */
-

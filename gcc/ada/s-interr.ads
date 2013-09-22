@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,24 +33,19 @@
 --  Any changes to this interface may require corresponding compiler changes.
 
 --  This package encapsulates the implementation of interrupt or signal
---  handlers.  It is logically an extension of the body of Ada.Interrupts.
---  It is made a child of System to allow visibility of various
---  runtime system internal data and operations.
+--  handlers. It is logically an extension of the body of Ada.Interrupts. It
+--  is made a child of System to allow visibility of various runtime system
+--  internal data and operations.
 
 --  See System.Interrupt_Management for core interrupt/signal interfaces
 
---  These two packages are separated in order to allow
---  System.Interrupt_Management to be used without requiring the whole
---  tasking implementation to be linked and elaborated.
+--  These two packages are separated to allow System.Interrupt_Management to be
+--  used without requiring the whole tasking implementation to be linked and
+--  elaborated.
 
 with System.Tasking;
---  used for Task_Id
-
 with System.Tasking.Protected_Objects.Entries;
---  used for Protection_Entries
-
 with System.OS_Interface;
---  used for Max_Interrupt
 
 package System.Interrupts is
 
@@ -73,11 +66,9 @@ package System.Interrupts is
 
    type Interrupt_ID is range 0 .. System.OS_Interface.Max_Interrupt;
 
-   --  The following renaming is introduced so that the type is accessible
-   --  through rtsfind, otherwise the name clashes with its homonym in
-   --  ada.interrupts.
-
    subtype System_Interrupt_Id is Interrupt_ID;
+   --  This synonym is introduced so that the type is accessible through
+   --  rtsfind, otherwise the name clashes with its homonym in Ada.Interrupts.
 
    type Parameterless_Handler is access protected procedure;
 
@@ -97,10 +88,10 @@ package System.Interrupts is
    function Current_Handler
      (Interrupt : Interrupt_ID) return Parameterless_Handler;
 
-   --  Calling the following procedures with New_Handler = null
-   --  and Static = true means that we want to modify the current handler
-   --  regardless of the previous handler's binding status.
-   --  (i.e. we do not care whether it is a dynamic or static handler)
+   --  Calling the following procedures with New_Handler = null and Static =
+   --  true means that we want to modify the current handler regardless of the
+   --  previous handler's binding status. (i.e. we do not care whether it is a
+   --  dynamic or static handler)
 
    procedure Attach_Handler
      (New_Handler : Parameterless_Handler;
@@ -150,14 +141,14 @@ package System.Interrupts is
    function Unblocked_By
      (Interrupt : Interrupt_ID) return System.Tasking.Task_Id;
    --  It returns the ID of the last Task which Unblocked this Interrupt.
-   --  It returns Null_Task if no tasks have ever requested the
-   --  Unblocking operation or the Interrupt is currently Blocked.
+   --  It returns Null_Task if no tasks have ever requested the Unblocking
+   --  operation or the Interrupt is currently Blocked.
 
    function Is_Blocked (Interrupt : Interrupt_ID) return Boolean;
    --  Comment needed ???
 
    procedure Ignore_Interrupt (Interrupt : Interrupt_ID);
-   --  Set the sigacion for the interrupt to SIG_IGN
+   --  Set the sigaction for the interrupt to SIG_IGN
 
    procedure Unignore_Interrupt (Interrupt : Interrupt_ID);
    --  Comment needed ???
@@ -169,9 +160,9 @@ package System.Interrupts is
    --  other low-level interface that changes the signal action or signal mask
    --  needs a careful thought.
 
-   --  One may acheive the effect of system calls first making RTS blocked
-   --  (by calling Block_Interrupt) for the signal under consideration.
-   --  This will make all the tasks in RTS blocked for the Interrupt.
+   --  One may achieve the effect of system calls first making RTS blocked (by
+   --  calling Block_Interrupt) for the signal under consideration. This will
+   --  make all the tasks in RTS blocked for the Interrupt.
 
    ----------------------
    -- Protection Types --
@@ -195,7 +186,7 @@ package System.Interrupts is
 
    --  (2) Attach_Handler pragmas are used, and possibly Interrupt_Handler
    --  pragma. We need to attach the handlers to the given interrupts when the
-   --  objet is elaborated. This should be done by constructing an array of
+   --  object is elaborated. This should be done by constructing an array of
    --  pairs (interrupt, handler) from the pragmas and calling Install_Handlers
    --  with it (types to be used are New_Handler_Item and New_Handler_Array).
    --  On finalization, we need to restore the handlers that were installed
@@ -265,6 +256,7 @@ package System.Interrupts is
      (Object : access Static_Interrupt_Protection) return Boolean;
    --  Returns True
 
+   overriding
    procedure Finalize (Object : in out Static_Interrupt_Protection);
    --  Restore previous handlers as required by C.3.1(12) then call
    --  Finalize (Protection).
@@ -274,5 +266,12 @@ package System.Interrupts is
       New_Handlers : New_Handler_Array);
    --  Store the old handlers in Object.Previous_Handlers and install
    --  the new static handlers.
+
+   procedure Install_Restricted_Handlers (Handlers : New_Handler_Array);
+   --  Install the static Handlers for the given interrupts and do not store
+   --  previously installed handlers. This procedure is used when the Ravenscar
+   --  restrictions are in place since in that case there are only
+   --  library-level protected handlers that will be installed at
+   --  initialization and never be replaced.
 
 end System.Interrupts;

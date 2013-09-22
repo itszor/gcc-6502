@@ -1,5 +1,5 @@
-/* PKCS1_V1_5.java -- 
-   Copyright (C) 2003, 2006 Free Software Foundation, Inc.
+/* PKCS1_V1_5.java --
+   Copyright (C) 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -60,13 +60,14 @@ import java.util.logging.Logger;
  * RSA Cryptography Specifications Version 2.1.<br>
  * Jakob Jonsson and Burt Kaliski.</li>
  * </ol>
- * 
+ *
  * @see EME_PKCS1_V1_5
  */
 public class PKCS1_V1_5
     extends BasePad
 {
-  private static final Logger log = Logger.getLogger(PKCS1_V1_5.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(PKCS1_V1_5.class.getName()) : null;
   private EME_PKCS1_V1_5 codec;
 
   /**

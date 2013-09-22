@@ -1,6 +1,7 @@
+/* { dg-skip-if "test SSE2 support" { ! { i?86-*-* x86_64-*-* } } } */
 /* { dg-options "-O" } */
+/* { dg-require-effective-target sse2_runtime } */
 
-#ifdef __x86_64__
 /* Test function argument passing.  PR target/15301.  */
 
 extern void union_m128_1_x (void);
@@ -12,10 +13,3 @@ main ()
   union_m128_1_x ();
   exit (0);
 }
-#else
-int
-main ()
-{
-  return 0;
-}
-#endif

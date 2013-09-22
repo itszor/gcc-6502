@@ -1,4 +1,4 @@
-/* VariableReference.java -- 
+/* VariableReference.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.xpath;
+
+import gnu.java.lang.CPStringBuilder;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathVariableResolver;
@@ -86,7 +88,7 @@ public class VariableReference
 
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("$");
+    CPStringBuilder buf = new CPStringBuilder("$");
     String prefix = name.getPrefix();
     if (prefix != null && !"".equals(prefix))
       {
@@ -96,5 +98,5 @@ public class VariableReference
     buf.append(name.getLocalPart());
     return buf.toString();
   }
-  
+
 }

@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,31 +13,25 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/find_selectors.h
- *  @brief Function objects representing different tasks to be plugged
+ *  @brief _Function objects representing different tasks to be plugged
  *  into the parallel find algorithm.
  *  This file is a GNU parallel extension to the Standard C++ Library.
  */
 
 // Written by Felix Putze.
 
-#ifndef _GLIBCXX_PARALLEL_FIND_FUNCTIONS_H
-#define _GLIBCXX_PARALLEL_FIND_FUNCTIONS_H 1
+#ifndef _GLIBCXX_PARALLEL_FIND_SELECTORS_H
+#define _GLIBCXX_PARALLEL_FIND_SELECTORS_H 1
 
 #include <parallel/tags.h>
 #include <parallel/basic_iterator.h>
@@ -45,154 +39,159 @@
 
 namespace __gnu_parallel
 {
-  /** @brief Base class of all __gnu_parallel::find_template selectors. */
-  struct generic_find_selector
+  /** @brief Base class of all __gnu_parallel::__find_template selectors. */
+  struct __generic_find_selector
   { };
 
   /** 
    *  @brief Test predicate on a single element, used for std::find()
    *  and std::find_if ().
    */
-  struct find_if_selector : public generic_find_selector
+  struct __find_if_selector : public __generic_find_selector
   {
     /** @brief Test on one position.
-     * @param i1 Iterator on first sequence.
-     * @param i2 Iterator on second sequence (unused).
-     * @param pred Find predicate.
+     * @param __i1 _Iterator on first sequence.
+     * @param __i2 _Iterator on second sequence (unused).
+     * @param __pred Find predicate.
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
       bool 
-      operator()(RandomAccessIterator1 i1, RandomAccessIterator2 i2, Pred pred)
-      { return pred(*i1); }
+      operator()(_RAIter1 __i1, _RAIter2 __i2, _Pred __pred)
+      { return __pred(*__i1); }
 
     /** @brief Corresponding sequential algorithm on a sequence.
-     *  @param begin1 Begin iterator of first sequence.
-     *  @param end1 End iterator of first sequence.
-     *  @param begin2 Begin iterator of second sequence.
-     *  @param pred Find predicate.
+     *  @param __begin1 Begin iterator of first sequence.
+     *  @param __end1 End iterator of first sequence.
+     *  @param __begin2 Begin iterator of second sequence.
+     *  @param __pred Find predicate.
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
-      std::pair<RandomAccessIterator1, RandomAccessIterator2> 
-      sequential_algorithm(RandomAccessIterator1 begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator2 begin2, Pred pred)
-      { return std::make_pair(find_if(begin1, end1, pred,
-				      sequential_tag()), begin2); }
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
+      std::pair<_RAIter1, _RAIter2> 
+      _M_sequential_algorithm(_RAIter1 __begin1,
+                           _RAIter1 __end1,
+                           _RAIter2 __begin2, _Pred __pred)
+      { return std::make_pair(find_if(__begin1, __end1, __pred,
+                                      sequential_tag()), __begin2); }
   };
 
   /** @brief Test predicate on two adjacent elements. */
-  struct adjacent_find_selector : public generic_find_selector
+  struct __adjacent_find_selector : public __generic_find_selector
   {
     /** @brief Test on one position.
-     *  @param i1 Iterator on first sequence.
-     *  @param i2 Iterator on second sequence (unused).
-     *  @param pred Find predicate.
+     *  @param __i1 _Iterator on first sequence.
+     *  @param __i2 _Iterator on second sequence (unused).
+     *  @param __pred Find predicate.
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
       bool 
-      operator()(RandomAccessIterator1 i1, RandomAccessIterator2 i2, Pred pred)
+      operator()(_RAIter1 __i1, _RAIter2 __i2, _Pred __pred)
       {
-	// Passed end iterator is one short.
-	return pred(*i1, *(i1 + 1));
+        // Passed end iterator is one short.
+        return __pred(*__i1, *(__i1 + 1));
       }
 
     /** @brief Corresponding sequential algorithm on a sequence.
-     *  @param begin1 Begin iterator of first sequence.
-     *  @param end1 End iterator of first sequence.
-     *  @param begin2 Begin iterator of second sequence.
-     *  @param pred Find predicate.
+     *  @param __begin1 Begin iterator of first sequence.
+     *  @param __end1 End iterator of first sequence.
+     *  @param __begin2 Begin iterator of second sequence.
+     *  @param __pred Find predicate.
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
-      std::pair<RandomAccessIterator1, RandomAccessIterator2>
-      sequential_algorithm(RandomAccessIterator1 begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator2 begin2, Pred pred)
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
+      std::pair<_RAIter1, _RAIter2>
+      _M_sequential_algorithm(_RAIter1 __begin1,
+			      _RAIter1 __end1,
+			      _RAIter2 __begin2, _Pred __pred)
       {
-	// Passed end iterator is one short.
-	RandomAccessIterator1 spot = adjacent_find(begin1, end1 + 1,
-						   pred, sequential_tag());
-	if (spot == (end1 + 1))
-	  spot = end1;
-	return std::make_pair(spot, begin2);
+        // Passed end iterator is one short.
+        _RAIter1 __spot = adjacent_find(__begin1, __end1 + 1,
+					__pred, sequential_tag());
+        if (__spot == (__end1 + 1))
+          __spot = __end1;
+        return std::make_pair(__spot, __begin2);
       }
   };
 
   /** @brief Test inverted predicate on a single element. */
-  struct mismatch_selector : public generic_find_selector
+  struct __mismatch_selector : public __generic_find_selector
   {
     /** 
      *  @brief Test on one position.
-     *  @param i1 Iterator on first sequence.
-     *  @param i2 Iterator on second sequence (unused).
-     *  @param pred Find predicate. 
+     *  @param __i1 _Iterator on first sequence.
+     *  @param __i2 _Iterator on second sequence (unused).
+     *  @param __pred Find predicate. 
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
       bool 
-      operator()(RandomAccessIterator1 i1, RandomAccessIterator2 i2, Pred pred)
-      { return !pred(*i1, *i2); }
+      operator()(_RAIter1 __i1, _RAIter2 __i2, _Pred __pred)
+      { return !__pred(*__i1, *__i2); }
 
     /** 
      *  @brief Corresponding sequential algorithm on a sequence.
-     *  @param begin1 Begin iterator of first sequence.
-     *  @param end1 End iterator of first sequence.
-     *  @param begin2 Begin iterator of second sequence.
-     *  @param pred Find predicate. 
+     *  @param __begin1 Begin iterator of first sequence.
+     *  @param __end1 End iterator of first sequence.
+     *  @param __begin2 Begin iterator of second sequence.
+     *  @param __pred Find predicate. 
      */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
-      std::pair<RandomAccessIterator1, RandomAccessIterator2>
-      sequential_algorithm(RandomAccessIterator1 begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator2 begin2, Pred pred)
-      { return mismatch(begin1, end1, begin2, pred, sequential_tag()); }
+    template<typename _RAIter1, typename _RAIter2,
+             typename _Pred>
+      std::pair<_RAIter1, _RAIter2>
+      _M_sequential_algorithm(_RAIter1 __begin1,
+			      _RAIter1 __end1,
+			      _RAIter2 __begin2, _Pred __pred)
+      { return mismatch(__begin1, __end1, __begin2,
+			__pred, sequential_tag()); }
   };
 
 
   /** @brief Test predicate on several elements. */
-  template<typename ForwardIterator>
-  struct find_first_of_selector : public generic_find_selector
-  {
-    ForwardIterator begin;
-    ForwardIterator end;
+  template<typename _FIterator>
+    struct __find_first_of_selector : public __generic_find_selector
+    {
+      _FIterator _M_begin;
+      _FIterator _M_end;
 
-    explicit find_first_of_selector(ForwardIterator begin, ForwardIterator end)
-    : begin(begin), end(end) { }
+      explicit __find_first_of_selector(_FIterator __begin,
+					_FIterator __end)
+      : _M_begin(__begin), _M_end(__end) { }
 
-    /** @brief Test on one position.
-     *  @param i1 Iterator on first sequence.
-     *  @param i2 Iterator on second sequence (unused).
-     *  @param pred Find predicate. */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
-      bool 
-      operator()(RandomAccessIterator1 i1, RandomAccessIterator2 i2, Pred pred)
-      {
-	for (ForwardIterator pos_in_candidates = begin;
-	     pos_in_candidates != end; ++pos_in_candidates)
-	  if (pred(*i1, *pos_in_candidates))
-	    return true;
-	return false;
-      }
+      /** @brief Test on one position.
+       *  @param __i1 _Iterator on first sequence.
+       *  @param __i2 _Iterator on second sequence (unused).
+       *  @param __pred Find predicate. */
+      template<typename _RAIter1, typename _RAIter2,
+	       typename _Pred>
+        bool
+        operator()(_RAIter1 __i1, _RAIter2 __i2, _Pred __pred)
+        {
+	  for (_FIterator __pos_in_candidates = _M_begin;
+	       __pos_in_candidates != _M_end; ++__pos_in_candidates)
+	    if (__pred(*__i1, *__pos_in_candidates))
+	      return true;
+	  return false;
+	}
 
-    /** @brief Corresponding sequential algorithm on a sequence.
-     *  @param begin1 Begin iterator of first sequence.
-     *  @param end1 End iterator of first sequence.
-     *  @param begin2 Begin iterator of second sequence.
-     *  @param pred Find predicate. */
-    template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	     typename Pred>
-      std::pair<RandomAccessIterator1, RandomAccessIterator2>
-      sequential_algorithm(RandomAccessIterator1 begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator2 begin2, Pred pred)
-      { return std::make_pair(find_first_of(begin1, end1, begin, end, pred,
-					    sequential_tag()), begin2); }
-  };
+      /** @brief Corresponding sequential algorithm on a sequence.
+       *  @param __begin1 Begin iterator of first sequence.
+       *  @param __end1 End iterator of first sequence.
+       *  @param __begin2 Begin iterator of second sequence.
+       *  @param __pred Find predicate. */
+      template<typename _RAIter1, typename _RAIter2,
+	       typename _Pred>
+        std::pair<_RAIter1, _RAIter2>
+        _M_sequential_algorithm(_RAIter1 __begin1,
+				_RAIter1 __end1,
+				_RAIter2 __begin2, _Pred __pred)
+        {
+	  return std::make_pair(find_first_of(__begin1, __end1,
+					      _M_begin, _M_end, __pred,
+					      sequential_tag()), __begin2);
+	}
+     };
 }
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_FIND_SELECTORS_H */

@@ -1,6 +1,7 @@
 ! { dg-do compile }
 ! { dg-options "-std=gnu" } 
-! { dg-options "-std=gnu -mieee" { target sh*-*-* } } 
+! { dg-add-options ieee }
+! { dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 !
 ! PR fortran/34398.
 !

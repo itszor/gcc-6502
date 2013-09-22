@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
---          Copyright (C) 1997-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -61,7 +59,7 @@ package System.Tasking.Debug is
    --  task specific state.
 
    function Get_User_State return Long_Integer;
-   --  Return the user state for the current task.
+   --  Return the user state for the current task
 
    -------------------------
    -- General GDB support --
@@ -70,6 +68,26 @@ package System.Tasking.Debug is
    Known_Tasks : array (0 .. 999) of Task_Id := (others => null);
    --  Global array of tasks read by gdb, and updated by Create_Task and
    --  Finalize_TCB
+
+   Debug_Event_Activating           : constant := 1;
+   Debug_Event_Run                  : constant := 2;
+   Debug_Event_Suspended            : constant := 3;
+   Debug_Event_Preempted            : constant := 4;
+   Debug_Event_Terminated           : constant := 5;
+   Debug_Event_Abort_Terminated     : constant := 6;
+   Debug_Event_Exception_Terminated : constant := 7;
+   Debug_Event_Rendezvous_Exception : constant := 8;
+   Debug_Event_Handled              : constant := 9;
+   Debug_Event_Dependents_Exception : constant := 10;
+   Debug_Event_Handled_Others       : constant := 11;
+
+   subtype Event_Kind_Type is Positive range 1 .. 11;
+   --  Event kinds currently defined for debugging, used globally
+   --  below and on a per task basis.
+
+   procedure Signal_Debug_Event
+     (Event_Kind : Event_Kind_Type;
+      Task_Value : Task_Id);
 
    ----------------------------------
    -- VxWorks specific GDB support --

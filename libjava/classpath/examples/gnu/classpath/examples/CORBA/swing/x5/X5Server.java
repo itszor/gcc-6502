@@ -49,22 +49,22 @@ import java.net.Socket;
 
 /**
  * The main executable class of the game manager server.
- * 
+ *
  * The manager address server returns the IOR address string of the game
  * manager. Hence the user does not need to enter the rather long IOR address
  * string and only needs to specify the host and port of the machine where the
  * game manager is running.
- * 
+ *
  * The manager address server starts the main game manager as well.
- * 
+ *
  * This server acts as a HTTP server that always returns the same response. This
  * primitive functionality is sufficient for its task.
- * 
+ *
  * The more complex CORBA applications should use the name service instead. We
  * do not use the name service as this would require to start additional
  * external application, specific for the different java platforms.
- * 
- * @author Audrius Meskauskas (AudriusA@Bioinformatics.org) 
+ *
+ * @author Audrius Meskauskas (AudriusA@Bioinformatics.org)
  */
 public class X5Server
 {
@@ -147,7 +147,7 @@ public class X5Server
 
             int length = GameManagerImpl.ior.length();
 
-            StringBuffer b = new StringBuffer();
+            StringBuilder b = new StringBuilder();
             b.append("HTTP/1.0 200 OK\r\n");
             b.append("Content-Length: " + length + "\r\n");
             b.append("Connection: close\r\n");

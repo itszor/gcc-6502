@@ -3,7 +3,7 @@
 #include "tree-vect.h"
 
 #define N 40
-float image[N][N+1] __attribute__ ((__aligned__(16)));
+float image[N][N+1] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 float out[N];
 
 /* Outer-loop vectorization with misaliged accesses in the inner-loop.  */
@@ -49,5 +49,6 @@ int main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "OUTER LOOP VECTORIZED" 1 "vect" { xfail vect_no_align } } } */
-/* { dg-final { scan-tree-dump-times "step doesn't divide the vector-size" 2 "vect" } } */
+/* { dg-final { scan-tree-dump-times "step doesn't divide the vector-size" 2 "vect" { target { ! vect_multiple_sizes } } } } */
+/* { dg-final { scan-tree-dump-times "step doesn't divide the vector-size" 3 "vect" { target vect_multiple_sizes } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

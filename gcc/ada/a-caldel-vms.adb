@@ -7,25 +7,23 @@
 --                                  B o d y                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---                     Copyright (C) 1995-2005, AdaCore                     --
+--                     Copyright (C) 1995-2012, AdaCore                     --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,10 +33,7 @@
 --  This is the Alpha/VMS version
 
 with System.OS_Primitives;
---  Used for Max_Sensible_Delay
-
 with System.Soft_Links;
---  Used for Timed_Delay
 
 package body Ada.Calendar.Delays is
 
@@ -46,6 +41,13 @@ package body Ada.Calendar.Delays is
    package TSL renames System.Soft_Links;
 
    use type TSL.Timed_Delay_Call;
+
+   -----------------------
+   -- Local Subprograms --
+   -----------------------
+
+   procedure Timed_Delay_NT (Time : Duration; Mode : Integer);
+   --  Timed delay procedure used when no tasking is active
 
    ---------------
    -- Delay_For --
@@ -71,15 +73,20 @@ package body Ada.Calendar.Delays is
    -----------------
 
    function To_Duration (T : Time) return Duration is
+      Safe_Ada_High : constant Time := Time_Of (2250, 1, 1, 0.0);
+      --  A value distant enough to emulate "end of time" but which does not
+      --  cause overflow.
+
+      Safe_T : constant Time :=
+        (if T > Safe_Ada_High then Safe_Ada_High else T);
+
    begin
-      return OSP.To_Duration (OSP.OS_Time (T), OSP.Absolute_Calendar);
+      return OSP.To_Duration (OSP.OS_Time (Safe_T), OSP.Absolute_Calendar);
    end To_Duration;
 
    --------------------
    -- Timed_Delay_NT --
    --------------------
-
-   procedure Timed_Delay_NT (Time : Duration; Mode : Integer);
 
    procedure Timed_Delay_NT (Time : Duration; Mode : Integer) is
    begin
@@ -88,9 +95,8 @@ package body Ada.Calendar.Delays is
 
 begin
    --  Set up the Timed_Delay soft link to the non tasking version if it has
-   --  not been already set.
-   --  If tasking is present, Timed_Delay has already set this soft link, or
-   --  this will be overriden during the elaboration of
+   --  not been already set. If tasking is present, Timed_Delay has already set
+   --  this soft link, or this will be overridden during the elaboration of
    --  System.Tasking.Initialization
 
    if TSL.Timed_Delay = null then

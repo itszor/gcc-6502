@@ -146,7 +146,7 @@ public class InputContext
   private InputMethod im;
 
   /** Map of locales to the most recently selected input method. */
-  private final HashMap<Locale,InputMethod> recent 
+  private final HashMap<Locale,InputMethod> recent
     = new HashMap<Locale,InputMethod>();
 
   /** The list of acceptable character subsets. */
@@ -216,12 +216,11 @@ public class InputContext
         recent.put(locale, im);
         return true;
       }
-    InputMethod next = (InputMethod) recent.get(locale);
-  outer:
+    InputMethod next = recent.get(locale);
     if (next != null)
       for (int i = 0, limit = descriptors.size(); i < limit; i++)
         {
-          InputMethodDescriptor d = (InputMethodDescriptor) descriptors.get(i);
+          InputMethodDescriptor d = descriptors.get(i);
           Locale[] list;
           try
             {
@@ -428,7 +427,7 @@ public class InputContext
    * method. Clients have to compare the result against known input method
    * control object types. If no input methods are available or the current
    * input method does not provide an input method control object, then null
-   * is returned. 
+   * is returned.
    *
    * @return the control object, or null
    */

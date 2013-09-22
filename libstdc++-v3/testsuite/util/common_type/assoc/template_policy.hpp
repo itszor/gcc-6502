@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -14,19 +14,9 @@
 // General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// along with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -56,33 +46,33 @@ namespace __gnu_pbds
 {
   namespace test
   {
-    template<typename Allocator>
+    template<typename _Alloc>
     struct direct_mask_range_hashing_t_ 
-    : public __gnu_pbds::direct_mask_range_hashing<typename Allocator::size_type>
+    : public __gnu_pbds::direct_mask_range_hashing<typename _Alloc::size_type>
     {
-      typedef typename Allocator::size_type size_type;
+      typedef typename _Alloc::size_type size_type;
       typedef __gnu_pbds::direct_mask_range_hashing<size_type> base_type;
     };
 
-    template<typename Allocator>
+    template<typename _Alloc>
     struct direct_mod_range_hashing_t_ 
-    : public __gnu_pbds::direct_mod_range_hashing<typename Allocator::size_type>
+    : public __gnu_pbds::direct_mod_range_hashing<typename _Alloc::size_type>
     {
-      typedef typename Allocator::size_type size_type;
+      typedef typename _Alloc::size_type size_type;
       typedef __gnu_pbds::direct_mod_range_hashing<size_type> base_type;
     };
 
-    template<typename Allocator,
-	     typename Allocator::size_type Min_Load_Nom,
-	     typename Allocator::size_type Min_Load_Denom,
-	     typename Allocator::size_type Max_Load_Nom,
-	     typename Allocator::size_type Max_Load_Denom,
+    template<typename _Alloc,
+	     typename _Alloc::size_type Min_Load_Nom,
+	     typename _Alloc::size_type Min_Load_Denom,
+	     typename _Alloc::size_type Max_Load_Nom,
+	     typename _Alloc::size_type Max_Load_Denom,
 	     bool External_Access>
     struct hash_load_check_resize_trigger_t_ 
     : public __gnu_pbds::hash_load_check_resize_trigger<External_Access,
-						   typename Allocator::size_type>
+						   typename _Alloc::size_type>
     {
-      typedef typename Allocator::size_type size_type;
+      typedef typename _Alloc::size_type size_type;
       typedef __gnu_pbds::hash_load_check_resize_trigger<External_Access, size_type>  base_type;
 
       inline
@@ -97,15 +87,15 @@ namespace __gnu_pbds
 	};
     };
 
-    template<typename Allocator,
-	     typename Allocator::size_type Load_Nom,
-	     typename Allocator::size_type Load_Denom,
+    template<typename _Alloc,
+	     typename _Alloc::size_type Load_Nom,
+	     typename _Alloc::size_type Load_Denom,
 	     bool External_Access>
     struct cc_hash_max_collision_check_resize_trigger_t_ 
     : public __gnu_pbds::cc_hash_max_collision_check_resize_trigger<External_Access,
-      typename Allocator::size_type>
+      typename _Alloc::size_type>
     {
-      typedef typename Allocator::size_type size_type;
+      typedef typename _Alloc::size_type size_type;
       typedef __gnu_pbds::cc_hash_max_collision_check_resize_trigger<External_Access, size_type> base_type;
 
       inline
@@ -123,30 +113,30 @@ namespace __gnu_pbds
     struct hash_prime_size_policy_t_ : public __gnu_pbds::hash_prime_size_policy
     { };
 
-    template<typename Allocator>
+    template<typename _Alloc>
     struct hash_exponential_size_policy_t_ 
-    : public __gnu_pbds::hash_exponential_size_policy<typename Allocator::size_type>
+    : public __gnu_pbds::hash_exponential_size_policy<typename _Alloc::size_type>
     { };
 
-    template<typename Key, class Allocator>
+    template<typename Key, typename _Alloc>
     struct linear_probe_fn_t_ 
-    : public __gnu_pbds::linear_probe_fn<typename Allocator::size_type>
+    : public __gnu_pbds::linear_probe_fn<typename _Alloc::size_type>
     { };
 
-    template<typename Key, class Allocator>
+    template<typename Key, typename _Alloc>
     struct quadratic_probe_fn_t_ 
-    : public __gnu_pbds::quadratic_probe_fn<typename Allocator::size_type>
+    : public __gnu_pbds::quadratic_probe_fn<typename _Alloc::size_type>
     { };
 
-    template<typename Allocator, typename Allocator::size_type Max_Count>
-    struct counter_lu_policy_t_ 
-    : public __gnu_pbds::counter_lu_policy<Max_Count, Allocator>
+    template<typename _Alloc, typename _Alloc::size_type Max_Count>
+    struct lu_counter_policy_t_ 
+    : public __gnu_pbds::lu_counter_policy<Max_Count, _Alloc>
     {
-      typedef __gnu_pbds::counter_lu_policy<Max_Count, Allocator> base_type;
+      typedef __gnu_pbds::lu_counter_policy<Max_Count, _Alloc> base_type;
     };
 
-    struct move_to_front_lu_policy_t_ 
-    : public __gnu_pbds::move_to_front_lu_policy<>
+    struct lu_move_to_front_policy_t_ 
+    : public __gnu_pbds::lu_move_to_front_policy<>
     { };
   } // namespace test
 } // namespace __gnu_pbds

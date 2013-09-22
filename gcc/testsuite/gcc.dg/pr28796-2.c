@@ -1,6 +1,7 @@
 /* { dg-do run } */
-/* { dg-options "-O2 -funsafe-math-optimizations -fno-finite-math-only" } */
-/* { dg-options "-mieee -O2 -funsafe-math-optimizations -fno-finite-math-only" { target alpha*-*-* } } */
+/* { dg-options "-O2 -funsafe-math-optimizations -fno-finite-math-only -DUNSAFE" } */
+/* { dg-add-options ieee } */
+/* { dg-skip-if "No Inf/NaN support" { spu-*-* } } */
 
 #include "tg-tests.h"
 

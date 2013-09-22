@@ -37,13 +37,11 @@ exception statement from your version. */
 
 package java.security;
 
-import java.util.WeakHashMap;
-
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 
 /**
- * A Secure Class Loader for loading classes with additional 
+ * A Secure Class Loader for loading classes with additional
  * support for specifying code source and permissions when
  * they are retrieved by the system policy handler.
  *
@@ -65,8 +63,8 @@ public class SecureClassLoader extends ClassLoader
   {
   }
 
-  /** 
-   * Creates a class using an array of bytes and a 
+  /**
+   * Creates a class using an array of bytes and a
    * CodeSource.
    *
    * @param name the name to give the class.  null if unknown.
@@ -80,13 +78,13 @@ public class SecureClassLoader extends ClassLoader
    * @exception ClassFormatError if the byte array is not in proper classfile format.
    */
   protected final Class<?> defineClass(String name, byte[] b, int off, int len,
-				    CodeSource cs)
+                                    CodeSource cs)
   {
     return super.defineClass(name, b, off, len, getProtectionDomain(cs));
   }
 
-  /** 
-   * Creates a class using an ByteBuffer and a 
+  /**
+   * Creates a class using an ByteBuffer and a
    * CodeSource.
    *
    * @param name the name to give the class.  null if unknown.
@@ -111,32 +109,31 @@ public class SecureClassLoader extends ClassLoader
     ProtectionDomain protectionDomain = null;
     if (cs != null)
       {
-	synchronized (protectionDomainCache)
-	  {
-	    protectionDomain = (ProtectionDomain)protectionDomainCache.get(cs);
-	  }
+        synchronized (protectionDomainCache)
+          {
+            protectionDomain = protectionDomainCache.get(cs);
+          }
 
-	if (protectionDomain == null)
-	  {
-	    protectionDomain 
-	      = new ProtectionDomain(cs, getPermissions(cs), this, null);
-	    synchronized (protectionDomainCache)
-	      {
-		ProtectionDomain domain 
-		  = (ProtectionDomain)protectionDomainCache.get(cs);
-		if (domain == null)
-		  protectionDomainCache.put(cs, protectionDomain);
-		else
-		  protectionDomain = domain;
-	      }
-	  }
+        if (protectionDomain == null)
+          {
+            protectionDomain
+              = new ProtectionDomain(cs, getPermissions(cs), this, null);
+            synchronized (protectionDomainCache)
+              {
+                ProtectionDomain domain = protectionDomainCache.get(cs);
+                if (domain == null)
+                  protectionDomainCache.put(cs, protectionDomain);
+                else
+                  protectionDomain = domain;
+              }
+          }
       }
     return protectionDomain;
   }
 
   /**
    * Returns a PermissionCollection for the specified CodeSource.
-   * The default implementation invokes 
+   * The default implementation invokes
    * java.security.Policy.getPermissions.
    *
    * This method is called by defineClass that takes a CodeSource

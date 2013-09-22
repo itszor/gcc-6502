@@ -16,9 +16,9 @@ void Foo ()
   
   Y<I> i;
   
-  static const unsigned J = X<T>::J;
+  static const unsigned J = X<T>::J; // { dg-message "not initialized with a constant expression" }
   
-  Y<J> j; // { dg-error "non-constant" "" }
+  Y<J> j; // { dg-error "constant|template argument" "" }
 }
 
 struct A 
@@ -34,7 +34,7 @@ template <typename> struct X
 
 void Baz ()
 {
-  Foo<int> (); // { dg-error "instantiated" "" }
+  Foo<int> (); // { dg-message "required" "" }
 }
 
   

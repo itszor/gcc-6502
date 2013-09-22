@@ -36,7 +36,6 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 package gnu.java.awt.peer.swing;
 
-import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Graphics;
@@ -77,7 +76,7 @@ public class SwingTextFieldPeer
 
     SwingTextField(TextField textField)
     {
-      this.textField = textField; 
+      this.textField = textField;
     }
 
     /**
@@ -174,7 +173,7 @@ public class SwingTextFieldPeer
       processFocusEvent(ev);
     }
 
-    
+
     public Container getParent()
     {
       Container par = null;
@@ -187,7 +186,7 @@ public class SwingTextFieldPeer
     {
       return SwingTextFieldPeer.this.getGraphics();
     }
-    
+
     public void requestFocus() {
         SwingTextFieldPeer.this.requestFocus(awtComponent, false, true, 0);
     }
@@ -328,7 +327,7 @@ public class SwingTextFieldPeer
    * @param startPos the start index of the selection
    * @param endPos the start index of the selection
    */
-  public void select(int start_pos, int endPos)
+  public void select(int startPos, int endPos)
   {
     // TODO: Must be implemented.
   }

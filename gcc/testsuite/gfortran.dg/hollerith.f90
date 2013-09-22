@@ -3,14 +3,14 @@
 implicit none
 complex(kind=8) x(2) 
 complex a(2,2)
-character*4 z
+character(4) z
 character z1(4)
-character*4 z2(2,2)
-character*80 line
+character(4) z2(2,2)
+character(80) line
 integer i
-logical l
+integer j
 real r
-character*8 c
+character(8) c
 
 data x /16Habcdefghijklmnop, 16Hqrstuvwxyz012345/
 data a /8H(i3),abc, 0, 4H(i4), 8H    (i9)/
@@ -20,15 +20,15 @@ data z2/4h(i7),'xxxx','xxxx','xxxx'/
 
 z2 (1,2) = 4h(i8)
 i = 4hHell
-l = 4Ho wo
+j = 4Ho wo
 r = 4Hrld! 
-write (line, '(3A4)') i, l, r
+write (line, '(3A4)') i, j, r
 if (line .ne. 'Hello world!') call abort
 i = 2Hab
+j = 2Hab
 r = 2Hab
-l = 2Hab
 c = 2Hab
-write (line, '(3A4, 8A)') i, l, r, c
+write (line, '(3A4, 8A)') i, j, r, c
 if (line .ne. 'ab  ab  ab  ab      ') call abort
 
 write(line, '(4A8, "!")' ) x
@@ -53,7 +53,7 @@ end
 
 subroutine test (h)
 integer(kind=8) h
-character*80 line
+character(80) line
 
 write (line, '(8a)') h
 if (line .ne. '   hello') call abort
@@ -98,11 +98,5 @@ end subroutine
 ! { dg-warning "Non-character in FORMAT tag" "" { target *-*-* } 37 }
 
 ! { dg-warning "Non-character in FORMAT tag" "" { target *-*-* } 39 }
-
-! { dg-warning "Character array in FORMAT tag" "" { target *-*-* } 43 }
-
-! { dg-warning "Character array in FORMAT tag" "" { target *-*-* } 45 }
-
-! { dg-warning "Character array in FORMAT tag" "" { target *-*-* } 47 }
 
 ! { dg-warning "Hollerith constant" "" { target *-*-* } 51 }

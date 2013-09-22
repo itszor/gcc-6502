@@ -8,10 +8,11 @@
     proper order.
  */
 
+#include <stdlib.h>
+#include "../../objc-obj-c++-shared/TestsuiteObject.m"
 #include <objc/objc.h>
-#include <objc/Object.h>
 
-@interface A : Object
+@interface A : TestsuiteObject
 @end
 
 @interface B : A

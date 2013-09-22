@@ -6,13 +6,16 @@
 
 float x[256];
 
-void foo(void)
+__attribute__ ((noinline))
+double *foo(void)
 {
  double *z = malloc (sizeof(double) * 256);
 
  int i;
  for (i=0; i<256; ++i)
    z[i] = x[i] + 1.0f;
+
+ return z;
 }
 
 

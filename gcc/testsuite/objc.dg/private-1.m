@@ -34,8 +34,8 @@
 - (void) test
 {
   /* Private variables simply don't exist in the subclass.  */
-  private = 12;/* { dg-error "undeclared" } */
-  /* { dg-error "function it appears in" "" { target *-*-* } { 37 } } */
+  private = 12;  /* { dg-error "instance variable" } */
+  /* { dg-message "function it appears in" "" { target *-*-* } { 37 } } */
 
   protected = 12; /* Ok  */
   public = 12;    /* Ok  */
@@ -50,8 +50,8 @@ int main (void)
     {
       int access;
 
-      access = m->private;   /* { dg-error "is @private" }  */
-      access = m->protected; /* { dg-error "is @protected" }  */
+      access = m->private;   /* { dg-warning "is @private" }  */
+      access = m->protected; /* { dg-warning "is @protected" }  */
       access = m->public;    /* Ok  */
     }
 

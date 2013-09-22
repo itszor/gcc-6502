@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package javax.naming;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -197,9 +199,9 @@ public class NamingException extends Exception
   {
     if (name != null)
       try
-      	{
-	  remainingName.addAll(name);
-	}
+        {
+          remainingName.addAll(name);
+        }
       catch(InvalidNameException ine) { /* ignored */ }
   }
 
@@ -214,9 +216,9 @@ public class NamingException extends Exception
   {
     if (name != null)
       try
-      	{
-	  remainingName.add(name);
-	}
+        {
+          remainingName.add(name);
+        }
       catch(InvalidNameException ine) { /* ignored */ }
   }
 
@@ -237,28 +239,28 @@ public class NamingException extends Exception
    */
   public String toString(boolean objectInfo)
   {
-    StringBuffer sb = new StringBuffer(super.toString());
+    CPStringBuilder sb = new CPStringBuilder(super.toString());
     Throwable cause = getRootCause();
     if (cause != null)
       {
-	sb.append(" caused by ");
-	sb.append(cause);
+        sb.append(" caused by ");
+        sb.append(cause);
       }
     Name remaining = getRemainingName();
     if (remaining != null)
       {
-	sb.append(" [remainingName: ");
-	sb.append(remaining);
+        sb.append(" [remainingName: ");
+        sb.append(remaining);
       }
     Object resolved = getResolvedObj();
     if (objectInfo && resolved != null)
       {
-	if (remainingName == null)
-	  sb.append(" [");
-	else
-	  sb.append(", ");
-	sb.append("resolvedObj: ");
-	sb.append(resolved);
+        if (remainingName == null)
+          sb.append(" [");
+        else
+          sb.append(", ");
+        sb.append("resolvedObj: ");
+        sb.append(resolved);
       }
     if ((remaining != null) || (objectInfo && resolved != null))
       sb.append(']');
@@ -312,4 +314,3 @@ public class NamingException extends Exception
       super.printStackTrace(pw);
   }
 }
-

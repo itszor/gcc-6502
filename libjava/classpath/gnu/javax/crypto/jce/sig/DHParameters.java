@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.javax.crypto.jce.sig;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Registry;
 import gnu.java.security.der.DER;
 import gnu.java.security.der.DERReader;
@@ -90,8 +92,8 @@ public class DHParameters
 
   /**
    * Decodes the set of DH parameters as per RFC-2459; i.e. the DER-encoded
-   * form of the following ASN.1 construct: 
-   * 
+   * form of the following ASN.1 construct:
+   *
    * <pre>
    *   DhParams ::= SEQUENCE {
    *     p  INTEGER, -- odd prime, p=jq +1
@@ -149,8 +151,8 @@ public class DHParameters
 
   /**
    * Encodes the set of DH parameters as per RFC-2459; i.e. as the DER-encoded
-   * form of the following ASN.1 construct: 
-   * 
+   * form of the following ASN.1 construct:
+   *
    * <pre>
    *   DhParams ::= SEQUENCE {
    *     p  INTEGER, -- odd prime, p=jq +1
@@ -195,7 +197,7 @@ public class DHParameters
 
   protected String engineToString()
   {
-    StringBuffer sb = new StringBuffer("p=");
+    CPStringBuilder sb = new CPStringBuilder("p=");
     if (p == null)
       sb.append("???");
     else

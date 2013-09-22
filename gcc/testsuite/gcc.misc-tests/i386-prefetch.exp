@@ -1,4 +1,4 @@
-#   Copyright (C) 2002, 2004, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -84,32 +84,31 @@ if $tracelevel then {
 
 # Load support procs.
 load_lib gcc-dg.exp
+load_lib torture-options.exp
 
 # Initialize harness.
 dg-init
+torture-init
 
-# Save these.  They are needed if testsuite loops over multiple ABIs
-set saved_torture_with_loops $torture_with_loops
-set saved_torture_without_loops $torture_without_loops
+if { [board_info target exists multilib_flags]
+     && [string match "* -march=*" " [board_info target multilib_flags] "] } {
+    # Multilib flags come after the -march flags we pass and override
+    # them, so skip these tests when such flags are passed.
+    return
+}
 
-set torture_with_loops $PREFETCH_NONE
-set torture_without_loops $PREFETCH_NONE
+set-torture-options $PREFETCH_NONE
 gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/i386-pf-none-*.c]] ""
 
-set torture_with_loops $PREFETCH_SSE
-set torture_without_loops $PREFETCH_SSE
+set-torture-options $PREFETCH_SSE
 gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/i386-pf-sse-*.c]] ""
 
-set torture_with_loops $PREFETCH_3DNOW
-set torture_without_loops $PREFETCH_3DNOW
+set-torture-options $PREFETCH_3DNOW
 gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/i386-pf-3dnow-*.c]] ""
 
-set torture_with_loops $PREFETCH_ATHLON
-set torture_without_loops $PREFETCH_ATHLON
+set-torture-options $PREFETCH_ATHLON
 gcc-dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/i386-pf-athlon-*.c]] ""
 
-set torture_with_loops $saved_torture_with_loops
-set torture_without_loops $saved_torture_without_loops
-
+torture-finish
 dg-finish
 

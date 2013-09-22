@@ -1,4 +1,4 @@
-/* DomLSInput.java -- 
+/* DomLSInput.java --
    Copyright (C) 1999,2000,2001 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.dom.ls;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -82,7 +84,7 @@ public class DomLSInput
 
   public String getStringData()
   {
-    StringBuffer acc = new StringBuffer();
+    CPStringBuilder acc = new CPStringBuilder();
     Reader reader = getCharacterStream();
     try
       {
@@ -153,6 +155,5 @@ public class DomLSInput
   {
     this.certifiedText = certifiedText;
   }
-  
-}
 
+}

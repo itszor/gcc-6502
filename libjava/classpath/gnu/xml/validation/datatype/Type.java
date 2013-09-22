@@ -1,4 +1,4 @@
-/* Type.java -- 
+/* Type.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,8 +37,6 @@ exception statement from your version. */
 
 package gnu.xml.validation.datatype;
 
-import java.util.HashMap;
-import java.util.Map;
 import javax.xml.namespace.QName;
 /**
  * Abstract base class for XML Schema datatypes.
@@ -60,6 +58,5 @@ public abstract class Type
   {
     this.name = name;
   }
-  
-}
 
+}

@@ -1,11 +1,10 @@
-// Copyright (C) 1994, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2007
-// Free Software Foundation
+// Copyright (C) 1994-2013 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // GCC is distributed in the hope that it will be useful,
@@ -13,19 +12,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA. 
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline enums from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 #include "tinfo.h"
 
@@ -113,7 +107,17 @@ __do_dyncast (ptrdiff_t src2dst,
       return false;
     }
 
+  // If src_type is a unique non-virtual base of dst_type, we have a good
+  // guess at the address we want, so in the first pass try skipping any
+  // bases which don't contain that address.
+  const void *dst_cand = NULL;
+  if (src2dst >= 0)
+    dst_cand = adjust_pointer<void>(src_ptr, -src2dst);
+  bool first_pass = true;
+  bool skipped = false;
+
   bool result_ambig = false;
+ again:
   for (std::size_t i = __base_count; i--;)
     {
       __dyncast_result result2 (result.whole_details);
@@ -125,6 +129,20 @@ __do_dyncast (ptrdiff_t src2dst,
       if (is_virtual)
         base_access = __sub_kind (base_access | __contained_virtual_mask);
       base = convert_to_base (base, is_virtual, offset);
+
+      if (dst_cand)
+	{
+	  bool skip_on_first_pass = base > dst_cand;
+	  if (skip_on_first_pass == first_pass)
+	    {
+	      // We aren't interested in this base on this pass: either
+	      // we're on the first pass and this base doesn't contain the
+	      // likely address, or we're on the second pass and we checked
+	      // this base on the first pass.
+	      skipped = true;
+	      continue;
+	    }
+	}
 
       if (!__base_info[i].__is_public_p ())
         {
@@ -270,6 +288,14 @@ __do_dyncast (ptrdiff_t src2dst,
         // cross casts will fail. We have already found a down cast, if
         // there is one.
         return result_ambig;
+    }
+
+  if (skipped && first_pass)
+    {
+      // We didn't find dst where we expected it, so let's go back and try
+      // the bases we skipped (if any).
+      first_pass = false;
+      goto again;
     }
 
   return result_ambig;

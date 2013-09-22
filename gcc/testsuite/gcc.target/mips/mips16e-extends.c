@@ -1,6 +1,6 @@
-/* { dg-do compile { target mips16_attribute } } */
-/* { dg-mips-options "-Os -march=mips32" } */
-/* { dg-add-options mips16_attribute } */
+/* -mlong32 added because of PR target/38595.  */
+/* { dg-options "(-mips16) isa_rev>=1 -mlong32" } */
+/* { dg-skip-if "code quality test" { *-*-* } { "-O0" } { "" } } */
 
 MIPS16 short cksum16 (unsigned long n)
 {
@@ -16,7 +16,7 @@ MIPS16 signed char cksum8 (unsigned long n)
   return l;
 }
 
-/* { dg-final { scan-assembler "zeh" } } */
-/* { dg-final { scan-assembler "seh" } } */
-/* { dg-final { scan-assembler "zeb" } } */
-/* { dg-final { scan-assembler "seb" } } */
+/* { dg-final { scan-assembler "\tzeh\t" } } */
+/* { dg-final { scan-assembler "\tseh\t" } } */
+/* { dg-final { scan-assembler "\tzeb\t" } } */
+/* { dg-final { scan-assembler "\tseb\t" } } */

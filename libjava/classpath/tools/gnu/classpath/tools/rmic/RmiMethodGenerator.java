@@ -22,8 +22,18 @@
  making a combined work based on this library.  Thus, the terms and
  conditions of the GNU General Public License cover the whole
  combination.
-*/
 
+ As a special exception, the copyright holders of this library give you
+ permission to link this library with independent modules to produce an
+ executable, regardless of the license terms of these independent
+ modules, and to copy and distribute the resulting executable under
+ terms of your choice, provided that you also meet, for each linked
+ independent module, the terms and conditions of the license of that
+ module.  An independent module is a module which is not derived from
+ or based on this library.  If you modify this library, you may extend
+ this exception to your version of the library, but you are not
+ obligated to do so.  If you do not wish to do so, delete this
+ exception statement from your version. */
 
 package gnu.classpath.tools.rmic;
 
@@ -36,7 +46,7 @@ import java.util.Properties;
 /**
  * Keeps information about the single method and generates the code fragments,
  * related to that method.
- * 
+ *
  * @author Audrius Meskauskas, Lithuania (audriusa@Bioinformatics.org)
  */
 public class RmiMethodGenerator
@@ -51,10 +61,10 @@ public class RmiMethodGenerator
    * The parent code generator.
    */
   SourceRmicCompiler rmic;
-  
+
   /**
    * Create the new method generator for the given method.
-   * 
+   *
    * @param aMethod the related method.
    * @param aRmic the Rmic generator instance, where more class - related
    *          information is defined.
@@ -69,14 +79,14 @@ public class RmiMethodGenerator
 
   /**
    * Get the method parameter declaration.
-   * 
+   *
    * @return the string - method parameter declaration.
    */
   public String getArgumentList()
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
 
-    Class[] args = method.getParameterTypes();
+    Class<?>[] args = method.getParameterTypes();
 
     for (int i = 0; i < args.length; i++)
       {
@@ -91,14 +101,14 @@ public class RmiMethodGenerator
   /**
    * Get the method parameter list only (no type declarations). This is used to
    * generate the method invocations statement.
-   * 
+   *
    * @return the string - method parameter list.
    */
   public String getArgumentNames()
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
 
-    Class[] args = method.getParameterTypes();
+    Class<?>[] args = method.getParameterTypes();
 
     for (int i = 0; i < args.length; i++)
       {
@@ -111,14 +121,14 @@ public class RmiMethodGenerator
 
   /**
    * Get the list of exceptions, thrown by this method.
-   * 
+   *
    * @return the list of exceptions.
    */
   public String getThrows()
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
 
-    Class[] args = method.getExceptionTypes();
+    Class<?>[] args = method.getExceptionTypes();
 
     for (int i = 0; i < args.length; i++)
       {
@@ -131,7 +141,7 @@ public class RmiMethodGenerator
 
   /**
    * Generate this method for the Stub class.
-   * 
+   *
    * @return the method body for the stub class.
    */
   public String generateStubMethod()
@@ -168,13 +178,13 @@ public class RmiMethodGenerator
 
   /**
    * Generate sentences for Reading and Defining Arguments.
-   * 
+   *
    * @return the sequence of sentences for reading and defining arguments.
    */
   public String getStaticMethodDeclarations()
   {
-    StringBuffer b = new StringBuffer();
-    Class[] args = method.getParameterTypes();
+    StringBuilder b = new StringBuilder();
+    Class<?>[] args = method.getParameterTypes();
 
     for (int i = 0; i < args.length; i++)
       {
@@ -191,17 +201,17 @@ public class RmiMethodGenerator
 
   /**
    * Get the write statement for writing parameters inside the stub.
-   * 
+   *
    * @return the write statement.
    */
   public String getArgListAsObjectArray()
   {
     Class[] args = method.getParameterTypes();
-    
+
     if (args.length==0)
       return "NO_ARGS";
-    
-    StringBuffer b = new StringBuffer("new Object[] {");
+
+    StringBuilder b = new StringBuilder("new Object[] {");
 
     for (int i = 0; i < args.length; i++)
       {
@@ -218,7 +228,7 @@ public class RmiMethodGenerator
     b.append("}");
     return b.toString();
   }
-  
+
   /**
    * Get the return statement, assuming that the returned object is placed into
    * the variable "result".
@@ -240,13 +250,13 @@ public class RmiMethodGenerator
           return "return (" + rmic.name(r) + ") result;";
       }
   }
-  
+
   /**
    * Get argument list as class array.
    */
   public String getArgListAsClassArray()
   {
-    StringBuffer b = new StringBuffer();
+    StringBuilder b = new StringBuilder();
     Class[] args = method.getParameterTypes();
 
     for (int i = 0; i < args.length; i++)
@@ -275,7 +285,7 @@ public class RmiMethodGenerator
   {
     return RMIHashes.getMethodHash(method)+"L";
   }
-  
+
   /**
    * Additional processing of the stub name (nothing to do for JRMP stubs).
    */
@@ -283,5 +293,5 @@ public class RmiMethodGenerator
   {
     return name;
   }
-  
+
 }

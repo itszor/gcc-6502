@@ -1,13 +1,11 @@
 // String based streams -*- C++ -*-
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file sstream.tcc
+/** @file bits/sstream.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{sstream}
  */
 
 //
@@ -43,7 +36,9 @@
 
 #pragma GCC system_header
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template <class _CharT, class _Traits, class _Alloc>
     typename basic_stringbuf<_CharT, _Traits, _Alloc>::int_type
@@ -181,14 +176,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	      && __newoffi >= 0
 	      && this->egptr() - __beg >= __newoffi)
 	    {
-	      this->gbump((__beg + __newoffi) - this->gptr());
+	      this->setg(this->eback(), this->eback() + __newoffi,
+			 this->egptr());
 	      __ret = pos_type(__newoffi);
 	    }
 	  if ((__testout || __testboth)
 	      && __newoffo >= 0
 	      && this->egptr() - __beg >= __newoffo)
 	    {
-	      this->pbump((__beg + __newoffo) - this->pptr());
+	      _M_pbump(this->pbase(), this->epptr(), __newoffo);
 	      __ret = pos_type(__newoffo);
 	    }
 	}
@@ -215,9 +211,10 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	  if (__testpos)
 	    {
 	      if (__testin)
-		this->gbump((__beg + __pos) - this->gptr());
+		this->setg(this->eback(), this->eback() + __pos,
+			   this->egptr());
 	      if (__testout)
-                this->pbump((__beg + __pos) - this->pptr());
+		_M_pbump(this->pbase(), this->epptr(), __pos);
 	      __ret = __sp;
 	    }
 	}
@@ -246,8 +243,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	this->setg(__base, __base + __i, __endg);
       if (__testout)
 	{
-	  this->setp(__base, __endp);
-	  this->pbump(__o);
+	  _M_pbump(__base, __endp, __o);
 	  // egptr() always tracks the string end.  When !__testin,
 	  // for the correct functioning of the streambuf inlines
 	  // the other get area pointers are identical.
@@ -256,9 +252,22 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	}
     }
 
+  template <class _CharT, class _Traits, class _Alloc>
+    void
+    basic_stringbuf<_CharT, _Traits, _Alloc>::
+    _M_pbump(char_type* __pbeg, char_type* __pend, off_type __off)
+    {
+      this->setp(__pbeg, __pend);
+      while (__off > __gnu_cxx::__numeric_traits<int>::__max)
+	{
+	  this->pbump(__gnu_cxx::__numeric_traits<int>::__max);
+	  __off -= __gnu_cxx::__numeric_traits<int>::__max;
+	}
+      this->pbump(__off);
+    }
+
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
-  // NB:  This syntax is a GNU extension.
 #if _GLIBCXX_EXTERN_TEMPLATE
   extern template class basic_stringbuf<char>;
   extern template class basic_istringstream<char>;
@@ -273,6 +282,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif

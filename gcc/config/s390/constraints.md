@@ -1,5 +1,5 @@
 ;; Constraints definitions belonging to the gcc backend for IBM S/390.
-;; Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2013 Free Software Foundation, Inc.
 ;; Written by Wolfgang Gellerich, using code and information found in
 ;; files s390.md, s390.h, and s390.c.
 ;;
@@ -24,10 +24,14 @@
 ;; Special constraints for s/390 machine description:
 ;;
 ;;    a -- Any address register from 1 to 15.
+;;    b -- Memory operand whose address is a symbol reference or a symbol
+;;         reference + constant which can be proven to be naturally aligned.
 ;;    c -- Condition code register 33.
 ;;    d -- Any register from 0 to 15.
 ;;    f -- Floating point registers.
 ;;    t -- Access registers 36 and 37.
+;;    C -- A signed 8-bit constant (-128..127)
+;;    D -- An unsigned 16-bit constant (0..65535)
 ;;    G -- Const double zero operand
 ;;    I -- An 8-bit constant (0..255).
 ;;    J -- A 12-bit constant (0..4095).
@@ -41,6 +45,8 @@
 ;;         H,Q:     mode of the part
 ;;         D,S,H:   mode of the containing operand
 ;;         0,F:     value of the other parts (F - all bits set)
+;;         --
+;;         xx[DS]q  satisfies s390_contiguous_bitmask_p for DImode or SImode
 ;;
 ;;         The constraint matches if the specified part of a constant
 ;;         has a value different from its other parts.  If the letter x
@@ -62,9 +68,14 @@
 ;;    B -- Multiple letter constraint followed by Q, R, S, or T:
 ;;         Memory reference of the type specified by second letter that
 ;;         does *not* refer to a literal pool entry.
-;;    U -- Pointer with short displacement.
-;;    W -- Pointer with long displacement.
+;;    U -- Pointer with short displacement. (deprecated - use ZQZR)
+;;    W -- Pointer with long displacement. (deprecated - use ZSZT)
 ;;    Y -- Shift count operand.
+;;    ZQ -- Pointer without index register and with short displacement.
+;;    ZR -- Pointer with index register and short displacement.
+;;    ZS -- Pointer without index register but with long displacement.
+;;    ZT -- Pointer with index register and long displacement.
+;;
 ;;
 
 
@@ -72,27 +83,27 @@
 ;;  Register constraints.
 ;;
 
-(define_register_constraint "a" 
+(define_register_constraint "a"
   "ADDR_REGS"
   "Any address register from 1 to 15.")
 
 
-(define_register_constraint "c" 
+(define_register_constraint "c"
   "CC_REGS"
   "Condition code register 33")
 
 
-(define_register_constraint "d" 
+(define_register_constraint "d"
   "GENERAL_REGS"
   "Any register from 0 to 15")
 
 
-(define_register_constraint "f" 
+(define_register_constraint "f"
   "FP_REGS"
   "Floating point registers")
 
 
-(define_register_constraint "t" 
+(define_register_constraint "t"
   "ACCESS_REGS"
   "@internal
    Access registers 36 and 37")
@@ -101,6 +112,19 @@
 ;;
 ;;  General constraints for constants.
 ;;
+
+(define_constraint "C"
+  "@internal
+   An 8-bit signed immediate constant (-128..127)"
+  (and (match_code "const_int")
+       (match_test "ival >= -128 && ival <= 127")))
+
+
+(define_constraint "D"
+  "An unsigned 16-bit constant (0..65535)"
+  (and (match_code "const_int")
+       (match_test "ival >= 0 && ival <= 65535")))
+
 
 (define_constraint "G"
   "@internal
@@ -112,20 +136,19 @@
 (define_constraint "I"
   "An 8-bit constant (0..255)"
   (and (match_code "const_int")
-       (match_test "(unsigned int) ival <= 255")))
+       (match_test "(unsigned HOST_WIDE_INT) ival <= 255")))
 
 
 (define_constraint "J"
   "A 12-bit constant (0..4095)"
   (and (match_code "const_int")
-       (match_test "(unsigned int) ival <= 4095")))
+       (match_test "(unsigned HOST_WIDE_INT) ival <= 4095")))
 
 
 (define_constraint "K"
   "A 16-bit constant (-32768..32767)"
   (and (match_code "const_int")
        (match_test "ival >= -32768 && ival <= 32767")))
-
 
 
 (define_constraint "L"
@@ -171,9 +194,9 @@
 ;;         is specified instead of a part number, the constraint matches
 ;;         if there is any single part with non-default value.
 ;;
-;; The following patterns define only those constraints that are actually 
-;; used in s390.md.  If you need an additional one, simply add it in the 
-;; obvious way.  Function s390_N_constraint_str is ready to handle all 
+;; The following patterns define only those constraints that are actually
+;; used in s390.md.  If you need an additional one, simply add it in the
+;; obvious way.  Function s390_N_constraint_str is ready to handle all
 ;; combinations.
 ;;
 
@@ -309,8 +332,15 @@
   (and (match_code "const_int")
        (match_test "s390_N_constraint_str (\"xQH0\", ival)")))
 
+(define_constraint "NxxDq"
+  "@internal"
+  (and (match_code "const_int")
+       (match_test "s390_contiguous_bitmask_p (ival, 64, NULL, NULL)")))
 
-
+(define_constraint "NxxSq"
+  "@internal"
+  (and (match_code "const_int")
+       (match_test "s390_contiguous_bitmask_p (ival, 32, NULL, NULL)")))
 
 ;;
 ;; Double-letter constraints starting with O follow.
@@ -355,7 +385,6 @@
   (match_test "s390_mem_constraint (\"Q\", op)"))
 
 
-
 (define_memory_constraint "R"
   "Memory reference with index register and short displacement"
   (match_test "s390_mem_constraint (\"R\", op)"))
@@ -371,67 +400,102 @@
   (match_test "s390_mem_constraint (\"T\", op)"))
 
 
+(define_memory_constraint "b"
+  "Memory reference whose address is a naturally aligned symbol reference."
+  (match_test "MEM_P (op)
+               && s390_check_symref_alignment (XEXP (op, 0),
+                                               GET_MODE_SIZE (GET_MODE (op)))"))
+
+(define_memory_constraint "e"
+  "Matches all memory references available on the current architecture
+level.  This constraint will never be used and using it in an inline
+assembly is *always* a bug since there is no instruction accepting all
+those addresses.  It just serves as a placeholder for a generic memory
+constraint."
+  (match_test "strict_memory_address_p (GET_MODE (op), op)"))
+
+; This defines 'm' as normal memory constraint.  This is only possible
+; since the standard memory constraint is re-defined in s390.h using
+; the TARGET_MEM_CONSTRAINT macro.
+(define_memory_constraint "m"
+  "Matches the most general memory address for pre-z10 machines."
+  (match_test "s390_mem_constraint (\"R\", op)
+               || s390_mem_constraint (\"T\", op)"))
 
 (define_memory_constraint "AQ"
-  "@internal 
+  "@internal
    Offsettable memory reference without index register and with short displacement"
   (match_test "s390_mem_constraint (\"AQ\", op)"))
 
 
 (define_memory_constraint "AR"
-  "@internal 
+  "@internal
    Offsettable memory reference with index register and short displacement"
   (match_test "s390_mem_constraint (\"AR\", op)"))
 
 
 (define_memory_constraint "AS"
-  "@internal 
+  "@internal
    Offsettable memory reference without index register but with long displacement"
   (match_test "s390_mem_constraint (\"AS\", op)"))
 
 
 (define_memory_constraint "AT"
-  "@internal 
+  "@internal
    Offsettable memory reference with index register and long displacement"
   (match_test "s390_mem_constraint (\"AT\", op)"))
 
 
 
 (define_constraint "BQ"
-  "@internal 
-   Memory reference without index register and with short 
+  "@internal
+   Memory reference without index register and with short
    displacement that does *not* refer to a literal pool entry."
   (match_test "s390_mem_constraint (\"BQ\", op)"))
 
 
 (define_constraint "BR"
-  "@internal 
+  "@internal
    Memory reference with index register and short displacement that
    does *not* refer to a literal pool entry. "
   (match_test "s390_mem_constraint (\"BR\", op)"))
 
 
 (define_constraint "BS"
-  "@internal 
+  "@internal
    Memory reference without index register but with long displacement
    that does *not* refer to a literal pool entry. "
   (match_test "s390_mem_constraint (\"BS\", op)"))
 
 
 (define_constraint "BT"
-  "@internal 
+  "@internal
    Memory reference with index register and long displacement that
    does *not* refer to a literal pool entry. "
   (match_test "s390_mem_constraint (\"BT\", op)"))
 
 
-
 (define_address_constraint "U"
-  "Pointer with short displacement"
+  "Pointer with short displacement. (deprecated - use ZQZR)"
   (match_test "s390_mem_constraint (\"U\", op)"))
 
-
-
 (define_address_constraint "W"
-  "Pointer with long displacement"
+  "Pointer with long displacement. (deprecated - use ZSZT)"
   (match_test "s390_mem_constraint (\"W\", op)"))
+
+
+(define_address_constraint "ZQ"
+  "Pointer without index register and with short displacement."
+  (match_test "s390_mem_constraint (\"ZQ\", op)"))
+
+(define_address_constraint "ZR"
+  "Pointer with index register and short displacement."
+  (match_test "s390_mem_constraint (\"ZR\", op)"))
+
+(define_address_constraint "ZS"
+  "Pointer without index register but with long displacement."
+  (match_test "s390_mem_constraint (\"ZS\", op)"))
+
+(define_address_constraint "ZT"
+  "Pointer with index register and long displacement."
+  (match_test "s390_mem_constraint (\"ZT\", op)"))

@@ -6,56 +6,45 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 pragma Polling (Off);
---  We must turn polling off for this unit, because otherwise we get
---  an infinite loop from the code within the Poll routine itself.
+--  We must turn polling off for this unit, because otherwise we get an
+--  infinite loop from the code within the Poll routine itself.
 
 with System.Parameters;
---  Used for Sec_Stack_Ratio
 
 pragma Warnings (Off);
---  Disable warnings since System.Secondary_Stack is currently not
---  Preelaborate
+--  Disable warnings since System.Secondary_Stack is currently not Preelaborate
 with System.Secondary_Stack;
 pragma Warnings (On);
 
 package body System.Soft_Links is
 
    package SST renames System.Secondary_Stack;
-
-   NT_Exc_Stack : array (0 .. 8192) of aliased Character;
-   for NT_Exc_Stack'Alignment use Standard'Maximum_Alignment;
-   --  Allocate an exception stack for the main program to use.
-   --  This is currently only used under VMS.
 
    NT_TSD : TSD;
    --  Note: we rely on the default initialization of NT_TSD
@@ -101,9 +90,11 @@ package body System.Soft_Links is
 
       Task_Termination_Handler.all (Ada.Exceptions.Null_Occurrence);
 
-      --  Finalize the global list for controlled objects if needed
+      --  Finalize all library-level controlled objects if needed
 
-      Finalize_Global_List.all;
+      if Finalize_Library_Objects /=  null then
+         Finalize_Library_Objects.all;
+      end if;
    end Adafinal_NT;
 
    ---------------------------
@@ -129,11 +120,8 @@ package body System.Soft_Links is
    ----------------
 
    procedure Create_TSD (New_TSD : in out TSD) is
-      use type Parameters.Size_Type;
-
-      SS_Ratio_Dynamic : constant Boolean :=
-                           Parameters.Sec_Stack_Ratio = Parameters.Dynamic;
-
+      use Parameters;
+      SS_Ratio_Dynamic : constant Boolean := Sec_Stack_Percentage = Dynamic;
    begin
       if SS_Ratio_Dynamic then
          SST.SS_Init
@@ -176,24 +164,6 @@ package body System.Soft_Links is
    begin
       return NT_TSD.Current_Excep'Access;
    end Get_Current_Excep_NT;
-
-   ---------------------------
-   -- Get_Exc_Stack_Addr_NT --
-   ---------------------------
-
-   function Get_Exc_Stack_Addr_NT return Address is
-   begin
-      return NT_Exc_Stack (NT_Exc_Stack'Last)'Address;
-   end Get_Exc_Stack_Addr_NT;
-
-   -----------------------------
-   -- Get_Exc_Stack_Addr_Soft --
-   -----------------------------
-
-   function Get_Exc_Stack_Addr_Soft return Address is
-   begin
-      return Get_Exc_Stack_Addr.all;
-   end Get_Exc_Stack_Addr_Soft;
 
    ------------------------
    -- Get_GNAT_Exception --
@@ -249,14 +219,20 @@ package body System.Soft_Links is
       return NT_TSD.Pri_Stack_Info'Access;
    end Get_Stack_Info_NT;
 
-   -------------------------------
-   -- Null_Finalize_Global_List --
-   -------------------------------
+   -----------------------------
+   -- Save_Library_Occurrence --
+   -----------------------------
 
-   procedure Null_Finalize_Global_List is
+   procedure Save_Library_Occurrence (E : EOA) is
+      use Ada.Exceptions;
    begin
-      null;
-   end Null_Finalize_Global_List;
+      if not Library_Exception_Set then
+         Library_Exception_Set := True;
+         if E /= null then
+            Ada.Exceptions.Save_Occurrence (Library_Exception, E.all);
+         end if;
+      end if;
+   end Save_Library_Occurrence;
 
    ---------------------------
    -- Set_Jmpbuf_Address_NT --
@@ -313,7 +289,7 @@ package body System.Soft_Links is
    -------------------------
 
    procedure Task_Termination_NT (Excep : EO) is
-      pragma Warnings (Off, Excep);
+      pragma Unreferenced (Excep);
    begin
       null;
    end Task_Termination_NT;

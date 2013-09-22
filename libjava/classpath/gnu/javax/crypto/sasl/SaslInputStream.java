@@ -1,5 +1,5 @@
-/* SaslInputStream.java -- 
-   Copyright (C) 2003, 2006 Free Software Foundation, Inc.
+/* SaslInputStream.java --
+   Copyright (C) 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -57,7 +57,8 @@ import javax.security.sasl.SaslServer;
 public class SaslInputStream
     extends InputStream
 {
-  private static final Logger log = Logger.getLogger(SaslInputStream.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(SaslInputStream.class.getName()) : null;
   private SaslClient client;
   private SaslServer server;
   private int maxRawSendSize;
@@ -115,7 +116,7 @@ public class SaslInputStream
    * the protocol driver's request for a single octet from the stream might;
    * i.e. an invocation of this method, may result in an entire SASL buffer
    * being read and processed before that single octet can be returned.
-   * 
+   *
    * @return the next byte of data, or <code>-1</code> if the end of the
    *         stream is reached.
    * @throws IOException if an I/O error occurs.
@@ -190,7 +191,7 @@ public class SaslInputStream
    * driver's request for a single octet from the stream might result in an
    * entire SASL buffer being read and processed before that single octet can be
    * returned.
-   * 
+   *
    * @param b the buffer into which the data is read.
    * @param off the start offset in array <code>b</code> at which the data is
    *          wricodeen.
@@ -317,7 +318,7 @@ public class SaslInputStream
   /**
    * Reads a SASL buffer from the underlying source if at least 4 bytes are
    * available.
-   * 
+   *
    * @return the byte[] of decoded buffer contents, or null if the underlying
    *         source was exhausted.
    * @throws IOException if an I/O exception occurs during the operation.

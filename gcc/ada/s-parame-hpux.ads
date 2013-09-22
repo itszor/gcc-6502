@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -64,7 +62,7 @@ package System.Parameters is
    Unspecified_Size : constant Size_Type := Size_Type'First;
    --  Value used to indicate that no size type is set
 
-   subtype Ratio is Size_Type range -1 .. 100;
+   subtype Percentage is Size_Type range -1 .. 100;
    Dynamic : constant Size_Type := -1;
    --  The secondary stack ratio is a constant between 0 and 100 which
    --  determines the percentage of the allocated task stack that is
@@ -72,10 +70,10 @@ package System.Parameters is
    --  The special value of minus one indicates that the secondary
    --  stack is to be allocated from the heap instead.
 
-   Sec_Stack_Ratio : constant Ratio := Dynamic;
+   Sec_Stack_Percentage : constant Percentage := Dynamic;
    --  This constant defines the handling of the secondary stack
 
-   Sec_Stack_Dynamic : constant Boolean := Sec_Stack_Ratio = Dynamic;
+   Sec_Stack_Dynamic : constant Boolean := Sec_Stack_Percentage = Dynamic;
    --  Convenient Boolean for testing for dynamic secondary stack
 
    function Default_Stack_Size return Size_Type;
@@ -112,6 +110,15 @@ package System.Parameters is
    --  is that this is the same as type Long_Integer, but this is not true
    --  of all targets. For example, in OpenVMS long /= Long_Integer.
 
+   ptr_bits  : constant := Standard'Address_Size;
+   subtype C_Address is System.Address;
+   --  Number of bits in Interfaces.C pointers, normally a standard address,
+   --  except on 64-bit VMS where they are 32-bit addresses, for compatibility
+   --  with legacy code.
+
+   C_Malloc_Linkname : constant String := "__gnat_malloc";
+   --  Name of runtime function used to allocate such a pointer
+
    ----------------------------------------------
    -- Behavior of Pragma Finalize_Storage_Only --
    ----------------------------------------------
@@ -123,7 +130,7 @@ package System.Parameters is
 
    --      The system releases all storage on program termination only,
    --      but not other garbage collection occurs, so finalization calls
-   --      are ommitted only for outer level onjects can be omitted if
+   --      are omitted only for outer level objects can be omitted if
    --      pragma Finalize_Storage_Only is used.
 
    --    Garbage_Collected = True

@@ -1,4 +1,4 @@
-/* TransformerException.java -- 
+/* TransformerException.java --
    Copyright (C) 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -34,7 +34,10 @@ or based on this library.  If you modify this library, you may extend
 this exception to your version of the library, but you are not
 obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
+
 package javax.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -88,7 +91,7 @@ public class TransformerException
   /**
    * Constructor with detail message, locator and underlying cause.
    */
-  public TransformerException(String msg, SourceLocator locator, 
+  public TransformerException(String msg, SourceLocator locator,
                               Throwable cause)
   {
     super(msg);
@@ -179,7 +182,7 @@ public class TransformerException
     String systemId = locator.getSystemId();
     int lineNumber = locator.getLineNumber();
     int columnNumber = locator.getColumnNumber();
-    StringBuffer buffer = new StringBuffer ();
+    CPStringBuilder buffer = new CPStringBuilder ();
     if (publicId != null)
       {
         buffer.append ("publicId=");

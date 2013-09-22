@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,22 +24,24 @@
 ------------------------------------------------------------------------------
 
 with Atree;    use Atree;
+with Checks;   use Checks;
+with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Elists;   use Elists;
-with Errout;   use Errout;
 with Exp_Smem; use Exp_Smem;
 with Exp_Tss;  use Exp_Tss;
 with Exp_Util; use Exp_Util;
-with Exp_VFpt; use Exp_VFpt;
 with Namet;    use Namet;
 with Nmake;    use Nmake;
 with Opt;      use Opt;
+with Output;   use Output;
 with Sem;      use Sem;
 with Sem_Eval; use Sem_Eval;
 with Sem_Res;  use Sem_Res;
 with Sem_Util; use Sem_Util;
 with Sem_Warn; use Sem_Warn;
 with Sinfo;    use Sinfo;
+with Sinput;   use Sinput;
 with Snames;   use Snames;
 with Tbuild;   use Tbuild;
 with Uintp;    use Uintp;
@@ -80,12 +82,12 @@ package body Exp_Ch2 is
    --  Dispatches to specific expansion procedures.
 
    procedure Expand_Entry_Index_Parameter (N : Node_Id);
-   --  A reference to the identifier in the entry index specification of
-   --  protected entry body is modified to a reference to a constant definition
-   --  equal to the index of the entry family member being called. This
-   --  constant is calculated as part of the elaboration of the expanded code
-   --  for the body, and is calculated from the object-wide entry index
-   --  returned by Next_Entry_Call.
+   --  A reference to the identifier in the entry index specification of an
+   --  entry body is modified to a reference to a constant definition equal to
+   --  the index of the entry family member being called. This constant is
+   --  calculated as part of the elaboration of the expanded code for the body,
+   --  and is calculated from the object-wide entry index returned by Next_
+   --  Entry_Call.
 
    procedure Expand_Entry_Parameter (N : Node_Id);
    --  A reference to an entry parameter is modified to be a reference to the
@@ -98,12 +100,10 @@ package body Exp_Ch2 is
    --  represent the operation within the protected object. In other cases
    --  Expand_Formal is a no-op.
 
-   procedure Expand_Protected_Private (N : Node_Id);
-   --  A reference to a private component of a protected type is expanded to a
-   --  component selected from the record used to implement the protected
-   --  object. Such a record is passed to all operations on a protected object
-   --  in a parameter named _object. This object is a constant in the body of a
-   --  function, and a variable within a procedure or entry body.
+   procedure Expand_Protected_Component (N : Node_Id);
+   --  A reference to a private component of a protected type is expanded into
+   --  a reference to the corresponding prival in the current protected entry
+   --  or subprogram.
 
    procedure Expand_Renaming (N : Node_Id);
    --  For renamings, just replace the identifier by the corresponding
@@ -175,7 +175,7 @@ package body Exp_Ch2 is
          if Nkind (CV) in N_Subexpr then
             Val := CV;
 
-         --  Case of Current_Value is a conditional expression reference
+         --  Case of Current_Value is an if expression reference
 
          else
             Get_Current_Value_Condition (N, Op, Val);
@@ -186,7 +186,7 @@ package body Exp_Ch2 is
          end if;
 
          --  If constant value is an occurrence of an enumeration literal,
-         --  then we just make another occurence of the same literal.
+         --  then we just make another occurrence of the same literal.
 
          if Is_Entity_Name (Val)
            and then Ekind (Entity (Val)) = E_Enumeration_Literal
@@ -195,13 +195,21 @@ package body Exp_Ch2 is
               Unchecked_Convert_To (T,
                 New_Occurrence_Of (Entity (Val), Loc)));
 
-         --  Otherwise get the value, and convert to appropriate type
+         --  If constant is of an integer type, just make an appropriately
+         --  integer literal, which will get the proper type.
+
+         elsif Is_Integer_Type (T) then
+            Rewrite (N,
+              Make_Integer_Literal (Loc,
+                Intval => Expr_Rep_Value (Val)));
+
+         --  Otherwise do unchecked conversion of value to right type
 
          else
             Rewrite (N,
               Unchecked_Convert_To (T,
-                Make_Integer_Literal (Loc,
-                  Intval => Expr_Rep_Value (Val))));
+                 Make_Integer_Literal (Loc,
+                   Intval => Expr_Rep_Value (Val))));
          end if;
 
          Analyze_And_Resolve (N, T);
@@ -261,11 +269,9 @@ package body Exp_Ch2 is
          end loop;
 
          --  If the discriminant occurs within the default expression for a
-         --  formal of an entry or protected operation, create a default
-         --  function for it, and replace the discriminant with a reference to
-         --  the discriminant of the formal of the default function. The
-         --  discriminant entity is the one defined in the corresponding
-         --  record.
+         --  formal of an entry or protected operation, replace it with a
+         --  reference to the discriminant of the formal of the enclosing
+         --  operation.
 
          if Present (Parent_P)
            and then Present (Corresponding_Spec (Parent_P))
@@ -278,8 +284,9 @@ package body Exp_Ch2 is
                Disc   : Entity_Id;
 
             begin
-               --  Verify that we are within a default function: the type of
-               --  its formal parameter is the same task or protected type.
+               --  Verify that we are within the body of an entry or protected
+               --  operation. Its first formal parameter is the synchronized
+               --  type itself.
 
                if Present (Formal)
                  and then Etype (Formal) = Scope (Entity (N))
@@ -303,6 +310,17 @@ package body Exp_Ch2 is
            and then In_Entry
          then
             Set_Entity (N, CR_Discriminant (Entity (N)));
+
+            --  Finally, if the entity is the discriminant of the original
+            --  type declaration, and we are within the initialization
+            --  procedure for a task, the designated entity is the
+            --  discriminal of the task body. This can happen when the
+            --  argument of pragma Task_Name mentions a discriminant,
+            --  because the pragma is analyzed in the task declaration
+            --  but is expanded in the call to Create_Task in the init_proc.
+
+         elsif Within_Init_Proc then
+            Set_Entity (N, Discriminal (CR_Discriminant (Entity (N))));
          else
             Set_Entity (N, Discriminal (Entity (N)));
          end if;
@@ -322,7 +340,8 @@ package body Exp_Ch2 is
    begin
       --  Defend against errors
 
-      if No (E) and then Total_Errors_Detected /= 0 then
+      if No (E) then
+         Check_Error_Detected;
          return;
       end if;
 
@@ -332,16 +351,12 @@ package body Exp_Ch2 is
       elsif Is_Entry_Formal (E) then
          Expand_Entry_Parameter (N);
 
-      elsif Ekind (E) = E_Component
-        and then Is_Protected_Private (E)
-      then
-         --  Protect against junk use of tasking in no run time mode
-
+      elsif Is_Protected_Component (E) then
          if No_Run_Time_Mode then
             return;
+         else
+            Expand_Protected_Component (N);
          end if;
-
-         Expand_Protected_Private (N);
 
       elsif Ekind (E) = E_Entry_Index_Parameter then
          Expand_Entry_Index_Parameter (N);
@@ -358,13 +373,73 @@ package body Exp_Ch2 is
          Expand_Shared_Passive_Variable (N);
       end if;
 
+      --  Test code for implementing the pragma Reviewable requirement of
+      --  classifying reads of scalars as referencing potentially uninitialized
+      --  objects or not.
+
+      if Debug_Flag_XX
+        and then Is_Scalar_Type (Etype (N))
+        and then (Is_Assignable (E) or else Is_Constant_Object (E))
+        and then Comes_From_Source (N)
+        and then not Is_LHS (N)
+        and then not Is_Actual_Out_Parameter (N)
+        and then (Nkind (Parent (N)) /= N_Attribute_Reference
+                   or else Attribute_Name (Parent (N)) /= Name_Valid)
+      then
+         Write_Location (Sloc (N));
+         Write_Str (": Read from scalar """);
+         Write_Name (Chars (N));
+         Write_Str ("""");
+
+         if Is_Known_Valid (E) then
+            Write_Str (", Is_Known_Valid");
+         end if;
+
+         Write_Eol;
+      end if;
+
+      --  Set Atomic_Sync_Required if necessary for atomic variable
+
+      if Nkind_In (N, N_Identifier, N_Expanded_Name)
+        and then Ekind (E) = E_Variable
+        and then (Is_Atomic (E) or else Is_Atomic (Etype (E)))
+      then
+         declare
+            Set  : Boolean;
+
+         begin
+            --  If variable is atomic, but type is not, setting depends on
+            --  disable/enable state for the variable.
+
+            if Is_Atomic (E) and then not Is_Atomic (Etype (E)) then
+               Set := not Atomic_Synchronization_Disabled (E);
+
+            --  If variable is not atomic, but its type is atomic, setting
+            --  depends on disable/enable state for the type.
+
+            elsif not Is_Atomic (E) and then Is_Atomic (Etype (E)) then
+               Set := not Atomic_Synchronization_Disabled (Etype (E));
+
+            --  Else both variable and type are atomic (see outer if), and we
+            --  disable if either variable or its type have sync disabled.
+
+            else
+               Set := (not Atomic_Synchronization_Disabled (E))
+                        and then
+                      (not Atomic_Synchronization_Disabled (Etype (E)));
+            end if;
+
+            --  Set flag if required
+
+            if Set then
+               Activate_Atomic_Synchronization (N);
+            end if;
+         end;
+      end if;
+
       --  Interpret possible Current_Value for variable case
 
-      if (Ekind (E) = E_Variable
-            or else
-          Ekind (E) = E_In_Out_Parameter
-            or else
-          Ekind (E) = E_Out_Parameter)
+      if Is_Assignable (E)
         and then Present (Current_Value (E))
       then
          Expand_Current_Value (N);
@@ -385,11 +460,7 @@ package body Exp_Ch2 is
 
       --  Interpret possible Current_Value for constant case
 
-      elsif (Ekind (E) = E_Constant
-               or else
-             Ekind (E) = E_In_Parameter
-               or else
-             Ekind (E) = E_Loop_Parameter)
+      elsif Is_Constant_Object (E)
         and then Present (Current_Value (E))
       then
          Expand_Current_Value (N);
@@ -401,8 +472,10 @@ package body Exp_Ch2 is
    ----------------------------------
 
    procedure Expand_Entry_Index_Parameter (N : Node_Id) is
+      Index_Con : constant Entity_Id := Entry_Index_Constant (Entity (N));
    begin
-      Set_Entity (N, Entry_Index_Constant (Entity (N)));
+      Set_Entity (N, Index_Con);
+      Set_Etype  (N, Etype (Index_Con));
    end Expand_Entry_Index_Parameter;
 
    ----------------------------
@@ -477,14 +550,15 @@ package body Exp_Ch2 is
          --  we also generate an extra parameter to hold the Constrained
          --  attribute of the actual. No renaming is generated for this flag.
 
+         --  Calling Note_Possible_Modification in the expander is dubious,
+         --  because this generates a cross-reference entry, and should be
+         --  done during semantic processing so it is called in -gnatc mode???
+
          if Ekind (Entity (N)) /= E_In_Parameter
            and then In_Assignment_Context (N)
          then
-            Note_Possible_Modification (N);
+            Note_Possible_Modification (N, Sure => True);
          end if;
-
-         Rewrite (N, New_Occurrence_Of (Renamed_Object (Entity (N)), Loc));
-         return;
       end if;
 
       --  What we need is a reference to the corresponding component of the
@@ -493,6 +567,9 @@ package body Exp_Ch2 is
       --  accept parameters record. We first have to do an unchecked conversion
       --  to turn this into a pointer to the parameter record and then we
       --  select the required parameter field.
+
+      --  The same processing applies to protected entries, where the Accept_
+      --  Address is also the address of the Parameters record.
 
       P_Comp_Ref :=
         Make_Selected_Component (Loc,
@@ -505,8 +582,8 @@ package body Exp_Ch2 is
 
       --  For all types of parameters, the constructed parameter record object
       --  contains a pointer to the parameter. Thus we must dereference them to
-      --  access them (this will often be redundant, since the needed deference
-      --  is implicit, but no harm is done by making it explicit).
+      --  access them (this will often be redundant, since the dereference is
+      --  implicit, but no harm is done by making it explicit).
 
       Rewrite (N,
         Make_Explicit_Dereference (Loc, P_Comp_Ref));
@@ -558,99 +635,64 @@ package body Exp_Ch2 is
    ---------------------------
 
    procedure Expand_N_Real_Literal (N : Node_Id) is
+      pragma Unreferenced (N);
+
    begin
-      if Vax_Float (Etype (N)) then
-         Expand_Vax_Real_Literal (N);
-      end if;
+      --  Historically, this routine existed because there were expansion
+      --  requirements for Vax real literals, but now Vax real literals
+      --  are now handled by gigi, so this routine no longer does anything.
+
+      null;
    end Expand_N_Real_Literal;
 
-   ------------------------------
-   -- Expand_Protected_Private --
-   ------------------------------
+   --------------------------------
+   -- Expand_Protected_Component --
+   --------------------------------
 
-   procedure Expand_Protected_Private (N : Node_Id) is
-      Loc      : constant Source_Ptr := Sloc (N);
-      E        : constant Entity_Id  := Entity (N);
-      Op       : constant Node_Id    := Protected_Operation (E);
-      Scop     : Entity_Id;
-      Lo       : Node_Id;
-      Hi       : Node_Id;
-      D_Range  : Node_Id;
+   procedure Expand_Protected_Component (N : Node_Id) is
+
+      function Inside_Eliminated_Body return Boolean;
+      --  Determine whether the current entity is inside a subprogram or an
+      --  entry which has been marked as eliminated.
+
+      ----------------------------
+      -- Inside_Eliminated_Body --
+      ----------------------------
+
+      function Inside_Eliminated_Body return Boolean is
+         S : Entity_Id := Current_Scope;
+
+      begin
+         while Present (S) loop
+            if (Ekind (S) = E_Entry
+                  or else Ekind (S) = E_Entry_Family
+                  or else Ekind (S) = E_Function
+                  or else Ekind (S) = E_Procedure)
+              and then Is_Eliminated (S)
+            then
+               return True;
+            end if;
+
+            S := Scope (S);
+         end loop;
+
+         return False;
+      end Inside_Eliminated_Body;
+
+   --  Start of processing for Expand_Protected_Component
 
    begin
-      if Nkind (Op) /= N_Subprogram_Body
-        or else Nkind (Specification (Op)) /= N_Function_Specification
-      then
-         Set_Ekind (Prival (E), E_Variable);
-      else
-         Set_Ekind (Prival (E), E_Constant);
+      --  Eliminated bodies are not expanded and thus do not need privals
+
+      if not Inside_Eliminated_Body then
+         declare
+            Priv : constant Entity_Id := Prival (Entity (N));
+         begin
+            Set_Entity (N, Priv);
+            Set_Etype  (N, Etype (Priv));
+         end;
       end if;
-
-      --  If the private component appears in an assignment (either lhs or
-      --  rhs) and is a one-dimensional array constrained by a discriminant,
-      --  rewrite as  P (Lo .. Hi) with an explicit range, so that discriminal
-      --  is directly visible. This solves delicate visibility problems.
-
-      if Comes_From_Source (N)
-        and then Is_Array_Type (Etype (E))
-        and then Number_Dimensions (Etype (E)) = 1
-        and then not Within_Init_Proc
-      then
-         Lo := Type_Low_Bound  (Etype (First_Index (Etype (E))));
-         Hi := Type_High_Bound (Etype (First_Index (Etype (E))));
-
-         if Nkind (Parent (N)) = N_Assignment_Statement
-           and then ((Is_Entity_Name (Lo)
-                          and then Ekind (Entity (Lo)) = E_In_Parameter)
-                       or else (Is_Entity_Name (Hi)
-                                  and then
-                                    Ekind (Entity (Hi)) = E_In_Parameter))
-         then
-            D_Range := New_Node (N_Range, Loc);
-
-            if Is_Entity_Name (Lo)
-              and then Ekind (Entity (Lo)) = E_In_Parameter
-            then
-               Set_Low_Bound (D_Range,
-                 Make_Identifier (Loc, Chars (Entity (Lo))));
-            else
-               Set_Low_Bound (D_Range, Duplicate_Subexpr (Lo));
-            end if;
-
-            if Is_Entity_Name (Hi)
-              and then Ekind (Entity (Hi)) = E_In_Parameter
-            then
-               Set_High_Bound (D_Range,
-                 Make_Identifier (Loc, Chars (Entity (Hi))));
-            else
-               Set_High_Bound (D_Range, Duplicate_Subexpr (Hi));
-            end if;
-
-            Rewrite (N,
-              Make_Slice (Loc,
-                Prefix => New_Occurrence_Of (E, Loc),
-                Discrete_Range => D_Range));
-
-            Analyze_And_Resolve (N, Etype (E));
-            return;
-         end if;
-      end if;
-
-      --  The type of the reference is the type of the prival, which may differ
-      --  from that of the original component if it is an itype.
-
-      Set_Entity (N, Prival (E));
-      Set_Etype  (N, Etype (Prival (E)));
-      Scop := Current_Scope;
-
-      --  Find entity for protected operation, which must be on scope stack
-
-      while not Is_Protected_Type (Scope (Scop)) loop
-         Scop := Scope (Scop);
-      end loop;
-
-      Append_Elmt (N, Privals_Chain (Scop));
-   end Expand_Protected_Private;
+   end Expand_Protected_Component;
 
    ---------------------
    -- Expand_Renaming --
@@ -684,6 +726,10 @@ package body Exp_Ch2 is
    --    typ!(recobj).rec.all'Constrained
 
    --  where rec is a selector whose Entry_Formal link points to the formal
+
+   --  If the type of the entry parameter has a representation clause, then an
+   --  extra temp is involved (see below).
+
    --  For a formal of a task entity, the formal is rewritten as a local
    --  renaming.
 
@@ -721,10 +767,30 @@ package body Exp_Ch2 is
       else
          if Nkind (N) = N_Explicit_Dereference then
             declare
-               P : constant Node_Id := Prefix (N);
-               S : Node_Id;
+               P    : Node_Id := Prefix (N);
+               S    : Node_Id;
+               E    : Entity_Id;
+               Decl : Node_Id;
 
             begin
+               --  If the type of an entry parameter has a representation
+               --  clause, then the prefix is not a selected component, but
+               --  instead a reference to a temp pointing at the selected
+               --  component. In this case, set P to be the initial value of
+               --  that temp.
+
+               if Nkind (P) = N_Identifier then
+                  E := Entity (P);
+
+                  if Ekind (E) = E_Constant then
+                     Decl := Parent (E);
+
+                     if Nkind (Decl) = N_Object_Declaration then
+                        P := Expression (Decl);
+                     end if;
+                  end if;
+               end if;
+
                if Nkind (P) = N_Selected_Component then
                   S := Selector_Name (P);
 

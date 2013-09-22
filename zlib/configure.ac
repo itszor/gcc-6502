@@ -1,6 +1,6 @@
 dnl Process this with autoconf to create configure
 
-AC_PREREQ(2.59)
+AC_PREREQ(2.64)
 AC_INIT
 AC_CONFIG_SRCDIR([zlib.h])
 
@@ -54,7 +54,7 @@ GCC_NO_EXECUTABLES
 m4_rename([_AC_ARG_VAR_PRECIOUS],[real_PRECIOUS])
 m4_define([_AC_ARG_VAR_PRECIOUS],[])
 AC_PROG_CC
-m4_rename([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
+m4_rename_force([real_PRECIOUS],[_AC_ARG_VAR_PRECIOUS])
 
 AC_SUBST(CFLAGS)
 

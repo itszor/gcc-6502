@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,8 +34,8 @@ package Sem_Ch12 is
    procedure Analyze_Function_Instantiation             (N : Node_Id);
    procedure Analyze_Formal_Object_Declaration          (N : Node_Id);
    procedure Analyze_Formal_Type_Declaration            (N : Node_Id);
-   procedure Analyze_Formal_Subprogram                  (N : Node_Id);
-   procedure Analyze_Formal_Package                     (N : Node_Id);
+   procedure Analyze_Formal_Subprogram_Declaration      (N : Node_Id);
+   procedure Analyze_Formal_Package_Declaration         (N : Node_Id);
 
    procedure Start_Generic;
    --  Must be invoked before starting to process a generic spec or body
@@ -47,12 +47,14 @@ package Sem_Ch12 is
    procedure Check_Generic_Child_Unit
      (Gen_Id           : Node_Id;
       Parent_Installed : in out Boolean);
-   --  If the name of the generic unit in an instantiation or a renaming
-   --  is a selected component, then the prefix may be an instance and the
-   --  selector may  designate a child unit. Retrieve the parent generic
-   --  and search for the child unit that must be declared within. Similarly,
-   --  if this is the name of a generic child unit within an instantiation of
-   --  its own parent, retrieve the parent generic.
+   --  If the name of the generic unit in an instantiation or a renaming is a
+   --  selected component, then the prefix may be an instance and the selector
+   --  may designate a child unit. Retrieve the parent generic and search for
+   --  the child unit that must be declared within. Similarly, if this is the
+   --  name of a generic child unit within an instantiation of its own parent,
+   --  retrieve the parent generic. If the parent is installed as a result of
+   --  this call, then Parent_Installed is set True, otherwise Parent_Installed
+   --  is unchanged by the call.
 
    function Copy_Generic_Node
      (N             : Node_Id;
@@ -62,7 +64,9 @@ package Sem_Ch12 is
    --  repeatedly: once to produce a copy on which semantic analysis of
    --  the generic is performed, and once for each instantiation. The tree
    --  being copied is not semantically analyzed, except that references to
-   --  global entities are marked on terminal nodes.
+   --  global entities are marked on terminal nodes. Note that this function
+   --  copies any aspect specifications from the input node N to the returned
+   --  node, as well as the setting of the Has_Aspects flag.
 
    function Get_Instance_Of (A : Entity_Id) return Entity_Id;
    --  Retrieve actual associated with given generic parameter.
@@ -100,9 +104,21 @@ package Sem_Ch12 is
    --  between the current procedure and Load_Parent_Of_Generic.
 
    procedure Instantiate_Subprogram_Body
-     (Body_Info : Pending_Body_Info);
+     (Body_Info     : Pending_Body_Info;
+      Body_Optional : Boolean := False);
    --  Called after semantic analysis, to complete the instantiation of
-   --  function and procedure instances.
+   --  function and procedure instances. The flag Body_Optional has the
+   --  same purpose as described for Instantiate_Package_Body.
+
+   function Need_Subprogram_Instance_Body
+     (N    : Node_Id;
+      Subp : Entity_Id) return Boolean;
+
+   --  If a subprogram instance is inlined, indicate that the body of it
+   --  must be created, to be used in inlined calls by the back-end. The
+   --  subprogram may be inlined because the generic itself carries the
+   --  pragma, or because a pragma appears for the instance in the scope.
+   --  of the instance.
 
    procedure Save_Global_References (N : Node_Id);
    --  Traverse the original generic unit, and capture all references to
@@ -128,17 +144,21 @@ package Sem_Ch12 is
    --  an inlined body (so that errout can distinguish cases for generating
    --  error messages, otherwise the treatment is identical). In this call
    --  N is the subprogram body and E is the defining identifier of the
-   --  subprogram in quiestion. The resulting Sloc adjustment factor is
+   --  subprogram in question. The resulting Sloc adjustment factor is
    --  saved as part of the internal state of the Sem_Ch12 package for use
    --  in subsequent calls to copy nodes.
 
    procedure Save_Env
      (Gen_Unit : Entity_Id;
       Act_Unit : Entity_Id);
-   --   ??? comment needed
+   --  Because instantiations can be nested, the compiler maintains a stack
+   --  of environments that holds variables relevant to the current instance:
+   --  most importanty Instantiated_Parent, Exchanged_Views, Hidden_Entities,
+   --  and others (see full list in Instance_Env).
 
    procedure Restore_Env;
-   --   ??? comment needed
+   --  After processing an instantiation, or aborting one because of semantic
+   --  errors, remove the current Instantiation_Env from Instantation_Envs.
 
    procedure Initialize;
    --  Initializes internal data structures

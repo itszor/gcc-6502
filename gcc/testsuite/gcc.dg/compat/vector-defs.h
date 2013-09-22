@@ -6,7 +6,11 @@ typedef int __attribute__((mode(HI))) hi;
 typedef int __attribute__((mode(SI))) si;
 typedef int __attribute__((mode(DI))) di;
 typedef float __attribute__((mode(SF))) sf;
+#if ((__SIZEOF_DOUBLE__ >= 8) || (__SIZEOF_LONG_DOUBLE__ >= 8))
 typedef float __attribute__((mode(DF))) df;
+#else
+typedef float __attribute__((mode(SF))) df;
+#endif
 
 #if __GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 5)
 
@@ -51,6 +55,20 @@ typedef float __attribute__((mode(V16SF))) v16sf;
 typedef float __attribute__((mode(V2DF))) v2df;
 
 #endif
+
+typedef qi __attribute__((vector_size (32))) v32qi;
+typedef hi __attribute__((vector_size (32))) v16hi;
+typedef si __attribute__((vector_size (32))) v8si;
+typedef di __attribute__((vector_size (32))) v4di;
+typedef sf __attribute__((vector_size (32))) v8sf;
+typedef df __attribute__((vector_size (32))) v4df;
+
+typedef union U32QI { v32qi v; qi a[32]; } u32qi;
+typedef union U16HI { v16hi v; hi a[16]; } u16hi;
+typedef union U8SI { v8si v; si a[8]; } u8si;
+typedef union U4DI { v4di v; di a[4]; } u4di;
+typedef union U8SF { v8sf v; sf a[8]; } u8sf;
+typedef union U4DF { v4df v; df a[4]; } u4df;
 
 typedef union U8QI { v8qi v; qi a[8]; } u8qi;
 typedef union U16QI { v16qi v; qi a[16]; } u16qi;

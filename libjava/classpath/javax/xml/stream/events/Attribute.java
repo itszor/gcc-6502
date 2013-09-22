@@ -1,4 +1,4 @@
-/* Attribute.java -- 
+/* Attribute.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -59,13 +59,12 @@ public interface Attribute
   /**
    * Returns the type of this attribute.
    */
-  QName getDTDType();
+  String getDTDType();
 
   /**
    * Indicates whether this attribute was specified in the input source, or
    * just defaulted by the DTD.
    */
   boolean isSpecified();
-  
-}
 
+}

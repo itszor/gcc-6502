@@ -83,6 +83,8 @@ DAMAGES.  */
 
 package gnu.java.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
@@ -112,7 +114,7 @@ public final class Base64
   {
     return encode(buf, 0);
   }
-  
+
   /**
    * Base64 encode a byte array, returning the returning string.
    *
@@ -127,7 +129,7 @@ public final class Base64
 
   /**
    * Base64 encode a byte array, returning the returning string.
-   * 
+   *
    * @param buf The byte array to encode.
    * @param offset The offset in the byte array to start.
    * @param length The number of bytes to encode.
@@ -143,7 +145,7 @@ public final class Base64
     int srcLength = buf.length - offset;
     byte[] input = new byte[3];
     int[] output = new int[4];
-    StringBuffer out = new StringBuffer();
+    CPStringBuilder out = new CPStringBuilder();
     int i = offset;
     int chars = 0;
 

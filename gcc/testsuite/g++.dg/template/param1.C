@@ -7,6 +7,6 @@ template<int> struct A
   A();
 };
 
-template<int N, char> A<N>::A() {}  // { dg-error "got 2|but 1 required" }
+template<int N, char> A<N>::A() {}  // { dg-error "got 2 template parameters|1 required" }
 
 A<0> a;

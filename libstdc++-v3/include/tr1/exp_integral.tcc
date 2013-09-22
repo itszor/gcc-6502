@@ -1,12 +1,11 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
-//
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file tr1/exp_integral.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -53,16 +47,18 @@
 
 #include "special_function_util.h"
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
-
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+    template<typename _Tp> _Tp __expint_E1(_Tp);
 
     /**
      *   @brief Return the exponential integral @f$ E_1(x) @f$
@@ -79,7 +75,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_E1_series(const _Tp __x)
+    __expint_E1_series(_Tp __x)
     {
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
       _Tp __term = _Tp(1);
@@ -116,7 +112,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_E1_asymp(const _Tp __x)
+    __expint_E1_asymp(_Tp __x)
     {
       _Tp __term = _Tp(1);
       _Tp __esum = _Tp(1);
@@ -153,7 +149,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_En_series(const unsigned int __n, const _Tp __x)
+    __expint_En_series(unsigned int __n, _Tp __x)
     {
       const unsigned int __max_iter = 100;
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
@@ -170,7 +166,7 @@ namespace tr1
             __del = -__fact / _Tp(__i - __nm1);
           else
             {
-              _Tp __psi = -_TR1_GAMMA_TCC;
+              _Tp __psi = -__numeric_constants<_Tp>::gamma_e();
               for (int __ii = 1; __ii <= __nm1; ++__ii)
                 __psi += _Tp(1) / _Tp(__ii);
               __del = __fact * (__psi - std::log(__x)); 
@@ -199,7 +195,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_En_cont_frac(const unsigned int __n, const _Tp __x)
+    __expint_En_cont_frac(unsigned int __n, _Tp __x)
     {
       const unsigned int __max_iter = 100;
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
@@ -244,7 +240,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_En_recursion(const unsigned int __n, const _Tp __x)
+    __expint_En_recursion(unsigned int __n, _Tp __x)
     {
       _Tp __En;
       _Tp __E1 = __expint_E1(__x);
@@ -288,7 +284,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_Ei_series(const _Tp __x)
+    __expint_Ei_series(_Tp __x)
     {
       _Tp __term = _Tp(1);
       _Tp __sum = _Tp(0);
@@ -319,7 +315,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_Ei_asymp(const _Tp __x)
+    __expint_Ei_asymp(_Tp __x)
     {
       _Tp __term = _Tp(1);
       _Tp __sum = _Tp(1);
@@ -352,7 +348,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_Ei(const _Tp __x)
+    __expint_Ei(_Tp __x)
     {
       if (__x < _Tp(0))
         return -__expint_E1(-__x);
@@ -376,7 +372,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_E1(const _Tp __x)
+    __expint_E1(_Tp __x)
     {
       if (__x < _Tp(0))
         return -__expint_Ei(-__x);
@@ -406,7 +402,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_asymp(const unsigned int __n, const _Tp __x)
+    __expint_asymp(unsigned int __n, _Tp __x)
     {
       _Tp __term = _Tp(1);
       _Tp __sum = _Tp(1);
@@ -440,7 +436,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint_large_n(const unsigned int __n, const _Tp __x)
+    __expint_large_n(unsigned int __n, _Tp __x)
     {
       const _Tp __xpn = __x + __n;
       const _Tp __xpn2 = __xpn * __xpn;
@@ -474,7 +470,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __expint(const unsigned int __n, const _Tp __x)
+    __expint(unsigned int __n, _Tp __x)
     {
       //  Return NaN on NaN input.
       if (__isnan(__x))
@@ -514,7 +510,7 @@ namespace tr1
      */
     template<typename _Tp>
     inline _Tp
-    __expint(const _Tp __x)
+    __expint(_Tp __x)
     {
       if (__isnan(__x))
         return std::numeric_limits<_Tp>::quiet_NaN();
@@ -522,6 +518,7 @@ namespace tr1
         return __expint_Ei(__x);
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }

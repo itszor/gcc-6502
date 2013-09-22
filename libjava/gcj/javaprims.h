@@ -1,8 +1,8 @@
 // javaprims.h - Main external header file for libgcj.  -*- c++ -*-
 
 
-/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation
+/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,
+   2008, 2009 Free Software Foundation
 
    This file is part of libgcj.
 
@@ -25,6 +25,15 @@ details.  */
 #define TRUE TRUE
 #undef FALSE
 #define FALSE FALSE
+
+// JNI calling convention also defined in jni.h  */
+#ifndef JNICALL
+ #if (defined (_WIN32) || defined (__WIN32__) || defined (WIN32)) && !defined (_WIN64)
+  #define JNICALL __stdcall
+ #else
+  #define JNICALL
+ #endif
+#endif
 
 // To force selection of correct types that will mangle consistently
 // across platforms.
@@ -56,6 +65,7 @@ extern "Java"
       class CharArrayWriter;
       class CharConversionException;
       class Closeable;
+      class Console;
       class DataInput;
       class DataInputStream;
       class DataOutput;
@@ -79,6 +89,7 @@ extern "Java"
       class FilterReader;
       class FilterWriter;
       class Flushable;
+      class IOError;
       class IOException;
       class InputStream;
       class InputStreamReader;
@@ -99,6 +110,7 @@ extern "Java"
       class ObjectOutput;
       class ObjectOutputStream;
       class ObjectOutputStream$1;
+      class ObjectOutputStream$2;
       class ObjectOutputStream$PutField;
       class ObjectStreamClass;
       class ObjectStreamClass$1;
@@ -133,6 +145,7 @@ extern "Java"
       class SyncFailedException;
       class UTFDataFormatException;
       class UnsupportedEncodingException;
+      class VMConsole;
       class VMObjectInputStream;
       class VMObjectStreamClass;
       class WriteAbortedException;
@@ -142,11 +155,13 @@ extern "Java"
     namespace lang
     {
       class AbstractMethodError;
+      class AbstractStringBuffer;
       class Appendable;
       class ArithmeticException;
       class ArrayIndexOutOfBoundsException;
       class ArrayStoreException;
       class AssertionError;
+      class AutoCloseable;
       class Boolean;
       class Byte;
       class CharSequence;
@@ -212,6 +227,7 @@ extern "Java"
       class Process;
       class ProcessBuilder;
       class Readable;
+      class ReflectiveOperationException;
       class Runnable;
       class Runtime;
       class RuntimeException;
@@ -239,6 +255,8 @@ extern "Java"
       class ThreadDeath;
       class ThreadGroup;
       class ThreadLocal;
+      class ThreadLocalMap;
+      class ThreadLocalMap$Entry;
       class Throwable;
       class Throwable$StaticData;
       class TypeNotPresentException;
@@ -440,6 +458,7 @@ extern "Java"
       class EnumMap$7;
       class EnumSet;
       class EnumSet$1;
+      class EnumSet$2;
       class Enumeration;
       class EventListener;
       class EventListenerProxy;
@@ -518,6 +537,7 @@ extern "Java"
       class ResourceBundle;
       class ResourceBundle$1;
       class ResourceBundle$BundleKey;
+      class Scanner;
       class ServiceConfigurationError;
       class ServiceLoader;
       class ServiceLoader$1;
@@ -614,6 +634,11 @@ extern "Java"
         class ConcurrentSkipListMap$Values;
         class ConcurrentSkipListSet;
         class CopyOnWriteArrayList;
+        class CopyOnWriteArrayList$1;
+        class CopyOnWriteArrayList$2;
+        class CopyOnWriteArrayList$3;
+        class CopyOnWriteArrayList$RandomAccessSubList;
+        class CopyOnWriteArrayList$SubList;
         class CopyOnWriteArraySet;
         class CountDownLatch;
         class CountDownLatch$Sync;
@@ -844,6 +869,7 @@ extern "Java"
       }
     }
   }
+  // end of output of the `classes.pl' script.
 }
   
 typedef struct java::lang::Object* jobject;
@@ -908,7 +934,7 @@ struct _Jv_VMInitArgs
   jboolean ignoreUnrecognized;
 };
 
-extern jint _Jv_CreateJavaVM (struct _Jv_VMInitArgs*);
+extern "C" jint _Jv_CreateJavaVM (struct _Jv_VMInitArgs*);
 
 void
 _Jv_ThreadRun (java::lang::Thread* thread);

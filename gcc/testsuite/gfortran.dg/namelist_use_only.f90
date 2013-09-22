@@ -1,4 +1,6 @@
 ! { dg-do run }
+! { dg-options "-std=legacy" }
+!
 ! This tests the fix for PR22010, where namelists were not being written to
 ! and read back from modules.  It checks that namelists from modules that are
 ! selected by an ONLY declaration work correctly, even when the variables in
@@ -32,5 +34,3 @@ program namelist_use_only
   if ((i.ne.0).or.(rrrr.ne.3.5).or.foo()) call abort ()
   close (10)
 end program namelist_use_only
-
-! { dg-final { cleanup-modules "global" } }

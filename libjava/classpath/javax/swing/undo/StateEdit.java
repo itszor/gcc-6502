@@ -177,8 +177,8 @@ public class StateEdit
   {
     object = obj;
     undoRedoName = name;
-    preState = new Hashtable();
-    postState = new Hashtable();
+    preState = new Hashtable<Object,Object>();
+    postState = new Hashtable<Object,Object>();
     obj.storeState(preState);
   }
 
@@ -248,18 +248,18 @@ public class StateEdit
    */
   protected void removeRedundantState()
   {
-    Iterator i = preState.keySet().iterator();
+    Iterator<Object> i = preState.keySet().iterator();
     while (i.hasNext())
       {
-	Object key = i.next();
-	if (postState.containsKey(key))
-	  {
-	    if (preState.get(key).equals(postState.get(key)))
-	      {
-		i.remove();
-		postState.remove(key);
-	      }
-	  }
+        Object key = i.next();
+        if (postState.containsKey(key))
+          {
+            if (preState.get(key).equals(postState.get(key)))
+              {
+                i.remove();
+                postState.remove(key);
+              }
+          }
       }
   }
 }

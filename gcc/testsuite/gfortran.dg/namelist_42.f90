@@ -1,5 +1,6 @@
-! { dg-do run }
-! { dg-options "-mieee" { target sh*-*-* } }
+! { dg-do run { target fd_truncate } }
+! { dg-add-options ieee }
+! { dg-skip-if "NaN not supported" { spu-*-* } { "*" } { "" } }
 !
 ! PR fortran/34427
 !

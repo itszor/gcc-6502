@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/merge.h
  *  @brief Parallel implementation of std::merge().
@@ -43,225 +37,215 @@
 
 namespace __gnu_parallel
 {
-  /** @brief Merge routine being able to merge only the @c max_length
+  /** @brief Merge routine being able to merge only the @c __max_length
    * smallest elements.
    *
-   * The @c begin iterators are advanced accordingly, they might not
-   * reach @c end, in contrast to the usual variant.
-   * @param begin1 Begin iterator of first sequence.
-   * @param end1 End iterator of first sequence.
-   * @param begin2 Begin iterator of second sequence.
-   * @param end2 End iterator of second sequence.
-   * @param target Target begin iterator.
-   * @param max_length Maximum number of elements to merge.
-   * @param comp Comparator.
+   * The @c __begin iterators are advanced accordingly, they might not
+   * reach @c __end, in contrast to the usual variant.
+   * @param __begin1 Begin iterator of first sequence.
+   * @param __end1 End iterator of first sequence.
+   * @param __begin2 Begin iterator of second sequence.
+   * @param __end2 End iterator of second sequence.
+   * @param __target Target begin iterator.
+   * @param __max_length Maximum number of elements to merge.
+   * @param __comp Comparator.
    * @return Output end iterator. */
-  template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	   typename OutputIterator, typename _DifferenceTp,
-	   typename Comparator>
-    OutputIterator
-    merge_advance_usual(RandomAccessIterator1& begin1,
-			RandomAccessIterator1 end1,
-			RandomAccessIterator2& begin2,
-			RandomAccessIterator2 end2, OutputIterator target,
-			_DifferenceTp max_length, Comparator comp)
+  template<typename _RAIter1, typename _RAIter2,
+           typename _OutputIterator, typename _DifferenceTp,
+           typename _Compare>
+    _OutputIterator
+    __merge_advance_usual(_RAIter1& __begin1, _RAIter1 __end1,
+			  _RAIter2& __begin2, _RAIter2 __end2,
+			  _OutputIterator __target,
+			  _DifferenceTp __max_length, _Compare __comp)
     {
-      typedef _DifferenceTp difference_type;
-      while (begin1 != end1 && begin2 != end2 && max_length > 0)
-	{
-	  // array1[i1] < array0[i0]
-	  if (comp(*begin2, *begin1))
-	    *target++ = *begin2++;
-	  else
-	    *target++ = *begin1++;
-	  --max_length;
-	}
+      typedef _DifferenceTp _DifferenceType;
+      while (__begin1 != __end1 && __begin2 != __end2 && __max_length > 0)
+        {
+          // array1[__i1] < array0[i0]
+          if (__comp(*__begin2, *__begin1))
+            *__target++ = *__begin2++;
+          else
+            *__target++ = *__begin1++;
+          --__max_length;
+        }
 
-      if (begin1 != end1)
-	{
-	  target = std::copy(begin1, begin1 + max_length, target);
-	  begin1 += max_length;
-	}
+      if (__begin1 != __end1)
+        {
+          __target = std::copy(__begin1, __begin1 + __max_length, __target);
+          __begin1 += __max_length;
+        }
       else
-	{
-	  target = std::copy(begin2, begin2 + max_length, target);
-	  begin2 += max_length;
-	}
-      return target;
+        {
+          __target = std::copy(__begin2, __begin2 + __max_length, __target);
+          __begin2 += __max_length;
+        }
+      return __target;
     }
 
-  /** @brief Merge routine being able to merge only the @c max_length
+  /** @brief Merge routine being able to merge only the @c __max_length
    * smallest elements.
    *
-   * The @c begin iterators are advanced accordingly, they might not
-   * reach @c end, in contrast to the usual variant.
+   * The @c __begin iterators are advanced accordingly, they might not
+   * reach @c __end, in contrast to the usual variant.
    * Specially designed code should allow the compiler to generate
    * conditional moves instead of branches.
-   * @param begin1 Begin iterator of first sequence.
-   * @param end1 End iterator of first sequence.
-   * @param begin2 Begin iterator of second sequence.
-   * @param end2 End iterator of second sequence.
-   * @param target Target begin iterator.
-   * @param max_length Maximum number of elements to merge.
-   * @param comp Comparator.
+   * @param __begin1 Begin iterator of first sequence.
+   * @param __end1 End iterator of first sequence.
+   * @param __begin2 Begin iterator of second sequence.
+   * @param __end2 End iterator of second sequence.
+   * @param __target Target begin iterator.
+   * @param __max_length Maximum number of elements to merge.
+   * @param __comp Comparator.
    * @return Output end iterator. */
-  template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	   typename OutputIterator, typename _DifferenceTp,
-	   typename Comparator>
-    OutputIterator
-    merge_advance_movc(RandomAccessIterator1& begin1,
-		       RandomAccessIterator1 end1,
-		       RandomAccessIterator2& begin2,
-		       RandomAccessIterator2 end2,
-		       OutputIterator target,
-		       _DifferenceTp max_length, Comparator comp)
+  template<typename _RAIter1, typename _RAIter2,
+           typename _OutputIterator, typename _DifferenceTp,
+           typename _Compare>
+    _OutputIterator
+    __merge_advance_movc(_RAIter1& __begin1, _RAIter1 __end1,
+			 _RAIter2& __begin2, _RAIter2 __end2,
+			 _OutputIterator __target,
+			 _DifferenceTp __max_length, _Compare __comp)
     {
-      typedef _DifferenceTp difference_type;
-      typedef typename std::iterator_traits<RandomAccessIterator1>::value_type
-	value_type1;
-      typedef typename std::iterator_traits<RandomAccessIterator2>::value_type
-	value_type2;
+      typedef _DifferenceTp _DifferenceType;
+      typedef typename std::iterator_traits<_RAIter1>::value_type
+        _ValueType1;
+      typedef typename std::iterator_traits<_RAIter2>::value_type
+        _ValueType2;
 
 #if _GLIBCXX_ASSERTIONS
-      _GLIBCXX_PARALLEL_ASSERT(max_length >= 0);
+      _GLIBCXX_PARALLEL_ASSERT(__max_length >= 0);
 #endif
 
-      while (begin1 != end1 && begin2 != end2 && max_length > 0)
-	{
-	  RandomAccessIterator1 next1 = begin1 + 1;
-	  RandomAccessIterator2 next2 = begin2 + 1;
-	  value_type1 element1 = *begin1;
-	  value_type2 element2 = *begin2;
+      while (__begin1 != __end1 && __begin2 != __end2 && __max_length > 0)
+        {
+          _RAIter1 __next1 = __begin1 + 1;
+          _RAIter2 __next2 = __begin2 + 1;
+          _ValueType1 __element1 = *__begin1;
+          _ValueType2 __element2 = *__begin2;
 
-	  if (comp(element2, element1))
-	    {
-	      element1 = element2;
-	      begin2 = next2;
-	    }
-	  else
-	    begin1 = next1;
+          if (__comp(__element2, __element1))
+            {
+              __element1 = __element2;
+              __begin2 = __next2;
+            }
+          else
+            __begin1 = __next1;
 
-	  *target = element1;
+          *__target = __element1;
 
-	  ++target;
-	  --max_length;
-	}
-      if (begin1 != end1)
-	{
-	  target = std::copy(begin1, begin1 + max_length, target);
-	  begin1 += max_length;
-	}
+          ++__target;
+          --__max_length;
+        }
+      if (__begin1 != __end1)
+        {
+          __target = std::copy(__begin1, __begin1 + __max_length, __target);
+          __begin1 += __max_length;
+        }
       else
-	{
-	  target = std::copy(begin2, begin2 + max_length, target);
-	  begin2 += max_length;
-	}
-      return target;
+        {
+          __target = std::copy(__begin2, __begin2 + __max_length, __target);
+          __begin2 += __max_length;
+        }
+      return __target;
     }
 
-  /** @brief Merge routine being able to merge only the @c max_length
+  /** @brief Merge routine being able to merge only the @c __max_length
    * smallest elements.
    *
-   *  The @c begin iterators are advanced accordingly, they might not
-   *  reach @c end, in contrast to the usual variant.
+   *  The @c __begin iterators are advanced accordingly, they might not
+   *  reach @c __end, in contrast to the usual variant.
    *  Static switch on whether to use the conditional-move variant.
-   *  @param begin1 Begin iterator of first sequence.
-   *  @param end1 End iterator of first sequence.
-   *  @param begin2 Begin iterator of second sequence.
-   *  @param end2 End iterator of second sequence.
-   *  @param target Target begin iterator.
-   *  @param max_length Maximum number of elements to merge.
-   *  @param comp Comparator.
+   *  @param __begin1 Begin iterator of first sequence.
+   *  @param __end1 End iterator of first sequence.
+   *  @param __begin2 Begin iterator of second sequence.
+   *  @param __end2 End iterator of second sequence.
+   *  @param __target Target begin iterator.
+   *  @param __max_length Maximum number of elements to merge.
+   *  @param __comp Comparator.
    *  @return Output end iterator. */
-  template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	   typename OutputIterator, typename _DifferenceTp,
-	   typename Comparator>
-    inline OutputIterator
-    merge_advance(RandomAccessIterator1& begin1, RandomAccessIterator1 end1,
-		  RandomAccessIterator2& begin2, RandomAccessIterator2 end2,
-		  OutputIterator target, _DifferenceTp max_length,
-		  Comparator comp)
+  template<typename _RAIter1, typename _RAIter2,
+           typename _OutputIterator, typename _DifferenceTp,
+           typename _Compare>
+    inline _OutputIterator
+    __merge_advance(_RAIter1& __begin1, _RAIter1 __end1,
+		    _RAIter2& __begin2, _RAIter2 __end2,
+		    _OutputIterator __target, _DifferenceTp __max_length,
+		    _Compare __comp)
     {
-      _GLIBCXX_CALL(max_length)
+      _GLIBCXX_CALL(__max_length)
 
-      return merge_advance_movc(begin1, end1, begin2, end2, target,
-				max_length, comp);
+      return __merge_advance_movc(__begin1, __end1, __begin2, __end2,
+				  __target, __max_length, __comp);
     }
 
   /** @brief Merge routine fallback to sequential in case the
       iterators of the two input sequences are of different type.
-      *  @param begin1 Begin iterator of first sequence.
-      *  @param end1 End iterator of first sequence.
-      *  @param begin2 Begin iterator of second sequence.
-      *  @param end2 End iterator of second sequence.
-      *  @param target Target begin iterator.
-      *  @param max_length Maximum number of elements to merge.
-      *  @param comp Comparator.
+      *  @param __begin1 Begin iterator of first sequence.
+      *  @param __end1 End iterator of first sequence.
+      *  @param __begin2 Begin iterator of second sequence.
+      *  @param __end2 End iterator of second sequence.
+      *  @param __target Target begin iterator.
+      *  @param __max_length Maximum number of elements to merge.
+      *  @param __comp Comparator.
       *  @return Output end iterator. */
-  template<typename RandomAccessIterator1, typename RandomAccessIterator2,
-	   typename RandomAccessIterator3, typename Comparator>
-    inline RandomAccessIterator3
-    parallel_merge_advance(RandomAccessIterator1& begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator2& begin2,
-			   // different iterators, parallel implementation
-			   // not available			   
-			   RandomAccessIterator2 end2,
-			   RandomAccessIterator3 target, typename
-			   std::iterator_traits<RandomAccessIterator1>::
-			   difference_type max_length, Comparator comp)
-    { return merge_advance(begin1, end1, begin2, end2, target,
-			   max_length, comp); }
+  template<typename _RAIter1, typename _RAIter2,
+           typename _RAIter3, typename _Compare>
+    inline _RAIter3
+    __parallel_merge_advance(_RAIter1& __begin1, _RAIter1 __end1,
+			     _RAIter2& __begin2,
+			     // different iterators, parallel implementation
+			     // not available
+			     _RAIter2 __end2, _RAIter3 __target, typename
+			     std::iterator_traits<_RAIter1>::
+			     difference_type __max_length, _Compare __comp)
+    { return __merge_advance(__begin1, __end1, __begin2, __end2, __target,
+			     __max_length, __comp); }
 
   /** @brief Parallel merge routine being able to merge only the @c
-   * max_length smallest elements.
+   * __max_length smallest elements.
    *
-   *  The @c begin iterators are advanced accordingly, they might not
-   *  reach @c end, in contrast to the usual variant.
+   *  The @c __begin iterators are advanced accordingly, they might not
+   *  reach @c __end, in contrast to the usual variant.
    *  The functionality is projected onto parallel_multiway_merge.
-   *  @param begin1 Begin iterator of first sequence.
-   *  @param end1 End iterator of first sequence.
-   *  @param begin2 Begin iterator of second sequence.
-   *  @param end2 End iterator of second sequence.
-   *  @param target Target begin iterator.
-   *  @param max_length Maximum number of elements to merge.
-   *  @param comp Comparator.
+   *  @param __begin1 Begin iterator of first sequence.
+   *  @param __end1 End iterator of first sequence.
+   *  @param __begin2 Begin iterator of second sequence.
+   *  @param __end2 End iterator of second sequence.
+   *  @param __target Target begin iterator.
+   *  @param __max_length Maximum number of elements to merge.
+   *  @param __comp Comparator.
    *  @return Output end iterator.
    */
-  template<typename RandomAccessIterator1, typename RandomAccessIterator3,
-	   typename Comparator>
-    inline RandomAccessIterator3
-    parallel_merge_advance(RandomAccessIterator1& begin1,
-			   RandomAccessIterator1 end1,
-			   RandomAccessIterator1& begin2,
-			   RandomAccessIterator1 end2,
-			   RandomAccessIterator3 target, typename
-			   std::iterator_traits<RandomAccessIterator1>::
-			   difference_type max_length, Comparator comp)
+  template<typename _RAIter1, typename _RAIter3,
+           typename _Compare>
+    inline _RAIter3
+    __parallel_merge_advance(_RAIter1& __begin1, _RAIter1 __end1,
+			     _RAIter1& __begin2, _RAIter1 __end2,
+			     _RAIter3 __target, typename
+			     std::iterator_traits<_RAIter1>::
+			     difference_type __max_length, _Compare __comp)
     {
       typedef typename
-          std::iterator_traits<RandomAccessIterator1>::value_type value_type;
-      typedef typename std::iterator_traits<RandomAccessIterator1>::
-	difference_type difference_type1 /* == difference_type2 */;
-      typedef typename std::iterator_traits<RandomAccessIterator3>::
-	difference_type difference_type3;
-      typedef typename std::pair<RandomAccessIterator1, RandomAccessIterator1>
-        iterator_pair;
+          std::iterator_traits<_RAIter1>::value_type _ValueType;
+      typedef typename std::iterator_traits<_RAIter1>::
+        difference_type _DifferenceType1 /* == difference_type2 */;
+      typedef typename std::iterator_traits<_RAIter3>::
+        difference_type _DifferenceType3;
+      typedef typename std::pair<_RAIter1, _RAIter1>
+        _IteratorPair;
 
-      std::pair<RandomAccessIterator1, RandomAccessIterator1>
-	seqs[2] = { std::make_pair(begin1, end1),
-		    std::make_pair(begin2, end2) };
-      RandomAccessIterator3
-        target_end = parallel_multiway_merge
-          < /* stable = */ true, /* sentinels = */ false>(
-            seqs, seqs + 2, target, comp,
-            multiway_merge_exact_splitting
-              < /* stable = */ true, iterator_pair*,
-                Comparator, difference_type1>,
-            max_length);
+      _IteratorPair __seqs[2] = { std::make_pair(__begin1, __end1),
+				  std::make_pair(__begin2, __end2) };
+      _RAIter3 __target_end = parallel_multiway_merge
+	< /* __stable = */ true, /* __sentinels = */ false>
+	(__seqs, __seqs + 2, __target, multiway_merge_exact_splitting
+	 < /* __stable = */ true, _IteratorPair*,
+	 _Compare, _DifferenceType1>, __max_length, __comp,
+	 omp_get_max_threads());
 
-      return target_end;
+      return __target_end;
     }
-}	//namespace __gnu_parallel
+}       //namespace __gnu_parallel
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_MERGE_H */

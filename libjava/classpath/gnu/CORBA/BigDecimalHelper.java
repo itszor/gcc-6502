@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.CORBA;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,7 +47,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-import org.omg.CORBA.TypeCode;
 import org.omg.CORBA.TypeCodePackage.BadKind;
 
 /**
@@ -116,7 +117,7 @@ public class BigDecimalHelper
         if (f >= 0)
           bout.write(f);
       }
-    // The last byte has 0xC or 0xD in the last halfbyte.  
+    // The last byte has 0xC or 0xD in the last halfbyte.
     while ((f & 0xF) <= 0x9);
 
     return createFixed(scale, bout.toByteArray());
@@ -125,12 +126,9 @@ public class BigDecimalHelper
   /**
    * Write the big decimal as CORBA <code>fixed<.code>.
    * The scale will not be stored.
-   * 
+   *
    * @param out a stream to write into.
    * @param x a big decimal to write.
-   * @param digits a number of the decimal digits in the record
-   * being written. For the smaller
-   * numbers, zeroes are added to the left.
    *
    * @throws IOException if the stream write method throws one.
    * @throws BadKind if this BigDecimal has more digits than
@@ -139,7 +137,7 @@ public class BigDecimalHelper
   public static void write(java.io.OutputStream out, BigDecimal x)
                     throws IOException, BadKind
   {
-    StringBuffer v = new StringBuffer(x.unscaledValue().toString());
+    CPStringBuilder v = new CPStringBuilder(x.unscaledValue().toString());
 
     boolean negative = v.charAt(0) == '-';
 
@@ -169,7 +167,7 @@ public class BigDecimalHelper
    */
   private static BigDecimal createFixed(int scale, byte[] d)
   {
-    StringBuffer s = new StringBuffer(2 * d.length);
+    CPStringBuilder s = new CPStringBuilder(2 * d.length);
 
     int last = d.length - 1;
 

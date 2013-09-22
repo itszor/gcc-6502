@@ -1,9 +1,9 @@
-// Copyright (C) 2004, 2005, 2006 Free Software Foundation
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -12,9 +12,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 27.6.1.3 unformatted input functions
 // NB: ostream has a particular "seeks" category. Adopt this for istreams too.
@@ -33,11 +32,12 @@ void test06(void)
   // tellg
   {
     wistringstream iss(num1);
-    wistream::pos_type pos1 = iss.tellg();
+    iss.tellg();
     int asNum = 0;
     iss >> asNum;
     VERIFY( test = iss.eof() );
     VERIFY( test = !iss.fail() );
+    iss.clear();
     iss.tellg();
     VERIFY( test = !iss.fail() );
   }
@@ -45,7 +45,7 @@ void test06(void)
   // seekg
   {
     wistringstream iss(num1);
-    wistream::pos_type pos1 = iss.tellg();
+    iss.tellg();
     int asNum = 0;
     iss >> asNum;
     VERIFY( test = iss.eof() );

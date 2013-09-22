@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,7 +34,7 @@
 // warranty.
 
 /**
- * @file left_child_next_sibling_heap_.hpp
+ * @file left_child_next_sibling_heap_/left_child_next_sibling_heap_.hpp
  * Contains an implementation class for a basic heap.
  */
 
@@ -55,159 +49,100 @@
 #include <ext/pb_ds/detail/cond_dealtor.hpp>
 #include <ext/pb_ds/detail/type_utils.hpp>
 #include <ext/pb_ds/detail/left_child_next_sibling_heap_/node.hpp>
-#include <ext/pb_ds/detail/left_child_next_sibling_heap_/const_point_iterator.hpp>
+#include <ext/pb_ds/detail/left_child_next_sibling_heap_/point_const_iterator.hpp>
 #include <ext/pb_ds/detail/left_child_next_sibling_heap_/const_iterator.hpp>
 #ifdef PB_DS_LC_NS_HEAP_TRACE_
 #include <iostream>
-#endif 
+#endif
 #include <debug/debug.h>
 
 namespace __gnu_pbds
 {
   namespace detail
   {
-
 #ifdef _GLIBCXX_DEBUG
-#define PB_DS_CLASS_T_DEC						\
-    template<								\
-						typename Value_Type,	\
-						class Cmp_Fn,		\
-						typename Node_Metadata,	\
-						class Allocator,	\
-						bool Single_Link_Roots>
-#else 
-#define PB_DS_CLASS_T_DEC						\
-    template<								\
-						typename Value_Type,	\
-						class Cmp_Fn,		\
-						typename Node_Metadata,	\
-						class Allocator>
-#endif 
+#define PB_DS_CLASS_T_DEC \
+    template<typename Value_Type, typename Cmp_Fn, typename Node_Metadata, \
+	     typename _Alloc, bool Single_Link_Roots>
 
-#ifdef _GLIBCXX_DEBUG
-#define PB_DS_CLASS_C_DEC						\
-    left_child_next_sibling_heap_<					\
-							Value_Type,	\
-							Cmp_Fn,		\
-							Node_Metadata,	\
-							Allocator,	\
-							Single_Link_Roots>
-#else 
-#define PB_DS_CLASS_C_DEC						\
-    left_child_next_sibling_heap_<					\
-							Value_Type,	\
-							Cmp_Fn,		\
-							Node_Metadata,	\
-							Allocator>
-#endif 
+#define PB_DS_CLASS_C_DEC \
+    left_child_next_sibling_heap<Value_Type, Cmp_Fn, Node_Metadata,	\
+				  _Alloc, Single_Link_Roots>
+#else
+#define PB_DS_CLASS_T_DEC \
+    template<typename Value_Type, typename Cmp_Fn, typename Node_Metadata, \
+	     typename _Alloc>
 
-    /**
-     * class description = "Base class for some types of h3ap$">
-     **/
-#ifdef _GLIBCXX_DEBUG
+#define PB_DS_CLASS_C_DEC \
+    left_child_next_sibling_heap<Value_Type, Cmp_Fn, Node_Metadata, _Alloc>
+#endif
+
+    /// Base class for a basic heap.
     template<typename Value_Type,
-	     class Cmp_Fn,
+	     typename Cmp_Fn,
 	     typename Node_Metadata,
-	     class Allocator,
-	     bool Single_Link_Roots>
-#else 
-    template<typename Value_Type,
-	     class Cmp_Fn,
-	     typename Node_Metadata,
-	     class Allocator>
-#endif 
-    class left_child_next_sibling_heap_ : public Cmp_Fn
+	     typename _Alloc
+#ifdef _GLIBCXX_DEBUG
+	     ,bool Single_Link_Roots>
+#else
+	     >
+#endif
+    class left_child_next_sibling_heap : public Cmp_Fn
     {
-
     protected:
       typedef
-      typename Allocator::template rebind<
-      left_child_next_sibling_heap_node_<
-      Value_Type,
-      Node_Metadata,
-      Allocator> >::other
+      typename _Alloc::template rebind<
+      left_child_next_sibling_heap_node_<Value_Type, Node_Metadata,
+					 _Alloc> >::other
       node_allocator;
 
-      typedef typename node_allocator::value_type node;
-
-      typedef typename node_allocator::pointer node_pointer;
-
-      typedef typename node_allocator::const_pointer const_node_pointer;
-
+      typedef typename node_allocator::value_type     	node;
+      typedef typename node_allocator::pointer 		node_pointer;
+      typedef typename node_allocator::const_pointer	node_const_pointer;
       typedef Node_Metadata node_metadata;
-
-      typedef std::pair< node_pointer, node_pointer> node_pointer_pair;
+      typedef std::pair< node_pointer, node_pointer> 	node_pointer_pair;
 
     private:
-      typedef cond_dealtor< node, Allocator> cond_dealtor_t;
+      typedef cond_dealtor< node, _Alloc> 		cond_dealtor_t;
 
       enum
 	{
 	  simple_value = is_simple<Value_Type>::value
 	};
 
-      typedef integral_constant<int, simple_value> no_throw_copies_t;
+      typedef integral_constant<int, simple_value> 	no_throw_copies_t;
+      typedef typename _Alloc::template rebind<Value_Type>	__rebind_v;
 
     public:
+      typedef typename _Alloc::size_type 		size_type;
+      typedef typename _Alloc::difference_type 	difference_type;
+      typedef Value_Type 				value_type;
 
-      typedef typename Allocator::size_type size_type;
+      typedef typename __rebind_v::other::pointer 	pointer;
+      typedef typename __rebind_v::other::const_pointer const_pointer;
+      typedef typename __rebind_v::other::reference	reference;
+      typedef typename __rebind_v::other::const_reference const_reference;
 
-      typedef typename Allocator::difference_type difference_type;
+      typedef left_child_next_sibling_heap_node_point_const_iterator_<node, _Alloc>
+      point_const_iterator;
 
-      typedef Value_Type value_type;
+      typedef point_const_iterator 			point_iterator;
 
-      typedef
-      typename Allocator::template rebind<
-	value_type>::other::pointer
-      pointer;
-
-      typedef
-      typename Allocator::template rebind<
-	value_type>::other::const_pointer
-      const_pointer;
-
-      typedef
-      typename Allocator::template rebind<
-	value_type>::other::reference
-      reference;
-
-      typedef
-      typename Allocator::template rebind<
-	value_type>::other::const_reference
-      const_reference;
-
-      typedef
-      left_child_next_sibling_heap_node_const_point_iterator_<
-	node,
-	Allocator>
-      const_point_iterator;
-
-      typedef const_point_iterator point_iterator;
-
-      typedef
-      left_child_next_sibling_heap_const_iterator_<
-	node,
-	Allocator>
+      typedef left_child_next_sibling_heap_const_iterator_<node, _Alloc>
       const_iterator;
 
-      typedef const_iterator iterator;
+      typedef const_iterator 				iterator;
+      typedef Cmp_Fn 					cmp_fn;
+      typedef _Alloc 					allocator_type;
 
-      typedef Cmp_Fn cmp_fn;
-
-      typedef Allocator allocator;
-
-    public:
-
-      left_child_next_sibling_heap_();
-
-      left_child_next_sibling_heap_(const Cmp_Fn& r_cmp_fn);
-
-      left_child_next_sibling_heap_(const PB_DS_CLASS_C_DEC& other);
+      left_child_next_sibling_heap();
+      left_child_next_sibling_heap(const Cmp_Fn&);
+      left_child_next_sibling_heap(const left_child_next_sibling_heap&);
 
       void
-      swap(PB_DS_CLASS_C_DEC& other);
+      swap(PB_DS_CLASS_C_DEC&);
 
-      ~left_child_next_sibling_heap_();
+      ~left_child_next_sibling_heap();
 
       inline bool
       empty() const;
@@ -218,10 +153,10 @@ namespace __gnu_pbds
       inline size_type
       max_size() const;
 
-      Cmp_Fn& 
+      Cmp_Fn&
       get_cmp_fn();
 
-      const Cmp_Fn& 
+      const Cmp_Fn&
       get_cmp_fn() const;
 
       inline iterator
@@ -242,99 +177,95 @@ namespace __gnu_pbds
 #ifdef PB_DS_LC_NS_HEAP_TRACE_
       void
       trace() const;
-#endif 
+#endif
 
     protected:
-
       inline node_pointer
-      get_new_node_for_insert(const_reference r_val);
+      get_new_node_for_insert(const_reference);
 
       inline static void
-      make_child_of(node_pointer p_nd, node_pointer p_new_parent);
+      make_child_of(node_pointer, node_pointer);
 
       void
-      value_swap(PB_DS_CLASS_C_DEC& other);
+      value_swap(left_child_next_sibling_heap&);
 
       inline static node_pointer
-      parent(node_pointer p_nd);
+      parent(node_pointer);
 
       inline void
-      swap_with_parent(node_pointer p_nd, node_pointer p_parent);
+      swap_with_parent(node_pointer, node_pointer);
 
       void
-      bubble_to_top(node_pointer p_nd);
+      bubble_to_top(node_pointer);
 
       inline void
-      actual_erase_node(node_pointer p_nd);
+      actual_erase_node(node_pointer);
 
       void
-      clear_imp(node_pointer p_nd);
+      clear_imp(node_pointer);
 
       void
       to_linked_list();
 
       template<typename Pred>
       node_pointer
-      prune(Pred pred);
+      prune(Pred);
 
 #ifdef _GLIBCXX_DEBUG
       void
-      assert_valid() const;
+      assert_valid(const char*, int) const;
 
       void
-      assert_node_consistent(const_node_pointer p_nd, bool single_link) const;
+      assert_node_consistent(node_const_pointer, bool, const char*, int) const;
 
       static size_type
-      size_under_node(const_node_pointer p_nd);
+      size_under_node(node_const_pointer);
 
       static size_type
-      degree(const_node_pointer p_nd);
-#endif 
+      degree(node_const_pointer);
+#endif
 
 #ifdef PB_DS_LC_NS_HEAP_TRACE_
       static void
-      trace_node(const_node_pointer, size_type level);
-#endif 
-
-    protected:
-      node_pointer m_p_root;
-
-      size_type m_size;
+      trace_node(node_const_pointer, size_type);
+#endif
 
     private:
 #ifdef _GLIBCXX_DEBUG
       void
-      assert_iterators() const;
+      assert_iterators(const char*, int) const;
 
       void
-      assert_size() const;
+      assert_size(const char*, int) const;
 
       static size_type
-      size_from_node(const_node_pointer p_nd);
-#endif 
+      size_from_node(node_const_pointer);
+#endif
 
       node_pointer
-      recursive_copy_node(const_node_pointer p_nd);
+      recursive_copy_node(node_const_pointer);
 
       inline node_pointer
-      get_new_node_for_insert(const_reference r_val, false_type);
+      get_new_node_for_insert(const_reference, false_type);
 
       inline node_pointer
-      get_new_node_for_insert(const_reference r_val, true_type);
+      get_new_node_for_insert(const_reference, true_type);
 
 #ifdef PB_DS_LC_NS_HEAP_TRACE_
       template<typename Metadata_>
       static void
-      trace_node_metadata(const_node_pointer p_nd, type_to_type<Metadata_>);
+      trace_node_metadata(node_const_pointer, type_to_type<Metadata_>);
 
       static void
-      trace_node_metadata(const_node_pointer, type_to_type<null_left_child_next_sibling_heap_node_metadata>);
-#endif 
+      trace_node_metadata(node_const_pointer, type_to_type<null_type>);
+#endif
 
-    private:
-      static node_allocator s_node_allocator;
+      static node_allocator 	s_node_allocator;
+      static no_throw_copies_t 	s_no_throw_copies_ind;
 
-      static no_throw_copies_t s_no_throw_copies_ind;
+    protected:
+      node_pointer 		m_p_root;
+      size_type 		m_size;
     };
 
 #include <ext/pb_ds/detail/left_child_next_sibling_heap_/constructors_destructor_fn_imps.hpp>
@@ -352,4 +283,4 @@ namespace __gnu_pbds
   } // namespace detail
 } // namespace __gnu_pbds
 
-#endif 
+#endif

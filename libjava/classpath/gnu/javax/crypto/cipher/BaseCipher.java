@@ -1,5 +1,5 @@
-/* BaseCipher.java -- 
-   Copyright (C) 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
+/* BaseCipher.java --
+   Copyright (C) 2001, 2002, 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.javax.crypto.cipher;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Configuration;
 
 import java.security.InvalidKeyException;
@@ -54,7 +56,8 @@ import java.util.logging.Logger;
 public abstract class BaseCipher
     implements IBlockCipher, IBlockCipherSpi
 {
-  private static final Logger log = Logger.getLogger(BaseCipher.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(BaseCipher.class.getName()) : null;
   /** The canonical name prefix of the cipher. */
   protected String name;
   /** The default block size, in bytes. */
@@ -70,7 +73,7 @@ public abstract class BaseCipher
 
   /**
    * Trivial constructor for use by concrete subclasses.
-   * 
+   *
    * @param name the canonical name prefix of this instance.
    * @param defaultBlockSize the default block size in bytes.
    * @param defaultKeySize the default key size in bytes.
@@ -88,7 +91,7 @@ public abstract class BaseCipher
 
   public String name()
   {
-    StringBuffer sb = new StringBuffer(name).append('-');
+    CPStringBuilder sb = new CPStringBuilder(name).append('-');
     if (currentKey == null)
       sb.append(String.valueOf(8 * defaultBlockSize));
     else

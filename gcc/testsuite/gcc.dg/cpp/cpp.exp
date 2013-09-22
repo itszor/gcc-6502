@@ -1,4 +1,4 @@
-#   Copyright (C) 1997, 2000, 2003, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,6 +38,11 @@ dg-init
 # Main loop.
 dg-runtest [lsort [glob -nocomplain $srcdir/$subdir/*.{c,S} ]] \
 	"" $DEFAULT_CFLAGS
+
+# C/C++ common tests.
+dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cpp/*.{c,S} ]] \
+	" -Wc++-compat " ""
+
 
 # All done.
 dg-finish

@@ -1,29 +1,26 @@
-/* Copyright (C) 2005 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU OpenMP Library (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version.
+   under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
    Libgomp is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-   FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+   FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
    more details.
 
-   You should have received a copy of the GNU Lesser General Public License 
-   along with libgomp; see the file COPYING.LIB.  If not, write to the
-   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files, some
-   of which are compiled with GCC, to produce an executable, this library
-   does not by itself cause the resulting executable to be covered by the
-   GNU General Public License.  This exception does not however invalidate
-   any other reasons why the executable file might be covered by the GNU
-   General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This file contains routines for managing work-share iteration, both
    for loops and sections.  */
@@ -62,7 +59,7 @@ gomp_iter_static_next (long *pstart, long *pend)
      trip through the outer loop.  */
   if (ws->chunk_size == 0)
     {
-      unsigned long n, q, i;
+      unsigned long n, q, i, t;
       unsigned long s0, e0;
       long s, e;
 
@@ -77,11 +74,14 @@ gomp_iter_static_next (long *pstart, long *pend)
       /* Compute the "zero-based" start and end points.  That is, as
          if the loop began at zero and incremented by one.  */
       q = n / nthreads;
-      q += (q * nthreads != n);
-      s0 = q * i;
+      t = n % nthreads;
+      if (i < t)
+	{
+	  t = 0;
+	  q++;
+	}
+      s0 = q * i + t;
       e0 = s0 + q;
-      if (e0 > n)
-        e0 = n;
 
       /* Notice when no iterations allocated for this thread.  */
       if (s0 >= e0)
@@ -154,7 +154,7 @@ gomp_iter_dynamic_next_locked (long *pstart, long *pend)
   if (start == ws->end)
     return false;
 
-  chunk = ws->chunk_size * ws->incr;
+  chunk = ws->chunk_size;
   left = ws->end - start;
   if (ws->incr < 0)
     {
@@ -186,11 +186,38 @@ gomp_iter_dynamic_next (long *pstart, long *pend)
   struct gomp_work_share *ws = thr->ts.work_share;
   long start, end, nend, chunk, incr;
 
-  start = ws->next;
   end = ws->end;
   incr = ws->incr;
-  chunk = ws->chunk_size * incr;
+  chunk = ws->chunk_size;
 
+  if (__builtin_expect (ws->mode, 1))
+    {
+      long tmp = __sync_fetch_and_add (&ws->next, chunk);
+      if (incr > 0)
+	{
+	  if (tmp >= end)
+	    return false;
+	  nend = tmp + chunk;
+	  if (nend > end)
+	    nend = end;
+	  *pstart = tmp;
+	  *pend = nend;
+	  return true;
+	}
+      else
+	{
+	  if (tmp <= end)
+	    return false;
+	  nend = tmp + chunk;
+	  if (nend < end)
+	    nend = end;
+	  *pstart = tmp;
+	  *pend = nend;
+	  return true;
+	}
+    }
+
+  start = ws->next;
   while (1)
     {
       long left = end - start;

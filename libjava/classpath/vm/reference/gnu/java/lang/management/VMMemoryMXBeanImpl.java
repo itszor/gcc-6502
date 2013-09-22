@@ -1,5 +1,5 @@
 /* VMMemoryMXBeanImpl.java - VM impl. of a memory bean
-   Copyright (C) 2006 Free Software Foundation
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -37,7 +37,13 @@ exception statement from your version. */
 
 package gnu.java.lang.management;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
 import java.lang.management.MemoryUsage;
+
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Provides access to information about the memory
@@ -51,6 +57,8 @@ import java.lang.management.MemoryUsage;
 final class VMMemoryMXBeanImpl
 {
 
+  private VMMemoryMXBeanImpl() {} // Prohibits instantiation.
+
   /**
    * Returns an instance of {@link java.lang.management.MemoryUsage}
    * with appropriate initial, used, committed and maximum values
@@ -62,10 +70,7 @@ final class VMMemoryMXBeanImpl
    */
   static MemoryUsage getHeapMemoryUsage()
   {
-    Runtime runtime = Runtime.getRuntime();
-    long totalMem = runtime.totalMemory();
-    return new MemoryUsage(-1, totalMem - runtime.freeMemory(),
-			   totalMem, runtime.maxMemory());
+    return getUsage(MemoryType.HEAP);
   }
 
   /**
@@ -76,7 +81,10 @@ final class VMMemoryMXBeanImpl
    * @return an {@link java.lang.management.MemoryUsage} instance
    *         for non-heap memory.
    */
-  static native MemoryUsage getNonHeapMemoryUsage();
+  static MemoryUsage getNonHeapMemoryUsage()
+  {
+    return getUsage(MemoryType.NON_HEAP);
+  }
 
   /**
    * Returns the number of objects ready to be garbage collected.
@@ -105,5 +113,46 @@ final class VMMemoryMXBeanImpl
    *                output.
    */
   static native void setVerbose(boolean verbose);
+
+  /**
+   * Totals the memory usage from all the pools that match
+   * the given type.
+   *
+   * @param type the type of memory pools to accumulate
+   *             (heap or non-heap).
+   * @return the memory usage overall.
+   */
+  private static MemoryUsage getUsage(MemoryType type) {
+    long init = 0, committed = 0, used = 0, max = 0;
+    Iterator pools =
+      ManagementFactory.getMemoryPoolMXBeans().iterator();
+    while (pools.hasNext())
+      {
+        MemoryPoolMXBean pool = (MemoryPoolMXBean) pools.next();
+        if (pool.getType() == type)
+          {
+            MemoryUsage usage = pool.getUsage();
+            if (init != -1)
+              {
+                long poolInit = usage.getInit();
+                if (poolInit == -1)
+                  init = -1;
+                else
+                  init += poolInit;
+              }
+            committed += usage.getCommitted();
+            used += usage.getUsed();
+            if (max != -1)
+              {
+                long poolMax = usage.getMax();
+                if (poolMax == -1)
+                  max = -1;
+                else
+                  max += poolMax;
+              }
+          }
+      }
+    return new MemoryUsage(init, used, committed, max);
+  }
 
 }

@@ -1,11 +1,10 @@
 # libstdc++ "tool init file" for DejaGNU
 
-# Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-# Free Software Foundation, Inc.
+# Copyright (C) 2001-2013 Free Software Foundation, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
+# the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 # 
 # This program is distributed in the hope that it will be useful,
@@ -14,9 +13,8 @@
 # GNU General Public License for more details.
 # 
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-# 02110-1301, USA.
+# along with this program; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 
 
 # Define callbacks and load other libraries.  This file is loaded relatively
@@ -52,7 +50,10 @@ load_gcc_lib target-supports.exp
 load_gcc_lib target-supports-dg.exp
 load_lib prune.exp
 load_lib dg-options.exp
+load_gcc_lib scanasm.exp
 load_gcc_lib target-libpath.exp
+load_gcc_lib timeout.exp
+load_gcc_lib timeout-dg.exp
 load_gcc_lib wrapper.exp
 
 # Useful for debugging.  Pass the name of a variable and the verbosity
@@ -81,7 +82,7 @@ proc v3-copy-files {srcfiles} {
 # Called once, during runtest.exp setup.
 proc libstdc++_init { testfile } {
     global env
-    global v3-sharedlib 
+    global v3-sharedlib v3-libgomp
     global srcdir blddir objdir tool_root_dir
     global cc cxx cxxflags cxxpchflags cxxldflags
     global includes
@@ -89,14 +90,25 @@ proc libstdc++_init { testfile } {
     global ld_library_path
     global target_triplet
     global flags_file
+    global tool_timeout
+    global DEFAULT_CXXFLAGS
+    global STATIC_LIBCXXFLAGS
 
     # We set LC_ALL and LANG to C so that we get the same error
     # messages as expected.
     setenv LC_ALL C
     setenv LANG C
 
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
+
     set blddir [lookfor_file [get_multilibs] libstdc++-v3]
     set flags_file "${blddir}/scripts/testsuite_flags"
+    set shlib_ext [get_shlib_extension]
     v3track flags_file 2
 
     # If a test doesn't have special options, use DEFAULT_CXXFLAGS.
@@ -105,7 +117,7 @@ proc libstdc++_init { testfile } {
     #   2) might need to be negated 
     # In particular, some tests have to be run without precompiled
     # headers, or without assertions.
-    global DEFAULT_CXXFLAGS
+
     if ![info exists DEFAULT_CXXFLAGS] then {
 	set DEFAULT_CXXFLAGS ""
 	# Host specific goo here.
@@ -135,16 +147,19 @@ proc libstdc++_init { testfile } {
     v3track gccdir 3
 
     # Locate libgomp. This is only required for parallel mode.
-    set libgompdir [lookfor_file $blddir/../libgomp .libs/libgomp.so]
+    set v3-libgomp 0
+    set libgompdir [lookfor_file $blddir/../libgomp .libs/libgomp.$shlib_ext]
     if {$libgompdir != ""} {
+	set v3-libgomp 1
         set libgompdir [file dirname $libgompdir]
 	append ld_library_path_tmp ":${libgompdir}"
+	verbose -log "libgomp support detected"
     }
     v3track libgompdir 3
 
     # Locate libstdc++ shared library. (ie libstdc++.so.)
     set v3-sharedlib 0
-    set sharedlibdir [lookfor_file $blddir src/.libs/libstdc++.so]
+    set sharedlibdir [lookfor_file $blddir src/.libs/libstdc++.$shlib_ext]
     if {$sharedlibdir != ""} {
 	if { [string match "*-*-linux*" $target_triplet] && [isnative] } {
 	    set v3-sharedlib 1
@@ -153,9 +168,18 @@ proc libstdc++_init { testfile } {
     }
     v3track v3-sharedlib 3
 
+    set STATIC_LIBCXXFLAGS ""
+    set staticlibdir [lookfor_file $blddir src/.libs/libstdc++.a]
+    if {$staticlibdir != ""} {
+	set staticlibdir [file dirname $staticlibdir]
+	# Some targets use libstdc++.a%s in their specs, so they need a
+	# -B option for uninstalled testing.
+	set STATIC_LIBCXXFLAGS " -B${staticlibdir} "
+    }
+
     # Compute what needs to be added to the existing LD_LIBRARY_PATH.
     if {$gccdir != ""} {
-	set compiler ${gccdir}/g++
+	set compiler ${gccdir}/xg++
 	set ld_library_path ${ld_library_path_tmp}
 	append ld_library_path ":${blddir}/src/.libs"
 
@@ -181,9 +205,12 @@ proc libstdc++_init { testfile } {
 	set compiler [transform "g++"]
     }
 
+    # Set the default timeout for v3 tests.
+    set tool_timeout 600
+
     # Default settings.
     set cxx [transform "g++"]
-    set cxxflags "-g -O2 -D_GLIBCXX_ASSERT -fmessage-length=0"
+    set cxxflags "-D_GLIBCXX_ASSERT -fmessage-length=0"
     set cxxpchflags ""
     set cxxldflags ""
     set cc [transform "gcc"]
@@ -196,14 +223,23 @@ proc libstdc++_init { testfile } {
 	# directory, and then add that to the search path.
 	foreach src [glob "${srcdir}/util/*.h" \
 		          "${srcdir}/util/*.cc" \
- 		          "${srcdir}/util/*/*.hpp" \
+		          "${srcdir}/util/*.tcc" \
+		          "${srcdir}/util/*.hpp" \
+ 		          "${srcdir}/util/*/*.h" \
 		          "${srcdir}/util/*/*.cc" \
+		          "${srcdir}/util/*/*.tcc" \
 			  "${srcdir}/util/*/*.hpp" \
+		          "${srcdir}/util/*/*/*.h" \
 		          "${srcdir}/util/*/*/*.cc" \
+		          "${srcdir}/util/*/*/*.tcc" \
 			  "${srcdir}/util/*/*/*.hpp" \
+		          "${srcdir}/util/*/*/*/*.h" \
 		          "${srcdir}/util/*/*/*/*.cc" \
+		          "${srcdir}/util/*/*/*/*.tcc" \
   			  "${srcdir}/util/*/*/*/*.hpp" \
+		          "${srcdir}/util/*/*/*/*/*.h" \
 		          "${srcdir}/util/*/*/*/*/*.cc" \
+		          "${srcdir}/util/*/*/*/*/*.tcc" \
   			  "${srcdir}/util/*/*/*/*/*.hpp" ] {
 	    # Remove everything up to "util/..."
 	    set dst [string range $src [string length "${srcdir}/"] end]
@@ -338,9 +374,36 @@ proc libstdc++-dg-test { prog do_what extra_tool_flags } {
     # There is a libstdc++_compile made for us by default (via the tool-
     # and-target file), but the defaults are lacking in goodness.
     set comp_output [$select_compile "$prog" "$output_file" "$compile_type" $options];
-    set comp_output [ prune_g++_output $comp_output ];
 
     return [list $comp_output $output_file]
+}
+
+# Override the DejaGnu dg-test in order to clear flags after a test, as
+# is done for compiler tests in gcc-dg.exp.
+
+if { [info procs saved-dg-test] == [list] } {
+    rename dg-test saved-dg-test
+
+    proc dg-test { args } {
+	global additional_prunes
+	global errorInfo
+	global testname_with_flags
+
+	if { [ catch { eval saved-dg-test $args } errmsg ] } {
+	    set saved_info $errorInfo
+	    set additional_prunes ""
+	    if [info exists testname_with_flags] {
+		unset testname_with_flags
+	    }
+	    unset_timeout_vars
+	    error $errmsg $saved_info
+	}
+	set additional_prunes ""
+	unset_timeout_vars
+	if [info exists testname_with_flags] {
+	    unset testname_with_flags
+	}
+    }
 }
 
 # True if the library supports wchar_t.
@@ -361,6 +424,7 @@ proc v3_target_compile { source dest type options } {
     global cxxflags
     global cxxldflags
     global includes
+    global STATIC_LIBCXXFLAGS
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
         lappend options "libs=${gluefile}"
@@ -370,14 +434,14 @@ proc v3_target_compile { source dest type options } {
     set cxx_final $cxx
     set cxxlibglossflags  [libgloss_link_flags]
     set cxx_final [concat $cxx_final $cxxlibglossflags]
+    set cxx_final [concat $cxx_final $STATIC_LIBCXXFLAGS]
     set cxx_final [concat $cxx_final $cxxflags]
     set cxx_final [concat $cxx_final $includes]
 
     # Flag setting based on type argument.
     if { $type == "executable" } {
 	# Link the support objects into executables.
-        set cxx_final [concat $cxx_final $cxxldflags]
-	lappend options "additional_flags=./libtestc++.a"
+	lappend options "additional_flags=./libtestc++.a $cxxldflags"
     } else {
 	if { $type == "sharedlib" } {
 	    # Don't link in anything.
@@ -386,7 +450,7 @@ proc v3_target_compile { source dest type options } {
     }
 
     lappend options "compiler=$cxx_final"
-    lappend options "timeout=600"
+    lappend options "timeout=[timeout_value]"
 
     return [target_compile $source $dest $type $options]
 }
@@ -402,6 +466,7 @@ proc v3_target_compile_as_c { source dest type options } {
     global blddir
     global cc
     global cxxflags
+    global STATIC_LIBCXXFLAGS
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
         lappend options "libs=${gluefile}"
@@ -412,6 +477,7 @@ proc v3_target_compile_as_c { source dest type options } {
     set cc_final $cc
     set cxxlibglossflags [libgloss_link_flags]
     set cc_final [concat $cc_final $cxxlibglossflags]
+    set cc_final [concat $cc_final $STATIC_LIBCXXFLAGS]
     set cc_final [concat $cc_final $cxxflags]
     set cc_final [concat $cc_final $includes]
     regsub -all {\s[-]nostdinc[+][+]} $cc_final "" cc_final
@@ -443,15 +509,16 @@ proc v3_target_compile_as_c { source dest type options } {
 	set includestarget "${includesbase}/${machine}"
 	set cc_final [concat $cc_final "-I$includesbase -I$includestarget"]
 
-        set libsup "${comp_base_dir}/lib"
+        set libdir "-L${comp_base_dir}/lib"
     } else {
-        set libsup "${blddir}/libsupc++/.libs"
+        set libdir "-L${blddir}/libsupc++/.libs"
+	set libdir [concat $libdir "-L${blddir}/src/.libs"]
     }
 
-    set cc_final [concat $cc_final "-L$libsup"]
+    set cc_final [concat $cc_final "$libdir"]
 
     lappend options "compiler=$cc_final"
-    lappend options "timeout=600"
+    lappend options "timeout=[timeout_value]"
 
     return [target_compile $source $dest $type $options]
 }
@@ -512,7 +579,7 @@ proc v3-build_support { } {
     # Build the support objects.
     set source_files [list testsuite_abi.cc testsuite_allocator.cc \
 			  testsuite_character.cc testsuite_hooks.cc \
-	       	 rng/twister_rand_gen.cc io/verified_cmd_line_input.cc \
+	       	          io/verified_cmd_line_input.cc \
 			  io/prog_bar.cc performance/time/elapsed_timer.cc ]
     foreach f $source_files {
 	set obj [file rootname $f].o
@@ -571,6 +638,7 @@ proc check_v3_target_fileio { } {
     global et_fileio_saved
     global et_fileio_target_name
     global tool	
+    global srcdir
 
     if { ![info exists et_fileio_target_name] } {
 	set et_fileio_target_name ""
@@ -596,6 +664,8 @@ proc check_v3_target_fileio { } {
 	# the file functions
 	set src fileio[pid].cc
 	set exe fileio[pid].x
+	set testfile "cin_unget-1.txt"
+	v3-copy-files "$srcdir/data/$testfile"
 
 	set f [open $src "w"]
 	puts $f "#include <sys/types.h>"
@@ -603,20 +673,26 @@ proc check_v3_target_fileio { } {
 	puts $f "#include <fcntl.h>"
 	puts $f "#include <unistd.h>"
 	puts $f "#include <errno.h>"
+	puts $f "#include <string.h>"
 	puts $f "using namespace std;"	
 	puts $f "int main ()"
 	puts $f "{"
-	puts $f "  int fd  = open (\".\", O_RDONLY);"
+	puts $f "  int fd  = open (\"$testfile\", O_RDONLY);"
 	puts $f "  int ret = 0;"
+	puts $f "  char buf\[10\];"
 	puts $f "  if (fd == -1)"
-	puts $f "  {"
-	puts $f "    int err = errno;"
-	puts $f "    if (err == EIO || err == ENOSYS)"
-	puts $f "      ret = 1;"
-	puts $f "  }"
+	puts $f "    ret = 1;"
 	puts $f "  else"
 	puts $f "  {"
-	puts $f "    if (lseek (fd, 0, SEEK_CUR) == -1)"
+	puts $f "    if (lseek (fd, -1, SEEK_CUR) != -1 || errno != EINVAL)"
+	puts $f "      ret = 1;"
+	puts $f "    errno = 0;"
+	puts $f "    if (lseek (fd, 0, SEEK_CUR) != 0"
+	puts $f "        || read (fd, buf, 4) != 4"
+	puts $f "        || memcmp (buf, \"1234\", 4) != 0"
+	puts $f "        || lseek (fd, -2, SEEK_CUR) != 2"
+	puts $f "        || read (fd, buf, 2) != 2"
+	puts $f "        || memcmp (buf, \"34\", 2) != 0)"
 	puts $f "      ret = 1;"
 	puts $f "    close (fd);"
 	puts $f "  }"
@@ -686,7 +762,7 @@ proc check_v3_target_c_std { } {
 	puts $f "  int i = std::tr1::isnan(f);"
 	puts $f "  "
 	puts $f "  using std::wctomb;"
-	puts $f "  return 0;"
+	puts $f "  return i;"
 	puts $f "}" 
 	close $f
 
@@ -744,7 +820,6 @@ proc check_v3_target_time { } {
 	# Set up and compile a C++ test program that tries to use
 	# the time function
 	set src time[pid].cc
-	set exe time[pid].x
 
 	set f [open $src "w"]
 	puts $f "#include <time.h>"
@@ -755,13 +830,12 @@ proc check_v3_target_time { } {
 	puts $f "}" 
 	close $f
 
-	set lines [v3_target_compile $src $exe executable ""]
+	set lines [v3_target_compile $src /dev/null executable ""]
 	file delete $src
 
 	if [string match "" $lines] {
 	    # No error message, compilation succeeded.
 	    verbose "check_v3_target_time: compilation succeeded" 2
-	    remote_file build delete $exe
 	    set et_time_saved 1
 	} else {
 	    verbose "check_v3_target_time: compilation failed" 2
@@ -770,151 +844,60 @@ proc check_v3_target_time { } {
     return $et_time_saved
 }
 
-proc check_v3_target_rvalref { } {
-    global et_rvalref_saved
-    global et_rvalref_target_name
+proc check_v3_target_namedlocale { args } {
+    global et_namedlocale
     global tool	
 
-    if { ![info exists et_rvalref_target_name] } {
-	set et_rvalref_target_name ""
+    set et_namedlocale 0
+
+    # Set up, compile, and execute a C++ test program that tries to use
+    # the required named locale.
+    set exe nlocale[pid].x
+
+    if ![file exists ./$exe] {
+      set src nlocale[pid].cc
+
+      set f [open $src "w"]
+      puts $f "#include <locale>"
+      puts $f "#include <cstdio>"
+      puts $f "using namespace std;"	
+      puts $f "int main (int argc, char** argv)"
+      puts $f "{"
+      puts $f "  try"	
+      puts $f "  {"
+      puts $f "    locale(*(argv + 1));"
+      puts $f "    return 0;"
+      puts $f "  }"
+      puts $f "  catch(...)"
+      puts $f "  {"
+      puts $f "    printf(\"locale '%s' not supported\\n\", *(argv + 1));"
+      puts $f "    return 1;"
+      puts $f "  }"	
+      puts $f "}"
+      close $f
+
+      set lines [v3_target_compile $src $exe executable ""]
+      file delete $src
+
+      if ![string match "" $lines] {
+        verbose "check_v3_target_namedlocale: compilation failed" 2
+        return $et_namedlocale
+      }
+      # else No error message, compilation succeeded.
     }
+	
+    set result [${tool}_load "./$exe" "$args" ""]
+    set status [lindex $result 0]
 
-    # If the target has changed since we set the cached value, clear it.
-    set current_target [current_target_name]
-    if { $current_target != $et_rvalref_target_name } {
-	verbose "check_v3_target_rvalref: `$et_rvalref_target_name'" 2
-	set et_rvalref_target_name $current_target
-	if [info exists et_rvalref_saved] {
-	    verbose "check_v3_target_rvalref: removing cached result" 2
-	    unset et_rvalref_saved
-	}
+    verbose "check_v3_target_namedlocale <$args>: status is <$status>" 2
+
+    if { $status == "pass" } {
+      set et_namedlocale 1
     }
-
-    if [info exists et_rvalref_saved] {
-	verbose "check_v3_target_rvalref: using cached result" 2
-    } else {
-	set et_rvalref_saved 0
-
-	# Set up and compile a C++ test program that tries to use
-	# the library components of rval references
-	set src rvalref[pid].cc
-	set exe rvalref[pid].x
-
-	set f [open $src "w"]
-	puts $f "#include <iterator>"
-	puts $f "#include <utility>"
-	puts $f "using std::move;"
-	puts $f "using std::identity;"
-	puts $f "using std::forward;"
-	puts $f "using std::move_iterator;"
-	puts $f "using std::make_move_iterator;"
-	close $f
-
-	set lines [v3_target_compile $src $exe executable ""]
-	file delete $src
-
-	if [string match "" $lines] {
-	    # No error message, compilation succeeded.
-	    verbose "check_v3_target_rvalref: compilation succeeded" 2
-	    remote_file build delete $exe
-	    set et_rvalref_saved 1
-	} else {
-	    verbose "check_v3_target_rvalref: compilation failed" 2
-	}
-    }
-    return $et_rvalref_saved
-}
-
-proc check_v3_target_namedlocale { } {
-    global et_namedlocale_saved
-    global et_namedlocale_target_name
-    global tool	
-
-    if { ![info exists et_namedlocale_target_name] } {
-	set et_namedlocale_target_name ""
-    }
-
-    # If the target has changed since we set the cached value, clear it.
-    set current_target [current_target_name]
-    if { $current_target != $et_namedlocale_target_name } {
-	verbose "check_v3_target_namedlocale: `$et_namedlocale_target_name'" 2
-	set et_namedlocale_target_name $current_target
-	if [info exists et_namedlocale_saved] {
-	    verbose "check_v3_target_namedlocale: removing cached result" 2
-	    unset et_namedlocale_saved
-	}
-    }
-
-    if [info exists et_namedlocale_saved] {
-	verbose "check_v3_target_namedlocale: using cached result" 2
-    } else {
-	set et_namedlocale_saved 0
-
-	# Set up, compile, and execute a C++ test program that tries to use
-	# all the required named locales.
-	set src nlocale[pid].cc
-	set exe nlocale[pid].x
-
-	set f [open $src "w"]
-	puts $f "#include <locale>"
-	puts $f "using namespace std;"	
-	puts $f "int main ()"
-	puts $f "{"
-	puts $f "  try"	
-	puts $f "  {" 
-	puts $f "     locale(\"\");"
-	puts $f "     locale(\"de_DE\");"
-	puts $f "     locale(\"de_DE.ISO-8859-15@euro\");"
-	puts $f "     locale(\"de_DE@euro\");"
-	puts $f "     locale(\"en_HK\");"
-	puts $f "     locale(\"en_PH\");"
-	puts $f "     locale(\"en_US\");"
-	puts $f "     locale(\"en_US.ISO-8859-1\");"
-	puts $f "     locale(\"en_US.ISO-8859-15\");"
-	puts $f "     locale(\"en_US.UTF-8\");"
-	puts $f "     locale(\"es_ES\");"
-	puts $f "     locale(\"es_MX\");"
-	puts $f "     locale(\"fr_FR\");"
-	puts $f "     locale(\"fr_FR@euro\");"
-	puts $f "     locale(\"is_IS\");"
-	puts $f "     locale(\"is_IS.UTF-8\");"
-	puts $f "     locale(\"it_IT\");"
-	puts $f "     locale(\"ja_JP.eucjp\");"
-	puts $f "     locale(\"se_NO.UTF-8\");"
-	puts $f "     locale(\"ta_IN\");"
-	puts $f "     locale(\"zh_TW\");"
-	puts $f "     return 0;"
-	puts $f "  }"
-	puts $f "  catch(...)"
-	puts $f "  {"
-	puts $f "     return 1;"
-	puts $f "  }"	
-	puts $f "}"
-	close $f
-
-	set lines [v3_target_compile $src $exe executable ""]
-	file delete $src
-
-	if [string match "" $lines] {
-	    # No error message, compilation succeeded.
-	    set result [${tool}_load "./$exe" "" ""]
-	    set status [lindex $result 0]
-	    remote_file build delete $exe
-
-	    verbose "check_v3_target_namedlocale: status is <$status>" 2
-
-	    if { $status == "pass" } {
-		set et_namedlocale_saved 1
-	    }
-	} else {
-	    verbose "check_v3_target_namedlocale: compilation failed" 2
-	}
-    }
-    return $et_namedlocale_saved
+    return $et_namedlocale
 }
 
 proc check_v3_target_debug_mode { } {
-    global cxxflags
     global et_debug_mode
     global tool	
 
@@ -938,26 +921,21 @@ proc check_v3_target_debug_mode { } {
     } else {
 	set et_debug_mode 0
 
-	# Set up, compile, and execute a C++ test program that depends
-	# on debug mode working.
+	# Set up and preprocess a C++ test program that depends
+	# on debug mode activated.
 	set src debug_mode[pid].cc
-	set exe debug_mode[pid].exe
 
 	set f [open $src "w"]
-	puts $f "#include <string>"
-	puts $f "using namespace std;"	
-	puts $f "int main()"
-	puts $f "{ return 0; }"
+	puts $f "#ifndef _GLIBCXX_DEBUG"
+	puts $f "#  error No debug mode"
+	puts $f "#endif"
 	close $f
 
-	set cxxflags_saved $cxxflags
-	set cxxflags "$cxxflags -Werror -O0 -D_GLIBCXX_DEBUG"
-	set lines [v3_target_compile $src $exe executable ""]
-	set cxxflags $cxxflags_saved
+	set lines [v3_target_compile $src /dev/null preprocess ""]
 	file delete $src
 
 	if [string match "" $lines] {
-	    # No error message, compilation succeeded.
+	    # No error message, preprocessing succeeded.
 	    set et_debug_mode 1
 	}
     }
@@ -965,9 +943,101 @@ proc check_v3_target_debug_mode { } {
     return $et_debug_mode
 }
 
+proc check_v3_target_profile_mode { } {
+    global et_profile_mode
+    global tool	
+
+    if { ![info exists et_profile_mode_target_name] } {
+	set et_profile_mode_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_profile_mode_target_name } {
+	verbose "check_v3_target_profile_mode: `$et_profile_mode_target_name'" 2
+	set et_profile_mode_target_name $current_target
+	if [info exists et_profile_mode] {
+	    verbose "check_v3_target_profile_mode: removing cached result" 2
+	    unset et_profile_mode
+	}
+    }
+
+    if [info exists et_profile_mode] {
+	verbose "check_v3_target_profile_mode: using cached result" 2
+    } else {
+	set et_profile_mode 0
+
+	# Set up and preprocess a C++ test program that depends
+	# on profile mode activated.
+	set src profile_mode[pid].cc
+
+	set f [open $src "w"]
+	puts $f "#ifndef _GLIBCXX_PROFILE"
+	puts $f "#  error No profile mode"
+	puts $f "#endif"
+	close $f
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, preprocessing succeeded.
+	    set et_profile_mode 1
+	}
+    }
+    verbose "check_v3_target_profile_mode: $et_profile_mode" 2
+    return $et_profile_mode
+}
+
+proc check_v3_target_normal_mode { } {
+    global et_normal_mode
+    global tool	
+
+    if { ![info exists et_normal_mode_target_name] } {
+	set et_normal_mode_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_normal_mode_target_name } {
+	verbose "check_v3_target_normal_mode: `$et_normal_mode_target_name'" 2
+	set et_normal_mode_target_name $current_target
+	if [info exists et_normal_mode] {
+	    verbose "check_v3_target_normal_mode: removing cached result" 2
+	    unset et_normal_mode
+	}
+    }
+
+    if [info exists et_normal_mode] {
+	verbose "check_v3_target_normal_mode: using cached result" 2
+    } else {
+	set et_normal_mode 0
+
+	# Set up and compile a C++ test program that depends
+	# on normal mode activated.
+	set src normal_mode[pid].cc
+
+	set f [open $src "w"]
+	puts $f "#if defined(_GLIBCXX_DEBUG) || defined(_GLIBCXX_PROFILE) || defined(_GLIBCXX_PARALLEL)"
+	puts $f "#  error No normal mode"
+	puts $f "#endif"
+	close $f
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, compilation succeeded.
+	    set et_normal_mode 1
+	}
+    }
+    verbose "check_v3_target_normal_mode: $et_normal_mode" 2
+    return $et_normal_mode
+}
+
 proc check_v3_target_parallel_mode { } {
     global cxxflags
-    global DEFAULT_CXXFLAGS
+    global v3-libgomp
     global et_parallel_mode
 
     global tool	
@@ -992,31 +1062,738 @@ proc check_v3_target_parallel_mode { } {
     } else {
 	set et_parallel_mode 0
 
-	# Set up, compile, and execute a C++ test program that depends
-	# on parallel mode working.
-	set src parallel_mode[pid].cc
-	set exe parallel_mode[pid].exe
-
-	set f [open $src "w"]
-	puts $f "#include <omp.h>"
-	puts $f "int main()"
-	puts $f "{ return 0; }"
-	close $f
-
-	set cxxflags_saved $cxxflags
-	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
-
-	set lines [v3_target_compile $src $exe executable ""]
-	set cxxflags $cxxflags_saved
-	file delete $src
-
-	if [string match "" $lines] {
-	    # No error message, compilation succeeded.
+	# If 'make check-parallel' is running the test succeeds.
+	if { ${v3-libgomp} == 1 && [regexp "libgomp" $cxxflags] } {
 	    set et_parallel_mode 1
-	} else {
-	    verbose "check_v3_target_parallel_mode: compilation failed" 2
 	}
     }
     verbose "check_v3_target_parallel_mode: $et_parallel_mode" 2
     return $et_parallel_mode
 }
+
+proc check_v3_target_cstdint { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_cstdint
+
+    global tool	
+
+    if { ![info exists et_cstdint_target_name] } {
+	set et_cstdint_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_cstdint_target_name } {
+	verbose "check_v3_target_cstdint: `$et_cstdint_target_name'" 2
+	set et_cstdint_target_name $current_target
+	if [info exists et_cstdint] {
+	    verbose "check_v3_target_cstdint: removing cached result" 2
+	    unset et_cstdint
+	}
+    }
+
+    if [info exists et_cstdint] {
+	verbose "check_v3_target_cstdint: using cached result" 2
+    } else {
+	set et_cstdint 0
+
+	# Set up and preprocess a C++0x test program that depends
+	# on the C99 stdint facilities to be available.
+	set src cstdint[pid].cc
+
+	set f [open $src "w"]
+	puts $f "#include <tr1/cstdint>"
+	puts $f "#ifndef _GLIBCXX_USE_C99_STDINT_TR1"
+	puts $f "#  error No C99 stdint"
+	puts $f "#endif"
+	close $f
+
+	set cxxflags_saved $cxxflags
+	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	set cxxflags $cxxflags_saved
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, preprocess succeeded.
+	    set et_cstdint 1
+	} else {
+	    verbose "check_v3_target_cstdint: compilation failed" 2
+	}
+    }
+    verbose "check_v3_target_cstdint: $et_cstdint" 2
+    return $et_cstdint
+}
+
+proc check_v3_target_cmath { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_c99_math
+
+    global tool
+
+    if { ![info exists et_c99_math_target_name] } {
+	set et_c99_math_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_c99_math_target_name } {
+	verbose "check_v3_target_c99_math: `$et_c99_math_target_name'" 2
+	set et_c99_math_target_name $current_target
+	if [info exists et_c99_math] {
+	    verbose "check_v3_target_c99_math: removing cached result" 2
+	    unset et_c99_math
+	}
+    }
+
+    if [info exists et_c99_math] {
+	verbose "check_v3_target_c99_math: using cached result" 2
+    } else {
+	set et_c99_math 0
+
+	# Set up and preprocess a C++0x test program that depends
+	# on the C99 math facilities to be available.
+	set src c99_math[pid].cc
+
+	set f [open $src "w"]
+	puts $f "#include <tr1/cmath>"
+	puts $f "#ifndef _GLIBCXX_USE_C99_MATH_TR1"
+	puts $f "#  error No C99 math"
+	puts $f "#endif"
+	close $f
+
+	set cxxflags_saved $cxxflags
+	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	set cxxflags $cxxflags_saved
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, preprocess succeeded.
+	    set et_c99_math 1
+	} else {
+	    verbose "check_v3_target_c99_math: compilation failed" 2
+	}
+    }
+    verbose "check_v3_target_c99_math: $et_c99_math" 2
+    return $et_c99_math
+}
+
+proc check_v3_target_atomic_builtins { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_atomic_builtins
+
+    global tool
+
+    if { ![info exists et_atomic_builtins_target_name] } {
+	set et_atomic_builtins_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_atomic_builtins_target_name } {
+	verbose "check_v3_target_atomic_builtins: `$et_atomic_builtins_target_name'" 2
+	set et_atomic_builtins_target_name $current_target
+	if [info exists et_atomic_builtins] {
+	    verbose "check_v3_target_atomic_builtins: removing cached result" 2
+	    unset et_atomic_builtins
+	}
+    }
+
+    if [info exists et_atomic_builtins] {
+	verbose "check_v3_target_atomic_builtins: using cached result" 2
+    } else {
+	set et_atomic_builtins 0
+
+	# Set up and preprocess a C++0x test program that depends
+	# on the atomic builtin facilities to be available.
+	set src atomic_builtins[pid].cc
+
+	set f [open $src "w"]
+	puts $f "#if __GCC_ATOMIC_BOOL_LOCK_FREE < 2"
+	puts $f "#  error No atomic bool"
+	puts $f "#endif"
+	puts $f "#if __GCC_ATOMIC_INT_LOCK_FREE < 2"
+	puts $f "#  error No atomic int"
+	puts $f "#endif"
+	close $f
+
+	set cxxflags_saved $cxxflags
+	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror -std=gnu++0x"
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	set cxxflags $cxxflags_saved
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, preprocess succeeded.
+	    set et_atomic_builtins 1
+	} else {
+	    verbose "check_v3_target_atomic_builtins: compilation failed" 2
+	}
+    }
+    verbose "check_v3_target_atomic_builtins: $et_atomic_builtins" 2
+    return $et_atomic_builtins
+}
+
+proc check_v3_target_gthreads { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_gthreads
+
+    global tool
+
+    if { ![info exists et_gthreads_target_name] } {
+        set et_gthreads_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_gthreads_target_name } {
+        verbose "check_v3_target_gthreads: `$et_gthreads_target_name'" 2
+        set et_gthreads_target_name $current_target
+        if [info exists et_gthreads] {
+            verbose "check_v3_target_gthreads: removing cached result" 2
+            unset et_gthreads
+        }
+    }
+
+    if [info exists et_gthreads] {
+        verbose "check_v3_target_gthreads: using cached result" 2
+    } else {
+        set et_gthreads 0
+
+        # Set up and preprocess a C++0x test program that depends
+        # on the gthreads facilities to be available.
+        set src gthreads[pid].cc
+
+        set f [open $src "w"]
+	puts $f "#include <bits/c++config.h>"
+        puts $f "#ifndef _GLIBCXX_HAS_GTHREADS"
+        puts $f "#  error No gthread"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_gthreads 1
+        } else {
+            verbose "check_v3_target_gthreads: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_gthreads: $et_gthreads" 2
+    return $et_gthreads
+}
+
+proc check_v3_target_gthreads_timed { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_gthreads_timed
+
+    global tool
+
+    if { ![info exists et_gthreads_timed_target_name] } {
+        set et_gthreads_timed_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_gthreads_timed_target_name } {
+        verbose "check_v3_target_gthreads_timed: `$et_gthreads_timed_target_name'" 2
+        set et_gthreads_timed_target_name $current_target
+        if [info exists et_gthreads_timed] {
+            verbose "check_v3_target_gthreads_timed: removing cached result" 2
+            unset et_gthreads_timed
+        }
+    }
+
+    if [info exists et_gthreads_timed] {
+        verbose "check_v3_target_gthreads_timed: using cached result" 2
+    } else {
+        set et_gthreads_timed 0
+
+        # Set up and preprocess a C++0x test program that depends
+        # on the gthreads timed mutex facilities to be available.
+        set src gthreads_timed[pid].cc
+
+        set f [open $src "w"]
+	puts $f "#include <bits/c++config.h>"
+        puts $f "#ifndef _GLIBCXX_HAS_GTHREADS"
+        puts $f "#  error No gthread"
+        puts $f "#endif"
+        puts $f "#if !_GTHREAD_USE_MUTEX_TIMEDLOCK"
+        puts $f "#  error No gthread timed mutexes"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_gthreads_timed 1
+        } else {
+            verbose "check_v3_target_gthreads_timed: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_gthreads_timed: $et_gthreads_timed" 2
+    return $et_gthreads_timed
+}
+
+
+proc check_v3_target_sleep { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_sleep
+
+    global tool
+
+    if { ![info exists et_sleep_target_name] } {
+        set et_sleep_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_sleep_target_name } {
+        verbose "check_v3_target_sleep: `$et_sleep_target_name'" 2
+        set et_sleep_target_name $current_target
+        if [info exists et_sleep] {
+            verbose "check_v3_target_sleep: removing cached result" 2
+            unset et_sleep
+        }
+    }
+
+    if [info exists et_sleep] {
+        verbose "check_v3_target_sleep: using cached result" 2
+    } else {
+        set et_sleep 0
+	
+	# Set up and preprocess a C++11 test program that depends
+        # on the sleep facilities to be available.
+        set src sleep[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+        puts $f "#ifndef _GLIBCXX_USE_NANOSLEEP"
+        puts $f "# ifndef _GLIBCXX_HAVE_SLEEP"
+        puts $f "#  error No nanosleep or sleep"
+        puts $f "# endif"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_sleep 1
+        } else {
+            verbose "check_v3_target_sleep: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_sleep: $et_sleep" 2
+    return $et_sleep
+}
+
+proc check_v3_target_sched_yield { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_sched_yield
+
+    global tool
+
+    if { ![info exists et_sched_yield_target_name] } {
+        set et_sched_yield_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_sched_yield_target_name } {
+        verbose "check_v3_target_sched_yield: `$et_sched_yield_target_name'" 2
+        set et_sched_yield_target_name $current_target
+        if [info exists et_sched_yield] {
+            verbose "check_v3_target_sched_yield: removing cached result" 2
+            unset et_sched_yield
+        }
+    }
+
+    if [info exists et_sched_yield] {
+        verbose "check_v3_target_sched_yield: using cached result" 2
+    } else {
+        set et_sched_yield 0
+
+        # Set up and preprocess a C++0x test program that depends
+        # on the sched_yield facility to be available.
+        set src sched_yield[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+        puts $f "#ifndef _GLIBCXX_USE_SCHED_YIELD"
+        puts $f "#  error No sched yield"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_sched_yield 1
+        } else {
+            verbose "check_v3_target_sched_yield: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_sched_yield: $et_sched_yield" 2
+    return $et_sched_yield
+}
+
+proc check_v3_target_string_conversions { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_string_conversions
+
+    global tool
+
+    if { ![info exists et_string_conversions_target_name] } {
+        set et_string_conversions_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_string_conversions_target_name } {
+        verbose "check_v3_target_string_conversions: `$et_string_conversions_target_name'" 2
+        set et_string_conversions_target_name $current_target
+        if [info exists et_string_conversions] {
+            verbose "check_v3_target_string_conversions: removing cached result" 2
+            unset et_string_conversions
+        }
+    }
+
+    if [info exists et_string_conversions] {
+        verbose "check_v3_target_string_conversions: using cached result" 2
+    } else {
+        set et_string_conversions 0
+	
+	# Set up and preprocess a C++0x test program that depends
+        # on the string_conversions facilities to be available.
+        set src string_conversions[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+        puts $f "#if !defined(_GLIBCXX_USE_C99) || defined(_GLIBCXX_HAVE_BROKEN_VSWPRINTF)"
+        puts $f "#  error No string conversions"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_string_conversions 1
+        } else {
+            verbose "check_v3_target_string_conversions: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_string_conversions: $et_string_conversions" 2
+    return $et_string_conversions
+}
+
+proc check_v3_target_swprintf { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_swprintf
+
+    global tool
+
+    if { ![info exists et_swprintf_target_name] } {
+        set et_swprintf_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_swprintf_target_name } {
+        verbose "check_v3_target_swprintf: `$et_swprintf_target_name'" 2
+        set et_swprintf_target_name $current_target
+        if [info exists et_swprintf] {
+            verbose "check_v3_target_swprintf: removing cached result" 2
+            unset et_swprintf
+        }
+    }
+
+    if [info exists et_swprintf] {
+        verbose "check_v3_target_swprintf: using cached result" 2
+    } else {
+        set et_swprintf 0
+	
+	# Set up and preprocess a C++0x test program that depends
+        # on a standard swprintf function to be available.
+        set src swprintf[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+        puts $f "#if defined(_GLIBCXX_HAVE_BROKEN_VSWPRINTF)"
+        puts $f "#  error No swprintf"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_swprintf 1
+        } else {
+            verbose "check_v3_target_swprintf: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_swprintf: $et_swprintf" 2
+    return $et_swprintf
+}
+
+proc check_v3_target_binary_io { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_binary_io
+
+    global tool
+
+    if { ![info exists et_binary_io_target_name] } {
+        set et_binary_io_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_binary_io_target_name } {
+        verbose "check_v3_target_binary_io: `$et_binary_io_target_name'" 2
+        set et_binary_io_target_name $current_target
+        if [info exists et_binary_io] {
+            verbose "check_v3_target_binary_io: removing cached result" 2
+            unset et_binary_io
+        }
+    }
+
+    if [info exists et_binary_io] {
+        verbose "check_v3_target_binary_io: using cached result" 2
+    } else {
+        set et_binary_io 0
+	
+	# Set up and preprocess a C++0x test program that depends
+        # on text and binary I/O being the same.
+        set src binary_io[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+        puts $f "#if defined(_GLIBCXX_HAVE_DOS_BASED_FILESYSTEM)"
+        puts $f "#  error No binary io"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_binary_io 1
+        } else {
+            verbose "check_v3_target_binary_io: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_binary_io: $et_binary_io" 2
+    return $et_binary_io
+}
+
+proc check_v3_target_nprocs { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_nprocs
+
+    global tool
+
+    if { ![info exists et_nprocs_target_name] } {
+	set et_nprocs_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_nprocs_target_name } {
+	verbose "check_v3_target_nprocs: `$et_nprocs_target_name'" 2
+	set et_nprocs_target_name $current_target
+	if [info exists et_nprocs] {
+	    verbose "check_v3_target_nprocs: removing cached result" 2
+	    unset et_nprocs
+	}
+    }
+
+    if [info exists et_nprocs] {
+	verbose "check_v3_target_nprocs: using cached result" 2
+    } else {
+	set et_nprocs 0
+
+	# Set up and preprocess a C++0x test program that depends
+	# on either get_nprocs or sysconf to be available.
+	set src nprocs[pid].cc
+
+	set f [open $src "w"]
+        puts $f "#include <bits/c++config.h>"
+	puts $f "#if defined(_GLIBCXX_USE_GET_NPROCS)"
+	puts $f "#elif defined(_GLIBCXX_USE_PTHREADS_NUM_PROCESSORS_NP)"
+	puts $f "#elif defined(_GLIBCXX_USE_SYSCTL_HW_NCPU)"
+	puts $f "#elif defined(_GLIBCXX_USE_SC_NPROCESSORS_ONLN)"
+	puts $f "#elif defined(_GLIBCXX_USE_SC_NPROC_ONLN)"
+	puts $f "#else"
+	puts $f "#  error hardware_concurrency not implemented"
+	puts $f "#endif"
+	close $f
+
+	set cxxflags_saved $cxxflags
+	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+	set lines [v3_target_compile $src /dev/null preprocess ""]
+	set cxxflags $cxxflags_saved
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, preprocess succeeded.
+	    set et_nprocs 1
+	} else {
+	    verbose "check_v3_target_nprocs: compilation failed" 2
+	}
+    }
+    verbose "check_v3_target_nprocs: $et_nprocs" 2
+    return $et_nprocs
+}
+
+proc check_v3_target_static_libstdcxx { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_static_libstdcxx
+
+    global tool
+
+    if [info exists et_static_libstdcxx] {
+	verbose "check_v3_target_static_libstdcxx: using cached result" 2
+    } else {
+	set et_static_libstdcxx 0
+
+	# Set up and link a C++0x test program that depends
+	# on static linking
+	set src static-maybe[pid].cc
+
+	set f [open $src "w"]
+        puts $f "#include <iostream>"
+	puts $f "int main() {"
+	puts $f "int i(415);"
+	puts $f "std::cout<< i << std::endl;"
+	puts $f "return 0; }"
+	puts $f ""
+	close $f
+
+	set cxxflags_saved $cxxflags
+	set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -static-libstdc++"
+
+	set lines [v3_target_compile $src /dev/null executable ""]
+	set cxxflags $cxxflags_saved
+	file delete $src
+
+	if [string match "" $lines] {
+	    # No error message, link succeeded.
+	    set et_static_libstdcxx 1
+	} else {
+	    verbose "check_v3_target_static_libstdcxx: compilation failed" 2
+	}
+    }
+    verbose "check_v3_target_static_libstdcxx: $et_static_libstdcxx" 2
+    return $et_static_libstdcxx
+}
+
+proc check_v3_target_little_endian { } {
+    global cxxflags
+    global DEFAULT_CXXFLAGS
+    global et_little_endian
+
+    global tool
+
+    if { ![info exists et_little_endian_target_name] } {
+        set et_little_endian_target_name ""
+    }
+
+    # If the target has changed since we set the cached value, clear it.
+    set current_target [current_target_name]
+    if { $current_target != $et_little_endian_target_name } {
+        verbose "check_v3_target_little_endian: `$et_little_endian_target_name'" 2
+        set et_little_endian_target_name $current_target
+        if [info exists et_little_endian] {
+            verbose "check_v3_target_little_endian: removing cached result" 2
+            unset et_little_endian
+        }
+    }
+
+    if [info exists et_little_endian] {
+        verbose "check_v3_target_little_endian: using cached result" 2
+    } else {
+        set et_little_endian 0
+	
+        set src little_endian[pid].cc
+
+        set f [open $src "w"]
+        puts $f "#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__"
+        puts $f "#  error Not little endian"
+        puts $f "#endif"
+        close $f
+
+        set cxxflags_saved $cxxflags
+        set cxxflags "$cxxflags $DEFAULT_CXXFLAGS -Werror"
+
+        set lines [v3_target_compile $src /dev/null preprocess ""]
+        set cxxflags $cxxflags_saved
+        file delete $src
+
+        if [string match "" $lines] {
+            # No error message, preprocessing succeeded.
+            set et_little_endian 1
+        } else {
+            verbose "check_v3_target_little_endian: compilation failed" 2
+        }
+    }
+    verbose "check_v3_target_little_endian: $et_little_endian" 2
+    return $et_little_endian
+}
+
+set additional_prunes ""

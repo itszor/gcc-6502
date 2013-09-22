@@ -1,4 +1,4 @@
-/* GnomeDocumentType.java - 
+/* GnomeDocumentType.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.DocumentType;
 import org.w3c.dom.NamedNodeMap;
 
@@ -54,7 +56,7 @@ implements DocumentType
   {
     super (id);
   }
-  
+
   public String getName ()
   {
     return getNodeName ();
@@ -79,7 +81,7 @@ implements DocumentType
   public String toString ()
   {
     String publicId = getPublicId ();
-    StringBuffer buffer = new StringBuffer (getClass ().getName ());
+    CPStringBuilder buffer = new CPStringBuilder (getClass ().getName ());
     buffer.append ("[");
     if (publicId != null)
       {

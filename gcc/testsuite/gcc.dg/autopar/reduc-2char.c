@@ -1,18 +1,19 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops-details -fdump-tree-final_cleanup" } */
+/* { dg-options "-O2 -ftree-parallelize-loops=4 -fdump-tree-parloops-details -fdump-tree-optimized" } */
 
 #include <stdarg.h>
 #include <stdlib.h>
 
-#define N 16
+#define N 1600
 #define DIFF 121
+
+signed char b[N] = {1,2,3,6,8,10,12,14,16,18,20,22,24,26,28,30};
+signed char c[N] = {1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 
 __attribute__ ((noinline))
 void main1 (signed char x, signed char max_result, signed char min_result)
 {
   int i;
-  signed char b[N] = {1,2,3,6,8,10,12,14,16,18,20,22,24,26,28,30};
-  signed char c[N] = {1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
   signed char diff = 2;
   signed char max = x;
   signed char min = x;
@@ -38,16 +39,30 @@ void main1 (signed char x, signed char max_result, signed char min_result)
     abort ();
 }
 
+ __attribute__((noinline))
+ void init_arrays ()
+ {
+   int i;
+
+   for (i=16; i<N; i++)
+     {
+       b[i] = 1;
+       c[i] = 1;
+     }
+}
+
 int main (void)
 { 
+  init_arrays();
   main1 (100, 100, 1);
   main1 (0, 15, 0);
   return 0;
 }
 
+
 /* { dg-final { scan-tree-dump-times "Detected reduction" 2 "parloops" } } */
-/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 2 "parloops" } } */
+/* { dg-final { scan-tree-dump-times "SUCCESS: may be parallelized" 3 "parloops" } } */
 /* { dg-final { cleanup-tree-dump "parloops" } } */
-/* { dg-final { cleanup-tree-dump "final_cleanup" } } */
+/* { dg-final { cleanup-tree-dump "optimized" } } */
 
 

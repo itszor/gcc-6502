@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -43,7 +43,7 @@ package body Bcheck is
    -----------------------
 
    --  The following checking subprograms make up the parts of the
-   --  configuration consistency check.
+   --  configuration consistency check. See bodies for details of checks.
 
    procedure Check_Consistent_Dispatching_Policy;
    procedure Check_Consistent_Dynamic_Elaboration_Checking;
@@ -51,8 +51,11 @@ package body Bcheck is
    procedure Check_Consistent_Interrupt_States;
    procedure Check_Consistent_Locking_Policy;
    procedure Check_Consistent_Normalize_Scalars;
+   procedure Check_Consistent_Optimize_Alignment;
+   procedure Check_Consistent_Partition_Elaboration_Policy;
    procedure Check_Consistent_Queuing_Policy;
    procedure Check_Consistent_Restrictions;
+   procedure Check_Consistent_Restriction_No_Default_Initialization;
    procedure Check_Consistent_Zero_Cost_Exception_Handling;
 
    procedure Consistency_Error_Msg (Msg : String);
@@ -81,14 +84,19 @@ package body Bcheck is
          Check_Consistent_Locking_Policy;
       end if;
 
+      if Partition_Elaboration_Policy_Specified /= ' ' then
+         Check_Consistent_Partition_Elaboration_Policy;
+      end if;
+
       if Zero_Cost_Exceptions_Specified then
          Check_Consistent_Zero_Cost_Exception_Handling;
       end if;
 
       Check_Consistent_Normalize_Scalars;
+      Check_Consistent_Optimize_Alignment;
       Check_Consistent_Dynamic_Elaboration_Checking;
-
       Check_Consistent_Restrictions;
+      Check_Consistent_Restriction_No_Default_Initialization;
       Check_Consistent_Interrupt_States;
       Check_Consistent_Dispatching_Policy;
    end Check_Configuration_Consistency;
@@ -187,7 +195,8 @@ package body Bcheck is
 
                else
                   ALI_Path_Id :=
-                    Osint.Find_File ((ALIs.Table (A).Afile), Osint.Library);
+                    Osint.Full_Lib_File_Name (ALIs.Table (A).Afile);
+
                   if Osint.Is_Readonly_Library (ALI_Path_Id) then
                      if Tolerate_Consistency_Errors then
                         Error_Msg ("?{ should be recompiled");
@@ -276,7 +285,7 @@ package body Bcheck is
 
                Check_Policy : declare
                   Policy : constant Character :=
-                             ALIs.Table (A1).Task_Dispatching_Policy;
+                    ALIs.Table (A1).Task_Dispatching_Policy;
 
                begin
                   for A2 in A1 + 1 .. ALIs.Last loop
@@ -333,10 +342,10 @@ package body Bcheck is
             end record;
 
             PSD_Table  : array (0 .. Max_Prio) of Specific_Dispatching_Entry :=
-                           (others => Specific_Dispatching_Entry'
-                              (Dispatching_Policy => ' ',
-                               Afile              => No_ALI_Id,
-                               Loc                => 0));
+              (others => Specific_Dispatching_Entry'
+                 (Dispatching_Policy => ' ',
+                  Afile              => No_ALI_Id,
+                  Loc                => 0));
             --  Array containing an entry per priority containing the location
             --  where there is a Priority_Specific_Dispatching pragma that
             --  applies to the priority.
@@ -468,7 +477,7 @@ package body Bcheck is
 
                               --  Case 3. With'ed unit is Preelaborate or Pure
 
-                              elsif WU.Preelab or WU.Pure then
+                              elsif WU.Preelab or else WU.Pure then
                                  null;
 
                               --  Case 4. With'ed unit is internal file
@@ -631,7 +640,8 @@ package body Bcheck is
 
             begin
                for A2 in A1 + 1 .. ALIs.Last loop
-                  if ALIs.Table (A2).Locking_Policy /= ' ' and
+                  if ALIs.Table (A2).Locking_Policy /= ' '
+                       and then
                      ALIs.Table (A2).Locking_Policy /= Policy
                   then
                      Error_Msg_File_1 := ALIs.Table (A1).Sfile;
@@ -657,12 +667,11 @@ package body Bcheck is
    --  then all other units in the partition must also be compiled with
    --  Normalized_Scalars in effect.
 
-   --  There is some issue as to whether this consistency check is
-   --  desirable, it is certainly required at the moment by the RM.
-   --  We should keep a watch on the ARG and HRG deliberations here.
-   --  GNAT no longer depends on this consistency (it used to do so,
-   --  but that has been corrected in the latest version, since the
-   --  Initialize_Scalars pragma does not require consistency.
+   --  There is some issue as to whether this consistency check is desirable,
+   --  it is certainly required at the moment by the RM. We should keep a watch
+   --  on the ARG and HRG deliberations here. GNAT no longer depends on this
+   --  consistency (it used to do so, but that is no longer the case, since
+   --  pragma Initialize_Scalars pragma does not require consistency.)
 
    procedure Check_Consistent_Normalize_Scalars is
    begin
@@ -695,6 +704,103 @@ package body Bcheck is
          end loop;
       end if;
    end Check_Consistent_Normalize_Scalars;
+
+   -----------------------------------------
+   -- Check_Consistent_Optimize_Alignment --
+   -----------------------------------------
+
+   --  The rule is that all units which depend on the global default setting
+   --  of Optimize_Alignment must be compiled with the same setting for this
+   --  default. Units which specify an explicit local value for this setting
+   --  are exempt from the consistency rule (this includes all internal units).
+
+   procedure Check_Consistent_Optimize_Alignment is
+      OA_Setting : Character := ' ';
+      --  Reset when we find a unit that depends on the default and does
+      --  not have a local specification of the Optimize_Alignment setting.
+
+      OA_Unit : Unit_Id;
+      --  Id of unit from which OA_Setting was set
+
+      C : Character;
+
+   begin
+      for U in First_Unit_Entry .. Units.Last loop
+         C := Units.Table (U).Optimize_Alignment;
+
+         if C /= 'L' then
+            if OA_Setting = ' ' then
+               OA_Setting := C;
+               OA_Unit := U;
+
+            elsif OA_Setting = C then
+               null;
+
+            else
+               Error_Msg_Unit_1 := Units.Table (OA_Unit).Uname;
+               Error_Msg_Unit_2 := Units.Table (U).Uname;
+
+               Consistency_Error_Msg
+                 ("$ and $ compiled with different "
+                  & "default Optimize_Alignment settings");
+               return;
+            end if;
+         end if;
+      end loop;
+   end Check_Consistent_Optimize_Alignment;
+
+   ---------------------------------------------------
+   -- Check_Consistent_Partition_Elaboration_Policy --
+   ---------------------------------------------------
+
+   --  The rule is that all files for which the partition elaboration policy is
+   --  significant must be compiled with the same setting.
+
+   procedure Check_Consistent_Partition_Elaboration_Policy is
+   begin
+      --  First search for a unit specifying a policy and then
+      --  check all remaining units against it.
+
+      Find_Policy : for A1 in ALIs.First .. ALIs.Last loop
+         if ALIs.Table (A1).Partition_Elaboration_Policy /= ' ' then
+            Check_Policy : declare
+               Policy : constant Character :=
+                  ALIs.Table (A1).Partition_Elaboration_Policy;
+
+            begin
+               for A2 in A1 + 1 .. ALIs.Last loop
+                  if ALIs.Table (A2).Partition_Elaboration_Policy /= ' '
+                       and then
+                     ALIs.Table (A2).Partition_Elaboration_Policy /= Policy
+                  then
+                     Error_Msg_File_1 := ALIs.Table (A1).Sfile;
+                     Error_Msg_File_2 := ALIs.Table (A2).Sfile;
+
+                     Consistency_Error_Msg
+                       ("{ and { compiled with different partition "
+                          & "elaboration policies");
+                     exit Find_Policy;
+                  end if;
+               end loop;
+            end Check_Policy;
+
+            --  A No_Task_Hierarchy restriction must be specified for the
+            --  Sequential policy (RM H.6(6/2)).
+
+            if Partition_Elaboration_Policy_Specified = 'S'
+              and then not Cumulative_Restrictions.Set (No_Task_Hierarchy)
+            then
+               Error_Msg_File_1 := ALIs.Table (A1).Sfile;
+               Error_Msg
+                 ("{ has sequential partition elaboration policy, but no");
+               Error_Msg
+                 ("pragma Restrictions (No_Task_Hierarchy) was specified");
+            end if;
+
+            exit Find_Policy;
+         end if;
+      end loop Find_Policy;
+   end Check_Consistent_Partition_Elaboration_Policy;
 
    -------------------------------------
    -- Check_Consistent_Queuing_Policy --
@@ -737,10 +843,9 @@ package body Bcheck is
    -- Check_Consistent_Restrictions --
    -----------------------------------
 
-   --  The rule is that if a restriction is specified in any unit,
-   --  then all units must obey the restriction. The check applies
-   --  only to restrictions which require partition wide consistency,
-   --  and not to internal units.
+   --  The rule is that if a restriction is specified in any unit, then all
+   --  units must obey the restriction. The check applies only to restrictions
+   --  which require partition wide consistency, and not to internal units.
 
    procedure Check_Consistent_Restrictions is
       Restriction_File_Output : Boolean;
@@ -773,7 +878,7 @@ package body Bcheck is
                   declare
                      M1 : constant String := "{ has restriction ";
                      S  : constant String := Restriction_Id'Image (R);
-                     M2 : String (1 .. 200); -- big enough!
+                     M2 : String (1 .. 2000); -- big enough!
                      P  : Integer;
 
                   begin
@@ -807,6 +912,22 @@ package body Bcheck is
    --  Start of processing for Check_Consistent_Restrictions
 
    begin
+      --  A special test, if we have a main program, then if it has an
+      --  allocator in the body, this is considered to be a violation of
+      --  the restriction No_Allocators_After_Elaboration. We just mark
+      --  this restriction and then the normal circuit will flag it.
+
+      if Bind_Main_Program
+        and then ALIs.Table (ALIs.First).Main_Program /= None
+        and then not No_Main_Subprogram
+        and then ALIs.Table (ALIs.First).Allocator_In_Body
+      then
+         Cumulative_Restrictions.Violated
+           (No_Allocators_After_Elaboration) := True;
+         ALIs.Table (ALIs.First).Restrictions.Violated
+           (No_Allocators_After_Elaboration) := True;
+      end if;
+
       --  Loop through all restriction violations
 
       for R in All_Restrictions loop
@@ -864,7 +985,7 @@ package body Bcheck is
                                 ("  { (count = at least #)");
                            else
                               Consistency_Error_Msg
-                                ("  % (count = #)");
+                                ("  { (count = #)");
                            end if;
                         end if;
                      end if;
@@ -880,9 +1001,7 @@ package body Bcheck is
 
       for ND in No_Deps.First .. No_Deps.Last loop
          declare
-            ND_Unit : constant Name_Id :=
-                        No_Deps.Table (ND).No_Dep_Unit;
-
+            ND_Unit : constant Name_Id := No_Deps.Table (ND).No_Dep_Unit;
          begin
             for J in ALIs.First .. ALIs.Last loop
                declare
@@ -911,6 +1030,75 @@ package body Bcheck is
          end;
       end loop;
    end Check_Consistent_Restrictions;
+
+   ------------------------------------------------------------
+   -- Check_Consistent_Restriction_No_Default_Initialization --
+   ------------------------------------------------------------
+
+   --  The Restriction (No_Default_Initialization) has special consistency
+   --  rules. The rule is that no unit compiled without this restriction
+   --  that violates the restriction can WITH a unit that is compiled with
+   --  the restriction.
+
+   procedure Check_Consistent_Restriction_No_Default_Initialization is
+   begin
+      --  Nothing to do if no one set this restriction
+
+      if not Cumulative_Restrictions.Set (No_Default_Initialization) then
+         return;
+      end if;
+
+      --  Nothing to do if no one violates the restriction
+
+      if not Cumulative_Restrictions.Violated (No_Default_Initialization) then
+         return;
+      end if;
+
+      --  Otherwise we go into a full scan to find possible problems
+
+      for U in Units.First .. Units.Last loop
+         declare
+            UTE : Unit_Record renames Units.Table (U);
+            ATE : ALIs_Record renames ALIs.Table (UTE.My_ALI);
+
+         begin
+            if ATE.Restrictions.Violated (No_Default_Initialization) then
+               for W in UTE.First_With .. UTE.Last_With loop
+                  declare
+                     AFN : constant File_Name_Type := Withs.Table (W).Afile;
+
+                  begin
+                     --  The file name may not be present for withs of certain
+                     --  generic run-time files. The test can be safely left
+                     --  out in such cases anyway.
+
+                     if AFN /= No_File then
+                        declare
+                           WAI : constant ALI_Id :=
+                             ALI_Id (Get_Name_Table_Info (AFN));
+                           WTE : ALIs_Record renames ALIs.Table (WAI);
+
+                        begin
+                           if WTE.Restrictions.Set
+                               (No_Default_Initialization)
+                           then
+                              Error_Msg_Unit_1 := UTE.Uname;
+                              Consistency_Error_Msg
+                                ("unit $ compiled without restriction "
+                                 & "No_Default_Initialization");
+                              Error_Msg_Unit_1 := Withs.Table (W).Uname;
+                              Consistency_Error_Msg
+                                ("withs unit $, compiled with restriction "
+                                 & "No_Default_Initialization");
+                           end if;
+                        end;
+                     end if;
+                  end;
+               end loop;
+            end if;
+         end;
+      end loop;
+   end Check_Consistent_Restriction_No_Default_Initialization;
 
    ---------------------------------------------------
    -- Check_Consistent_Zero_Cost_Exception_Handling --
@@ -1018,15 +1206,7 @@ package body Bcheck is
          --  If consistency errors are tolerated,
          --  output the message as a warning.
 
-         declare
-            Warning_Msg : String (1 .. Msg'Length + 1);
-
-         begin
-            Warning_Msg (1) := '?';
-            Warning_Msg (2 .. Warning_Msg'Last) := Msg;
-
-            Error_Msg (Warning_Msg);
-         end;
+         Error_Msg ('?' & Msg);
 
       --  Otherwise the consistency error is a true error
 

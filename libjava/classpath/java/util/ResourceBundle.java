@@ -41,6 +41,8 @@ package java.util;
 
 import gnu.classpath.VMStackWalker;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -93,7 +95,7 @@ public abstract class ResourceBundle
   /**
    * Maximum size of our cache of <code>ResourceBundle</code>s keyed by
    * {@link BundleKey} instances.
-   * 
+   *
    * @see BundleKey
    */
   private static final int CACHE_SIZE = 100;
@@ -118,12 +120,13 @@ public abstract class ResourceBundle
    * {@link #CACHE_SIZE} accessed <code>ResourceBundle</code>s keyed by the
    * tuple: default locale, resource-bundle name, resource-bundle locale, and
    * classloader.
-   * 
+   *
    * @see BundleKey
    */
-  private static Map bundleCache = new LinkedHashMap(CACHE_SIZE + 1, 0.75F, true)
+  private static Map<BundleKey,Object> bundleCache =
+    new LinkedHashMap<BundleKey,Object>(CACHE_SIZE + 1, 0.75F, true)
   {
-    public boolean removeEldestEntry(Map.Entry entry)
+    public boolean removeEldestEntry(Map.Entry<BundleKey,Object> entry)
     {
       return size() > CACHE_SIZE;
     }
@@ -185,8 +188,8 @@ public abstract class ResourceBundle
 
     String className = getClass().getName();
     throw new MissingResourceException("Key '" + key
-				       + "'not found in Bundle: "
-				       + className, className, key);
+                                       + "'not found in Bundle: "
+                                       + className, className, key);
   }
 
   /**
@@ -267,7 +270,7 @@ public abstract class ResourceBundle
     {
       set(dl, s, l, cl);
     }
-    
+
     void set(Locale dl, String s, Locale l, ClassLoader cl)
     {
       defaultLocale = dl;
@@ -277,12 +280,12 @@ public abstract class ResourceBundle
       hashcode = defaultLocale.hashCode() ^ baseName.hashCode()
           ^ locale.hashCode() ^ classLoader.hashCode();
     }
-    
+
     public int hashCode()
     {
       return hashcode;
     }
-    
+
     public boolean equals(Object o)
     {
       if (! (o instanceof BundleKey))
@@ -293,15 +296,30 @@ public abstract class ResourceBundle
           && baseName.equals(key.baseName)
           && locale.equals(key.locale)
           && classLoader.equals(key.classLoader);
-    }    
+    }
+
+    public String toString()
+    {
+      CPStringBuilder builder = new CPStringBuilder(getClass().getName());
+      builder.append("[defaultLocale=");
+      builder.append(defaultLocale);
+      builder.append(",baseName=");
+      builder.append(baseName);
+      builder.append(",locale=");
+      builder.append(locale);
+      builder.append(",classLoader=");
+      builder.append(classLoader);
+      builder.append("]");
+      return builder.toString();
+    }
   }
-  
+
   /** A cache lookup key. This avoids having to a new one for every
    *  getBundle() call. */
-  private static BundleKey lookupKey = new BundleKey();
-  
+  private static final BundleKey lookupKey = new BundleKey();
+
   /** Singleton cache entry to represent previous failed lookups. */
-  private static Object nullEntry = new Object();
+  private static final Object nullEntry = new Object();
 
   /**
    * Get the appropriate ResourceBundle for the given locale. The following
@@ -365,7 +383,7 @@ public abstract class ResourceBundle
    * <li>Locale("es", "ES"): result MyResources_es_ES.class, parent
    *   MyResources.class</li>
    * </ul>
-   * 
+   *
    * <p>The file MyResources_fr_CH.properties is never used because it is hidden
    * by MyResources_fr_CH.class.</p>
    *
@@ -452,50 +470,50 @@ public abstract class ResourceBundle
     ResourceBundle bundle = null;
     try
       {
-        Class rbClass;
+        Class<?> rbClass;
         if (classloader == null)
           rbClass = Class.forName(localizedName);
         else
           rbClass = classloader.loadClass(localizedName);
-	// Note that we do the check up front instead of catching
-	// ClassCastException.  The reason for this is that some crazy
-	// programs (Eclipse) have classes that do not extend
-	// ResourceBundle but that have the same name as a property
-	// bundle; in fact Eclipse relies on ResourceBundle not
-	// instantiating these classes.
-	if (ResourceBundle.class.isAssignableFrom(rbClass))
-	  bundle = (ResourceBundle) rbClass.newInstance();
+        // Note that we do the check up front instead of catching
+        // ClassCastException.  The reason for this is that some crazy
+        // programs (Eclipse) have classes that do not extend
+        // ResourceBundle but that have the same name as a property
+        // bundle; in fact Eclipse relies on ResourceBundle not
+        // instantiating these classes.
+        if (ResourceBundle.class.isAssignableFrom(rbClass))
+          bundle = (ResourceBundle) rbClass.newInstance();
       }
     catch (Exception ex) {}
 
     if (bundle == null)
       {
-	try
-	  {
-	    InputStream is;
-	    String resourceName
-	      = localizedName.replace('.', '/') + ".properties";
-	    if (classloader == null)
-	      is = ClassLoader.getSystemResourceAsStream(resourceName);
-	    else
-	      is = classloader.getResourceAsStream(resourceName);
-	    if (is != null)
-	      bundle = new PropertyResourceBundle(is);
-	  }
-	catch (IOException ex)
-	  {
-	    MissingResourceException mre = new MissingResourceException
-	      ("Failed to load bundle: " + localizedName, localizedName, "");
-	    mre.initCause(ex);
-	    throw mre;
-	  }
+        try
+          {
+            InputStream is;
+            String resourceName
+              = localizedName.replace('.', '/') + ".properties";
+            if (classloader == null)
+              is = ClassLoader.getSystemResourceAsStream(resourceName);
+            else
+              is = classloader.getResourceAsStream(resourceName);
+            if (is != null)
+              bundle = new PropertyResourceBundle(is);
+          }
+        catch (IOException ex)
+          {
+            MissingResourceException mre = new MissingResourceException
+              ("Failed to load bundle: " + localizedName, localizedName, "");
+            mre.initCause(ex);
+            throw mre;
+          }
       }
 
     return bundle;
   }
 
   /**
-   * Tries to load a the bundle for a given locale, also loads the backup
+   * Tries to load the bundle for a given locale, also loads the backup
    * locales with the same language.
    *
    * @param baseName the raw bundle name, without locale qualifiers
@@ -506,37 +524,37 @@ public abstract class ResourceBundle
    * @return the resource bundle if it was loaded, otherwise the backup
    */
   private static ResourceBundle tryBundle(String baseName, Locale locale,
-                                          ClassLoader classLoader, 
-					  boolean wantBase)
+                                          ClassLoader classLoader,
+                                          boolean wantBase)
   {
     String language = locale.getLanguage();
     String country = locale.getCountry();
     String variant = locale.getVariant();
-    
+
     int baseLen = baseName.length();
 
-    // Build up a StringBuffer containing the complete bundle name, fully
+    // Build up a CPStringBuilder containing the complete bundle name, fully
     // qualified by locale.
-    StringBuffer sb = new StringBuffer(baseLen + variant.length() + 7);
+    CPStringBuilder sb = new CPStringBuilder(baseLen + variant.length() + 7);
 
     sb.append(baseName);
-    
+
     if (language.length() > 0)
       {
-	sb.append('_');
-	sb.append(language);
-	
-	if (country.length() > 0)
-	  {
-	    sb.append('_');
-	    sb.append(country);
-	    
-	    if (variant.length() > 0)
-	      {
-	        sb.append('_');
-		sb.append(variant);
-	      }
-	  }
+        sb.append('_');
+        sb.append(language);
+
+        if (country.length() > 0)
+          {
+            sb.append('_');
+            sb.append(country);
+
+            if (variant.length() > 0)
+              {
+                sb.append('_');
+                sb.append(variant);
+              }
+          }
       }
 
     // Now try to load bundles, starting with the most specialized name.
@@ -544,28 +562,64 @@ public abstract class ResourceBundle
     String bundleName = sb.toString();
     ResourceBundle first = null; // The most specialized bundle.
     ResourceBundle last = null; // The least specialized bundle.
-    
+
     while (true)
       {
         ResourceBundle foundBundle = tryBundle(bundleName, classLoader);
-	if (foundBundle != null)
-	  {
-	    if (first == null)
-	      first = foundBundle;
-	    if (last != null)
-	      last.parent = foundBundle;
-	    foundBundle.locale = locale;
-	    last = foundBundle;
-	  }
-	int idx = bundleName.lastIndexOf('_');
-	// Try the non-localized base name only if we already have a
-	// localized child bundle, or wantBase is true.
-	if (idx > baseLen || (idx == baseLen && (first != null || wantBase)))
-	  bundleName = bundleName.substring(0, idx);
-	else
-	  break;
+        if (foundBundle != null)
+          {
+            if (first == null)
+              first = foundBundle;
+            if (last != null)
+              last.parent = foundBundle;
+            foundBundle.locale = locale;
+            last = foundBundle;
+          }
+        int idx = bundleName.lastIndexOf('_');
+        // Try the non-localized base name only if we already have a
+        // localized child bundle, or wantBase is true.
+        if (idx > baseLen || (idx == baseLen && (first != null || wantBase)))
+          bundleName = bundleName.substring(0, idx);
+        else
+          break;
       }
-    
+
     return first;
   }
+
+  /**
+   * Remove all resources from the cache that were loaded
+   * using the class loader of the calling class.
+   *
+   * @since 1.6
+   */
+  public static final void clearCache()
+  {
+    clearCache(VMStackWalker.getCallingClassLoader());
+  }
+
+  /**
+   * Remove all resources from the cache that were loaded
+   * using the specified class loader.
+   *
+   * @param loader the loader used for the bundles that will be removed.
+   * @throws NullPointerException if {@code loader} is {@code null}.
+   * @since 1.6
+   */
+  public static final void clearCache(ClassLoader loader)
+  {
+    if (loader == null)
+      throw new NullPointerException("The loader can not be null.");
+    synchronized (ResourceBundle.class)
+      {
+        Iterator<BundleKey> iter = bundleCache.keySet().iterator();
+        while (iter.hasNext())
+          {
+            BundleKey key = iter.next();
+            if (key.classLoader == loader)
+              iter.remove();
+          }
+      }
+  }
+
 }

@@ -1,9 +1,9 @@
-// Copyright (C) 2004 Free Software Foundation, Inc.
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -12,9 +12,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 27.6.1.2.2 arithmetic extractors
 
@@ -34,7 +33,7 @@ std::wstringbuf isbuf_02(str_02, std::ios_base::in);
 std::wstringbuf isbuf_03(str_03, std::ios_base::in);
 std::wstringbuf isbuf_04(str_04, std::ios_base::in);
 
-std::wistream is_01(NULL);
+std::wistream is_01(0);
 std::wistream is_02(&isbuf_02);
 std::wistream is_03(&isbuf_03);
 std::wistream is_04(&isbuf_04);
@@ -60,11 +59,8 @@ bool test01() {
   long double 		ld1 = 0;
 
   // process alphanumeric versions of bool values
-  std::ios_base::fmtflags fmt = is_02.flags();
-  bool testfmt = fmt & std::ios_base::boolalpha;
   is_02.setf(std::ios_base::boolalpha);
-  fmt = is_02.flags();
-  testfmt = fmt & std::ios_base::boolalpha;
+  is_02.flags();
   is_02 >> b1;
   VERIFY( b1 == 1 );
   is_02 >> b1;
@@ -72,8 +68,7 @@ bool test01() {
 
   // process numeric versions of of bool values
   is_02.unsetf(std::ios_base::boolalpha);
-  fmt = is_02.flags();
-  testfmt = fmt & std::ios_base::boolalpha;
+  is_02.flags();
   is_02 >> b1;
   VERIFY( b1 == 0 );
   is_02 >> b1;

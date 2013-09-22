@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------------
-   java_raw_api.c - Copyright (c) 1999, 2007  Red Hat, Inc.
+   java_raw_api.c - Copyright (c) 1999, 2007, 2008  Red Hat, Inc.
 
    Cloned from raw_api.c
 
@@ -19,13 +19,14 @@
    The above copyright notice and this permission notice shall be included
    in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-   IN NO EVENT SHALL CYGNUS SOLUTIONS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-   OTHER DEALINGS IN THE SOFTWARE.
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
    ----------------------------------------------------------------------- */
 
 /* This defines a Java- and 64-bit specific variant of the raw API.	*/
@@ -275,9 +276,6 @@ ffi_java_raw_to_rvalue (ffi_cif *cif, void *rvalue)
     case FFI_TYPE_SINT16:
     case FFI_TYPE_SINT32:
     case FFI_TYPE_INT:
-#if FFI_SIZEOF_JAVA_RAW == 4
-    case FFI_TYPE_POINTER:
-#endif
       *(SINT64 *)rvalue >>= 32;
       break;
 
@@ -294,7 +292,7 @@ ffi_java_raw_to_rvalue (ffi_cif *cif, void *rvalue)
  * these following couple of functions will handle the translation forth
  * and back automatically. */
 
-void ffi_java_raw_call (ffi_cif *cif, void (*fn)(), void *rvalue,
+void ffi_java_raw_call (ffi_cif *cif, void (*fn)(void), void *rvalue,
 			ffi_java_raw *raw)
 {
   void **avalue = (void**) alloca (cif->nargs * sizeof (void*));
@@ -313,7 +311,7 @@ ffi_java_translate_args (ffi_cif *cif, void *rvalue,
   ffi_raw_closure *cl = (ffi_raw_closure*)user_data;
 
   ffi_java_ptrarray_to_raw (cif, avalue, raw);
-  (*cl->fun) (cif, rvalue, raw, cl->user_data);
+  (*cl->fun) (cif, rvalue, (ffi_raw*)raw, cl->user_data);
   ffi_java_raw_to_rvalue (cif, rvalue);
 }
 

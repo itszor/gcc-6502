@@ -79,7 +79,7 @@ typedef struct
 inline int
 _Jv_MutexCheckMonitor (_Jv_Mutex_t *mu)
 {
-  return (mu->owner != pthread_self());
+  return (pthread_equal(mu->owner, pthread_self()) == 0);
 }
 
 // Type identifying a POSIX thread.
@@ -373,13 +373,6 @@ struct ParkHelper
   void park (jboolean isAbsolute, jlong time);
   void unpark ();
 };
-
-inline void
-ParkHelper::init ()
-{
-  pthread_mutex_init (&mutex, NULL);
-  pthread_cond_init (&cond, NULL);
-}
 
 inline void
 ParkHelper::destroy ()

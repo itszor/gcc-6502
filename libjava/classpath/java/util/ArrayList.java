@@ -472,8 +472,7 @@ public class ArrayList<E> extends AbstractList<E>
     // use of a negative index will cause an ArrayIndexOutOfBoundsException,
     // a subclass of the required exception, with no effort on our part.
     if (index > size)
-      throw new IndexOutOfBoundsException("Index: " + index + ", Size: "
-                                          + size);
+      raiseBoundsError(index);
   }
 
   /**
@@ -488,9 +487,23 @@ public class ArrayList<E> extends AbstractList<E>
     // use of a negative index will cause an ArrayIndexOutOfBoundsException,
     // a subclass of the required exception, with no effort on our part.
     if (index >= size)
-      throw new IndexOutOfBoundsException("Index: " + index + ", Size: "
-                                          + size);
+      raiseBoundsError(index);
   }
+
+  /**
+   * Raise the ArrayIndexOfOutBoundsException.
+   *
+   * @param index the index of the access
+   * @throws IndexOutOfBoundsException unconditionally
+   */
+  private void raiseBoundsError(int index)
+  {
+    // Implementaion note: put in a separate method to make the JITs job easier
+    // (separate common from uncommon code at method boundaries when trivial to
+    // do so).
+    throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size);
+  }
+
 
   /**
    * Remove from this list all elements contained in the given collection.

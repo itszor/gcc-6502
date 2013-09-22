@@ -1,5 +1,5 @@
 ;; Constraint definitions for IA-64
-;; Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2013 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -52,6 +52,12 @@
   (and (match_code "const_int")
        (match_test "(unsigned HOST_WIDE_INT)ival + 0x200000 < 0x400000")))
 
+(define_constraint "j"
+  "(2**32-2**13)..(2**32-1) for addp4 instructions"
+  (and (match_code "const_int")
+       (match_test "(unsigned HOST_WIDE_INT)ival >= 0xffffe000
+		    && (unsigned HOST_WIDE_INT)ival <= 0xffffffff")))
+
 (define_constraint "K"
   "8 bit signed immediate for logical instructions"
   (and (match_code "const_int")
@@ -88,6 +94,13 @@
   "0.0 and 1.0 for fr0 and fr1"
   (and (match_code "const_double")
        (match_test "op == CONST0_RTX (mode) || op == CONST1_RTX (mode)")))
+
+(define_constraint "Z"
+  "1.0 or (0.0 and !flag_signed_zeros)"
+  (and (match_code "const_double")
+       (ior (match_test "op == CONST1_RTX (mode)")
+	    (and (match_test "op == CONST0_RTX (mode)")
+		 (match_test "!flag_signed_zeros")))))
 
 (define_constraint "H"
   "0.0"

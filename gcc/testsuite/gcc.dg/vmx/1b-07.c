@@ -6,7 +6,6 @@ vector char unsigned _56 ;
 vector unsigned char _64 ;
 vector char signed _112 ;
 vector signed char _120 ;
-bool _168 ;
 vector pixel _170 ;
 vector int bool _178 ;
 vector bool int _186 ;

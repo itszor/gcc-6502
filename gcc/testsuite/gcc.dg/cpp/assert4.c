@@ -1,12 +1,15 @@
-/* Copyright (C) 2003 Free Software Foundation, Inc.
+/* Copyright (C) 2003, 2006, 2008, 2009, 2011, 2012
+   Free Software Foundation, Inc.
+
    Test builtin preprocessor assertions.
    By Kaveh Ghazi <ghazi@caip.rutgers.edu>.  */
 
 /* { dg-do preprocess } */
+/* { dg-options "-ansi -Wno-deprecated" } */
 
 /* Check for #system assertions.  */
 
-#if defined __gnu_linux__
+#if defined __linux__
 # if !#system(linux) || !#system(unix) || !#system(posix)
 #  error
 # endif
@@ -127,32 +130,8 @@
 # error
 #endif
 
-#if defined __BEOS__
-# if !#system(beos)
-#  error
-# endif
-#elif #system(beos)
-# error
-#endif
-
-#if defined __netware__
-# if !#system(netware)
-#  error
-# endif
-#elif #system(netware)
-# error
-#endif
-
 
 /* Check for #cpu and #machine assertions.  */
-
-#if defined __arc__
-# if !#cpu(arc) || !#machine(arc)
-#  error
-# endif
-#elif #cpu(arc) || #machine(arc)
-# error
-#endif
 
 #if defined __alpha__
 # if !#cpu(alpha) || !#machine(alpha) \
@@ -296,11 +275,10 @@
 #endif
 
 #if defined __mips__
-# if !#cpu(mips) || (defined __sgi__ && !#machine(sgi)) \
-  || (!defined __sgi__ && !#machine(mips))
+# if !#cpu(mips)
 #  error
 # endif
-#elif #cpu(mips) || #machine(sgi) || #machine(mips)
+#elif #cpu(mips) || #machine(mips)
 # error
 #endif
 
@@ -320,7 +298,7 @@
 # error
 #endif
 
-#if defined __powerpc__
+#if defined __powerpc__ || defined __PPC__
 # if defined __powerpc64__
 #  if (#cpu(powerpc) || #machine(powerpc) \
        || !#cpu(powerpc64) || !#machine(powerpc64))

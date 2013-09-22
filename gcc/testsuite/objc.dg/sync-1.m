@@ -1,8 +1,8 @@
 /* Make sure that @synchronized parses.  */
-/* { dg-options "-fnext-runtime -fobjc-exceptions" } */
+/* { dg-options "-fobjc-exceptions" } */
 /* { dg-do compile } */
 
-#include <objc/Object.h>
+#include <objc/objc.h>
 
 void foo(id sem)
 {

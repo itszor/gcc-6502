@@ -1,5 +1,5 @@
 ;; Constraint definitions for MIPS.
-;; Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2013 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -29,20 +29,24 @@
 (define_register_constraint "f" "TARGET_HARD_FLOAT ? FP_REGS : NO_REGS"
   "A floating-point register (if available).")
 
-(define_register_constraint "h" "TARGET_BIG_ENDIAN ? MD0_REG : MD1_REG"
-  "The @code{hi} register.")
+(define_register_constraint "h" "NO_REGS"
+  "Formerly the @code{hi} register.  This constraint is no longer supported.")
 
 (define_register_constraint "l" "TARGET_BIG_ENDIAN ? MD1_REG : MD0_REG"
-  "The @code{lo} register.")
+  "The @code{lo} register.  Use this register to store values that are
+   no bigger than a word.")
 
 (define_register_constraint "x" "MD_REGS"
-  "The @code{hi} and @code{lo} registers.")
+  "The concatenated @code{hi} and @code{lo} registers.  Use this register
+   to store doubleword values.")
 
 (define_register_constraint "b" "ALL_REGS"
   "@internal")
 
-(define_register_constraint "c" "TARGET_USE_PIC_FN_ADDR_REG ? PIC_FN_ADDR_REG
-				 : TARGET_MIPS16 ? M16_NA_REGS
+;; MIPS16 code always calls through a MIPS16 register; see mips_emit_call_insn
+;; for details.
+(define_register_constraint "c" "TARGET_MIPS16 ? M16_REGS
+				 : TARGET_USE_PIC_FN_ADDR_REG ? PIC_FN_ADDR_REG
 				 : GR_REGS"
   "A register suitable for use in an indirect jump.  This will always be
    @code{$25} for @option{-mabicalls}.")
@@ -53,8 +57,11 @@
 (define_register_constraint "j" "PIC_FN_ADDR_REG"
   "@internal")
 
+;; Don't use this constraint in gcc code!  It runs the risk of
+;; introducing a spill failure; see tls_get_tp_<mode>.
 (define_register_constraint "v" "V1_REG"
-  "@internal")
+  "Register @code{$3}.  Do not use this constraint in new code;
+   it is retained only for compatibility with glibc.")
 
 (define_register_constraint "y" "GR_REGS"
   "Equivalent to @code{r}; retained for backwards compatibility.")
@@ -79,8 +86,8 @@
 
 ;; Registers that can be used as the target of multiply-accumulate
 ;; instructions.  The core MIPS32 ISA provides a hi/lo madd,
-;; but the DSPr2 version allows any accumulator target.
-(define_register_constraint "ka" "ISA_HAS_DSPR2 ? ACC_REGS : MD_REGS")
+;; but the DSP version allows any accumulator target.
+(define_register_constraint "ka" "ISA_HAS_DSP_MULT ? ACC_REGS : MD_REGS")
 
 (define_constraint "kf"
   "@internal"
@@ -120,9 +127,9 @@
   "A constant that cannot be loaded using @code{lui}, @code{addiu}
    or @code{ori}."
   (and (match_code "const_int")
-       (match_test "!SMALL_OPERAND (ival)")
-       (match_test "!SMALL_OPERAND_UNSIGNED (ival)")
-       (match_test "!LUI_OPERAND (ival)")))
+       (not (match_test "SMALL_OPERAND (ival)"))
+       (not (match_test "SMALL_OPERAND_UNSIGNED (ival)"))
+       (not (match_test "LUI_OPERAND (ival)"))))
 
 (define_constraint "N"
   "A constant in the range -65535 to -1 (inclusive)."
@@ -177,7 +184,7 @@
    using @code{la}."
   (and (match_operand 0 "move_operand")
        (match_test "CONSTANT_P (op)")
-       (match_test "!mips_dangerous_for_la25_p (op)")))
+       (not (match_test "mips_dangerous_for_la25_p (op)"))))
 
 (define_memory_constraint "W"
   "@internal
@@ -187,7 +194,7 @@
    constant-pool references."
   (and (match_code "mem")
        (match_operand 0 "memory_operand")
-       (ior (match_test "!TARGET_MIPS16")
+       (ior (not (match_test "TARGET_MIPS16"))
 	    (and (not (match_operand 0 "stack_operand"))
 		 (not (match_test "CONSTANT_P (XEXP (op, 0))"))))))
 
@@ -208,3 +215,24 @@
    A signed 10-bit constant."
   (and (match_code "const_int")
        (match_test "IMM10_OPERAND (ival)")))
+
+(define_constraint "Yb"
+   "@internal"
+   (match_operand 0 "qi_mask_operand"))
+
+(define_constraint "Yh"
+   "@internal"
+    (match_operand 0 "hi_mask_operand"))
+
+(define_constraint "Yw"
+   "@internal"
+    (match_operand 0 "si_mask_operand"))
+
+(define_constraint "Yx"
+   "@internal"
+   (match_operand 0 "low_bitmask_operand"))
+
+(define_memory_constraint "ZR"
+ "@internal
+  An address valid for loading/storing register exclusive"
+ (match_operand 0 "mem_noofs_operand"))

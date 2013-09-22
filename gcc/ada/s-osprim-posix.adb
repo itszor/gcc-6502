@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1998-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1998-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -40,25 +38,7 @@ package body System.OS_Primitives is
    --  these declarations in System.OS_Interface and move these ones in
    --  the spec.
 
-   type struct_timezone is record
-      tz_minuteswest  : Integer;
-      tz_dsttime   : Integer;
-   end record;
-   pragma Convention (C, struct_timezone);
-   type struct_timezone_ptr is access all struct_timezone;
-
    type time_t is new Long_Integer;
-
-   type struct_timeval is record
-      tv_sec       : time_t;
-      tv_usec      : Long_Integer;
-   end record;
-   pragma Convention (C, struct_timeval);
-
-   function gettimeofday
-     (tv : not null access struct_timeval;
-      tz : struct_timezone_ptr) return Integer;
-   pragma Import (C, gettimeofday, "gettimeofday");
 
    type timespec is record
       tv_sec  : time_t;
@@ -74,14 +54,38 @@ package body System.OS_Primitives is
    -----------
 
    function Clock return Duration is
-      TV     : aliased struct_timeval;
+      type timeval is array (1 .. 2) of Long_Integer;
 
+      procedure timeval_to_duration
+        (T    : not null access timeval;
+         sec  : not null access Long_Integer;
+         usec : not null access Long_Integer);
+      pragma Import (C, timeval_to_duration, "__gnat_timeval_to_duration");
+
+      Micro  : constant := 10**6;
+      sec    : aliased Long_Integer;
+      usec   : aliased Long_Integer;
+      TV     : aliased timeval;
       Result : Integer;
       pragma Unreferenced (Result);
 
+      function gettimeofday
+        (Tv : access timeval;
+         Tz : System.Address := System.Null_Address) return Integer;
+      pragma Import (C, gettimeofday, "gettimeofday");
+
    begin
-      Result := gettimeofday (TV'Access, null);
-      return Duration (TV.tv_sec) + Duration (TV.tv_usec) / 10#1#E6;
+      --  The return codes for gettimeofday are as follows (from man pages):
+      --    EPERM  settimeofday is called by someone other than the superuser
+      --    EINVAL Timezone (or something else) is invalid
+      --    EFAULT One of tv or tz pointed outside accessible address space
+
+      --  None of these codes signal a potential clock skew, hence the return
+      --  value is never checked.
+
+      Result := gettimeofday (TV'Access, System.Null_Address);
+      timeval_to_duration (TV'Access, sec'Access, usec'Access);
+      return Duration (sec) + Duration (usec) / Micro;
    end Clock;
 
    ---------------------

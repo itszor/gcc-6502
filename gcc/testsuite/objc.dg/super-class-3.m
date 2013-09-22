@@ -2,12 +2,14 @@
    is an ObjC class name.  */
 /* Contributed by Ziemowit Laski <zlaski@apple.com>.  */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
+
 #include <stdlib.h>
 #define CHECK_IF(expr) if(!(expr)) abort()
 
-@interface _Child: Object
+@interface _Child: TestsuiteObject
 + (int) flashCache;
 @end
 
@@ -19,10 +21,10 @@
 + (int) flushCache2;
 @end
 
-int _Object = 23;  /* Should not conflict with @interface Object.  */
+int _TestsuiteObject = 23;  /* Should not conflict with @interface TestsuiteObject.  */
 
 @implementation _Child
-+ (int) flashCache { return 12 + _Object; }
++ (int) flashCache { return 12 + _TestsuiteObject; }
 @end
 
 @implementation Child

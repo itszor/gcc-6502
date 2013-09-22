@@ -1,5 +1,5 @@
 ;; Predicate definitions for IA-64.
-;; Copyright (C) 2004, 2005, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2013 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -281,6 +281,12 @@
 		    || GET_CODE (XEXP (op, 0)) != POST_MODIFY
 		    || GET_CODE (XEXP (XEXP (XEXP (op, 0), 1), 1)) != REG")))
 
+;; Like destination_operand, but don't allow any post-increments.
+(define_predicate "not_postinc_destination_operand"
+  (and (match_operand 0 "nonimmediate_operand")
+       (match_test "GET_CODE (op) != MEM
+        || GET_RTX_CLASS (GET_CODE (XEXP (op, 0))) != RTX_AUTOINC")))
+
 ;; Like memory_operand, but don't allow post-increments.
 (define_predicate "not_postinc_memory_operand"
   (and (match_operand 0 "memory_operand")
@@ -331,6 +337,12 @@
       return true;
     }
 })
+
+;; Like move_operand but don't allow post-increments.
+(define_predicate "not_postinc_move_operand"
+  (and (match_operand 0 "move_operand")
+       (match_test "GET_CODE (op) != MEM
+        || GET_RTX_CLASS (GET_CODE (XEXP (op, 0))) != RTX_AUTOINC")))
 
 ;; True if OP is a register operand that is (or could be) a GR reg.
 (define_predicate "gr_register_operand"
@@ -514,6 +526,12 @@
                     INTVAL (op) == 1   || INTVAL (op) == 4  ||
                     INTVAL (op) == 8   || INTVAL (op) == 16")))
 
+;; True if OP is one of the immediate values 0, 7, 15, 16
+(define_predicate "pmpyshr_operand"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 0 || INTVAL (op) == 7
+		    || INTVAL (op) == 15 || INTVAL (op) == 16")))
+
 ;; True if OP is 0..3.
 (define_predicate "const_int_2bit_operand"
   (and (match_code "const_int")
@@ -530,11 +548,29 @@
   (and (match_operand 0 "fr_reg_or_fp01_operand")
        (not (match_code "subreg"))))
 
+;; Like fr_reg_or_fp01_operand, but don't allow 0 if flag_signed_zero is set.
+;; Using f0 as the second arg to fadd or fsub, or as the third arg to fma or
+;; fms can cause a zero result to have the wrong sign.
+(define_predicate "fr_reg_or_signed_fp01_operand"
+  (ior (match_operand 0 "fr_register_operand")
+       (and (match_code "const_double")
+	    (match_test "satisfies_constraint_Z (op)"))))
+
+;; Like fr_reg_or_signed_fp01_operand, but don't allow any SUBREGs.
+(define_predicate "xfreg_or_signed_fp01_operand"
+  (and (match_operand 0 "fr_reg_or_signed_fp01_operand")
+       (not (match_code "subreg"))))
+
 ;; True if OP is a constant zero, or a register.
 (define_predicate "fr_reg_or_0_operand"
   (ior (match_operand 0 "fr_register_operand")
        (and (match_code "const_double,const_vector")
 	    (match_test "op == CONST0_RTX (GET_MODE (op))"))))
+
+;; Return 1 if OP is a valid comparison operator for "cbranch" instructions.
+(define_predicate "ia64_cbranch_operator"
+  (ior (match_operand 0 "ordered_comparison_operator")
+       (match_code "ordered,unordered")))
 
 ;; True if this is a comparison operator, which accepts a normal 8-bit
 ;; signed immediate operand.
@@ -588,3 +624,7 @@
   return REG_P (op) && REG_POINTER (op);
 })
 
+;; True if this is the right-most vector element; for mux1 @brcst.
+(define_predicate "mux1_brcst_element"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == (TARGET_BIG_ENDIAN ? 7 : 0)")))

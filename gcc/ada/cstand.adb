@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -24,9 +24,11 @@
 ------------------------------------------------------------------------------
 
 with Atree;    use Atree;
+with Back_End; use Back_End;
 with Csets;    use Csets;
 with Debug;    use Debug;
 with Einfo;    use Einfo;
+with Elists;   use Elists;
 with Layout;   use Layout;
 with Namet;    use Namet;
 with Nlists;   use Nlists;
@@ -36,7 +38,6 @@ with Output;   use Output;
 with Targparm; use Targparm;
 with Tbuild;   use Tbuild;
 with Ttypes;   use Ttypes;
-with Ttypef;   use Ttypef;
 with Scn;
 with Sem_Mech; use Sem_Mech;
 with Sem_Util; use Sem_Util;
@@ -52,20 +53,36 @@ package body CStand is
    Staloc : constant Source_Ptr := Standard_ASCII_Location;
    --  Standard abbreviations used throughout this package
 
+   Back_End_Float_Types : Elist_Id := No_Elist;
+   --  List used for any floating point supported by the back end. This needs
+   --  to be at the library level, because the call back procedures retrieving
+   --  this information are at that level.
+
    -----------------------
    -- Local Subprograms --
    -----------------------
 
-   procedure Build_Float_Type (E : Entity_Id; Siz : Int; Digs : Int);
+   procedure Build_Float_Type
+     (E    : Entity_Id;
+      Siz  : Int;
+      Rep  : Float_Rep_Kind;
+      Digs : Int);
    --  Procedure to build standard predefined float base type. The first
-   --  parameter is the entity for the type, and the second parameter
-   --  is the size in bits. The third parameter is the digits value.
+   --  parameter is the entity for the type, and the second parameter is the
+   --  size in bits. The third parameter indicates the kind of representation
+   --  to be used. The fourth parameter is the digits value. Each type
+   --  is added to the list of predefined floating point types.
 
    procedure Build_Signed_Integer_Type (E : Entity_Id; Siz : Int);
    --  Procedure to build standard predefined signed integer subtype. The
    --  first parameter is the entity for the subtype. The second parameter
    --  is the size in bits. The corresponding base type is not built by
    --  this routine but instead must be built by the caller where needed.
+
+   procedure Copy_Float_Type (To : Entity_Id; From : Entity_Id);
+   --  Build a floating point type, copying representation details from From.
+   --  This is used to create predefined floating point types based on
+   --  available types in the back end.
 
    procedure Create_Operators;
    --  Make entries for each of the predefined operators in Standard
@@ -89,6 +106,12 @@ package body CStand is
    --  type. The point is that Integer and Integer'Base have identical
    --  bounds, but do not statically match, since a subtype with constraints
    --  never matches a subtype with no constraints.
+
+   function Find_Back_End_Float_Type (Name : String) return Entity_Id;
+   --  Return the first float type in Back_End_Float_Types with the given name.
+   --  Names of entities in back end types, are either type names of C
+   --  predefined types (all lower case), or mode names (upper case).
+   --  These are not generally valid identifier names.
 
    function Identifier_For (S : Standard_Entity_Type) return Node_Id;
    --  Returns an identifier node with the same name as the defining
@@ -122,6 +145,20 @@ package body CStand is
    procedure Print_Standard;
    --  Print representation of package Standard if switch set
 
+   procedure Register_Float_Type
+     (Name      : C_String; -- Nul-terminated string with name of type
+      Digs      : Natural;  -- Nr or digits for floating point, 0 otherwise
+      Complex   : Boolean;  -- True iff type has real and imaginary parts
+      Count     : Natural;  -- Number of elements in vector, 0 otherwise
+      Float_Rep : Float_Rep_Kind; -- Representation used for fpt type
+      Size      : Positive; -- Size of representation in bits
+      Alignment : Natural); -- Required alignment in bits
+   pragma Convention (C, Register_Float_Type);
+   --  Call back to allow the back end to register available types.
+   --  This call back currently creates predefined floating point base types
+   --  for any floating point types reported by the back end, and adds them
+   --  to the list of predefined float types.
+
    procedure Set_Integer_Bounds
      (Id  : Entity_Id;
       Typ : Entity_Id;
@@ -136,13 +173,20 @@ package body CStand is
    -- Build_Float_Type --
    ----------------------
 
-   procedure Build_Float_Type (E : Entity_Id; Siz : Int; Digs : Int) is
+   procedure Build_Float_Type
+     (E    : Entity_Id;
+      Siz  : Int;
+      Rep  : Float_Rep_Kind;
+      Digs : Int)
+   is
    begin
       Set_Type_Definition (Parent (E),
         Make_Floating_Point_Definition (Stloc,
           Digits_Expression => Make_Integer (UI_From_Int (Digs))));
+
       Set_Ekind                      (E, E_Floating_Point_Type);
       Set_Etype                      (E, E);
+      Set_Float_Rep (E, Rep);
       Init_Size                      (E, Siz);
       Set_Elem_Alignment             (E);
       Init_Digits_Value              (E, Digs);
@@ -151,6 +195,23 @@ package body CStand is
       Set_Is_Public                  (E);
       Set_Size_Known_At_Compile_Time (E);
    end Build_Float_Type;
+
+   ------------------------------
+   -- Find_Back_End_Float_Type --
+   ------------------------------
+
+   function Find_Back_End_Float_Type (Name : String) return Entity_Id is
+      N : Elmt_Id;
+
+   begin
+      N := First_Elmt (Back_End_Float_Types);
+      while Present (N) and then Get_Name_String (Chars (Node (N))) /= Name
+      loop
+         Next_Elmt (N);
+      end loop;
+
+      return Node (N);
+   end Find_Back_End_Float_Type;
 
    -------------------------------
    -- Build_Signed_Integer_Type --
@@ -177,6 +238,16 @@ package body CStand is
       Set_Is_Known_Valid             (E);
       Set_Size_Known_At_Compile_Time (E);
    end Build_Signed_Integer_Type;
+
+   ---------------------
+   -- Copy_Float_Type --
+   ---------------------
+
+   procedure Copy_Float_Type (To : Entity_Id; From : Entity_Id) is
+   begin
+      Build_Float_Type (To, UI_To_Int (Esize (From)), Float_Rep (From),
+                        UI_To_Int (Digits_Value (From)));
+   end Copy_Float_Type;
 
    ----------------------
    -- Create_Operators --
@@ -287,11 +358,10 @@ package body CStand is
       Set_Etype (Last_Entity  (Standard_Op_Concatw), Standard_Wide_String);
 
       Set_Etype (First_Entity (Standard_Op_Concatww),
-                  Standard_Wide_Wide_String);
+                 Standard_Wide_Wide_String);
 
       Set_Etype (Last_Entity (Standard_Op_Concatww),
-                   Standard_Wide_Wide_String);
-
+                 Standard_Wide_Wide_String);
    end Create_Operators;
 
    ---------------------
@@ -300,10 +370,11 @@ package body CStand is
 
    --  The tree for the package Standard is prefixed to all compilations.
    --  Several entities required by semantic analysis are denoted by global
-   --  variables that are initialized to point to the corresponding
-   --  occurrences in STANDARD. The visible entities of STANDARD are
-   --  created here. The private entities defined in STANDARD are created
-   --  by Initialize_Standard in the semantics module.
+   --  variables that are initialized to point to the corresponding occurrences
+   --  in Standard. The visible entities of Standard are created here. Special
+   --  entities maybe created here as well or may be created from the semantics
+   --  module. By not adding them to the Decls list of Standard they will not
+   --  be visible to Ada programs.
 
    procedure Create_Standard is
       Decl_S : constant List_Id := New_List;
@@ -324,6 +395,18 @@ package body CStand is
       procedure Build_Exception (S : Standard_Entity_Type);
       --  Procedure to declare given entity as an exception
 
+      procedure Create_Back_End_Float_Types;
+      --  Initialize the Back_End_Float_Types list by having the back end
+      --  enumerate all available types and building type entities for them.
+
+      procedure Create_Float_Types;
+      --  Creates entities for all predefined floating point types, and
+      --  adds these to the Predefined_Float_Types list in package Standard.
+
+      procedure Pack_String_Type (String_Type : Entity_Id);
+      --  Generate proper tree for pragma Pack that applies to given type, and
+      --  mark type as having the pragma.
+
       ---------------------
       -- Build_Exception --
       ---------------------
@@ -340,6 +423,99 @@ package body CStand is
              Defining_Identifier => Standard_Entity (S));
          Append (Decl, Decl_S);
       end Build_Exception;
+
+      ---------------------------
+      -- Create_Back_End_Float_Types --
+      ---------------------------
+
+      procedure Create_Back_End_Float_Types is
+      begin
+         Back_End_Float_Types := No_Elist;
+         Register_Back_End_Types (Register_Float_Type'Access);
+      end Create_Back_End_Float_Types;
+
+      ------------------------
+      -- Create_Float_Types --
+      ------------------------
+
+      procedure Create_Float_Types is
+      begin
+         --  Create type definition nodes for predefined float types
+
+         Copy_Float_Type
+           (Standard_Short_Float,
+            Find_Back_End_Float_Type ("float"));
+         Set_Is_Implementation_Defined (Standard_Short_Float);
+
+         Copy_Float_Type (Standard_Float, Standard_Short_Float);
+
+         Copy_Float_Type (Standard_Long_Float,
+           Find_Back_End_Float_Type ("double"));
+
+         Predefined_Float_Types := New_Elmt_List;
+         Append_Elmt (Standard_Short_Float, Predefined_Float_Types);
+         Append_Elmt (Standard_Float, Predefined_Float_Types);
+         Append_Elmt (Standard_Long_Float, Predefined_Float_Types);
+
+         --  ??? For now, we don't have a good way to tell the widest float
+         --  type with hardware support. Basically, GCC knows the size of that
+         --  type, but on x86-64 there often are two or three 128-bit types,
+         --  one double extended that has 18 decimal digits, a 128-bit quad
+         --  precision type with 33 digits and possibly a 128-bit decimal float
+         --  type with 34 digits. As a workaround, we define Long_Long_Float as
+         --  C's "long double" if that type exists and has at most 18 digits,
+         --  or otherwise the same as Long_Float.
+
+         declare
+            Max_HW_Digs : constant := 18;
+            --  Maximum hardware digits supported
+
+            LLF : Entity_Id := Find_Back_End_Float_Type ("long double");
+            --  Entity for long double type
+
+         begin
+            if No (LLF) or else Digits_Value (LLF) > Max_HW_Digs then
+               LLF := Standard_Long_Float;
+            end if;
+
+            Set_Is_Implementation_Defined (Standard_Long_Long_Float);
+            Copy_Float_Type (Standard_Long_Long_Float, LLF);
+
+            Append_Elmt (Standard_Long_Long_Float, Predefined_Float_Types);
+         end;
+
+         --  Any other back end types are appended at the end of the list of
+         --  predefined float types, and will only be selected if the none of
+         --  the types in Standard is suitable, or if a specific named type is
+         --  requested through a pragma Import.
+
+         while not Is_Empty_Elmt_List (Back_End_Float_Types) loop
+            declare
+               E : constant Elmt_Id := First_Elmt (Back_End_Float_Types);
+            begin
+               Append_Elmt (Node (E), To => Predefined_Float_Types);
+               Remove_Elmt (Back_End_Float_Types, E);
+            end;
+         end loop;
+      end Create_Float_Types;
+
+      ----------------------
+      -- Pack_String_Type --
+      ----------------------
+
+      procedure Pack_String_Type (String_Type : Entity_Id) is
+         Prag : constant Node_Id :=
+           Make_Pragma (Stloc,
+             Chars                        => Name_Pack,
+             Pragma_Argument_Associations =>
+               New_List (
+                 Make_Pragma_Argument_Association (Stloc,
+                   Expression => New_Occurrence_Of (String_Type, Stloc))));
+      begin
+         Append (Prag, Decl_S);
+         Record_Rep_Item (String_Type, Prag);
+         Set_Has_Pragma_Pack (String_Type, True);
+      end Pack_String_Type;
 
    --  Start of processing for Create_Standard
 
@@ -379,15 +555,30 @@ package body CStand is
       Set_Is_Pure (Standard_Standard);
       Set_Is_Compilation_Unit (Standard_Standard);
 
-      --  Create type declaration nodes for standard types
+      --  Create type/subtype declaration nodes for standard types
 
       for S in S_Types loop
-         Decl := New_Node (N_Full_Type_Declaration, Stloc);
-         Set_Defining_Identifier (Decl, Standard_Entity (S));
+
+         --  Subtype declaration case
+
+         if S = S_Natural or else S = S_Positive then
+            Decl := New_Node (N_Subtype_Declaration, Stloc);
+            Set_Subtype_Indication (Decl,
+              New_Occurrence_Of (Standard_Integer, Stloc));
+
+         --  Full type declaration case
+
+         else
+            Decl := New_Node (N_Full_Type_Declaration, Stloc);
+         end if;
+
          Set_Is_Frozen (Standard_Entity (S));
          Set_Is_Public (Standard_Entity (S));
+         Set_Defining_Identifier (Decl, Standard_Entity (S));
          Append (Decl, Decl_S);
       end loop;
+
+      Create_Back_End_Float_Types;
 
       --  Create type definition node for type Boolean. The Size is set to
       --  1 as required by Ada 95 and current ARG interpretations for Ada/83.
@@ -411,6 +602,7 @@ package body CStand is
 
       Set_Is_Unsigned_Type           (Standard_Boolean);
       Set_Size_Known_At_Compile_Time (Standard_Boolean);
+      Set_Has_Pragma_Ordered         (Standard_Boolean);
 
       Set_Ekind           (Standard_True, E_Enumeration_Literal);
       Set_Etype           (Standard_True, Standard_Boolean);
@@ -480,9 +672,11 @@ package body CStand is
 
       Build_Signed_Integer_Type
         (Standard_Long_Long_Integer, Standard_Long_Long_Integer_Size);
+      Set_Is_Implementation_Defined (Standard_Long_Long_Integer);
 
       Create_Unconstrained_Base_Type
         (Standard_Short_Short_Integer, E_Signed_Integer_Subtype);
+      Set_Is_Implementation_Defined (Standard_Short_Short_Integer);
 
       Create_Unconstrained_Base_Type
         (Standard_Short_Integer, E_Signed_Integer_Subtype);
@@ -495,28 +689,9 @@ package body CStand is
 
       Create_Unconstrained_Base_Type
         (Standard_Long_Long_Integer, E_Signed_Integer_Subtype);
+      Set_Is_Implementation_Defined (Standard_Short_Short_Integer);
 
-      --  Create type definition nodes for predefined float types
-
-      Build_Float_Type
-        (Standard_Short_Float,
-         Standard_Short_Float_Size,
-         Standard_Short_Float_Digits);
-
-      Build_Float_Type
-        (Standard_Float,
-         Standard_Float_Size,
-         Standard_Float_Digits);
-
-      Build_Float_Type
-        (Standard_Long_Float,
-         Standard_Long_Float_Size,
-         Standard_Long_Float_Digits);
-
-      Build_Float_Type
-        (Standard_Long_Long_Float,
-         Standard_Long_Long_Float_Size,
-         Standard_Long_Long_Float_Digits);
+      Create_Float_Types;
 
       --  Create type definition node for type Character. Note that we do not
       --  set the Literals field, since type Character is handled with special
@@ -531,6 +706,7 @@ package body CStand is
       Init_RM_Size       (Standard_Character, 8);
       Set_Elem_Alignment (Standard_Character);
 
+      Set_Has_Pragma_Ordered         (Standard_Character);
       Set_Is_Unsigned_Type           (Standard_Character);
       Set_Is_Character_Type          (Standard_Character);
       Set_Is_Known_Valid             (Standard_Character);
@@ -576,6 +752,7 @@ package body CStand is
       Init_Size      (Standard_Wide_Character, Standard_Wide_Character_Size);
 
       Set_Elem_Alignment             (Standard_Wide_Character);
+      Set_Has_Pragma_Ordered         (Standard_Wide_Character);
       Set_Is_Unsigned_Type           (Standard_Wide_Character);
       Set_Is_Character_Type          (Standard_Wide_Character);
       Set_Is_Known_Valid             (Standard_Wide_Character);
@@ -623,6 +800,7 @@ package body CStand is
                  Standard_Wide_Wide_Character_Size);
 
       Set_Elem_Alignment             (Standard_Wide_Wide_Character);
+      Set_Has_Pragma_Ordered         (Standard_Wide_Wide_Character);
       Set_Is_Unsigned_Type           (Standard_Wide_Wide_Character);
       Set_Is_Character_Type          (Standard_Wide_Wide_Character);
       Set_Is_Known_Valid             (Standard_Wide_Wide_Character);
@@ -675,12 +853,13 @@ package body CStand is
       Append (Identifier_For (S_Positive), Subtype_Marks (Tdef_Node));
       Set_Type_Definition (Parent (Standard_String), Tdef_Node);
 
-      Set_Ekind          (Standard_String, E_String_Type);
-      Set_Etype          (Standard_String, Standard_String);
-      Set_Component_Type (Standard_String, Standard_Character);
-      Set_Component_Size (Standard_String, Uint_8);
-      Init_Size_Align    (Standard_String);
-      Set_Alignment      (Standard_String, Uint_1);
+      Set_Ekind           (Standard_String, E_String_Type);
+      Set_Etype           (Standard_String, Standard_String);
+      Set_Component_Type  (Standard_String, Standard_Character);
+      Set_Component_Size  (Standard_String, Uint_8);
+      Init_Size_Align     (Standard_String);
+      Set_Alignment       (Standard_String, Uint_1);
+      Pack_String_Type    (Standard_String);
 
       --  On targets where a storage unit is larger than a byte (such as AAMP),
       --  pragma Pack has a real effect on the representation of type String,
@@ -718,11 +897,12 @@ package body CStand is
       Append (Identifier_For (S_Positive), Subtype_Marks (Tdef_Node));
       Set_Type_Definition (Parent (Standard_Wide_String), Tdef_Node);
 
-      Set_Ekind          (Standard_Wide_String, E_String_Type);
-      Set_Etype          (Standard_Wide_String, Standard_Wide_String);
-      Set_Component_Type (Standard_Wide_String, Standard_Wide_Character);
-      Set_Component_Size (Standard_Wide_String, Uint_16);
-      Init_Size_Align    (Standard_Wide_String);
+      Set_Ekind           (Standard_Wide_String, E_String_Type);
+      Set_Etype           (Standard_Wide_String, Standard_Wide_String);
+      Set_Component_Type  (Standard_Wide_String, Standard_Wide_Character);
+      Set_Component_Size  (Standard_Wide_String, Uint_16);
+      Init_Size_Align     (Standard_Wide_String);
+      Pack_String_Type    (Standard_Wide_String);
 
       --  Set index type of Wide_String
 
@@ -759,6 +939,7 @@ package body CStand is
       Set_Component_Size   (Standard_Wide_Wide_String, Uint_32);
       Init_Size_Align      (Standard_Wide_Wide_String);
       Set_Is_Ada_2005_Only (Standard_Wide_Wide_String);
+      Pack_String_Type     (Standard_Wide_Wide_String);
 
       --  Set index type of Wide_Wide_String
 
@@ -768,13 +949,7 @@ package body CStand is
       Set_Entity (E_Id, Standard_Positive);
       Set_Etype (E_Id, Standard_Positive);
 
-      --  Create subtype declaration for Natural
-
-      Decl := New_Node (N_Subtype_Declaration, Stloc);
-      Set_Defining_Identifier (Decl, Standard_Natural);
-      Set_Subtype_Indication (Decl,
-        New_Occurrence_Of (Standard_Integer, Stloc));
-      Append (Decl, Decl_S);
+      --  Setup entity for Natural
 
       Set_Ekind          (Standard_Natural, E_Signed_Integer_Subtype);
       Set_Etype          (Standard_Natural, Base_Type (Standard_Integer));
@@ -788,16 +963,8 @@ package body CStand is
         Lb  => Uint_0,
         Hb  => Intval (High_Bound (Scalar_Range (Standard_Integer))));
       Set_Is_Constrained (Standard_Natural);
-      Set_Is_Frozen      (Standard_Natural);
-      Set_Is_Public      (Standard_Natural);
 
-      --  Create subtype declaration for Positive
-
-      Decl := New_Node (N_Subtype_Declaration, Stloc);
-      Set_Defining_Identifier (Decl, Standard_Positive);
-      Set_Subtype_Indication (Decl,
-        New_Occurrence_Of (Standard_Integer, Stloc));
-      Append (Decl, Decl_S);
+      --  Setup entity for Positive
 
       Set_Ekind          (Standard_Positive, E_Signed_Integer_Subtype);
       Set_Etype          (Standard_Positive, Base_Type (Standard_Integer));
@@ -812,8 +979,6 @@ package body CStand is
          Lb  => Uint_1,
          Hb  => Intval (High_Bound (Scalar_Range (Standard_Integer))));
       Set_Is_Constrained   (Standard_Positive);
-      Set_Is_Frozen        (Standard_Positive);
-      Set_Is_Public        (Standard_Positive);
 
       --  Create declaration for package ASCII
 
@@ -936,17 +1101,17 @@ package body CStand is
       Set_Ekind (Standard_Debug_Renaming_Type, E_Signed_Integer_Subtype);
       Set_Scope (Standard_Debug_Renaming_Type, Standard_Standard);
       Set_Etype (Standard_Debug_Renaming_Type, Base_Type (Standard_Integer));
-      Init_Esize         (Standard_Debug_Renaming_Type, 0);
-      Init_RM_Size       (Standard_Debug_Renaming_Type, 0);
+      Init_Esize          (Standard_Debug_Renaming_Type, 0);
+      Init_RM_Size        (Standard_Debug_Renaming_Type, 0);
       Set_Size_Known_At_Compile_Time (Standard_Debug_Renaming_Type);
-      Set_Integer_Bounds (Standard_Debug_Renaming_Type,
-        Typ => Base_Type (Standard_Debug_Renaming_Type),
+      Set_Integer_Bounds  (Standard_Debug_Renaming_Type,
+        Typ => Base_Type  (Standard_Debug_Renaming_Type),
         Lb  => Uint_1,
         Hb  => Uint_0);
-      Set_Is_Constrained (Standard_Debug_Renaming_Type);
+      Set_Is_Constrained  (Standard_Debug_Renaming_Type);
       Set_Has_Size_Clause (Standard_Debug_Renaming_Type);
 
-      Make_Name      (Standard_Debug_Renaming_Type, "_renaming_type");
+      Make_Name           (Standard_Debug_Renaming_Type, "_renaming_type");
 
       --  Note on type names. The type names for the following special types
       --  are constructed so that they will look reasonable should they ever
@@ -1072,7 +1237,8 @@ package body CStand is
       Set_Ekind             (Any_Real, E_Floating_Point_Type);
       Set_Scope             (Any_Real, Standard_Standard);
       Set_Etype             (Any_Real, Standard_Long_Long_Float);
-      Init_Size             (Any_Real, Standard_Long_Long_Float_Size);
+      Init_Size             (Any_Real,
+        UI_To_Int (Esize (Standard_Long_Long_Float)));
       Set_Elem_Alignment    (Any_Real);
       Make_Name             (Any_Real, "a real type");
 
@@ -1147,6 +1313,7 @@ package body CStand is
       Set_Is_Unsigned_Type  (Standard_Unsigned);
       Set_Size_Known_At_Compile_Time
                             (Standard_Unsigned);
+      Set_Is_Known_Valid    (Standard_Unsigned, True);
 
       R_Node := New_Node (N_Range, Stloc);
       Set_Low_Bound  (R_Node, Make_Integer (Uint_0));
@@ -1174,10 +1341,7 @@ package body CStand is
       Set_Defining_Identifier (Decl, Universal_Real);
       Make_Name (Universal_Real, "universal_real");
       Set_Scope (Universal_Real, Standard_Standard);
-      Build_Float_Type
-        (Universal_Real,
-         Standard_Long_Long_Float_Size,
-         Standard_Long_Long_Float_Digits);
+      Copy_Float_Type (Universal_Real, Standard_Long_Long_Float);
 
       --  Note: universal fixed, unlike universal integer and universal real,
       --  is never used at runtime, so it does not need to have bounds set.
@@ -1204,7 +1368,7 @@ package body CStand is
 
       begin
          --  In 32 bit mode, the size is 32 bits, and the delta and
-         --  small values are set to 20 milliseconds (20.0**(10.0**(-3)).
+         --  small values are set to 20 milliseconds (20.0*(10.0**(-3)).
 
          if Duration_32_Bits_On_Target then
             Dlo := Intval (Type_Low_Bound (Standard_Integer_32));
@@ -1212,7 +1376,7 @@ package body CStand is
             Delta_Val := UR_From_Components (UI_From_Int (20), Uint_3, 10);
 
          --  In standard 64-bit mode, the size is 64-bits and the delta and
-         --  small values are set to nanoseconds (1.0**(10.0**(-9))
+         --  small values are set to nanoseconds (1.0*(10.0**(-9))
 
          else
             Dlo := Intval (Type_Low_Bound (Standard_Integer_64));
@@ -1314,7 +1478,6 @@ package body CStand is
       begin
          Comp      := First_Entity (Standard_Exception_Type);
          Comp_List := New_List;
-
          while Present (Comp) loop
             Append (
               Make_Component_Declaration (Stloc,
@@ -1490,10 +1653,10 @@ package body CStand is
 
    function Identifier_For (S : Standard_Entity_Type) return Node_Id is
       Ident_Node : Node_Id;
-
    begin
       Ident_Node := New_Node (N_Identifier, Stloc);
       Set_Chars (Ident_Node, Chars (Standard_Entity (S)));
+      Set_Entity (Ident_Node, Standard_Entity (S));
       return Ident_Node;
    end Identifier_For;
 
@@ -1640,69 +1803,45 @@ package body CStand is
       procedure P_Float_Range (Id : Entity_Id);
       --  Prints the bounds range for the given float type entity
 
+      procedure P_Float_Type (Id : Entity_Id);
+      --  Prints the type declaration of the given float type entity
+
+      procedure P_Mixed_Name (Id : Name_Id);
+      --  Prints Id in mixed case
+
       -------------------
       -- P_Float_Range --
       -------------------
 
       procedure P_Float_Range (Id : Entity_Id) is
-         Digs : constant Nat := UI_To_Int (Digits_Value (Id));
-
       begin
          Write_Str ("     range ");
-
-         if Vax_Float (Id) then
-            if Digs = VAXFF_Digits then
-               Write_Str (VAXFF_First'Universal_Literal_String);
-               Write_Str (" .. ");
-               Write_Str (VAXFF_Last'Universal_Literal_String);
-
-            elsif Digs = VAXDF_Digits then
-               Write_Str (VAXDF_First'Universal_Literal_String);
-               Write_Str (" .. ");
-               Write_Str (VAXDF_Last'Universal_Literal_String);
-
-            else
-               pragma Assert (Digs = VAXGF_Digits);
-
-               Write_Str (VAXGF_First'Universal_Literal_String);
-               Write_Str (" .. ");
-               Write_Str (VAXGF_Last'Universal_Literal_String);
-            end if;
-
-         elsif Is_AAMP_Float (Id) then
-            if Digs = AAMPS_Digits then
-               Write_Str (AAMPS_First'Universal_Literal_String);
-               Write_Str (" .. ");
-               Write_Str (AAMPS_Last'Universal_Literal_String);
-
-            else
-               pragma Assert (Digs = AAMPL_Digits);
-               Write_Str (AAMPL_First'Universal_Literal_String);
-               Write_Str (" .. ");
-               Write_Str (AAMPL_Last'Universal_Literal_String);
-            end if;
-
-         elsif Digs = IEEES_Digits then
-            Write_Str (IEEES_First'Universal_Literal_String);
-            Write_Str (" .. ");
-            Write_Str (IEEES_Last'Universal_Literal_String);
-
-         elsif Digs = IEEEL_Digits then
-            Write_Str (IEEEL_First'Universal_Literal_String);
-            Write_Str (" .. ");
-            Write_Str (IEEEL_Last'Universal_Literal_String);
-
-         else
-            pragma Assert (Digs = IEEEX_Digits);
-
-            Write_Str (IEEEX_First'Universal_Literal_String);
-            Write_Str (" .. ");
-            Write_Str (IEEEX_Last'Universal_Literal_String);
-         end if;
-
+         UR_Write (Realval (Type_Low_Bound (Id)));
+         Write_Str (" .. ");
+         UR_Write (Realval (Type_High_Bound (Id)));
          Write_Str (";");
          Write_Eol;
       end P_Float_Range;
+
+      ------------------
+      -- P_Float_Type --
+      ------------------
+
+      procedure P_Float_Type (Id : Entity_Id) is
+      begin
+         Write_Str ("   type ");
+         P_Mixed_Name (Chars (Id));
+         Write_Str (" is digits ");
+         Write_Int (UI_To_Int (Digits_Value (Id)));
+         Write_Eol;
+         P_Float_Range (Id);
+         Write_Str ("   for ");
+         P_Mixed_Name (Chars (Id));
+         Write_Str ("'Size use ");
+         Write_Int (UI_To_Int (RM_Size (Id)));
+         Write_Line (";");
+         Write_Eol;
+      end P_Float_Type;
 
       -----------------
       -- P_Int_Range --
@@ -1719,6 +1858,23 @@ package body CStand is
          Write_Eol;
       end P_Int_Range;
 
+      ------------------
+      -- P_Mixed_Name --
+      ------------------
+
+      procedure P_Mixed_Name (Id : Name_Id) is
+      begin
+         Get_Name_String (Id);
+
+         for J in 1 .. Name_Len loop
+            if J = 1 or else Name_Buffer (J - 1) = '_' then
+               Name_Buffer (J) := Fold_Upper (Name_Buffer (J));
+            end if;
+         end loop;
+
+         Write_Str (Name_Buffer (1 .. Name_Len));
+      end P_Mixed_Name;
+
    --  Start of processing for Print_Standard
 
    begin
@@ -1730,7 +1886,7 @@ package body CStand is
       Write_Eol;
 
       P ("package Standard is");
-      P ("pragma Pure(Standard);");
+      P ("pragma Pure (Standard);");
       Write_Eol;
 
       P ("   type Boolean is (False, True);");
@@ -1781,41 +1937,10 @@ package body CStand is
 
       --  Floating point types
 
-      Write_Str ("   type Short_Float is digits ");
-      Write_Int (Standard_Short_Float_Digits);
-      Write_Eol;
-      P_Float_Range (Standard_Short_Float);
-      Write_Str ("   for Short_Float'Size use ");
-      Write_Int (Standard_Short_Float_Size);
-      P (";");
-      Write_Eol;
-
-      Write_Str ("   type Float is digits ");
-      Write_Int (Standard_Float_Digits);
-      Write_Eol;
-      P_Float_Range (Standard_Float);
-      Write_Str ("   for Float'Size use ");
-      Write_Int (Standard_Float_Size);
-      P (";");
-      Write_Eol;
-
-      Write_Str ("   type Long_Float is digits ");
-      Write_Int (Standard_Long_Float_Digits);
-      Write_Eol;
-      P_Float_Range (Standard_Long_Float);
-      Write_Str ("   for Long_Float'Size use ");
-      Write_Int (Standard_Long_Float_Size);
-      P (";");
-      Write_Eol;
-
-      Write_Str ("   type Long_Long_Float is digits ");
-      Write_Int (Standard_Long_Long_Float_Digits);
-      Write_Eol;
-      P_Float_Range (Standard_Long_Long_Float);
-      Write_Str ("   for Long_Long_Float'Size use ");
-      Write_Int (Standard_Long_Long_Float_Size);
-      P (";");
-      Write_Eol;
+      P_Float_Type (Standard_Short_Float);
+      P_Float_Type (Standard_Float);
+      P_Float_Type (Standard_Long_Float);
+      P_Float_Type (Standard_Long_Long_Float);
 
       P ("   type Character is (...)");
       Write_Str ("   for Character'Size use ");
@@ -1832,7 +1957,7 @@ package body CStand is
       Write_Eol;
 
       P ("   type Wide_Wide_Character is (...)");
-      Write_Str ("   for Wide_Character'Size use ");
+      Write_Str ("   for Wide_Wide_Character'Size use ");
       Write_Int (Standard_Wide_Wide_Character_Size);
       P (";");
       P ("   --  See RM A.1(36) for details of this type");
@@ -1851,14 +1976,15 @@ package body CStand is
       P ("   pragma Pack (Wide_Wide_String);");
       Write_Eol;
 
-      --  Here it's OK to use the Duration type of the host compiler since
-      --  the implementation of Duration in GNAT is target independent.
+      --  We only have one representation each for 32-bit and 64-bit sizes,
+      --  so select the right one based on Duration_32_Bits_On_Target.
 
       if Duration_32_Bits_On_Target then
          P ("   type Duration is delta 0.020");
          P ("     range -((2 ** 31 - 1) * 0.020) ..");
          P ("           +((2 ** 31 - 1) * 0.020);");
          P ("   for Duration'Small use 0.020;");
+
       else
          P ("   type Duration is delta 0.000000001");
          P ("     range -((2 ** 63 - 1) * 0.000000001) ..");
@@ -1878,86 +2004,142 @@ package body CStand is
       P ("end Standard;");
    end Print_Standard;
 
+   -------------------------
+   -- Register_Float_Type --
+   -------------------------
+
+   procedure Register_Float_Type
+     (Name      : C_String;
+      Digs      : Natural;
+      Complex   : Boolean;
+      Count     : Natural;
+      Float_Rep : Float_Rep_Kind;
+      Size      : Positive;
+      Alignment : Natural)
+   is
+      T    : String (1 .. Name'Length);
+      Last : Natural := 0;
+
+      procedure Dump;
+      --  Dump information given by the back end for the type to register
+
+      procedure Dump is
+      begin
+         Write_Str ("type " & T (1 .. Last) & " is ");
+
+         if Count > 0 then
+            Write_Str ("array (1 .. ");
+            Write_Int (Int (Count));
+
+            if Complex then
+               Write_Str (", 1 .. 2");
+            end if;
+
+            Write_Str (") of ");
+
+         elsif Complex then
+            Write_Str ("array (1 .. 2) of ");
+         end if;
+
+         if Digs > 0 then
+            Write_Str ("digits ");
+            Write_Int (Int (Digs));
+            Write_Line (";");
+
+            Write_Str ("pragma Float_Representation (");
+
+            case Float_Rep is
+               when IEEE_Binary =>  Write_Str ("IEEE");
+               when VAX_Native =>
+                  case Digs is
+                     when  6 =>     Write_Str ("VAXF");
+                     when  9 =>     Write_Str ("VAXD");
+                     when 15 =>     Write_Str ("VAXG");
+                     when others => Write_Str ("VAX_"); Write_Int (Int (Digs));
+                  end case;
+               when AAMP =>         Write_Str ("AAMP");
+            end case;
+            Write_Line (", " & T & ");");
+
+         else
+            Write_Str ("mod 2**");
+            Write_Int (Int (Size / Positive'Max (1, Count)));
+            Write_Line (";");
+         end if;
+
+         Write_Str ("for " & T & "'Size use ");
+         Write_Int (Int (Size));
+         Write_Line (";");
+
+         Write_Str ("for " & T & "'Alignment use ");
+         Write_Int (Int (Alignment / 8));
+         Write_Line (";");
+      end Dump;
+
+   begin
+      for J in T'Range loop
+         T (J) := Name (Name'First + J - 1);
+         if T (J) = ASCII.NUL then
+            Last := J - 1;
+            exit;
+         end if;
+      end loop;
+
+      if Debug_Flag_Dot_B then
+         Dump;
+      end if;
+
+      if Digs > 0 and then not Complex and then Count = 0 then
+         declare
+            Ent   : constant Entity_Id := New_Standard_Entity;
+            Esize : constant Pos := Pos ((Size + Alignment - 1)
+                                           / Alignment * Alignment);
+         begin
+            Set_Defining_Identifier
+              (New_Node (N_Full_Type_Declaration, Stloc), Ent);
+            Make_Name (Ent, T (1 .. Last));
+            Set_Scope (Ent, Standard_Standard);
+            Build_Float_Type (Ent, Esize, Float_Rep, Pos (Digs));
+            Set_RM_Size (Ent, UI_From_Int (Int (Size)));
+            Set_Alignment (Ent, UI_From_Int (Int (Alignment / 8)));
+
+            if No (Back_End_Float_Types) then
+               Back_End_Float_Types := New_Elmt_List;
+            end if;
+
+            Append_Elmt (Ent, Back_End_Float_Types);
+         end;
+      end if;
+   end Register_Float_Type;
+
    ----------------------
    -- Set_Float_Bounds --
    ----------------------
 
    procedure Set_Float_Bounds (Id  : Entity_Id) is
-      L  : Node_Id;
+      L : Node_Id;
       --  Low bound of literal value
 
-      H  : Node_Id;
+      H : Node_Id;
       --  High bound of literal value
 
-      R  : Node_Id;
+      R : Node_Id;
       --  Range specification
 
-      Digs  : constant Nat := UI_To_Int (Digits_Value (Id));
-      --  Digits value, used to select bounds
+      Radix       : constant Uint := Machine_Radix_Value (Id);
+      Mantissa    : constant Uint := Machine_Mantissa_Value (Id);
+      Emax        : constant Uint := Machine_Emax_Value (Id);
+      Significand : constant Uint := Radix ** Mantissa - 1;
+      Exponent    : constant Uint := Emax - Mantissa;
 
    begin
       --  Note: for the call from Cstand to initially create the types in
-      --  Standard, Vax_Float will always be False. Circuitry in Sem_Vfpt
-      --  will adjust these types appropriately in the Vax_Float case if
-      --  a pragma Float_Representation (VAX_Float) is used.
+      --  Standard, Float_Rep will never be VAX_Native. Circuitry in Sem_Vfpt
+      --  will adjust these types appropriately VAX_Native if a pragma
+      --  Float_Representation (VAX_Float) is used.
 
-      if Vax_Float (Id) then
-         if Digs = VAXFF_Digits then
-            L := Real_Convert
-                   (VAXFF_First'Universal_Literal_String);
-            H := Real_Convert
-                   (VAXFF_Last'Universal_Literal_String);
-
-         elsif Digs = VAXDF_Digits then
-            L := Real_Convert
-                   (VAXDF_First'Universal_Literal_String);
-            H := Real_Convert
-                   (VAXDF_Last'Universal_Literal_String);
-
-         else
-            pragma Assert (Digs = VAXGF_Digits);
-
-            L := Real_Convert
-                   (VAXGF_First'Universal_Literal_String);
-            H := Real_Convert
-                   (VAXGF_Last'Universal_Literal_String);
-         end if;
-
-      elsif Is_AAMP_Float (Id) then
-         if Digs = AAMPS_Digits then
-            L := Real_Convert
-                   (AAMPS_First'Universal_Literal_String);
-            H := Real_Convert
-                   (AAMPS_Last'Universal_Literal_String);
-
-         else
-            pragma Assert (Digs = AAMPL_Digits);
-            L := Real_Convert
-                   (AAMPL_First'Universal_Literal_String);
-            H := Real_Convert
-                   (AAMPL_Last'Universal_Literal_String);
-         end if;
-
-      elsif Digs = IEEES_Digits then
-         L := Real_Convert
-                (IEEES_First'Universal_Literal_String);
-         H := Real_Convert
-                (IEEES_Last'Universal_Literal_String);
-
-      elsif Digs = IEEEL_Digits then
-         L := Real_Convert
-                (IEEEL_First'Universal_Literal_String);
-         H := Real_Convert
-                (IEEEL_Last'Universal_Literal_String);
-
-      else
-         pragma Assert (Digs = IEEEX_Digits);
-
-         L := Real_Convert
-                (IEEEX_First'Universal_Literal_String);
-         H := Real_Convert
-                (IEEEX_Last'Universal_Literal_String);
-      end if;
+      H := Make_Float_Literal (Stloc, Radix, Significand, Exponent);
+      L := Make_Float_Literal (Stloc, Radix, -Significand, Exponent);
 
       Set_Etype                (L, Id);
       Set_Is_Static_Expression (L);

@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.java.security.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
@@ -63,34 +65,34 @@ public final class ByteArray
     int len = value.length;
     while (i < len)
       {
-	out.print (formatInt (i, 16, 8));
-	out.print ("  ");
-	int l = Math.min (16, len - i);
-	String s = toHexString (value, i, l, ' ');
-	out.print (s);
-	for (int j = 56 - (56 - s.length ()); j < 56; j++)
-	  out.print (" ");
-	for (int j = 0; j < l; j++)
-	  {
-	    byte b = value[i+j];
-	    if ((b & 0xFF) < 0x20 || (b & 0xFF) > 0x7E)
-	      out.print (".");
-	    else
-	      out.print ((char) (b & 0xFF));
-	  }
-	out.println ();
-	i += 16;
+        out.print (formatInt (i, 16, 8));
+        out.print ("  ");
+        int l = Math.min (16, len - i);
+        String s = toHexString (value, i, l, ' ');
+        out.print (s);
+        for (int j = 56 - (56 - s.length ()); j < 56; j++)
+          out.print (" ");
+        for (int j = 0; j < l; j++)
+          {
+            byte b = value[i+j];
+            if ((b & 0xFF) < 0x20 || (b & 0xFF) > 0x7E)
+              out.print (".");
+            else
+              out.print ((char) (b & 0xFF));
+          }
+        out.println ();
+        i += 16;
       }
     return str.toString ();
   }
 
   public static String toHexString (byte[] buf, int off, int len, char sep)
   {
-    StringBuffer str = new StringBuffer();
+    CPStringBuilder str = new CPStringBuilder();
     for (int i = 0; i < len; i++)
       {
-	str.append (Character.forDigit (buf[i+off] >>> 4 & 0x0F, 16));
-	str.append (Character.forDigit (buf[i+off] & 0x0F, 16));
+        str.append (Character.forDigit (buf[i+off] >>> 4 & 0x0F, 16));
+        str.append (Character.forDigit (buf[i+off] & 0x0F, 16));
         if (i < len - 1)
           str.append(sep);
       }
@@ -100,7 +102,7 @@ public final class ByteArray
   public static String formatInt (int value, int radix, int len)
   {
     String s = Integer.toString (value, radix);
-    StringBuffer buf = new StringBuffer ();
+    CPStringBuilder buf = new CPStringBuilder ();
     for (int j = 0; j < len - s.length(); j++)
       buf.append ("0");
     buf.append (s);

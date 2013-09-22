@@ -1,5 +1,5 @@
 /* GStreamerMixer.java -- Mixer implementation.
- Copyright (C) 2007 Free Software Foundation, Inc.
+ Copyright (C) 2007, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -37,13 +37,9 @@ exception statement from your version. */
 
 package gnu.javax.sound.sampled.gstreamer;
 
-import java.awt.AWTPermission;
-
 import gnu.javax.sound.sampled.gstreamer.lines.GstSourceDataLine;
 
 import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioPermission;
-import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Control;
 import javax.sound.sampled.DataLine;
 import javax.sound.sampled.Line;
@@ -52,7 +48,6 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 import javax.sound.sampled.SourceDataLine;
 import javax.sound.sampled.Control.Type;
-import javax.sound.sampled.Line.Info;
 
 /**
  * @author Mario Torre <neugens@limasoftware.net>
@@ -63,47 +58,30 @@ public class GStreamerMixer
   public static class GstInfo extends Info
   {
     /* Mixer Properties */
-    
+
     /** Name */
     private static final String name = "Classpath GStreamer Sound Audio Engine";
-    
+
     /** Vendor */
     private static final String vendor = "GNU Classpath";
-    
+
     /** Description */
     private static final String desc = "GStreamer-based software mixer";
-    
+
     /** Version */
     private static final String vers = "0.0.1";
-    
+
     protected GstInfo()
     {
       super(name, vendor, desc, vers);
     }
   }
-  
+
   public static final String GST_BACKEND = GstInfo.name;
   public static final String GST_DECODER = "decoder";
-  
-  private static AudioFormat[] BASIC_FORMATS =
-  {
-     new AudioFormat(AudioFormat.Encoding.PCM_UNSIGNED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     true),
+  public static final String GST_TYPE_NAME = "type";
+  public static final String GST_FILE_EXTENSION = "ext";
 
-     new AudioFormat(AudioFormat.Encoding.PCM_UNSIGNED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     AudioSystem.NOT_SPECIFIED,
-                     false),
-  };
-  
   /** Mixer Info */
   private static final Mixer.Info INFO = new GStreamerMixer.GstInfo();
 
@@ -112,11 +90,11 @@ public class GStreamerMixer
   {
     // get all the lines formats supported by this mixer and
     // and see if there is one matching the given line
-    // if the format comes from the gstreamer backend 
+    // if the format comes from the gstreamer backend
     // gstreamer will be able to deal with it
-    Class clazz = info.getLineClass();
+    Class<?> clazz = info.getLineClass();
     DataLine.Info _info = (DataLine.Info) info;
-    
+
     if (clazz == SourceDataLine.class)
       {
         for (AudioFormat format : _info.getFormats())
@@ -129,9 +107,9 @@ public class GStreamerMixer
               }
           }
       }
-   
+
     // TODO: we also support basic PCM
-    
+
     throw new LineUnavailableException("Cannot open a line");
   }
 
@@ -184,7 +162,7 @@ public class GStreamerMixer
 
   public boolean isLineSupported(Line.Info info)
   {
-    // We support any kind of mixer that comes 
+    // We support any kind of mixer that comes
     // from our gstreamer backend.
     // In addition, we support PCM based audio streams for
     // direct playback.
@@ -193,7 +171,7 @@ public class GStreamerMixer
         DataLine.Info _dinfo = (DataLine.Info) info;
         _dinfo.getFormats();
       }
-    
+
     return true;
   }
 
@@ -250,7 +228,7 @@ public class GStreamerMixer
     // TODO Auto-generated method stub
     return false;
   }
- 
+
   public boolean isOpen()
   {
     // TODO Auto-generated method stub

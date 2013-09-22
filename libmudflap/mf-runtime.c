@@ -1,6 +1,5 @@
 /* Mudflap: narrow-pointer bounds-checking by tree rewriting.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2008
-   Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Frank Ch. Eigler <fche@redhat.com>
    and Graydon Hoare <graydon@redhat.com>
    Splay Tree code originally by Mark Mitchell <mark@markmitchell.com>,
@@ -10,27 +9,22 @@ This file is part of GCC.
 
 GCC is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2, or (at your option) any later
+Software Foundation; either version 3, or (at your option) any later
 version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 GCC is distributed in the hope that it will be useful, but WITHOUT ANY
 WARRANTY; without even the implied warranty of MERCHANTABILITY or
 FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 for more details.
 
-You should have received a copy of the GNU General Public License
-along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "config.h"
 
@@ -178,7 +172,7 @@ struct __mf_options __mf_opts;
 int __mf_starting_p = 1;
 
 #ifdef LIBMUDFLAPTH
-#ifdef HAVE_TLS
+#if defined(HAVE_TLS) && !defined(USE_EMUTLS)
 __thread enum __mf_state_enum __mf_state_1 = reentrant;
 #endif
 #else
@@ -308,6 +302,14 @@ __mf_set_default_options ()
 #ifdef LIBMUDFLAPTH
   __mf_opts.thread_stack = 0;
 #endif
+
+  /* PR41443: Beware that the above flags will be applied to
+     setuid/setgid binaries, and cannot be overriden with
+     $MUDFLAP_OPTIONS.  So the defaults must be non-exploitable. 
+
+     Should we consider making the default violation_mode something
+     harsher than viol_nop?  OTOH, glibc's MALLOC_CHECK_ is disabled
+     by default for these same programs. */
 }
 
 static struct mudoption
@@ -445,9 +447,9 @@ __mf_usage ()
 
   fprintf (stderr,
            "This is a %s%sGCC \"mudflap\" memory-checked binary.\n"
-           "Mudflap is Copyright (C) 2002-2008 Free Software Foundation, Inc.\n"
+           "Mudflap is Copyright (C) 2002-2013 Free Software Foundation, Inc.\n"
            "\n"
-           "The mudflap code can be controlled by an environment variable:\n"
+           "Unless setuid, a program's mudflap options be set by an environment variable:\n"
            "\n"
            "$ export MUDFLAP_OPTIONS='<options>'\n"
            "$ <mudflapped_program>\n"
@@ -663,6 +665,9 @@ struct __mf_dynamic_entry __mf_dynamic [] =
   {NULL, "free", NULL},
   {NULL, "malloc", NULL},
   {NULL, "mmap", NULL},
+#ifdef HAVE_MMAP64
+  {NULL, "mmap64", NULL},
+#endif
   {NULL, "munmap", NULL},
   {NULL, "realloc", NULL},
   {NULL, "DUMMY", NULL}, /* dyn_INITRESOLVE */
@@ -700,6 +705,12 @@ __mf_init ()
   if (LIKELY (__mf_starting_p == 0))
     return;
 
+#if defined(__FreeBSD__) && defined(LIBMUDFLAPTH)
+  pthread_self();
+  LOCKTH ();
+  UNLOCKTH ();
+#endif /* Prime mutex which calls calloc upon first lock to avoid deadlock. */
+
   /* This initial bootstrap phase requires that __mf_starting_p = 1. */
 #ifdef PIC
   __mf_resolve_dynamics ();
@@ -710,7 +721,8 @@ __mf_init ()
 
   __mf_set_default_options ();
 
-  ov = getenv ("MUDFLAP_OPTIONS");
+  if (getuid () == geteuid () && getgid () == getegid ()) /* PR41433, not setuid */
+    ov = getenv ("MUDFLAP_OPTIONS");
   if (ov)
     {
       int rc = __mfu_set_options (ov);
@@ -771,12 +783,22 @@ __wrap_main (int argc, char* argv[])
 
       __mf_register (& errno, sizeof (errno), __MF_TYPE_STATIC, "errno area");
 
+#if !(defined(__sun__) && defined(__svr4__))
+      /* Conflicts with the automatic registration of __iob[].  */
       __mf_register (stdin,  sizeof (*stdin),  __MF_TYPE_STATIC, "stdin");
       __mf_register (stdout, sizeof (*stdout), __MF_TYPE_STATIC, "stdout");
       __mf_register (stderr, sizeof (*stderr), __MF_TYPE_STATIC, "stderr");
+#endif
 
       /* Make some effort to register ctype.h static arrays.  */
-      /* XXX: e.g., on Solaris, may need to register __ctype, _ctype, __ctype_mask, __toupper, etc. */
+#if defined(__sun__) && defined(__svr4__)
+      /* __ctype[] is declared without size, but MB_CUR_MAX is the last
+	 member.  There seems to be no proper way to determine the size.  */
+      __mf_register (__ctype, &MB_CUR_MAX - &__ctype[0] + 1, __MF_TYPE_STATIC, "__ctype");
+      /* __ctype_mask points at _C_masks[1].  The size can only determined
+	 using nm on libc.so.1.  */
+      __mf_register (__ctype_mask - 1, 1028, __MF_TYPE_STATIC, "_C_masks");
+#endif
       /* On modern Linux GLIBC, these are thread-specific and changeable, and are dealt
          with in mf-hooks2.c.  */
     }

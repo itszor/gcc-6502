@@ -1,11 +1,9 @@
 // I, Howard Hinnant, hereby place this code in the public domain.
 
-// Test that move constructor and move assignement are not special.
-//   That is, their presence should not inhibit compiler generated
-//   copy ctor or assignment.  Rather they should overload with the
-//   compiler generated special members.
+// Test that move constructor and move assignement are special.
+//   That is, their presence should cause compiler declared
+//   copy ctor or assignment to be deleted.
 
-// { dg-do run }
 // { dg-options "-std=c++0x" }
 
 #include <assert.h>
@@ -26,7 +24,7 @@ struct base
     base& operator=(const base&) {++assign; return *this;}
 };
 
-struct derived
+struct derived			// { dg-message "declares a move" }
     : base
 {
     derived() {}
@@ -39,11 +37,11 @@ int test1()
     derived d;
     derived d2(static_cast<derived&&>(d));  // should not call base::(const base&)
     assert(copy == 0);
-    derived d3(d);                          // should     call base::(const base&)
+    derived d3(d);		// { dg-error "deleted" }
     assert(copy == 1);
     d2 = static_cast<derived&&>(d);         // should not call base::operator=
     assert(assign == 0);
-    d3 = d;                                 // should     call base::operator=
+    d3 = d;			// { dg-error "deleted" }
     assert(assign == 1);
     return 0;
 }

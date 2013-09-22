@@ -1,5 +1,5 @@
 /* ClassRmicCompiler.java --
-   Copyright (c) 1996, 1997, 1998, 1999, 2001, 2002, 2003, 2004, 2005
+   Copyright (c) 1996, 1997, 1998, 1999, 2001, 2002, 2003, 2004, 2005, 2012
    Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -17,20 +17,33 @@ General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GNU Classpath; see the file COPYING.  If not, write to the
 Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
-02111-1307 USA. */
+02111-1307 USA.
+
+Linking this library statically or dynamically with other modules is
+making a combined work based on this library.  Thus, the terms and
+conditions of the GNU General Public License cover the whole
+combination.
+
+As a special exception, the copyright holders of this library give you
+permission to link this library with independent modules to produce an
+executable, regardless of the license terms of these independent
+modules, and to copy and distribute the resulting executable under
+terms of your choice, provided that you also meet, for each linked
+independent module, the terms and conditions of the license of that
+module.  An independent module is a module which is not derived from
+or based on this library.  If you modify this library, you may extend
+this exception to your version of the library, but you are not
+obligated to do so.  If you do not wish to do so, delete this
+exception statement from your version. */
 
 package gnu.classpath.tools.rmic;
 
 import gnu.java.rmi.server.RMIHashes;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -46,13 +59,10 @@ import java.rmi.server.RemoteRef;
 import java.rmi.server.RemoteStub;
 import java.rmi.server.Skeleton;
 import java.rmi.server.SkeletonMismatchException;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.StringTokenizer;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -66,26 +76,23 @@ public class ClassRmicCompiler
 {
   private String[] args;
   private int next;
-  private List errors = new ArrayList();
-  private boolean keep = false;
+  private List<Exception> errors = new ArrayList<Exception>();
   private boolean need11Stubs = true;
   private boolean need12Stubs = true;
-  private boolean compile = true;
   private boolean verbose;
   private boolean noWrite;
   private String destination;
-  private String classpath;
   private ClassLoader loader;
   private int errorCount = 0;
 
-  private Class clazz;
+  private Class<?> clazz;
   private String classname;
   private String classInternalName;
   private String fullclassname;
   private MethodRef[] remotemethods;
   private String stubname;
   private String skelname;
-  private List mRemoteInterfaces;
+  private List<Class<?>> mRemoteInterfaces;
 
   /**
    * @return true if run was successful
@@ -99,12 +106,12 @@ public class ClassRmicCompiler
 
     for (int i = next; i < args.length; i++)
       {
-	try
-	  {
+        try
+          {
             if (verbose)
-	      System.out.println("[Processing class " + args[i] + ".class]");
-	    processClass(args[i].replace(File.separatorChar, '.'));
-	  }
+              System.out.println("[Processing class " + args[i] + ".class]");
+            processClass(args[i].replace(File.separatorChar, '.'));
+          }
         catch (IOException e)
           {
             errors.add(e);
@@ -116,9 +123,9 @@ public class ClassRmicCompiler
       }
     if (errors.size() > 0)
       {
-        for (Iterator it = errors.iterator(); it.hasNext(); )
+        for (Iterator<Exception> it = errors.iterator(); it.hasNext(); )
           {
-            Exception ex = (Exception) it.next();
+            Exception ex = it.next();
             logError(ex);
           }
       }
@@ -136,7 +143,7 @@ public class ClassRmicCompiler
     remotemethods = null;
     stubname = null;
     skelname = null;
-    mRemoteInterfaces = new ArrayList();
+    mRemoteInterfaces = new ArrayList<Class<?>>();
 
     analyzeClass(cls);
     generateStub();
@@ -165,7 +172,7 @@ public class ClassRmicCompiler
    */
   public Exception getException()
   {
-    return errors.size() == 0 ? null : (Exception) errors.get(0);
+    return errors.size() == 0 ? null : errors.get(0);
   }
 
   private void findClass()
@@ -192,7 +199,7 @@ public class ClassRmicCompiler
       }
   }
 
-  private static Type[] typeArray(Class[] cls)
+  private static Type[] typeArray(Class<?>[] cls)
   {
     Type[] t = new Type[cls.length];
     for (int i = 0; i < cls.length; i++)
@@ -221,11 +228,11 @@ public class ClassRmicCompiler
 
   private static final String forName = "class$";
 
-  private static Object param(Method m, int argIndex)
+  private static List<Object> param(Method m, int argIndex)
   {
-    List l = new ArrayList();
+    List<Object> l = new ArrayList<Object>();
     l.add(m);
-    l.add(new Integer(argIndex));
+    l.add(Integer.valueOf(argIndex));
     return l;
   }
 
@@ -273,10 +280,10 @@ public class ClassRmicCompiler
     cv.visitMaxs(-1, -1);
   }
 
-  private void generateClassConstant(MethodVisitor cv, Class cls) {
+  private void generateClassConstant(MethodVisitor cv, Class<?> cls) {
     if (cls.isPrimitive())
       {
-        Class boxCls;
+        Class<?> boxCls;
         if (cls.equals(Boolean.TYPE))
           boxCls = Boolean.class;
         else if (cls.equals(Character.TYPE))
@@ -311,7 +318,7 @@ public class ClassRmicCompiler
         new Type[] { Type.getType(String.class) }));
   }
 
-  private void generateClassArray(MethodVisitor code, Class[] classes)
+  private void generateClassArray(MethodVisitor code, Class<?>[] classes)
   {
     code.visitLdcInsn(new Integer(classes.length));
     code.visitTypeInsn(Opcodes.ANEWARRAY, typeArg(Class.class));
@@ -337,12 +344,12 @@ public class ClassRmicCompiler
       {
         Method m = remotemethods[i].meth;
 
-        StringBuffer desc = new StringBuffer();
+        StringBuilder desc = new StringBuilder();
         desc.append(getPrettyName(m.getReturnType()) + " ");
         desc.append(m.getName() + "(");
 
         // signature
-        Class[] sig = m.getParameterTypes();
+        Class<?>[] sig = m.getParameterTypes();
         for (int j = 0; j < sig.length; j++)
           {
             desc.append(getPrettyName(sig[j]));
@@ -408,7 +415,6 @@ public class ClassRmicCompiler
     throws IOException
   {
     stubname = fullclassname + "_Stub";
-    String stubclassname = classname + "_Stub";
     File file = new File((destination == null ? "." : destination)
                          + File.separator
                          + stubname.replace('.', File.separatorChar)
@@ -423,7 +429,7 @@ public class ClassRmicCompiler
       Type.getType(RemoteStub.class).getInternalName();
 
     String[] remoteInternalNames =
-      internalNameArray((Class[]) mRemoteInterfaces.toArray(new Class[] {}));
+      internalNameArray(mRemoteInterfaces.toArray(new Class[mRemoteInterfaces.size()]));
     stub.visit
       (Opcodes.V1_2, Opcodes.ACC_PUBLIC + Opcodes.ACC_FINAL, classInternalName,
        null, superInternalName, remoteInternalNames);
@@ -591,10 +597,10 @@ public class ClassRmicCompiler
     for (int i = 0; i < remotemethods.length; i++)
       {
         Method m = remotemethods[i].meth;
-        Class[] sig = m.getParameterTypes();
-        Class returntype = m.getReturnType();
-        Class[] except = sortExceptions
-          ((Class[]) remotemethods[i].exceptions.toArray(new Class[0]));
+        Class<?>[] sig = m.getParameterTypes();
+        Class<?> returntype = m.getReturnType();
+        Class<?>[] except = sortExceptions
+          (remotemethods[i].exceptions.toArray(new Class<?>[remotemethods[i].exceptions.size()]));
 
         MethodVisitor code = stub.visitMethod
           (Opcodes.ACC_PUBLIC,
@@ -654,9 +660,8 @@ public class ClassRmicCompiler
 
                 for (int j = 0; j < sig.length; j++)
                   {
-                    int size = size(sig[j]);
                     int insn = loadOpcode(sig[j]);
-                    Class box = sig[j].isPrimitive() ? box(sig[j]) : null;
+                    Class<?> box = sig[j].isPrimitive() ? box(sig[j]) : null;
 
                     code.visitVarInsn(Opcodes.ALOAD, var.get("argArray"));
                     code.visitLdcInsn(new Integer(j));
@@ -685,7 +690,7 @@ public class ClassRmicCompiler
               }
 
             // push remote operation opcode
-            code.visitLdcInsn(new Long(remotemethods[i].hash));
+            code.visitLdcInsn(Long.valueOf(remotemethods[i].hash));
             code.visitMethodInsn
               (Opcodes.INVOKEINTERFACE,
                Type.getInternalName(RemoteRef.class),
@@ -700,7 +705,7 @@ public class ClassRmicCompiler
             if (! returntype.equals(Void.TYPE))
               {
                 int retcode = returnOpcode(returntype);
-                Class boxCls =
+                Class<?> boxCls =
                   returntype.isPrimitive() ? box(returntype) : null;
                 code.visitTypeInsn
                   (Opcodes.CHECKCAST, typeArg(boxCls == null ? returntype : boxCls));
@@ -787,7 +792,7 @@ public class ClassRmicCompiler
                 // get j'th arg to remote method
                 code.visitVarInsn(loadOpcode(sig[j]), var.get(param(m, j)));
 
-                Class argCls =
+                Class<?> argCls =
                   sig[j].isPrimitive() ? sig[j] : Object.class;
 
                 // out.writeFoo
@@ -862,7 +867,7 @@ public class ClassRmicCompiler
                    Type.getMethodDescriptor
                    (Type.getType(ObjectInput.class), new Type[] {}));
 
-                Class readCls =
+                Class<?> readCls =
                   returntype.isPrimitive() ? returntype : Object.class;
                 code.visitMethodInsn
                   (Opcodes.INVOKEINTERFACE,
@@ -925,8 +930,6 @@ public class ClassRmicCompiler
                 new Type[] { Type.getType(String.class),
                              Type.getType(Exception.class) }));
             code.visitInsn(Opcodes.ATHROW);
-
-            Label endReturnTryCatch = new Label();
 
             // catch IOException
             code.visitTryCatchBlock
@@ -1014,7 +1017,6 @@ public class ClassRmicCompiler
   private void generateSkel() throws IOException
   {
     skelname = fullclassname + "_Skel";
-    String skelclassname = classname + "_Skel";
     File file = new File(destination == null ? "" : destination
                          + File.separator
                          + skelname.replace('.', File.separatorChar)
@@ -1109,7 +1111,7 @@ public class ClassRmicCompiler
       {
         // assign opnum if hash matches supplied hash
         dispatch.visitVarInsn(Opcodes.LLOAD, var.get("hash"));
-        dispatch.visitLdcInsn(new Long(remotemethods[i].hash));
+        dispatch.visitLdcInsn(Long.valueOf(remotemethods[i].hash));
         Label notIt = new Label();
         dispatch.visitInsn(Opcodes.LCMP);
         dispatch.visitJumpInsn(Opcodes.IFNE, notIt);
@@ -1204,7 +1206,7 @@ public class ClassRmicCompiler
 
   private void generateMethodSkel(MethodVisitor cv, Method m, Variables var)
   {
-    Class[] sig = m.getParameterTypes();
+    Class<?>[] sig = m.getParameterTypes();
 
     Label readArgs = new Label();
     cv.visitLabel(readArgs);
@@ -1225,7 +1227,7 @@ public class ClassRmicCompiler
         // dup input stream
         cv.visitVarInsn(Opcodes.ALOAD, var.get("objectinput"));
 
-        Class readCls = sig[i].isPrimitive() ? sig[i] : Object.class;
+        Class<?> readCls = sig[i].isPrimitive() ? sig[i] : Object.class;
 
         // in.readFoo()
         cv.visitMethodInsn
@@ -1304,7 +1306,7 @@ public class ClassRmicCompiler
       (Opcodes.INVOKEVIRTUAL, Type.getInternalName(clazz), m.getName(),
        Type.getMethodDescriptor(m));
 
-    Class returntype = m.getReturnType();
+    Class<?> returntype = m.getReturnType();
     if (! returntype.equals(Void.TYPE))
       {
         cv.visitVarInsn
@@ -1328,7 +1330,7 @@ public class ClassRmicCompiler
       {
         // out.writeFoo(result)
         cv.visitVarInsn(loadOpcode(returntype), var.deallocate("result"));
-        Class writeCls = returntype.isPrimitive() ? returntype : Object.class;
+        Class<?> writeCls = returntype.isPrimitive() ? returntype : Object.class;
         cv.visitMethodInsn
           (Opcodes.INVOKEINTERFACE,
            Type.getInternalName(ObjectOutput.class),
@@ -1360,7 +1362,7 @@ public class ClassRmicCompiler
        Type.getInternalName(IOException.class));
   }
 
-  private static String typeArg(Class cls)
+  private static String typeArg(Class<?> cls)
   {
     if (cls.isArray())
       return Type.getDescriptor(cls);
@@ -1368,7 +1370,7 @@ public class ClassRmicCompiler
     return Type.getInternalName(cls);
   }
 
-  private static String readMethod(Class cls)
+  private static String readMethod(Class<?> cls)
   {
     if (cls.equals(Void.TYPE))
       throw new IllegalArgumentException("can not read void");
@@ -1396,7 +1398,7 @@ public class ClassRmicCompiler
     return method;
   }
 
-  private static String writeMethod(Class cls)
+  private static String writeMethod(Class<?> cls)
   {
     if (cls.equals(Void.TYPE))
       throw new IllegalArgumentException("can not read void");
@@ -1424,7 +1426,7 @@ public class ClassRmicCompiler
     return method;
   }
 
-  private static int returnOpcode(Class cls)
+  private static int returnOpcode(Class<?> cls)
   {
     int returncode;
     if (cls.equals(Boolean.TYPE))
@@ -1451,7 +1453,7 @@ public class ClassRmicCompiler
     return returncode;
   }
 
-  private static int loadOpcode(Class cls)
+  private static int loadOpcode(Class<?> cls)
   {
     if (cls.equals(Void.TYPE))
       throw new IllegalArgumentException("can not load void");
@@ -1479,7 +1481,7 @@ public class ClassRmicCompiler
     return loadcode;
   }
 
-  private static int storeOpcode(Class cls)
+  private static int storeOpcode(Class<?> cls)
   {
     if (cls.equals(Void.TYPE))
       throw new IllegalArgumentException("can not load void");
@@ -1507,7 +1509,7 @@ public class ClassRmicCompiler
     return storecode;
   }
 
-  private static String unboxMethod(Class primitive)
+  private static String unboxMethod(Class<?> primitive)
   {
     if (! primitive.isPrimitive())
       throw new IllegalArgumentException("can not unbox nonprimitive");
@@ -1535,12 +1537,12 @@ public class ClassRmicCompiler
     return method;
   }
 
-  public static Class box(Class cls)
+  public static Class<?> box(Class<?> cls)
   {
     if (! cls.isPrimitive())
       throw new IllegalArgumentException("can only box primitive");
 
-    Class box;
+    Class<?> box;
     if (cls.equals(Boolean.TYPE))
       box = Boolean.class;
     else if (cls.equals(Byte.TYPE))
@@ -1563,7 +1565,7 @@ public class ClassRmicCompiler
     return box;
   }
 
-  private static int size(Class cls) {
+  private static int size(Class<?> cls) {
     if (cls.equals(Long.TYPE) || cls.equals(Double.TYPE))
       return 2;
     else
@@ -1573,19 +1575,19 @@ public class ClassRmicCompiler
   /**
    * Sort exceptions so the most general go last.
    */
-  private Class[] sortExceptions(Class[] except)
+  private Class<?>[] sortExceptions(Class<?>[] except)
   {
     for (int i = 0; i < except.length; i++)
       {
-	for (int j = i + 1; j < except.length; j++)
-	  {
-	    if (except[i].isAssignableFrom(except[j]))
-	      {
-		Class tmp = except[i];
-		except[i] = except[j];
-		except[j] = tmp;
-	      }
-	  }
+        for (int j = i + 1; j < except.length; j++)
+          {
+            if (except[i].isAssignableFrom(except[j]))
+              {
+                Class<?> tmp = except[i];
+                except[i] = except[j];
+                except[j] = tmp;
+              }
+          }
       }
     return (except);
   }
@@ -1595,14 +1597,12 @@ public class ClassRmicCompiler
                     boolean noWrite, boolean verbose, boolean force, String classpath,
                     String bootclasspath, String extdirs, String outputDirectory)
   {
-    this.keep = keep;
     this.need11Stubs = need11Stubs;
     this.need12Stubs = need12Stubs;
     this.verbose = verbose;
     this.noWrite = noWrite;
 
     // Set up classpath.
-    this.classpath = classpath;
     StringTokenizer st =
       new StringTokenizer(classpath, File.pathSeparator);
     URL[] u = new URL[st.countTokens()];
@@ -1628,15 +1628,15 @@ public class ClassRmicCompiler
   private void findRemoteMethods()
     throws RMICException
   {
-    List rmeths = new ArrayList();
-    for (Class cur = clazz; cur != null; cur = cur.getSuperclass())
+    List<Method> rmeths = new ArrayList<Method>();
+    for (Class<?> cur = clazz; cur != null; cur = cur.getSuperclass())
       {
-        Class[] interfaces = cur.getInterfaces();
+        Class<?>[] interfaces = cur.getInterfaces();
         for (int i = 0; i < interfaces.length; i++)
           {
             if (java.rmi.Remote.class.isAssignableFrom(interfaces[i]))
               {
-                Class remoteInterface = interfaces[i];
+                Class<?> remoteInterface = interfaces[i];
                 if (verbose)
                   System.out.println
                     ("[implements " + remoteInterface.getName() + "]");
@@ -1674,11 +1674,11 @@ public class ClassRmicCompiler
     boolean[] skip = new boolean[rmeths.size()];
     for (int i = 0; i < skip.length; i++)
       skip[i] = false;
-    List methrefs = new ArrayList();
+    List<MethodRef> methrefs = new ArrayList<MethodRef>();
     for (int i = 0; i < rmeths.size(); i++)
       {
         if (skip[i]) continue;
-        Method current = (Method) rmeths.get(i);
+        Method current = rmeths.get(i);
         MethodRef ref = new MethodRef(current);
         for (int j = i+1; j < rmeths.size(); j++)
           {
@@ -1693,7 +1693,7 @@ public class ClassRmicCompiler
       }
 
     // Convert into a MethodRef array and sort them
-    remotemethods = (MethodRef[])
+    remotemethods =
       methrefs.toArray(new MethodRef[methrefs.size()]);
     Arrays.sort(remotemethods);
   }
@@ -1719,17 +1719,17 @@ public class ClassRmicCompiler
 
   private static String getPrettyName(Class cls)
   {
-    StringBuffer str = new StringBuffer();
+    StringBuilder str = new StringBuilder();
     for (int count = 0;; count++)
       {
-	if (! cls.isArray())
-	  {
-	    str.append(cls.getName());
-	    for (; count > 0; count--)
-	      str.append("[]");
-	    return (str.toString());
-	  }
-	cls = cls.getComponentType();
+        if (! cls.isArray())
+          {
+            str.append(cls.getName());
+            for (; count > 0; count--)
+              str.append("[]");
+            return (str.toString());
+          }
+        cls = cls.getComponentType();
       }
   }
 
@@ -1738,7 +1738,7 @@ public class ClassRmicCompiler
   {
     Method meth;
     long hash;
-    List exceptions;
+    List<Class<?>> exceptions;
     private String sig;
 
     MethodRef(Method m) {
@@ -1774,12 +1774,12 @@ public class ClassRmicCompiler
       return true;
     }
 
-    private static List removeSubclasses(Class[] classes)
+    private static List<Class<?>> removeSubclasses(Class<?>[] classes)
     {
-      List list = new ArrayList();
+      List<Class<?>> list = new ArrayList<Class<?>>();
       for (int i = 0; i < classes.length; i++)
         {
-          Class candidate = classes[i];
+          Class<?> candidate = classes[i];
           boolean add = true;
           for (int j = 0; j < classes.length; j++)
             {
@@ -1796,17 +1796,17 @@ public class ClassRmicCompiler
 
     public void intersectExceptions(Method m)
     {
-      List incoming = removeSubclasses(m.getExceptionTypes());
+      List<Class<?>> incoming = removeSubclasses(m.getExceptionTypes());
 
-      List updated = new ArrayList();
+      List<Class<?>> updated = new ArrayList<Class<?>>();
 
       for (int i = 0; i < exceptions.size(); i++)
         {
-          Class outer = (Class) exceptions.get(i);
+          Class<?> outer = exceptions.get(i);
           boolean addOuter = false;
           for (int j = 0; j < incoming.size(); j++)
             {
-              Class inner = (Class) incoming.get(j);
+              Class<?> inner = incoming.get(j);
 
               if (inner.equals(outer) || inner.isAssignableFrom(outer))
                 addOuter = true;

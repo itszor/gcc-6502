@@ -39,10 +39,8 @@ package gnu.classpath.tools.tnameserv;
 
 import gnu.CORBA.NamingService.NamingServiceTransient;
 import gnu.classpath.tools.common.ClasspathToolParser;
-import gnu.classpath.tools.getopt.FileArgumentCallback;
 import gnu.classpath.tools.getopt.Option;
 import gnu.classpath.tools.getopt.OptionException;
-import gnu.classpath.tools.getopt.OptionGroup;
 import gnu.classpath.tools.getopt.Parser;
 
 /**
@@ -50,12 +48,12 @@ import gnu.classpath.tools.getopt.Parser;
  * is a kind of the network server that registers local and remote objects
  * by name, and later can provide the object reference in response to the
  * given name.
- * 
+ *
  * GNU Classpath currently works with this naming service and is also
  * interoperable with the Sun Microsystems naming services from releases 1.3 and
  * 1.4, both transient <i>tnameserv</i> and persistent <i>orbd</i>.
- * 
- * @author Audrius Meskauskas (AudriusA@Bioinformatics.org)  
+ *
+ * @author Audrius Meskauskas (AudriusA@Bioinformatics.org)
  */
 public class Main
 {

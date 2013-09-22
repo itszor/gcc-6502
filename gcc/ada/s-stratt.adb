@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -74,6 +72,7 @@ package body System.Stream_Attributes is
    subtype S_SU  is SEA (1 .. (UST.Short_Unsigned'Size       + SU - 1) / SU);
    subtype S_U   is SEA (1 .. (UST.Unsigned'Size             + SU - 1) / SU);
    subtype S_WC  is SEA (1 .. (Wide_Character'Size           + SU - 1) / SU);
+   subtype S_WWC is SEA (1 .. (Wide_Wide_Character'Size      + SU - 1) / SU);
 
    --  Unchecked conversions from the elementary type to the stream type
 
@@ -94,6 +93,7 @@ package body System.Stream_Attributes is
    function From_SU  is new UC (UST.Short_Unsigned,       S_SU);
    function From_U   is new UC (UST.Unsigned,             S_U);
    function From_WC  is new UC (Wide_Character,           S_WC);
+   function From_WWC is new UC (Wide_Wide_Character,      S_WWC);
 
    --  Unchecked conversions from the stream type to elementary type
 
@@ -114,6 +114,16 @@ package body System.Stream_Attributes is
    function To_SU  is new UC (S_SU,  UST.Short_Unsigned);
    function To_U   is new UC (S_U,   UST.Unsigned);
    function To_WC  is new UC (S_WC,  Wide_Character);
+   function To_WWC is new UC (S_WWC, Wide_Wide_Character);
+
+   -----------------
+   -- Block_IO_OK --
+   -----------------
+
+   function Block_IO_OK return Boolean is
+   begin
+      return True;
+   end Block_IO_OK;
 
    ----------
    -- I_AD --
@@ -461,6 +471,24 @@ package body System.Stream_Attributes is
       end if;
    end I_WC;
 
+   -----------
+   -- I_WWC --
+   -----------
+
+   function I_WWC (Stream : not null access RST) return Wide_Wide_Character is
+      T : S_WWC;
+      L : SEO;
+
+   begin
+      Ada.Streams.Read (Stream.all, T, L);
+
+      if L < T'Last then
+         raise Err;
+      else
+         return To_WWC (T);
+      end if;
+   end I_WWC;
+
    ----------
    -- W_AD --
    ----------
@@ -664,5 +692,17 @@ package body System.Stream_Attributes is
    begin
       Ada.Streams.Write (Stream.all, T);
    end W_WC;
+
+   -----------
+   -- W_WWC --
+   -----------
+
+   procedure W_WWC
+     (Stream : not null access RST; Item : Wide_Wide_Character)
+   is
+      T : constant S_WWC := From_WWC (Item);
+   begin
+      Ada.Streams.Write (Stream.all, T);
+   end W_WWC;
 
 end System.Stream_Attributes;

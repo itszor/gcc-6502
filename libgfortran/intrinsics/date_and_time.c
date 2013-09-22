@@ -1,57 +1,55 @@
 /* Implementation of the DATE_AND_TIME intrinsic.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
    Contributed by Steven Bosscher.
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
 
-#undef HAVE_NO_DATE_TIME
-#if TIME_WITH_SYS_TIME
-#  include <sys/time.h>
-#  include <time.h>
-#else
-#  if HAVE_SYS_TIME_H
-#    include <sys/time.h>
-#  else
-#    ifdef HAVE_TIME_H
-#      include <time.h>
-#    else
-#      define HAVE_NO_DATE_TIME
-#    endif  /* HAVE_TIME_H  */
-#  endif  /* HAVE_SYS_TIME_H  */
-#endif  /* TIME_WITH_SYS_TIME  */
+#include "time_1.h"
 
-#ifndef abs
-#define abs(x) ((x)>=0 ? (x) : -(x))
+
+/* If the re-entrant version of gmtime is not available, provide a
+   fallback implementation.  On some targets where the _r version is
+   not available, gmtime uses thread-local storage so it's
+   threadsafe.  */
+
+#ifndef HAVE_GMTIME_R
+/* If _POSIX is defined gmtime_r gets defined by mingw-w64 headers.  */
+#ifdef gmtime_r
+#undef gmtime_r
 #endif
+
+static struct tm *
+gmtime_r (const time_t * timep, struct tm * result)
+{
+  *result = *gmtime (timep);
+  return result;
+}
+#endif
+
 
 /* DATE_AND_TIME ([DATE, TIME, ZONE, VALUES])
 
@@ -62,29 +60,25 @@ Boston, MA 02110-1301, USA.  */
 
    Arguments:
 
-   DATE (optional) shall be scalar and of type default character, and
-   shall be of length at least 8 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 8 characters
-   are assigned a value of the form CCYYMMDD, where CC is the century,
-   YY the year within the century, MM the month within the year, and
-   DD the day within the month. If there is no date available, they
-   are assigned blanks.
+   DATE (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument.  It is assigned a value of the
+   form CCYYMMDD, where CC is the century, YY the year within the
+   century, MM the month within the year, and DD the day within the
+   month.  If there is no date available, they are assigned blanks.
 
-   TIME (optional) shall be scalar and of type default character, and
-   shall be of length at least 10 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 10 characters
-   are assigned a value of the form hhmmss.sss, where hh is the hour
-   of the day, mm is the minutes of the hour, and ss.sss is the
-   seconds and milliseconds of the minute. If there is no clock
-   available, they are assigned blanks.
+   TIME (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument. It is assigned a value of the
+   form hhmmss.sss, where hh is the hour of the day, mm is the
+   minutes of the hour, and ss.sss is the seconds and milliseconds
+   of the minute.  If there is no clock available, they are assigned
+   blanks.
 
-   ZONE (optional) shall be scalar and of type default character, and
-   shall be of length at least 5 in order to contain the complete
-   value. It is an INTENT(OUT) argument. Its leftmost 5 characters
-   are assigned a value of the form [+-]hhmm, where hh and mm are the
-   time difference with respect to Coordinated Universal Time (UTC) in
-   hours and parts of an hour expressed in minutes, respectively. If
-   there is no clock available, they are assigned blanks.
+   ZONE (optional) shall be scalar and of type default character.
+   It is an INTENT(OUT) argument.  It is assigned a value of the
+   form [+-]hhmm, where hh and mm are the time difference with
+   respect to Coordinated Universal Time (UTC) in hours and parts
+   of an hour expressed in minutes, respectively.  If there is no
+   clock available, they are assigned blanks.
 
    VALUES (optional) shall be of type default integer and of rank
    one. It is an INTENT(OUT) argument. Its size shall be at least
@@ -144,35 +138,18 @@ date_and_time (char *__date, char *__time, char *__zone,
   char zone[ZONE_LEN + 1];
   GFC_INTEGER_4 values[VALUES_SIZE];
 
-#ifndef HAVE_NO_DATE_TIME
   time_t lt;
   struct tm local_time;
   struct tm UTC_time;
 
-#if HAVE_GETTIMEOFDAY
-  {
-    struct timeval tp;
+  long usecs;
 
-    if (!gettimeofday (&tp, NULL))
-      {
-         lt = tp.tv_sec;
-         values[7] = tp.tv_usec / 1000;
-      }
-    else
-      {
-         lt = time (NULL);
-         values[7] = 0;
-      }
-  }
-#else
-  lt = time (NULL);
-  values[7] = 0;
-#endif /* HAVE_GETTIMEOFDAY */
-
-  if (lt != (time_t) -1)
+  if (!gf_gettime (&lt, &usecs))
     {
-      local_time = *localtime (&lt);
-      UTC_time = *gmtime (&lt);
+      values[7] = usecs / 1000;
+
+      localtime_r (&lt, &local_time);
+      gmtime_r (&lt, &UTC_time);
 
       /* All arguments can be derived from VALUES.  */
       values[0] = 1900 + local_time.tm_year;
@@ -185,7 +162,6 @@ date_and_time (char *__date, char *__time, char *__zone,
       values[5] = local_time.tm_min;
       values[6] = local_time.tm_sec;
 
-#if HAVE_SNPRINTF
       if (__date)
 	snprintf (date, DATE_LEN + 1, "%04d%02d%02d",
 		  values[0], values[1], values[2]);
@@ -196,18 +172,6 @@ date_and_time (char *__date, char *__time, char *__zone,
       if (__zone)
 	snprintf (zone, ZONE_LEN + 1, "%+03d%02d",
 		  values[3] / 60, abs (values[3] % 60));
-#else
-      if (__date)
-	sprintf (date, "%04d%02d%02d", values[0], values[1], values[2]);
-
-      if (__time)
-	sprintf (timec, "%02d%02d%02d.%03d",
-		 values[4], values[5], values[6], values[7]);
-
-      if (__zone)
-	sprintf (zone, "%+03d%02d",
-		 values[3] / 60, abs (values[3] % 60));
-#endif
     }
   else
     {
@@ -223,45 +187,34 @@ date_and_time (char *__date, char *__time, char *__zone,
       for (i = 0; i < VALUES_SIZE; i++)
 	values[i] = - GFC_INTEGER_4_HUGE;
     }   
-#else /* if defined HAVE_NO_DATE_TIME  */
-  /* We really have *nothing* to return, so return blanks and HUGE(0).  */
-      
-  memset (date, ' ', DATE_LEN);
-  date[DATE_LEN] = '\0';
-
-  memset (timec, ' ', TIME_LEN);
-  timec[TIME_LEN] = '\0';
-
-  memset (zone, ' ', ZONE_LEN);
-  zone[ZONE_LEN] = '\0';
-
-  for (i = 0; i < VALUES_SIZE; i++)
-    values[i] = - GFC_INTEGER_4_HUGE;
-#endif  /* HAVE_NO_DATE_TIME  */
 
   /* Copy the values into the arguments.  */
   if (__values)
     {
-      size_t len, delta, elt_size;
+      index_type len, delta, elt_size;
 
       elt_size = GFC_DESCRIPTOR_SIZE (__values);
-      len = __values->dim[0].ubound + 1 - __values->dim[0].lbound;
-      delta = __values->dim[0].stride;
+      len = GFC_DESCRIPTOR_EXTENT(__values,0);
+      delta = GFC_DESCRIPTOR_STRIDE(__values,0);
       if (delta == 0)
 	delta = 1;
+      
+      if (unlikely (len < VALUES_SIZE))
+	  runtime_error ("Incorrect extent in VALUE argument to"
+			 " DATE_AND_TIME intrinsic: is %ld, should"
+			 " be >=%ld", (long int) len, (long int) VALUES_SIZE);
 
-      assert (len >= VALUES_SIZE);
       /* Cope with different type kinds.  */
       if (elt_size == 4)
         {
-	  GFC_INTEGER_4 *vptr4 = __values->data;
+	  GFC_INTEGER_4 *vptr4 = __values->base_addr;
 
 	  for (i = 0; i < VALUES_SIZE; i++, vptr4 += delta)
 	    *vptr4 = values[i];
 	}
       else if (elt_size == 8)
         {
-	  GFC_INTEGER_8 *vptr8 = (GFC_INTEGER_8 *)__values->data;
+	  GFC_INTEGER_8 *vptr8 = (GFC_INTEGER_8 *)__values->base_addr;
 
 	  for (i = 0; i < VALUES_SIZE; i++, vptr8 += delta)
 	    {
@@ -276,22 +229,13 @@ date_and_time (char *__date, char *__time, char *__zone,
     }
 
   if (__zone)
-    {
-      assert (__zone_len >= ZONE_LEN);
-      fstrcpy (__zone, ZONE_LEN, zone, ZONE_LEN);
-    }
+    fstrcpy (__zone, __zone_len, zone, ZONE_LEN);
 
   if (__time)
-    {
-      assert (__time_len >= TIME_LEN);
-      fstrcpy (__time, TIME_LEN, timec, TIME_LEN);
-    }
+    fstrcpy (__time, __time_len, timec, TIME_LEN);
 
   if (__date)
-    {
-      assert (__date_len >= DATE_LEN);
-      fstrcpy (__date, DATE_LEN, date, DATE_LEN);
-    }
+    fstrcpy (__date, __date_len, date, DATE_LEN);
 }
 
 
@@ -325,19 +269,17 @@ secnds (GFC_REAL_4 *x)
   GFC_REAL_4 temp1, temp2;
 
   /* Make the INTEGER*4 array for passing to date_and_time.  */
-  gfc_array_i4 *avalues = internal_malloc_size (sizeof (gfc_array_i4));
-  avalues->data = &values[0];
-  GFC_DESCRIPTOR_DTYPE (avalues) = ((GFC_DTYPE_REAL << GFC_DTYPE_TYPE_SHIFT)
+  gfc_array_i4 *avalues = xmalloc (sizeof (gfc_array_i4));
+  avalues->base_addr = &values[0];
+  GFC_DESCRIPTOR_DTYPE (avalues) = ((BT_REAL << GFC_DTYPE_TYPE_SHIFT)
 				        & GFC_DTYPE_TYPE_MASK) +
 				    (4 << GFC_DTYPE_SIZE_SHIFT);
 
-  avalues->dim[0].ubound = 7;
-  avalues->dim[0].lbound = 0;
-  avalues->dim[0].stride = 1;
+  GFC_DIMENSION_SET(avalues->dim[0], 0, 7, 1);
 
   date_and_time (NULL, NULL, NULL, avalues, 0, 0, 0);
 
-  free_mem (avalues);
+  free (avalues);
 
   temp1 = 3600.0 * (GFC_REAL_4)values[4] +
 	    60.0 * (GFC_REAL_4)values[5] +
@@ -358,7 +300,6 @@ secnds (GFC_REAL_4 *x)
 static void
 itime0 (int x[3])
 {
-#ifndef HAVE_NO_DATE_TIME
   time_t lt;
   struct tm local_time;
 
@@ -366,15 +307,12 @@ itime0 (int x[3])
 
   if (lt != (time_t) -1)
     {
-      local_time = *localtime (&lt);
+      localtime_r (&lt, &local_time);
 
       x[0] = local_time.tm_hour;
       x[1] = local_time.tm_min;
       x[2] = local_time.tm_sec;
     }
-#else
-  x[0] = x[1] = x[2] = -1;
-#endif
 }
 
 extern void itime_i4 (gfc_array_i4 *);
@@ -384,20 +322,20 @@ void
 itime_i4 (gfc_array_i4 *__values)
 {
   int x[3], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_4 *vptr;
   
   /* Call helper function.  */
   itime0(x);
 
   /* Copy the value into the array.  */
-  len = __values->dim[0].ubound + 1 - __values->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(__values,0);
   assert (len >= 3);
-  delta = __values->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(__values,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = __values->data;
+  vptr = __values->base_addr;
   for (i = 0; i < 3; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -410,20 +348,20 @@ void
 itime_i8 (gfc_array_i8 *__values)
 {
   int x[3], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_8 *vptr;
   
   /* Call helper function.  */
   itime0(x);
 
   /* Copy the value into the array.  */
-  len = __values->dim[0].ubound + 1 - __values->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(__values,0);
   assert (len >= 3);
-  delta = __values->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(__values,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = __values->data;
+  vptr = __values->base_addr;
   for (i = 0; i < 3; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -440,7 +378,6 @@ itime_i8 (gfc_array_i8 *__values)
 static void
 idate0 (int x[3])
 {
-#ifndef HAVE_NO_DATE_TIME
   time_t lt;
   struct tm local_time;
 
@@ -448,15 +385,12 @@ idate0 (int x[3])
 
   if (lt != (time_t) -1)
     {
-      local_time = *localtime (&lt);
+      localtime_r (&lt, &local_time);
 
       x[0] = local_time.tm_mday;
       x[1] = 1 + local_time.tm_mon;
       x[2] = 1900 + local_time.tm_year;
     }
-#else
-  x[0] = x[1] = x[2] = -1;
-#endif
 }
 
 extern void idate_i4 (gfc_array_i4 *);
@@ -466,20 +400,20 @@ void
 idate_i4 (gfc_array_i4 *__values)
 {
   int x[3], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_4 *vptr;
   
   /* Call helper function.  */
   idate0(x);
 
   /* Copy the value into the array.  */
-  len = __values->dim[0].ubound + 1 - __values->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(__values,0);
   assert (len >= 3);
-  delta = __values->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(__values,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = __values->data;
+  vptr = __values->base_addr;
   for (i = 0; i < 3; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -492,20 +426,20 @@ void
 idate_i8 (gfc_array_i8 *__values)
 {
   int x[3], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_8 *vptr;
   
   /* Call helper function.  */
   idate0(x);
 
   /* Copy the value into the array.  */
-  len = __values->dim[0].ubound + 1 - __values->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(__values,0);
   assert (len >= 3);
-  delta = __values->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(__values,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = __values->data;
+  vptr = __values->base_addr;
   for (i = 0; i < 3; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -515,7 +449,7 @@ idate_i8 (gfc_array_i8 *__values)
 /* GMTIME(STIME, TARRAY) - Non-standard
 
    Description: Given a system time value STime, fills TArray with values
-   extracted from it appropriate to the GMT time zone using gmtime(3).
+   extracted from it appropriate to the GMT time zone using gmtime_r(3).
 
    The array elements are as follows:
 
@@ -535,7 +469,7 @@ gmtime_0 (const time_t * t, int x[9])
 {
   struct tm lt;
 
-  lt = *gmtime (t);
+  gmtime_r (t, &lt);
   x[0] = lt.tm_sec;
   x[1] = lt.tm_min;
   x[2] = lt.tm_hour;
@@ -554,7 +488,7 @@ void
 gmtime_i4 (GFC_INTEGER_4 * t, gfc_array_i4 * tarray)
 {
   int x[9], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_4 *vptr;
   time_t tt;
   
@@ -563,13 +497,13 @@ gmtime_i4 (GFC_INTEGER_4 * t, gfc_array_i4 * tarray)
   gmtime_0(&tt, x);
 
   /* Copy the values into the array.  */
-  len = tarray->dim[0].ubound + 1 - tarray->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(tarray,0);
   assert (len >= 9);
-  delta = tarray->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(tarray,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = tarray->data;
+  vptr = tarray->base_addr;
   for (i = 0; i < 9; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -581,7 +515,7 @@ void
 gmtime_i8 (GFC_INTEGER_8 * t, gfc_array_i8 * tarray)
 {
   int x[9], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_8 *vptr;
   time_t tt;
   
@@ -590,13 +524,13 @@ gmtime_i8 (GFC_INTEGER_8 * t, gfc_array_i8 * tarray)
   gmtime_0(&tt, x);
 
   /* Copy the values into the array.  */
-  len = tarray->dim[0].ubound + 1 - tarray->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(tarray,0);
   assert (len >= 9);
-  delta = tarray->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(tarray,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = tarray->data;
+  vptr = tarray->base_addr;
   for (i = 0; i < 9; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -607,7 +541,7 @@ gmtime_i8 (GFC_INTEGER_8 * t, gfc_array_i8 * tarray)
 /* LTIME(STIME, TARRAY) - Non-standard
 
    Description: Given a system time value STime, fills TArray with values
-   extracted from it appropriate to the local time zone using localtime(3).
+   extracted from it appropriate to the local time zone using localtime_r(3).
 
    The array elements are as follows:
 
@@ -627,7 +561,7 @@ ltime_0 (const time_t * t, int x[9])
 {
   struct tm lt;
 
-  lt = *localtime (t);
+  localtime_r (t, &lt);
   x[0] = lt.tm_sec;
   x[1] = lt.tm_min;
   x[2] = lt.tm_hour;
@@ -646,7 +580,7 @@ void
 ltime_i4 (GFC_INTEGER_4 * t, gfc_array_i4 * tarray)
 {
   int x[9], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_4 *vptr;
   time_t tt;
   
@@ -655,13 +589,13 @@ ltime_i4 (GFC_INTEGER_4 * t, gfc_array_i4 * tarray)
   ltime_0(&tt, x);
 
   /* Copy the values into the array.  */
-  len = tarray->dim[0].ubound + 1 - tarray->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(tarray,0);
   assert (len >= 9);
-  delta = tarray->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(tarray,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = tarray->data;
+  vptr = tarray->base_addr;
   for (i = 0; i < 9; i++, vptr += delta)
     *vptr = x[i];
 }
@@ -673,7 +607,7 @@ void
 ltime_i8 (GFC_INTEGER_8 * t, gfc_array_i8 * tarray)
 {
   int x[9], i;
-  size_t len, delta;
+  index_type len, delta;
   GFC_INTEGER_8 *vptr;
   time_t tt;
   
@@ -682,13 +616,13 @@ ltime_i8 (GFC_INTEGER_8 * t, gfc_array_i8 * tarray)
   ltime_0(&tt, x);
 
   /* Copy the values into the array.  */
-  len = tarray->dim[0].ubound + 1 - tarray->dim[0].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(tarray,0);
   assert (len >= 9);
-  delta = tarray->dim[0].stride;
+  delta = GFC_DESCRIPTOR_STRIDE(tarray,0);
   if (delta == 0)
     delta = 1;
 
-  vptr = tarray->data;
+  vptr = tarray->base_addr;
   for (i = 0; i < 9; i++, vptr += delta)
     *vptr = x[i];
 }

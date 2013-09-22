@@ -124,7 +124,7 @@ public abstract class DragGestureRecognizer implements Serializable
 
   public InputEvent getTriggerEvent()
   {
-    return events.size() > 0 ? (InputEvent) events.get(0) : null;
+    return events.size() > 0 ? events.get(0) : null;
   }
 
   /**
@@ -164,7 +164,7 @@ public abstract class DragGestureRecognizer implements Serializable
   {
     if(dragGestureListener != null)
       dragGestureListener.dragGestureRecognized
-	(new DragGestureEvent(this, dragAction, p, events));
+        (new DragGestureEvent(this, dragAction, p, events));
     resetRecognizer();
   }
 

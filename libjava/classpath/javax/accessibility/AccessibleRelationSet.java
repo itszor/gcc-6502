@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package javax.accessibility;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.Locale;
 import java.util.Vector;
 
@@ -168,7 +170,7 @@ public class AccessibleRelationSet
   {
     int i = relations.size();
     while (--i >= 0)
-      if (((AccessibleRelation) relations.get(i)).key.equals(key))
+      if ((relations.get(i)).key.equals(key))
         return true;
     return false;
   }
@@ -184,7 +186,7 @@ public class AccessibleRelationSet
     int i = relations.size();
     while (--i >= 0)
       {
-        AccessibleRelation r = (AccessibleRelation) relations.get(i);
+        AccessibleRelation r = relations.get(i);
         if (r.key.equals(key))
           return r;
       }
@@ -216,7 +218,7 @@ public class AccessibleRelationSet
     if (i == 0)
       return "";
     // Pre-allocate an average of 10 chars per state.
-    StringBuffer b = new StringBuffer(i * 10);
+    CPStringBuilder b = new CPStringBuilder(i * 10);
     while (--i >= 0)
       b.append(relations.get(i)).append(',');
     return b.substring(0, b.length() - 1);

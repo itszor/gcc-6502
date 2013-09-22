@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---            Copyright (C) 2007, Free Software Foundation, Inc.            --
+--         Copyright (C) 2007-2012, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -39,6 +37,7 @@ with Ada.Unchecked_Conversion;
 with System.OS_Interface;               use System.OS_Interface;
 with System.Task_Primitives.Operations; use System.Task_Primitives.Operations;
 with System.Tasking;                    use System.Tasking;
+with System.Win32;                      use System.Win32;
 
 package body Ada.Execution_Time is
 
@@ -92,7 +91,7 @@ package body Ada.Execution_Time is
 
    function Clock
      (T : Ada.Task_Identification.Task_Id :=
-            Ada.Task_Identification.Current_Task) return CPU_Time
+        Ada.Task_Identification.Current_Task) return CPU_Time
    is
       Hundreds_Nano_In_Sec : constant Long_Long_Float := 1.0E7;
 
@@ -118,7 +117,7 @@ package body Ada.Execution_Time is
           (HANDLE (Get_Thread_Id (To_Task_Id (T))),
            C_Time'Access, E_Time'Access, K_Time'Access, U_Time'Access);
 
-      if Res = False then
+      if Res = System.Win32.FALSE then
          raise Program_Error;
       end if;
 
@@ -129,6 +128,19 @@ package body Ada.Execution_Time is
                 ((Long_Long_Float (K_Time) / Hundreds_Nano_In_Sec)
                  + (Long_Long_Float (U_Time) / Hundreds_Nano_In_Sec))));
    end Clock;
+
+   --------------------------
+   -- Clock_For_Interrupts --
+   --------------------------
+
+   function Clock_For_Interrupts return CPU_Time is
+   begin
+      --  According to AI 0170-1, D.14(18.1/3), if Interrupt_Clocks_Supported
+      --  is set to False the function raises Program_Error.
+
+      raise Program_Error;
+      return CPU_Time_First;
+   end Clock_For_Interrupts;
 
    -----------
    -- Split --

@@ -9,7 +9,7 @@
 /* { dg-options "-fno-finite-math-only" { target sh*-*-* } } */
 /* In order to fold algebraic exprs below, targets with "composite"
    floating point formats need -funsafe-math-optimizations.  */
-/* { dg-options "-funsafe-math-optimizations" { target mips*-*-irix6* powerpc*-*-* } } */
+/* { dg-options "-funsafe-math-optimizations" { target powerpc*-*-* } } */
 
 extern void link_error(int);
 
@@ -34,17 +34,17 @@ extern void link_error(int);
 /* Test that frexp(ARG,&i) == RES && i == EXP.  Check the sign in
    case we get -0.0.  */
 #define TESTIT_FREXP(ARG,RES,EXP) do { \
-  int i = 123456; \
+  int i = 12345; \
   if (__builtin_frexpf(ARG##f,&i) != RES##f \
       || CKEXP(i,EXP) \
       || CKSGN_F(__builtin_frexpf(ARG##f,&i),RES##f)) \
     link_error(__LINE__); \
-  i = 123456; \
+  i = 12345; \
   if (__builtin_frexp(ARG,&i) != RES \
       || CKEXP(i,EXP) \
       || CKSGN(__builtin_frexp(ARG,&i),RES)) \
     link_error(__LINE__); \
-  i = 123456; \
+  i = 12345; \
   if (__builtin_frexpl(ARG##l,&i) != RES##l \
       || CKEXP(i,EXP) \
       || CKSGN_L(__builtin_frexpl(ARG##l,&i),RES##l)) \
@@ -53,6 +53,7 @@ extern void link_error(int);
 
 /* Test that FUNCRES(frexp(NEG FUNCARG(ARGARG),&i)) is false.  Check
    the sign as well.  Ensure side-effects are evaluated in i.  */
+#ifndef __SPU__
 #define TESTIT_FREXP2(NEG,FUNCARG,ARGARG,FUNCRES) do { \
   int i=5; \
   if (!__builtin_##FUNCRES##f(__builtin_frexpf(NEG __builtin_##FUNCARG##f(ARGARG),&i)) \
@@ -68,6 +69,20 @@ extern void link_error(int);
       || CKEXP(i,8)) \
     link_error(__LINE__); \
   } while (0)
+#else
+#define TESTIT_FREXP2(NEG,FUNCARG,ARGARG,FUNCRES) do { \
+  int i=6; \
+  /* SPU single-precision floating point format does not support Inf or Nan.  */ \
+  if (!__builtin_##FUNCRES(__builtin_frexp(NEG __builtin_##FUNCARG(ARGARG),&i)) \
+      || CKSGN(__builtin_frexp(NEG __builtin_##FUNCARG(ARGARG),(i++,&i)), NEG __builtin_##FUNCARG(ARGARG)) \
+      || CKEXP(i,7)) \
+    link_error(__LINE__); \
+  if (!__builtin_##FUNCRES##l(__builtin_frexpl(NEG __builtin_##FUNCARG##l(ARGARG),&i)) \
+      || CKSGN_L(__builtin_frexpl(NEG __builtin_##FUNCARG##l(ARGARG),(i++,&i)), NEG __builtin_##FUNCARG##l(ARGARG)) \
+      || CKEXP(i,8)) \
+    link_error(__LINE__); \
+  } while (0)
+#endif
 
 void __attribute__ ((__noinline__))
 foo(void)

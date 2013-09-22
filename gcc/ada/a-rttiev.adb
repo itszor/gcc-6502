@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---           Copyright (C) 2005-2006, Free Software Foundation, Inc.        --
+--           Copyright (C) 2005-2011, Free Software Foundation, Inc.        --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -34,7 +32,7 @@
 with System.Task_Primitives.Operations;
 with System.Tasking.Utilities;
 with System.Soft_Links;
---  used for Abort_Defer/Undefer
+with System.Interrupt_Management.Operations;
 
 with Ada.Containers.Doubly_Linked_Lists;
 pragma Elaborate_All (Ada.Containers.Doubly_Linked_Lists);
@@ -46,7 +44,6 @@ pragma Elaborate_All (Ada.Containers.Doubly_Linked_Lists);
 package body Ada.Real_Time.Timing_Events is
 
    use System.Task_Primitives.Operations;
-   --  for Write_Lock and Unlock
 
    package SSL renames System.Soft_Links;
 
@@ -68,8 +65,8 @@ package body Ada.Real_Time.Timing_Events is
    --  Used for mutually exclusive access to All_Events
 
    procedure Process_Queued_Events;
-   --  Examine the queue of pending events for any that have timed-out. For
-   --  those that have timed-out, remove them from the queue and invoke their
+   --  Examine the queue of pending events for any that have timed out. For
+   --  those that have timed out, remove them from the queue and invoke their
    --  handler (unless the user has cancelled the event by setting the handler
    --  pointer to null). Mutually exclusive access is held via Event_Queue_Lock
    --  during part of the processing.
@@ -79,9 +76,9 @@ package body Ada.Real_Time.Timing_Events is
    --  with mutually exclusive access via Event_Queue_Lock.
 
    procedure Remove_From_Queue (This : Any_Timing_Event);
-   --  Remove the specified event pointer from the queue of pending events
-   --  with mutually exclusive access via Event_Queue_Lock.
-   --  This procedure is used by the client-side routines (Set_Handler, etc.).
+   --  Remove the specified event pointer from the queue of pending events with
+   --  mutually exclusive access via Event_Queue_Lock. This procedure is used
+   --  by the client-side routines (Set_Handler, etc.).
 
    -----------
    -- Timer --
@@ -98,8 +95,15 @@ package body Ada.Real_Time.Timing_Events is
       --  selected is arbitrary and could be changed to suit the application
       --  requirements. Obviously a shorter period would give better resolution
       --  at the cost of more overhead.
+
    begin
       System.Tasking.Utilities.Make_Independent;
+
+      --  Since this package may be elaborated before System.Interrupt,
+      --  we need to call Setup_Interrupt_Mask explicitly to ensure that
+      --  this task has the proper signal mask.
+
+      System.Interrupt_Management.Operations.Setup_Interrupt_Mask;
 
       --  We await the call to Start to ensure that Event_Queue_Lock has been
       --  initialized by the package executable part prior to accessing it in
@@ -144,7 +148,7 @@ package body Ada.Real_Time.Timing_Events is
 
          if Next_Event.Timeout > Clock then
 
-            --  We found one that has not yet timed-out. The queue is in
+            --  We found one that has not yet timed out. The queue is in
             --  ascending order by Timeout so there is no need to continue
             --  processing (and indeed we must not continue since we always
             --  delete the first element).
@@ -154,8 +158,8 @@ package body Ada.Real_Time.Timing_Events is
             return;
          end if;
 
-         --  We have an event that has timed out so we will process it. It
-         --  must be the first in the queue so no search is needed.
+         --  We have an event that has timed out so we will process it. It must
+         --  be the first in the queue so no search is needed.
 
          All_Events.Delete_First;
 
@@ -175,8 +179,9 @@ package body Ada.Real_Time.Timing_Events is
 
          declare
             Handler : constant Timing_Event_Handler := Next_Event.Handler;
+
          begin
-            --  The first act is to clear the event, per D.15 (13/2). Besides,
+            --  The first act is to clear the event, per D.15(13/2). Besides,
             --  we cannot clear the handler pointer *after* invoking the
             --  handler because the handler may have re-inserted the event via
             --  Set_Event. Thus we take a copy and then clear the component.
@@ -184,8 +189,12 @@ package body Ada.Real_Time.Timing_Events is
             Next_Event.Handler := null;
 
             if Handler /= null then
-               Handler (Timing_Event (Next_Event.all));
+               Handler.all (Timing_Event (Next_Event.all));
             end if;
+
+         --  Ignore exceptions propagated by Handler.all, as required by
+         --  RM D.15(21/2).
+
          exception
             when others =>
                null;
@@ -205,10 +214,16 @@ package body Ada.Real_Time.Timing_Events is
       package By_Timeout is new Events.Generic_Sorting (Sooner);
       --  Used to keep the events in ascending order by timeout value
 
+      ------------
+      -- Sooner --
+      ------------
+
       function Sooner (Left, Right : Any_Timing_Event) return Boolean is
       begin
          return Left.Timeout < Right.Timeout;
       end Sooner;
+
+   --  Start of processing for Insert_Into_Queue
 
    begin
       SSL.Abort_Defer.all;
@@ -236,12 +251,14 @@ package body Ada.Real_Time.Timing_Events is
    procedure Remove_From_Queue (This : Any_Timing_Event) is
       use Events;
       Location : Cursor;
+
    begin
       SSL.Abort_Defer.all;
 
       Write_Lock (Event_Queue_Lock'Access);
 
       Location := All_Events.Find (This);
+
       if Location /= No_Element then
          All_Events.Delete (Location);
       end if;
@@ -263,12 +280,18 @@ package body Ada.Real_Time.Timing_Events is
    begin
       Remove_From_Queue (Event'Unchecked_Access);
       Event.Handler := null;
-      if At_Time <= Clock then
-         if Handler /= null then
-            Handler (Event);
-         end if;
-         return;
-      end if;
+
+      --  RM D.15(15/2) required that at this point, we check whether the time
+      --  has already passed, and if so, call Handler.all directly from here
+      --  instead of doing the enqueuing below. However, this caused a nasty
+      --  race condition and potential deadlock. If the current task has
+      --  already locked the protected object of Handler.all, and the time has
+      --  passed, deadlock would occur. It has been fixed by AI05-0094-1, which
+      --  says that the handler should be executed as soon as possible, meaning
+      --  that the timing event will be executed after the protected action
+      --  finishes (Handler.all should not be called directly from here).
+      --  The same comment applies to the other Set_Handler below.
+
       if Handler /= null then
          Event.Timeout := At_Time;
          Event.Handler := Handler;
@@ -288,12 +311,9 @@ package body Ada.Real_Time.Timing_Events is
    begin
       Remove_From_Queue (Event'Unchecked_Access);
       Event.Handler := null;
-      if In_Time <= Time_Span_Zero then
-         if Handler /= null then
-            Handler (Event);
-         end if;
-         return;
-      end if;
+
+      --  See comment in the other Set_Handler above
+
       if Handler /= null then
          Event.Timeout := Clock + In_Time;
          Event.Handler := Handler;
@@ -332,7 +352,9 @@ package body Ada.Real_Time.Timing_Events is
 
    function Time_Of_Event (Event : Timing_Event) return Time is
    begin
-      return Event.Timeout;
+      --  RM D.15(18/2): Time_First must be returned in the event is not set
+
+      return (if Event.Handler = null then Time_First else Event.Timeout);
    end Time_Of_Event;
 
    --------------

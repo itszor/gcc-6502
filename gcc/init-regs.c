@@ -1,6 +1,5 @@
-/* Initialization of uninitialized regs. 
-   Copyright (C) 2007 Free Software Foundation,
-   Inc.
+/* Initialization of uninitialized regs.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -70,13 +69,13 @@ initialize_uninitialized_regs (void)
       FOR_BB_INSNS (bb, insn)
 	{
 	  unsigned int uid = INSN_UID (insn);
-	  struct df_ref **use_rec;
-	  if (!INSN_P (insn))
+	  df_ref *use_rec;
+	  if (!NONDEBUG_INSN_P (insn))
 	    continue;
 
 	  for (use_rec = DF_INSN_UID_USES (uid); *use_rec; use_rec++)
 	    {
-	      struct df_ref *use = *use_rec;
+	      df_ref use = *use_rec;
 	      unsigned int regno = DF_REF_REGNO (use);
 
 	      /* Only do this for the pseudos.  */
@@ -100,7 +99,7 @@ initialize_uninitialized_regs (void)
 		  rtx move_insn;
 		  rtx reg = DF_REF_REAL_REG (use);
 
-		  bitmap_set_bit (already_genned, regno); 
+		  bitmap_set_bit (already_genned, regno);
 
 		  start_sequence ();
 		  emit_move_insn (reg, CONST0_RTX (GET_MODE (reg)));
@@ -108,8 +107,8 @@ initialize_uninitialized_regs (void)
 		  end_sequence ();
 		  emit_insn_before (move_insn, insn);
 		  if (dump_file)
-		    fprintf (dump_file, 
-			     "adding initialization in %s of reg %d at in block %d for insn %d.\n", 
+		    fprintf (dump_file,
+			     "adding initialization in %s of reg %d at in block %d for insn %d.\n",
 			     current_function_name (), regno, bb->index, uid);
 		}
 	    }
@@ -118,7 +117,7 @@ initialize_uninitialized_regs (void)
 
   if (optimize == 1)
     {
-      if (dump_file) 
+      if (dump_file)
 	df_dump (dump_file);
       df_remove_problem (df_live);
     }
@@ -139,20 +138,22 @@ rest_of_handle_initialize_regs (void)
   return 0;
 }
 
-struct tree_opt_pass pass_initialize_regs =
+struct rtl_opt_pass pass_initialize_regs =
 {
+ {
+  RTL_PASS,
   "init-regs",                          /* name */
+  OPTGROUP_NONE,                        /* optinfo_flags */
   gate_initialize_regs,                 /* gate */
   rest_of_handle_initialize_regs,       /* execute */
   NULL,                                 /* sub */
   NULL,                                 /* next */
   0,                                    /* static_pass_number */
-  0,                                    /* tv_id */
+  TV_NONE,                              /* tv_id */
   0,                                    /* properties_required */
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  TODO_dump_func |
-  TODO_df_finish,                       /* todo_flags_finish */
-  0                                     /* letter */
+  TODO_df_finish                        /* todo_flags_finish */
+ }
 };

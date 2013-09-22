@@ -1,37 +1,32 @@
-/* Copyright (C) 2005 Free Software Foundation, Inc.
+/* Copyright (C) 2005-2013 Free Software Foundation, Inc.
    Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU OpenMP Library (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version.
+   under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
    Libgomp is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-   FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+   FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
    more details.
 
-   You should have received a copy of the GNU Lesser General Public License 
-   along with libgomp; see the file COPYING.LIB.  If not, write to the
-   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files, some
-   of which are compiled with GCC, to produce an executable, this library
-   does not by itself cause the resulting executable to be covered by the
-   GNU General Public License.  This exception does not however invalidate
-   any other reasons why the executable file might be covered by the GNU
-   General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Provide target-specific access to the futex system call.  */
 
 #ifndef SYS_futex
 #define SYS_futex               394
 #endif
-#define FUTEX_WAIT              0
-#define FUTEX_WAKE              1
 
 
 static inline void
@@ -45,7 +40,7 @@ futex_wait (int *addr, int val)
 
   sc_0 = SYS_futex;
   sc_16 = (long) addr;
-  sc_17 = FUTEX_WAIT;
+  sc_17 = gomp_futex_wait;
   sc_18 = val;
   sc_19 = 0;
   __asm volatile ("callsys"
@@ -53,6 +48,20 @@ futex_wait (int *addr, int val)
 		  : "0"(sc_0), "r" (sc_16), "r"(sc_17), "r"(sc_18), "1"(sc_19)
 		  : "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
 		    "$22", "$23", "$24", "$25", "$27", "$28", "memory");
+  if (__builtin_expect (sc_19, 0) && sc_0 == ENOSYS)
+    {
+      gomp_futex_wait &= ~FUTEX_PRIVATE_FLAG;
+      gomp_futex_wake &= ~FUTEX_PRIVATE_FLAG;
+      sc_0 = SYS_futex;
+      sc_17 &= ~FUTEX_PRIVATE_FLAG;
+      sc_19 = 0;
+      __asm volatile ("callsys"
+		      : "=r" (sc_0), "=r"(sc_19)
+		      : "0"(sc_0), "r" (sc_16), "r"(sc_17), "r"(sc_18),
+			"1"(sc_19)
+		      : "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
+			"$22", "$23", "$24", "$25", "$27", "$28", "memory");
+    }
 }
 
 static inline void
@@ -66,11 +75,29 @@ futex_wake (int *addr, int count)
 
   sc_0 = SYS_futex;
   sc_16 = (long) addr;
-  sc_17 = FUTEX_WAKE;
+  sc_17 = gomp_futex_wake;
   sc_18 = count;
   __asm volatile ("callsys"
 		  : "=r" (sc_0), "=r"(sc_19)
 		  : "0"(sc_0), "r" (sc_16), "r"(sc_17), "r"(sc_18)
 		  : "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
 		    "$22", "$23", "$24", "$25", "$27", "$28", "memory");
+  if (__builtin_expect (sc_19, 0) && sc_0 == ENOSYS)
+    {
+      gomp_futex_wait &= ~FUTEX_PRIVATE_FLAG;
+      gomp_futex_wake &= ~FUTEX_PRIVATE_FLAG;
+      sc_0 = SYS_futex;
+      sc_17 &= ~FUTEX_PRIVATE_FLAG;
+      __asm volatile ("callsys"
+		      : "=r" (sc_0), "=r"(sc_19)
+		      : "0"(sc_0), "r" (sc_16), "r"(sc_17), "r"(sc_18)
+		      : "$1", "$2", "$3", "$4", "$5", "$6", "$7", "$8",
+			"$22", "$23", "$24", "$25", "$27", "$28", "memory");
+    }
+}
+
+static inline void
+cpu_relax (void)
+{
+  __asm volatile ("" : : : "memory");
 }

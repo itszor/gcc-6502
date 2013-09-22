@@ -8,7 +8,7 @@
    You must be this tall ---> fit two long longs in asm-declared registers
    to enter this amusement.  */
 
-/* { dg-do compile { target alpha-*-* cris-*-* crisv32-*-* i?86-*-* mmix-*-* powerpc*-*-* rs6000-*-* x86_64-*-* } } */
+/* { dg-do compile { target alpha*-*-* cris-*-* crisv32-*-* i?86-*-* mmix-*-* powerpc*-*-* rs6000-*-* x86_64-*-* } } */
 /* { dg-options "-O2" } */
 
 /* Constructed examples; input/output (same register), output, input, and
@@ -38,10 +38,11 @@
 # define REG1 "$8"
 # define REG2 "$9"
 #elif defined (__powerpc__) || defined (__PPC__) || defined (__ppc__) \
-	|| defined (__POWERPC__) || defined (PPC) || defined (_IBMR2)
+	|| defined (__POWERPC__) || defined (PPC) || defined (_IBMR2) \
+	|| defined (__ppc)
 # define REG1 "6"
 # define REG2 "7"
-# ifndef __powerpc64__
+# if !defined(__powerpc64__) && !defined(__LP64__)
 #  define REG3 "8"
 #  define REG4 "9"
 # endif
@@ -237,12 +238,18 @@ bazllb (long long llp)
 
 /* Real-world example of bug.  */
 
+#ifdef _WIN64
+typedef unsigned int loc_size_t __attribute__ ((mode (DI)));
+#else
+typedef __SIZE_TYPE__ loc_size_t;
+#endif
+
 struct stat;
 int
 _dl_stat (const char *file_name, struct stat *buf)
 {
-  register long a asm (REG1) = (long) file_name;
-  register long b asm (REG2) = (long) buf;
+  register long a asm (REG1) = (long) (loc_size_t) file_name;
+  register long b asm (REG2) = (long) (loc_size_t) buf;
 
   asm volatile ("movu.w %1,$r9\n\tbreak 13" : "=r" (a) : "g" (106), "0" (a), "r" (b) : REG1, REG5); /* { dg-error "conflict" } */
   if (a >= 0)

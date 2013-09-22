@@ -3,15 +3,14 @@
 <title>Installing GCC: Final installation</title>
 <meta http-equiv="Content-Type" content="text/html">
 <meta name="description" content="Installing GCC: Final installation">
-<meta name="generator" content="makeinfo 4.11">
+<meta name="generator" content="makeinfo 4.13">
 <link title="Top" rel="top" href="#Top">
 <link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
 <!--
-Copyright (C) 1988, 1989, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 Free Software Foundation, Inc.
+Copyright (C) 1988-2013 Free Software Foundation, Inc.
 
    Permission is granted to copy, distribute and/or modify this document
-under the terms of the GNU Free Documentation License, Version 1.2 or
+under the terms of the GNU Free Documentation License, Version 1.3 or
 any later version published by the Free Software Foundation; with no
 Invariant Sections, the Front-Cover texts being (a) (see below), and
 with the Back-Cover Texts being (b) (see below).  A copy of the
@@ -42,7 +41,7 @@ license is included in the section entitled "GNU Free Documentation License".
 <body>
 <h1 class="settitle">Installing GCC: Final installation</h1>
 Now that GCC has been built (and optionally tested), you can install it with
-<pre class="smallexample">     cd <var>objdir</var>; make install
+<pre class="smallexample">     cd <var>objdir</var> &amp;&amp; make install
 </pre>
    <p>We strongly recommend to install into a target directory where there is
 no previous version of GCC present.  Also, the GNAT runtime should not
@@ -89,6 +88,10 @@ it will not be created otherwise.  This is regarded as a feature,
 not as a bug, because it gives slightly more control to the packagers
 using the <code>DESTDIR</code> feature.
 
+   <p>You can install stripped programs and libraries with
+
+<pre class="smallexample">     make install-strip
+</pre>
    <p>If you are bootstrapping a released version of GCC then please
 quickly review the build status page for your release, available from
 <a href="http://gcc.gnu.org/buildstat.html">http://gcc.gnu.org/buildstat.html</a>. 
@@ -139,17 +142,17 @@ incomplete or out of date.  Send a note to
 <a href="mailto:gcc@gcc.gnu.org">gcc@gcc.gnu.org</a> detailing how the information should be changed.
 
    <p>If you find a bug, please report it following the
-<a href="../bugs.html">bug reporting guidelines</a>.
+<a href="../bugs/">bug reporting guidelines</a>.
 
    <p>If you want to print the GCC manuals, do &lsquo;<samp><span class="samp">cd </span><var>objdir</var><span class="samp">; make
-dvi</span></samp>&rsquo;.  You will need to have <samp><span class="command">texi2dvi</span></samp> (version at least 4.4)
+dvi</span></samp>&rsquo;.  You will need to have <samp><span class="command">texi2dvi</span></samp> (version at least 4.7)
 and TeX installed.  This creates a number of <samp><span class="file">.dvi</span></samp> files in
 subdirectories of <samp><var>objdir</var></samp>; these may be converted for
 printing with programs such as <samp><span class="command">dvips</span></samp>.  Alternately, by using
 &lsquo;<samp><span class="samp">make pdf</span></samp>&rsquo; in place of &lsquo;<samp><span class="samp">make dvi</span></samp>&rsquo;, you can create documentation
 in the form of <samp><span class="file">.pdf</span></samp> files; this requires <samp><span class="command">texi2pdf</span></samp>, which
 is included with Texinfo version 4.8 and later.  You can also
-<a href="http://www.gnu.org/order/order.html">buy printed manuals from the Free Software Foundation</a>, though such manuals may not be for the most
+<a href="http://shop.fsf.org/">buy printed manuals from the Free Software Foundation</a>, though such manuals may not be for the most
 recent version of GCC.
 
    <p>If you would like to generate online HTML documentation, do &lsquo;<samp><span class="samp">cd

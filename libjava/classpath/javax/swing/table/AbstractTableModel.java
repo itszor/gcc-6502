@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package javax.swing.table;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 import java.util.EventListener;
 
@@ -46,9 +48,9 @@ import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 
 /**
- * A base class that can be used to create implementations of the 
+ * A base class that can be used to create implementations of the
  * {@link TableModel} interface.
- * 
+ *
  * @author Andrew Selkirk
  */
 public abstract class AbstractTableModel implements TableModel, Serializable
@@ -69,10 +71,10 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   }
 
   /**
-   * Returns the name of the specified column.  This method generates default 
-   * names in a sequence (starting with column 0):  A, B, C, ..., Z, AA, AB, 
+   * Returns the name of the specified column.  This method generates default
+   * names in a sequence (starting with column 0):  A, B, C, ..., Z, AA, AB,
    * AC, ..., AZ, BA, BB, BC, and so on.  Subclasses may override this method
-   * to allow column names to be specified on some other basis. 
+   * to allow column names to be specified on some other basis.
    *
    * @param columnIndex  the column index.
    *
@@ -80,7 +82,7 @@ public abstract class AbstractTableModel implements TableModel, Serializable
    */
   public String getColumnName(int columnIndex)
   {
-    StringBuffer buffer = new StringBuffer();
+    CPStringBuilder buffer = new CPStringBuilder();
     while (columnIndex >= 0)
       {
         buffer.insert(0, (char) ('A' + columnIndex % 26));
@@ -96,19 +98,19 @@ public abstract class AbstractTableModel implements TableModel, Serializable
    * @param columnName  the name of the column (<code>null</code> not permitted).
    *
    * @return The index of the column, -1 if not found.
-   * 
+   *
    * @see #getColumnName(int)
-   * @throws NullPointerException if <code>columnName</code> is 
+   * @throws NullPointerException if <code>columnName</code> is
    *         <code>null</code>.
    */
   public int findColumn(String columnName)
   {
     int count = getColumnCount();
-    
+
     for (int index = 0; index < count; index++)
       {
         String name = getColumnName(index);
-        
+
         if (columnName.equals(name))
           return index;
     }
@@ -119,10 +121,10 @@ public abstract class AbstractTableModel implements TableModel, Serializable
 
   /**
    * Returns the <code>Class</code> for all <code>Object</code> instances
-   * in the specified column.  
-   * 
+   * in the specified column.
+   *
    * @param columnIndex the column index.
-   * 
+   *
    * @return The class.
    */
   public Class<?> getColumnClass(int columnIndex)
@@ -131,9 +133,9 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   }
 
   /**
-   * Returns <code>true</code> if the specified cell is editable, and 
-   * <code>false</code> if it is not.  This implementation returns 
-   * <code>false</code> for all arguments, subclasses should override the 
+   * Returns <code>true</code> if the specified cell is editable, and
+   * <code>false</code> if it is not.  This implementation returns
+   * <code>false</code> for all arguments, subclasses should override the
    * method if necessary.
    *
    * @param rowIndex  the row index of the cell.
@@ -147,8 +149,8 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   }
 
   /**
-   * Sets the value of the given cell.  This implementation ignores all 
-   * arguments and does nothing, subclasses should override the 
+   * Sets the value of the given cell.  This implementation ignores all
+   * arguments and does nothing, subclasses should override the
    * method if necessary.
    *
    * @param value  the new value (<code>null</code> permitted).
@@ -217,7 +219,7 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   /**
    * Sends a {@link TableModelEvent} to all registered listeners to inform
    * them that some rows have been inserted into the model.
-   * 
+   *
    * @param firstRow  the index of the first row.
    * @param lastRow  the index of the last row.
    */
@@ -231,7 +233,7 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   /**
    * Sends a {@link TableModelEvent} to all registered listeners to inform
    * them that some rows have been updated.
-   * 
+   *
    * @param firstRow  the index of the first row.
    * @param lastRow  the index of the last row.
    */
@@ -245,7 +247,7 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   /**
    * Sends a {@link TableModelEvent} to all registered listeners to inform
    * them that some rows have been deleted from the model.
-   * 
+   *
    * @param firstRow  the index of the first row.
    * @param lastRow  the index of the last row.
    */
@@ -259,7 +261,7 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   /**
    * Sends a {@link TableModelEvent} to all registered listeners to inform
    * them that a single cell has been updated.
-   * 
+   *
    * @param row  the row index.
    * @param column  the column index.
    */
@@ -270,15 +272,15 @@ public abstract class AbstractTableModel implements TableModel, Serializable
 
   /**
    * Sends the specified event to all registered listeners.
-   * 
+   *
    * @param event  the event to send.
    */
   public void fireTableChanged(TableModelEvent event)
   {
-    int	index;
+    int index;
     TableModelListener listener;
     Object[] list = listenerList.getListenerList();
- 
+
     for (index = 0; index < list.length; index += 2)
       {
         listener = (TableModelListener) list [index + 1];
@@ -289,9 +291,9 @@ public abstract class AbstractTableModel implements TableModel, Serializable
   /**
    * Returns an array of listeners of the given type that are registered with
    * this model.
-   * 
+   *
    * @param listenerType  the listener class.
-   * 
+   *
    * @return An array of listeners (possibly empty).
    */
   public <T extends EventListener> T[] getListeners(Class<T> listenerType)

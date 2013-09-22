@@ -1,12 +1,11 @@
 // vector<bool> specialization -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,15 +48,21 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file stl_bvector.h
+/** @file bits/stl_bvector.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{vector}
  */
 
 #ifndef _STL_BVECTOR_H
 #define _STL_BVECTOR_H 1
 
-_GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
+#if __cplusplus >= 201103L
+#include <initializer_list>
+#endif
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   typedef unsigned long _Bit_type;
   enum { _S_word_bit = int(__CHAR_BIT__ * sizeof(_Bit_type)) };
@@ -75,13 +75,13 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     _Bit_reference(_Bit_type * __x, _Bit_type __y)
     : _M_p(__x), _M_mask(__y) { }
 
-    _Bit_reference() : _M_p(0), _M_mask(0) { }
+    _Bit_reference() _GLIBCXX_NOEXCEPT : _M_p(0), _M_mask(0) { }
 
-    operator bool() const
+    operator bool() const _GLIBCXX_NOEXCEPT
     { return !!(*_M_p & _M_mask); }
 
     _Bit_reference&
-    operator=(bool __x)
+    operator=(bool __x) _GLIBCXX_NOEXCEPT
     {
       if (__x)
 	*_M_p |= _M_mask;
@@ -91,7 +91,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     }
 
     _Bit_reference&
-    operator=(const _Bit_reference& __x)
+    operator=(const _Bit_reference& __x) _GLIBCXX_NOEXCEPT
     { return *this = bool(__x); }
 
     bool
@@ -103,9 +103,35 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     { return !bool(*this) && bool(__x); }
 
     void
-    flip()
+    flip() _GLIBCXX_NOEXCEPT
     { *_M_p ^= _M_mask; }
   };
+
+#if __cplusplus >= 201103L
+  inline void
+  swap(_Bit_reference __x, _Bit_reference __y) noexcept
+  {
+    bool __tmp = __x;
+    __x = __y;
+    __y = __tmp;
+  }
+
+  inline void
+  swap(_Bit_reference __x, bool& __y) noexcept
+  {
+    bool __tmp = __x;
+    __x = __y;
+    __y = __tmp;
+  }
+
+  inline void
+  swap(bool& __x, _Bit_reference __y) noexcept
+  {
+    bool __tmp = __x;
+    __x = __y;
+    __y = __tmp;
+  }
+#endif
 
   struct _Bit_iterator_base
   : public std::iterator<std::random_access_iterator_tag, bool>
@@ -393,21 +419,28 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	_Bvector_impl(const _Bit_alloc_type& __a)
 	: _Bit_alloc_type(__a), _M_start(), _M_finish(), _M_end_of_storage(0)
 	{ }
+
+#if __cplusplus >= 201103L
+	_Bvector_impl(_Bit_alloc_type&& __a)
+	: _Bit_alloc_type(std::move(__a)), _M_start(), _M_finish(),
+	  _M_end_of_storage(0)
+	{ }
+#endif
       };
 
     public:
       typedef _Alloc allocator_type;
 
       _Bit_alloc_type&
-      _M_get_Bit_allocator()
+      _M_get_Bit_allocator() _GLIBCXX_NOEXCEPT
       { return *static_cast<_Bit_alloc_type*>(&this->_M_impl); }
 
       const _Bit_alloc_type&
-      _M_get_Bit_allocator() const
+      _M_get_Bit_allocator() const _GLIBCXX_NOEXCEPT
       { return *static_cast<const _Bit_alloc_type*>(&this->_M_impl); }
 
       allocator_type
-      get_allocator() const
+      get_allocator() const _GLIBCXX_NOEXCEPT
       { return allocator_type(_M_get_Bit_allocator()); }
 
       _Bvector_base()
@@ -416,9 +449,9 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       _Bvector_base(const allocator_type& __a)
       : _M_impl(__a) { }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-      _Bvector_base(_Bvector_base&& __x)
-      : _M_impl(__x._M_get_Bit_allocator())
+#if __cplusplus >= 201103L
+      _Bvector_base(_Bvector_base&& __x) noexcept
+      : _M_impl(std::move(__x._M_get_Bit_allocator()))
       {
 	this->_M_impl._M_start = __x._M_impl._M_start;
 	this->_M_impl._M_finish = __x._M_impl._M_finish;
@@ -437,8 +470,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 
       _Bit_type*
       _M_allocate(size_t __n)
-      { return _M_impl.allocate((__n + int(_S_word_bit) - 1)
-				/ int(_S_word_bit)); }
+      { return _M_impl.allocate(_S_nword(__n)); }
 
       void
       _M_deallocate()
@@ -447,26 +479,34 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	  _M_impl.deallocate(_M_impl._M_start._M_p,
 			     _M_impl._M_end_of_storage - _M_impl._M_start._M_p);
       }
+
+      static size_t
+      _S_nword(size_t __n)
+      { return (__n + int(_S_word_bit) - 1) / int(_S_word_bit); }
     };
 
-_GLIBCXX_END_NESTED_NAMESPACE
+_GLIBCXX_END_NAMESPACE_CONTAINER
+} // namespace std
 
 // Declare a partial specialization of vector<T, Alloc>.
 #include <bits/stl_vector.h>
 
-_GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   /**
    *  @brief  A specialization of vector for booleans which offers fixed time
    *  access to individual elements in any order.
    *
+   *  @ingroup sequences
+   *
+   *  @tparam _Alloc  Allocator type.
+   *
    *  Note that vector<bool> does not actually meet the requirements for being
    *  a container.  This is because the reference and pointer types are not
    *  really references and pointers to bool.  See DR96 for details.  @see
    *  vector for function documentation.
-   *
-   *  @ingroup Containers
-   *  @ingroup Sequences
    *
    *  In some terminology a %vector can be described as a dynamic
    *  C-style array, it offers fast and efficient access to individual
@@ -478,6 +518,10 @@ template<typename _Alloc>
   class vector<bool, _Alloc> : protected _Bvector_base<_Alloc>
   {
     typedef _Bvector_base<_Alloc>			 _Base;
+
+#if __cplusplus >= 201103L
+    template<typename> friend class hash;
+#endif
 
   public:
     typedef bool                                         value_type;
@@ -499,6 +543,7 @@ template<typename _Alloc>
   protected:
     using _Base::_M_allocate;
     using _Base::_M_deallocate;
+    using _Base::_S_nword;
     using _Base::_M_get_Bit_allocator;
 
   public:
@@ -509,6 +554,21 @@ template<typename _Alloc>
     vector(const allocator_type& __a)
     : _Base(__a) { }
 
+#if __cplusplus >= 201103L
+    explicit
+    vector(size_type __n, const allocator_type& __a = allocator_type())
+    : vector(__n, false, __a)
+    { }
+
+    vector(size_type __n, const bool& __value, 
+	   const allocator_type& __a = allocator_type())
+    : _Base(__a)
+    {
+      _M_initialize(__n);
+      std::fill(this->_M_impl._M_start._M_p, this->_M_impl._M_end_of_storage, 
+		__value ? ~0 : 0);
+    }
+#else
     explicit
     vector(size_type __n, const bool& __value = bool(), 
 	   const allocator_type& __a = allocator_type())
@@ -518,6 +578,7 @@ template<typename _Alloc>
       std::fill(this->_M_impl._M_start._M_p, this->_M_impl._M_end_of_storage, 
 		__value ? ~0 : 0);
     }
+#endif
 
     vector(const vector& __x)
     : _Base(__x._M_get_Bit_allocator())
@@ -526,11 +587,27 @@ template<typename _Alloc>
       _M_copy_aligned(__x.begin(), __x.end(), this->_M_impl._M_start);
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-    vector(vector&& __x)
-    : _Base(std::forward<_Base>(__x)) { }
+#if __cplusplus >= 201103L
+    vector(vector&& __x) noexcept
+    : _Base(std::move(__x)) { }
+
+    vector(initializer_list<bool> __l,
+	   const allocator_type& __a = allocator_type())
+    : _Base(__a)
+    {
+      _M_initialize_range(__l.begin(), __l.end(),
+			  random_access_iterator_tag());
+    }
 #endif
 
+#if __cplusplus >= 201103L
+    template<typename _InputIterator,
+	     typename = std::_RequireInputIter<_InputIterator>>
+      vector(_InputIterator __first, _InputIterator __last,
+	     const allocator_type& __a = allocator_type())
+      : _Base(__a)
+      { _M_initialize_dispatch(__first, __last, __false_type()); }
+#else
     template<typename _InputIterator>
       vector(_InputIterator __first, _InputIterator __last,
 	     const allocator_type& __a = allocator_type())
@@ -539,8 +616,9 @@ template<typename _Alloc>
 	typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	_M_initialize_dispatch(__first, __last, _Integral());
       }
+#endif
 
-    ~vector() { }
+    ~vector() _GLIBCXX_NOEXCEPT { }
 
     vector&
     operator=(const vector& __x)
@@ -557,13 +635,21 @@ template<typename _Alloc>
       return *this;
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
     vector&
     operator=(vector&& __x)
     {
+      // NB: DR 1204.
       // NB: DR 675.
       this->clear();
       this->swap(__x); 
+      return *this;
+    }
+
+    vector&
+    operator=(initializer_list<bool> __l)
+    {
+      this->assign (__l.begin(), __l.end());
       return *this;
     }
 #endif
@@ -576,6 +662,13 @@ template<typename _Alloc>
     assign(size_type __n, const bool& __x)
     { _M_fill_assign(__n, __x); }
 
+#if __cplusplus >= 201103L
+    template<typename _InputIterator,
+	     typename = std::_RequireInputIter<_InputIterator>>
+      void
+      assign(_InputIterator __first, _InputIterator __last)
+      { _M_assign_dispatch(__first, __last, __false_type()); }
+#else
     template<typename _InputIterator>
       void
       assign(_InputIterator __first, _InputIterator __last)
@@ -583,63 +676,70 @@ template<typename _Alloc>
 	typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	_M_assign_dispatch(__first, __last, _Integral());
       }
+#endif
+
+#if __cplusplus >= 201103L
+    void
+    assign(initializer_list<bool> __l)
+    { this->assign(__l.begin(), __l.end()); }
+#endif
 
     iterator
-    begin()
+    begin() _GLIBCXX_NOEXCEPT
     { return this->_M_impl._M_start; }
 
     const_iterator
-    begin() const
+    begin() const _GLIBCXX_NOEXCEPT
     { return this->_M_impl._M_start; }
 
     iterator
-    end()
+    end() _GLIBCXX_NOEXCEPT
     { return this->_M_impl._M_finish; }
 
     const_iterator
-    end() const
+    end() const _GLIBCXX_NOEXCEPT
     { return this->_M_impl._M_finish; }
 
     reverse_iterator
-    rbegin()
+    rbegin() _GLIBCXX_NOEXCEPT
     { return reverse_iterator(end()); }
 
     const_reverse_iterator
-    rbegin() const
+    rbegin() const _GLIBCXX_NOEXCEPT
     { return const_reverse_iterator(end()); }
 
     reverse_iterator
-    rend()
+    rend() _GLIBCXX_NOEXCEPT
     { return reverse_iterator(begin()); }
 
     const_reverse_iterator
-    rend() const
+    rend() const _GLIBCXX_NOEXCEPT
     { return const_reverse_iterator(begin()); }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
     const_iterator
-    cbegin() const
+    cbegin() const noexcept
     { return this->_M_impl._M_start; }
 
     const_iterator
-    cend() const
+    cend() const noexcept
     { return this->_M_impl._M_finish; }
 
     const_reverse_iterator
-    crbegin() const
+    crbegin() const noexcept
     { return const_reverse_iterator(end()); }
 
     const_reverse_iterator
-    crend() const
+    crend() const noexcept
     { return const_reverse_iterator(begin()); }
 #endif
 
     size_type
-    size() const
+    size() const _GLIBCXX_NOEXCEPT
     { return size_type(end() - begin()); }
 
     size_type
-    max_size() const
+    max_size() const _GLIBCXX_NOEXCEPT
     {
       const size_type __isize =
 	__gnu_cxx::__numeric_traits<difference_type>::__max
@@ -650,12 +750,12 @@ template<typename _Alloc>
     }
 
     size_type
-    capacity() const
+    capacity() const _GLIBCXX_NOEXCEPT
     { return size_type(const_iterator(this->_M_impl._M_end_of_storage, 0)
 		       - begin()); }
 
     bool
-    empty() const
+    empty() const _GLIBCXX_NOEXCEPT
     { return begin() == end(); }
 
     reference
@@ -690,7 +790,13 @@ template<typename _Alloc>
     { _M_range_check(__n); return (*this)[__n]; }
 
     void
-    reserve(size_type __n);
+    reserve(size_type __n)
+    {
+      if (__n > max_size())
+	__throw_length_error(__N("vector::reserve"));
+      if (capacity() < __n)
+	_M_reallocate(__n);
+    }
 
     reference
     front()
@@ -714,7 +820,7 @@ template<typename _Alloc>
     // here due to the way we are implementing DR 464 in the debug-mode
     // vector class.
     void
-    data() { }
+    data() _GLIBCXX_NOEXCEPT { }
 
     void
     push_back(bool __x)
@@ -726,11 +832,7 @@ template<typename _Alloc>
     }
 
     void
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-    swap(vector&& __x)
-#else
     swap(vector& __x)
-#endif
     {
       std::swap(this->_M_impl._M_start, __x._M_impl._M_start);
       std::swap(this->_M_impl._M_finish, __x._M_impl._M_finish);
@@ -745,7 +847,7 @@ template<typename _Alloc>
 
     // [23.2.5]/1, third-to-last entry in synopsis listing
     static void
-    swap(reference __x, reference __y)
+    swap(reference __x, reference __y) _GLIBCXX_NOEXCEPT
     {
       bool __tmp = __x;
       __x = __y;
@@ -764,6 +866,14 @@ template<typename _Alloc>
       return begin() + __n;
     }
 
+#if __cplusplus >= 201103L
+    template<typename _InputIterator,
+	     typename = std::_RequireInputIter<_InputIterator>>
+      void
+      insert(iterator __position,
+	     _InputIterator __first, _InputIterator __last)
+      { _M_insert_dispatch(__position, __first, __last, __false_type()); }
+#else
     template<typename _InputIterator>
       void
       insert(iterator __position,
@@ -772,10 +882,16 @@ template<typename _Alloc>
 	typedef typename std::__is_integer<_InputIterator>::__type _Integral;
 	_M_insert_dispatch(__position, __first, __last, _Integral());
       }
+#endif
 
     void
     insert(iterator __position, size_type __n, const bool& __x)
     { _M_fill_insert(__position, __n, __x); }
+
+#if __cplusplus >= 201103L
+    void insert(iterator __p, initializer_list<bool> __l)
+    { this->insert(__p, __l.begin(), __l.end()); }
+#endif
 
     void
     pop_back()
@@ -793,7 +909,8 @@ template<typename _Alloc>
     iterator
     erase(iterator __first, iterator __last)
     {
-      _M_erase_at_end(std::copy(__last, end(), __first));
+      if (__first != __last)
+	_M_erase_at_end(std::copy(__last, end(), __first));
       return __first;
     }
 
@@ -806,8 +923,14 @@ template<typename _Alloc>
         insert(end(), __new_size - size(), __x);
     }
 
+#if __cplusplus >= 201103L
     void
-    flip()
+    shrink_to_fit()
+    { _M_shrink_to_fit(); }
+#endif
+
+    void
+    flip() _GLIBCXX_NOEXCEPT
     {
       for (_Bit_type * __p = this->_M_impl._M_start._M_p;
 	   __p != this->_M_impl._M_end_of_storage; ++__p)
@@ -815,7 +938,7 @@ template<typename _Alloc>
     }
 
     void
-    clear()
+    clear() _GLIBCXX_NOEXCEPT
     { _M_erase_at_end(begin()); }
 
    
@@ -834,12 +957,18 @@ template<typename _Alloc>
     _M_initialize(size_type __n)
     {
       _Bit_type* __q = this->_M_allocate(__n);
-      this->_M_impl._M_end_of_storage = (__q
-					 + ((__n + int(_S_word_bit) - 1)
-					    / int(_S_word_bit)));
+      this->_M_impl._M_end_of_storage = __q + _S_nword(__n);
       this->_M_impl._M_start = iterator(__q, 0);
       this->_M_impl._M_finish = this->_M_impl._M_start + difference_type(__n);
     }
+
+    void
+    _M_reallocate(size_type __n);
+
+#if __cplusplus >= 201103L
+    bool
+    _M_shrink_to_fit();
+#endif
 
     // Check whether it's an integral type.  If so, it's not an iterator.
 
@@ -997,6 +1126,30 @@ template<typename _Alloc>
     { this->_M_impl._M_finish = __pos; }
   };
 
-_GLIBCXX_END_NESTED_NAMESPACE
+_GLIBCXX_END_NAMESPACE_CONTAINER
+} // namespace std
+
+#if __cplusplus >= 201103L
+
+#include <bits/functional_hash.h>
+
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
+
+  // DR 1182.
+  /// std::hash specialization for vector<bool>.
+  template<typename _Alloc>
+    struct hash<_GLIBCXX_STD_C::vector<bool, _Alloc>>
+    : public __hash_base<size_t, _GLIBCXX_STD_C::vector<bool, _Alloc>>
+    {
+      size_t
+      operator()(const _GLIBCXX_STD_C::vector<bool, _Alloc>&) const noexcept;
+    };
+
+_GLIBCXX_END_NAMESPACE_VERSION
+}// namespace std
+
+#endif // C++11
 
 #endif

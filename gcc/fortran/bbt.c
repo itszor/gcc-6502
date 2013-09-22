@@ -1,6 +1,5 @@
 /* Balanced binary trees using treaps.
-   Copyright (C) 2000, 2002, 2003, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -37,6 +36,8 @@ along with GCC; see the file COPYING3.  If not see
    July 1997 Doctor Dobb's Journal, "Treaps in Java".  */
 
 #include "config.h"
+#include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
 
 typedef struct gfc_treap
@@ -93,24 +94,24 @@ rotate_right (gfc_bbt *t)
    aborts if we find a duplicate key.  */
 
 static gfc_bbt *
-insert (gfc_bbt *new, gfc_bbt *t, compare_fn compare)
+insert (gfc_bbt *new_bbt, gfc_bbt *t, compare_fn compare)
 {
   int c;
 
   if (t == NULL)
-    return new;
+    return new_bbt;
 
-  c = (*compare) (new, t);
+  c = (*compare) (new_bbt, t);
 
   if (c < 0)
     {
-      t->left = insert (new, t->left, compare);
+      t->left = insert (new_bbt, t->left, compare);
       if (t->priority < t->left->priority)
 	t = rotate_right (t);
     }
   else if (c > 0)
     {
-      t->right = insert (new, t->right, compare);
+      t->right = insert (new_bbt, t->right, compare);
       if (t->priority < t->right->priority)
 	t = rotate_left (t);
     }
@@ -126,12 +127,12 @@ insert (gfc_bbt *new, gfc_bbt *t, compare_fn compare)
    already exists.  */
 
 void
-gfc_insert_bbt (void *root, void *new, compare_fn compare)
+gfc_insert_bbt (void *root, void *new_node, compare_fn compare)
 {
   gfc_bbt **r, *n;
 
   r = (gfc_bbt **) root;
-  n = (gfc_bbt *) new;
+  n = (gfc_bbt *) new_node;
   n->priority = pseudo_random ();
   *r = insert (n, *r, compare);
 }

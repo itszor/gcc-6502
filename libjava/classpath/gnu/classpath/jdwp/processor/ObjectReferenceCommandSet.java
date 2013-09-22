@@ -56,12 +56,11 @@ import gnu.classpath.jdwp.value.ValueFactory;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 
 /**
  * A class representing the ObjectReference Command Set.
- * 
+ *
  * @author Aaron Luchko <aluchko@redhat.com>
  */
 public class ObjectReferenceCommandSet
@@ -140,7 +139,7 @@ public class ObjectReferenceCommandSet
           {
             field.setAccessible(true); // Might be a private field
             Object value = field.get(obj);
-            Value val = ValueFactory.createFromObject(value, 
+            Value val = ValueFactory.createFromObject(value,
                                                       field.getType());
             val.writeTagged(os);
           }
@@ -192,8 +191,8 @@ public class ObjectReferenceCommandSet
   {
     if (!VMVirtualMachine.canGetMonitorInfo)
       {
-	String msg = "getting monitor info not supported";
-	throw new NotImplementedException(msg);
+        String msg = "getting monitor info not supported";
+        throw new NotImplementedException(msg);
       }
 
     ObjectId oid = idMan.readObjectId(bb);
@@ -224,8 +223,8 @@ public class ObjectReferenceCommandSet
 
     int invokeOptions = bb.getInt();
     MethodResult mr = VMVirtualMachine.executeMethod(obj, thread,
-						     clazz, method,
-						     values, invokeOptions);
+                                                     clazz, method,
+                                                     values, invokeOptions);
     Throwable exception = mr.getThrownException();
     ObjectId eId = idMan.getObjectId(exception);
     mr.getReturnedValue().writeTagged(os);

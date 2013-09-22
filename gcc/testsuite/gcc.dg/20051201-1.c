@@ -2,7 +2,8 @@
    tree_flow_call_edges_add.  */
 
 /* { dg-do compile } */
-/* { dg-options "-O1 -fprofile-generate" } */
+/* { dg-require-profiling "-fprofile-generate" } */
+/* { dg-options "-O1 -fprofile-generate -Wno-attributes" } */
 
 static __attribute__ ((always_inline)) void 
 baz ()
@@ -24,5 +25,3 @@ foo ()
   
   res = bar ();
 }
-
-/* { dg-final { cleanup-coverage-files } } */

@@ -1,4 +1,4 @@
-# Copyright (C) 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2005-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 # match the patterns COMPILER_PATTERN, AS_PATTERN and LD_PATTERN,
 # respectively.
 
-proc check_for_options {language gcc_options compiler_pattern as_pattern ld_pattern} {
+proc check_for_all_options {language gcc_options compiler_pattern as_pattern ld_pattern} {
     set filename test-[pid]
     set fd [open $filename.c w]
     puts $fd "int main (void) \{ return 0; \}"
@@ -51,4 +51,4 @@ proc check_for_options {language gcc_options compiler_pattern as_pattern ld_patt
     pass $test
 }
 
-check_for_options c {--coverage} {-fprofile-arcs -ftest-coverage} {} {-lgcov}
+check_for_all_options c {--coverage} {-fprofile-arcs -ftest-coverage} {} {-lgcov}

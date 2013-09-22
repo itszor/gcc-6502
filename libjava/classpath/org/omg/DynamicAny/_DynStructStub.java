@@ -68,6 +68,7 @@ public class _DynStructStub
   /**
    * The purpose and value of this field are not documented.
    */
+  @SuppressWarnings("rawtypes") // Needed for API compatibility
   public static final Class _opsClass = DynStructOperations.class;
 
   /**
@@ -150,7 +151,7 @@ public class _DynStructStub
   {
     throw new MARSHAL(_DynAnyStub.NOT_APPLICABLE);
   }
-  
+
   /**
    * The remote call of DynAny methods is not possible.
    *

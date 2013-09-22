@@ -1,9 +1,11 @@
 /* { dg-do run } */
 /* { dg-options "-O2 -ffast-math -msse -mfpmath=sse -mrecip" } */
+/* { dg-require-effective-target sse } */
 
 #include "sse-check.h"
 
 extern float sqrtf (float);
+extern float fabsf (float);
 
 #define N 8
 
@@ -26,7 +28,7 @@ sse_test (void)
   /* check results:  */
   for (i = 0; i < N; i++)
     {
-      if (r[i] != rc[i])
+      if (fabsf (r[i] - rc[i]) > 0.0001)
 	abort();
     }   
 }

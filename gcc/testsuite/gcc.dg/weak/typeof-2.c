@@ -5,6 +5,9 @@
 /* { dg-require-weak "" } */
 /* { dg-require-alias "" } */
 /* { dg-options "-O2" } */
+/* Using -mshort-calls avoids loading the function addresses in
+   registers and thus getting the counts wrong.  */
+/* { dg-additional-options "-mshort-calls" { target epiphany-*-* } } */
 
 extern int foo1 (int x) __asm ("baz1");
 int bar1 (int x) { return x; }
@@ -43,4 +46,6 @@ int bar3 (int x)
 // Likewise for m68k targets.
 // { dg-final { if [string match fido-*-* $target_triplet ] {return} } }
 // { dg-final { if [string match m68k-*-* $target_triplet ] {return} } }
+// Likewise for moxie targets.
+// { dg-final { if [string match moxie-*-* $target_triplet ] {return} } }
 // { dg-final { scan-assembler "baz3.*baz3.*baz3.*baz3.*baz3.*baz3" } }

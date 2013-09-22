@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -35,26 +33,23 @@
 --  are required to be part of every Ada program. A special mechanism is
 --  required to ensure that these are loaded, since it may be the case in
 --  some programs that the only references to these required packages are
---  from C code or from code generated directly by Gigi, an in both cases
+--  from C code or from code generated directly by Gigi, and in both cases
 --  the binder is not aware of such references.
 
 --  System.Standard_Library also includes data that must be present in every
---  program, in particular the definitions of all the standard and also some
+--  program, in particular data for all the standard exceptions, and also some
 --  subprograms that must be present in every program.
 
 --  The binder unconditionally includes s-stalib.ali, which ensures that this
 --  package and the packages it references are included in all Ada programs,
 --  together with the included data.
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 pragma Polling (Off);
 --  We must turn polling off for this unit, because otherwise we get
 --  elaboration circularities with Ada.Exceptions if polling is on.
 
-with System;
 with Ada.Unchecked_Conversion;
 
 package System.Standard_Library is
@@ -62,8 +57,19 @@ package System.Standard_Library is
    pragma Preelaborate_05;
    pragma Warnings (On);
 
-   type Big_String_Ptr is access all String (Positive);
-   --  A non-fat pointer type for null terminated strings
+   subtype Big_String is String (1 .. Positive'Last);
+   pragma Suppress_Initialization (Big_String);
+   --  Type used to obtain string access to given address. Initialization is
+   --  suppressed, since we never want to have variables of this type, and
+   --  we never want to attempt initialiazation of virtual variables of this
+   --  type (e.g. when pragma Normalize_Scalars is used).
+
+   type Big_String_Ptr is access all Big_String;
+   for Big_String_Ptr'Storage_Size use 0;
+   --  We use this access type to pass a pointer to an area of storage to be
+   --  accessed as a string. Of course when this pointer is used, it is the
+   --  responsibility of the accessor to ensure proper bounds. The storage
+   --  size clause ensures we do not allocate variables of this type.
 
    function To_Ptr is
      new Ada.Unchecked_Conversion (System.Address, Big_String_Ptr);
@@ -115,7 +121,7 @@ package System.Standard_Library is
 
    --  The following record defines the underlying representation of exceptions
 
-   --  WARNING! Any changes to this may need to be reflectd in the following
+   --  WARNING! Any changes to this may need to be reflected in the following
    --  locations in the compiler and runtime code:
 
    --    1. The Internal_Exception routine in s-exctab.adb
@@ -164,7 +170,7 @@ package System.Standard_Library is
 
    --  Definitions for standard predefined exceptions defined in Standard,
 
-   --  Why are the Nul's necessary here, seems like they should not be
+   --  Why are the NULs necessary here, seems like they should not be
    --  required, since Gigi is supposed to add a Nul to each name ???
 
    Constraint_Error_Name : constant String := "CONSTRAINT_ERROR" & ASCII.NUL;

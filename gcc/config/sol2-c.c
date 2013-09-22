@@ -1,5 +1,5 @@
 /* Solaris support needed only by C/C++ frontends.
-   Copyright (C) 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by CodeSourcery, LLC.
 
 This file is part of GCC.
@@ -24,27 +24,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree.h"
 #include "tm.h"
 #include "tm_p.h"
-#include "toplev.h"
 
-#include "c-format.h"
+#include "c-family/c-format.h"
 #include "intl.h"
 
 #include "cpplib.h"
-#include "c-pragma.h"
-#include "c-common.h"
+#include "c-family/c-pragma.h"
+#include "c-family/c-common.h"
 
 /* cmn_err only accepts "l" and "ll".  */
 static const format_length_info cmn_err_length_specs[] =
 {
-  { "l", FMT_LEN_l, STD_C89, "ll", FMT_LEN_ll, STD_C89 },
-  { NULL, 0, 0, NULL, 0, 0 }
+  { "l", FMT_LEN_l, STD_C89, "ll", FMT_LEN_ll, STD_C89, 0 },
+  { NULL, FMT_LEN_none, STD_C89, NULL, FMT_LEN_none, STD_C89, 0 }
 };
 
 static const format_flag_spec cmn_err_flag_specs[] =
 {
   { 'w',  0, 0, N_("field width"),     N_("field width in printf format"),     STD_C89 },
   { 'L',  0, 0, N_("length modifier"), N_("length modifier in printf format"), STD_C89 },
-  { 0, 0, 0, NULL, NULL, 0 }
+  { 0, 0, 0, NULL, NULL, STD_C89 }
 };
 
 
@@ -66,10 +65,10 @@ static const format_char_info cmn_err_char_table[] =
   { "p",   1, STD_C89, { T89_V,   BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN  }, "w", "c",  NULL },
   { "s",   1, STD_C89, { T89_C,   BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN  }, "w",  "cR", NULL },
   { "b",   0, STD_C89, { T89_I,   BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN,  BADLEN  }, "w",   "",   &bitfield_string_type },
-  { NULL,  0, 0, NOLENGTHS, NULL, NULL, NULL }
+  { NULL,  0, STD_C89, NOLENGTHS, NULL, NULL, NULL }
 };
 
-const format_kind_info solaris_format_types[] = {
+EXPORTED_CONST format_kind_info solaris_format_types[] = {
   { "cmn_err",  cmn_err_length_specs,  cmn_err_char_table, "", NULL,
     cmn_err_flag_specs, cmn_err_flag_pairs,
     FMT_FLAG_ARG_CONVERT|FMT_FLAG_EMPTY_PREC_OK,
@@ -170,9 +169,10 @@ solaris_pragma_init (cpp_reader *pfile ATTRIBUTE_UNUSED)
       tree decl = identifier_global_value (t);
       if (decl && DECL_P (decl))
 	{
-	  tree init_list = build_tree_list (get_identifier ("init"),
-					    NULL);
-	  tree attrs = tree_cons (get_identifier ("used"), NULL, init_list);
+	  tree attrs = build_tree_list (get_identifier ("init"),
+					NULL);
+	  TREE_USED (decl) = 1;
+	  DECL_PRESERVE_P (decl) = 1;
 	  decl_attributes (&decl, attrs, 0);
 	}
       else
@@ -228,9 +228,10 @@ solaris_pragma_fini (cpp_reader *pfile ATTRIBUTE_UNUSED)
       tree decl = identifier_global_value (t);
       if (decl && DECL_P (decl))
 	{
-	  tree fini_list = build_tree_list (get_identifier ("fini"),
-					    NULL);
-	  tree attrs = tree_cons (get_identifier ("used"), NULL, fini_list);
+	  tree attrs = build_tree_list (get_identifier ("fini"),
+					NULL);
+	  TREE_USED (decl) = 1;
+	  DECL_PRESERVE_P (decl) = 1;
 	  decl_attributes (&decl, attrs, 0);
 	}
       else

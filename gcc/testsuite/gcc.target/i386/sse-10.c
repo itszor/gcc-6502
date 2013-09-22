@@ -1,6 +1,8 @@
 /* PR 17930 */
 /* { dg-do run } */
-/* { dg-options "-O1 -msse2 -mfpmath=sse -mno-accumulate-outgoing-args -fno-omit-frame-pointer" } */
+/* { dg-options "-O1 -msse2 -mfpmath=sse -mno-accumulate-outgoing-args -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer" } */
+/* { dg-options "-O1 -msse2 -mfpmath=sse -fno-omit-frame-pointer" { target *-*-mingw* *-*-cygwin* } } */
+/* { dg-require-effective-target sse2 } */
 
 #include "sse2-check.h"
 

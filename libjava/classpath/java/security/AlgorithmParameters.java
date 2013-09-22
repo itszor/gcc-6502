@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package java.security;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Engine;
 
 import java.io.IOException;
@@ -67,7 +69,7 @@ public class AlgorithmParameters
 
   /**
    * Constructs a new instance of <code>AlgorithmParameters</code>.
-   * 
+   *
    * @param paramSpi
    *          the engine to use.
    * @param provider
@@ -95,7 +97,7 @@ public class AlgorithmParameters
    * <p>
    * The returned <code>AlgorithmParameters</code> must still be initialized
    * with an <code>init()</code> method.
-   * 
+   *
    * @param algorithm the algorithm to use.
    * @return the new instance repesenting the desired algorithm.
    * @throws NoSuchAlgorithmException if the algorithm is not implemented by any
@@ -129,7 +131,7 @@ public class AlgorithmParameters
    * The returned <code>AlgorithmParameters</code> must still be intialized
    * with an <code>init()</code> method.
    * </p>
-   * 
+   *
    * @param algorithm the algorithm to use.
    * @param provider the name of the {@link Provider} to use.
    * @return the new instance repesenting the desired algorithm.
@@ -160,7 +162,7 @@ public class AlgorithmParameters
    * <p>
    * The returned <code>AlgorithmParameters</code> must still be intialized
    * with an <code>init()</code> method.
-   * 
+   *
    * @param algorithm the algorithm to use.
    * @param provider the {@link Provider} to use.
    * @return the new instance repesenting the desired algorithm.
@@ -175,7 +177,7 @@ public class AlgorithmParameters
                                                 Provider provider)
       throws NoSuchAlgorithmException
   {
-    StringBuilder sb = new StringBuilder("AlgorithmParameters for algorithm [")
+    CPStringBuilder sb = new CPStringBuilder("AlgorithmParameters for algorithm [")
         .append(algorithm).append("] from provider[")
         .append(provider).append("] could not be created");
     Throwable cause;
@@ -211,7 +213,7 @@ public class AlgorithmParameters
 
   /**
    * Initializes the engine with the specified {@link AlgorithmParameterSpec}.
-   * 
+   *
    * @param paramSpec
    *          A {@link AlgorithmParameterSpec} to use.
    * @throws InvalidParameterSpecException
@@ -228,7 +230,7 @@ public class AlgorithmParameters
    * array and decodes them according to the ASN.1 specification. If the ASN.1
    * specification exists then it succeeds otherwise an {@link IOException} is
    * thrown.
-   * 
+   *
    * @param params
    *          the parameters to use.
    * @throws IOException
@@ -245,7 +247,7 @@ public class AlgorithmParameters
    * If <code>format</code> is <code>null</code>, then this method decodes the
    * byte array using the ASN.1 specification if it exists, otherwise it throws
    * an {@link IOException}.
-   * 
+   *
    * @param params
    *          the parameters to use.
    * @param format
@@ -261,7 +263,7 @@ public class AlgorithmParameters
   /**
    * Returns a new instance of <code>AlgorithmParameters</code> as a
    * designated parameter specification {@link Class}.
-   * 
+   *
    * @param paramSpec
    *          the {@link Class} to use.
    * @return the parameter specification.
@@ -278,7 +280,7 @@ public class AlgorithmParameters
   /**
    * Returns the parameters in the default encoding format. The primary encoding
    * format is ASN.1 if it exists for the specified type.
-   * 
+   *
    * @return byte array representing the parameters.
    */
   public final byte[] getEncoded() throws IOException
@@ -290,7 +292,7 @@ public class AlgorithmParameters
    * Returns the parameters in the specified encoding format. If
    * <code>format</code> is <code>null</code> then the ASN.1 encoding
    * format is used if it exists for the specified type.
-   * 
+   *
    * @param format
    *          the name of the encoding format to use.
    * @return the parameters encoded using the specified encoding scheme.
@@ -305,7 +307,7 @@ public class AlgorithmParameters
 
   /**
    * Returns a string representation of the encoded form.
-   * 
+   *
    * @return a string representation of the encoded form.
    */
   public final String toString()

@@ -1,8 +1,16 @@
 /* { dg-do run } */
+/* { dg-require-effective-target sse3 } */
 /* { dg-options "-O2 -msse3 -mfpmath=sse" } */
 
-#include "sse3-check.h"
+#ifndef CHECK_H
+#define CHECK_H "sse3-check.h"
+#endif
 
+#ifndef TEST
+#define TEST sse3_test
+#endif
+
+#include CHECK_H
 #include <pmmintrin.h>
 
 static void
@@ -45,7 +53,7 @@ static double vals[80] =
   };
 
 static void
-sse3_test (void)
+TEST (void)
 {
   int i;
   int fail = 0;

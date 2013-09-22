@@ -1,5 +1,5 @@
 /* Parser header
-   Copyright (C) 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
    Contributed by Steven Bosscher
 
 This file is part of GCC.
@@ -22,15 +22,14 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GFC_PARSE_H
 #define GFC_PARSE_H
 
-#include "gfortran.h"
-
 /* Enum for what the compiler is currently doing.  */
 typedef enum
 {
   COMP_NONE, COMP_PROGRAM, COMP_MODULE, COMP_SUBROUTINE, COMP_FUNCTION,
-  COMP_BLOCK_DATA, COMP_INTERFACE, COMP_DERIVED, COMP_IF, COMP_DO,
-  COMP_SELECT, COMP_FORALL, COMP_WHERE, COMP_CONTAINS, COMP_ENUM,
-  COMP_OMP_STRUCTURED_BLOCK
+  COMP_BLOCK_DATA, COMP_INTERFACE, COMP_DERIVED, COMP_DERIVED_CONTAINS,
+  COMP_BLOCK, COMP_ASSOCIATE, COMP_IF,
+  COMP_DO, COMP_SELECT, COMP_FORALL, COMP_WHERE, COMP_CONTAINS, COMP_ENUM,
+  COMP_SELECT_TYPE, COMP_OMP_STRUCTURED_BLOCK, COMP_CRITICAL, COMP_DO_CONCURRENT
 }
 gfc_compile_state;
 
@@ -42,6 +41,7 @@ typedef struct gfc_state_data
   gfc_symbol *sym;              /* Block name associated with this level */
   gfc_symtree *do_variable;     /* For DO blocks the iterator variable.  */
 
+  struct gfc_code *construct;
   struct gfc_code *head, *tail;
   struct gfc_state_data *previous;
 
@@ -60,7 +60,7 @@ extern gfc_state_data *gfc_state_stack;
 #define gfc_current_state() (gfc_state_stack->state)
 
 int gfc_check_do_variable (gfc_symtree *);
-try gfc_find_state (gfc_compile_state);
+gfc_try gfc_find_state (gfc_compile_state);
 gfc_state_data *gfc_enclosing_unit (gfc_compile_state *);
 const char *gfc_ascii_statement (gfc_statement);
 match gfc_match_enum (void);

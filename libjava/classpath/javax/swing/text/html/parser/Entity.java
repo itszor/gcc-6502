@@ -41,8 +41,6 @@ package javax.swing.text.html.parser;
 
 import gnu.javax.swing.text.html.parser.support.gnuStringIntMapper;
 
-import java.io.Serializable;
-
 /**
  * <p>Stores information, obtained by parsing SGML DTL
  * &lt;!ENTITY % .. &gt; tag.</p>
@@ -172,14 +170,14 @@ public final class Entity
 
     return sdata;
   }
-  
+
   /**
    * Get the entity type.
    * @return the value of the {@link #type}.
    */
-  public int getType() 
+  public int getType()
   {
     return type;
-  }  
-          
+  }
+
 }

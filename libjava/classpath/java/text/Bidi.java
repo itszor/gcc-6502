@@ -1,5 +1,5 @@
 /* Bidi.java -- Bidirectional Algorithm implementation
-   Copyright (C) 2005, 2006  Free Software Foundation, Inc.
+   Copyright (C) 2005, 2006, 2012  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -109,9 +109,9 @@ public final class Bidi
   // A list of indices where a formatting code was found.  These
   // are indicies into the original text -- not into the text after
   // the codes have been removed.
-  private ArrayList formatterIndices;
+  private ArrayList<Integer> formatterIndices;
 
-  // Indices of the starts of runs in the text. 
+  // Indices of the starts of runs in the text.
   private int[] runs;
 
   // A convenience field where we keep track of what kinds of runs
@@ -128,11 +128,11 @@ public final class Bidi
    * {@link TextAttribute#RUN_DIRECTION_RTL}.  If neither is given,
    * {@link #DIRECTION_DEFAULT_LEFT_TO_RIGHT} is assumed.
    * </li>
-   * 
+   *
    * <li> If {@link TextAttribute#NUMERIC_SHAPING} is seen, then numeric
    * shaping will be done before the Bidi algorithm is run.
    * </li>
-   * 
+   *
    * <li> If {@link TextAttribute#BIDI_EMBEDDING} is seen on a given
    * character, then the value of this attribute will be used as an
    * embedding level override.
@@ -161,13 +161,13 @@ public final class Bidi
     if (val instanceof NumericShaper)
       shaper = (NumericShaper) val;
 
-    char[] text = new char[iter.getEndIndex() - iter.getBeginIndex()];
-    this.embeddings = new byte[this.text.length];
-    this.embeddingOffset = 0;
-    this.length = text.length;
-    for (int i = 0; i < this.text.length; ++i)
+    text = new char[iter.getEndIndex() - iter.getBeginIndex()];
+    embeddings = new byte[text.length];
+    embeddingOffset = 0;
+    length = text.length;
+    for (int i = 0; i < text.length; ++i)
       {
-        this.text[i] = iter.current();
+        text[i] = iter.current();
 
         val = iter.getAttribute(TextAttribute.BIDI_EMBEDDING);
         if (val instanceof Integer)
@@ -178,13 +178,13 @@ public final class Bidi
               bval = 0;
             else
               bval = (byte) ival;
-            this.embeddings[i] = bval;
+            embeddings[i] = bval;
           }
       }
 
     // Invoke the numeric shaper, if specified.
     if (shaper != null)
-      shaper.shape(this.text, 0, this.length);
+      shaper.shape(text, 0, length);
 
     runBidi();
   }
@@ -192,12 +192,12 @@ public final class Bidi
   /**
    * Create a new Bidi object with the indicated text and, possibly, explicit
    * embedding settings.
-   * 
+   *
    * If the embeddings array is null, it is ignored.  Otherwise it is taken to
    * be explicit embedding settings corresponding to the text.  Positive values
    * from 1 to 61 are embedding levels, and negative values from -1 to -61 are
    * embedding overrides.  (FIXME: not at all clear what this really means.)
-   * 
+   *
    * @param text the text to use
    * @param offset the offset of the first character of the text
    * @param embeddings the explicit embeddings, or null if there are none
@@ -321,7 +321,7 @@ public final class Bidi
             // It isn't at all clear what we're supposed to do here.
             // What does a negative value really mean?
             // Should we push on the embedding stack here?
-            currentEmbedding = embeddings[embeddingOffset + i]; 
+            currentEmbedding = embeddings[embeddingOffset + i];
             if (currentEmbedding < 0)
               {
                 currentEmbedding = (byte) -currentEmbedding;
@@ -404,7 +404,7 @@ public final class Bidi
           {
             // Mark this character for removal.
             if (formatterIndices == null)
-              formatterIndices = new ArrayList();
+              formatterIndices = new ArrayList<Integer>();
             formatterIndices.add(Integer.valueOf(i));
           }
         else if (directionalOverride != -1)
@@ -427,7 +427,7 @@ public final class Bidi
         if (i == size)
           nextFmt = length;
         else
-          nextFmt = ((Integer) formatterIndices.get(i)).intValue();
+          nextFmt = formatterIndices.get(i).intValue();
         // Non-formatter codes are from 'input' to 'nextFmt'.
         int len = nextFmt - input;
         System.arraycopy(levels, input, levels, output, len);
@@ -486,7 +486,7 @@ public final class Bidi
   private void resolveWeakTypes()
   {
     final int runCount = getRunCount();
-    
+
     int previousLevel = baseEmbedding;
     for (int run = 0; run < runCount; ++run)
       {
@@ -600,7 +600,7 @@ public final class Bidi
   {
     // This implements rules N1 and N2.
     final int runCount = getRunCount();
-    
+
     int previousLevel = baseEmbedding;
     for (int run = 0; run < runCount; ++run)
       {
@@ -644,7 +644,7 @@ public final class Bidi
               case Character.DIRECTIONALITY_OTHER_NEUTRALS:
               case Character.DIRECTIONALITY_SEGMENT_SEPARATOR:
               case Character.DIRECTIONALITY_PARAGRAPH_SEPARATOR:
-	      case Character.DIRECTIONALITY_WHITESPACE:
+              case Character.DIRECTIONALITY_WHITESPACE:
                 if (neutralStart == -1)
                   neutralStart = i;
                 break;
@@ -716,7 +716,7 @@ public final class Bidi
     // Process from the end as we are copying the array over itself here.
     for (int index = formatterIndices.size() - 1; index >= 0; --index)
       {
-        int nextFmt = ((Integer) formatterIndices.get(index)).intValue();
+        int nextFmt = formatterIndices.get(index).intValue();
 
         // nextFmt points to a location in the original array.  So,
         // nextFmt+1 is the target of our copying.  output is the location
@@ -983,17 +983,17 @@ public final class Bidi
   {
     for (int i = start; i < end; i++)
       {
-	byte dir = Character.getDirectionality(text[i]);
-	if (dir != Character.DIRECTIONALITY_LEFT_TO_RIGHT
-	    && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER
-	    && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
-	    && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
-	    && dir != Character.DIRECTIONALITY_ARABIC_NUMBER
-	    && dir != Character.DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
-	    && dir != Character.DIRECTIONALITY_SEGMENT_SEPARATOR
-	    && dir != Character.DIRECTIONALITY_WHITESPACE
+        byte dir = Character.getDirectionality(text[i]);
+        if (dir != Character.DIRECTIONALITY_LEFT_TO_RIGHT
+            && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER
+            && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER_SEPARATOR
+            && dir != Character.DIRECTIONALITY_EUROPEAN_NUMBER_TERMINATOR
+            && dir != Character.DIRECTIONALITY_ARABIC_NUMBER
+            && dir != Character.DIRECTIONALITY_COMMON_NUMBER_SEPARATOR
+            && dir != Character.DIRECTIONALITY_SEGMENT_SEPARATOR
+            && dir != Character.DIRECTIONALITY_WHITESPACE
             && dir != Character.DIRECTIONALITY_PARAGRAPH_SEPARATOR)
-	  return true;
+          return true;
       }
 
     return false;

@@ -1,6 +1,6 @@
 /* ET-trees data structure implementation.
    Contributed by Pavel Nejedly
-   Copyright (C) 2002, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 This file is part of the libiberty library.
 Libiberty is free software; you can redistribute it and/or
@@ -25,7 +25,6 @@ License along with libiberty; see the file COPYING3.  If not see
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "et-forest.h"
 #include "alloc-pool.h"
 
@@ -33,7 +32,7 @@ License along with libiberty; see the file COPYING3.  If not see
 #undef DEBUG_ET
 
 #ifdef DEBUG_ET
-#include "basic-block.h"
+#include "basic-block.h" /* To access index in record_path_before_1.  */
 #endif
 
 /* The occurrence of a node in the et tree.  */
@@ -209,7 +208,7 @@ record_path_before_1 (struct et_occ *occ, int depth)
 
   if (occ->prev)
     {
-      m = record_path_before_1 (occ->prev, depth); 
+      m = record_path_before_1 (occ->prev, depth);
       if (m < mn)
 	mn = m;
     }
@@ -260,7 +259,7 @@ check_path_after_1 (struct et_occ *occ, int depth)
 
   if (occ->next)
     {
-      m = check_path_after_1 (occ->next, depth); 
+      m = check_path_after_1 (occ->next, depth);
       if (m < mn)
 	mn =  m;
     }
@@ -307,7 +306,7 @@ et_splay (struct et_occ *occ)
   record_path_before (occ);
   et_check_tree_sanity (occ);
 #endif
- 
+
   while (occ->parent)
     {
       occ_depth = occ->depth;
@@ -443,10 +442,10 @@ static struct et_occ *
 et_new_occ (struct et_node *node)
 {
   struct et_occ *nw;
-  
+
   if (!et_occurrences)
     et_occurrences = create_alloc_pool ("et_occ pool", sizeof (struct et_occ), 300);
-  nw = pool_alloc (et_occurrences);
+  nw = (struct et_occ *) pool_alloc (et_occurrences);
 
   nw->of = node;
   nw->parent = NULL;
@@ -466,10 +465,10 @@ struct et_node *
 et_new_tree (void *data)
 {
   struct et_node *nw;
-  
+
   if (!et_nodes)
     et_nodes = create_alloc_pool ("et_node pool", sizeof (struct et_node), 300);
-  nw = pool_alloc (et_nodes);
+  nw = (struct et_node *) pool_alloc (et_nodes);
 
   nw->data = data;
   nw->father = NULL;
@@ -589,7 +588,7 @@ et_split (struct et_node *t)
 
   for (r = rmost->next; r->prev; r = r->prev)
     continue;
-  et_splay (r); 
+  et_splay (r);
 
   r->prev->parent = NULL;
   p_occ = t->parent_occ;
@@ -660,13 +659,22 @@ et_nca (struct et_node *n1, struct et_node *n2)
       if (r)
 	r->parent = o1;
     }
-  else
+  else if (r == o2 || (r && r->parent != NULL))
     {
       ret = o2->prev;
 
       set_next (o1, o2);
       if (l)
 	l->parent = o1;
+    }
+  else
+    {
+      /* O1 and O2 are in different components of the forest.  */
+      if (l)
+	l->parent = o1;
+      if (r)
+	r->parent = o1;
+      return NULL;
     }
 
   if (0 < o2->depth)
@@ -754,7 +762,7 @@ et_root (struct et_node *node)
 {
   struct et_occ *occ = node->rightmost_occ, *r;
 
-  /* The root of the tree corresponds to the rightmost occurence in the
+  /* The root of the tree corresponds to the rightmost occurrence in the
      represented path.  */
   et_splay (occ);
   for (r = occ; r->next; r = r->next)

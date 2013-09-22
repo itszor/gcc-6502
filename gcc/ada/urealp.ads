@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -55,12 +53,13 @@ package Urealp is
    --    a real base (Nat, either zero, or in the range 2 .. 16)
    --    a sign flag (Boolean), set if negative
 
-   --  If the base is zero, then the absolute value of the Ureal is simply
-   --  numerator/denominator. If the base is non-zero, then the absolute
-   --  value is num / (rbase ** den).
+   --  Negative numbers are represented by the sign flag being True.
 
-   --  Negative numbers are represented by the sign of the numerator being
-   --  negative. The denominator is always positive.
+   --  If the base is zero, then the absolute value of the Ureal is simply
+   --  numerator/denominator, where denominator is positive. If the base is
+   --  non-zero, then the absolute value is numerator / (base ** denominator).
+   --  In that case, since base is positive, (base ** denominator) is also
+   --  positive, even when denominator is negative or null.
 
    --  A normalized Ureal value has base = 0, and numerator/denominator
    --  reduced to lowest terms, with zero itself being represented as 0/1.
@@ -266,14 +265,17 @@ package Urealp is
    function UR_Is_Positive (Real : Ureal) return Boolean;
    --  Test if real value is greater than zero
 
-   procedure UR_Write (Real : Ureal);
-   --  Writes value of Real to standard output. Used only for debugging and
-   --  tree/source output. If the result is easily representable as a standard
-   --  Ada literal, it will be given that way, but as a result of evaluation
-   --  of static expressions, it is possible to generate constants (e.g. 1/13)
-   --  which have no such representation. In such cases (and in cases where it
-   --  is too much work to figure out the Ada literal), the string that is
-   --  output is of the form [numerator/denominator].
+   procedure UR_Write (Real : Ureal; Brackets : Boolean := False);
+   --  Writes value of Real to standard output. Used for debugging and
+   --  tree/source output, and also for -gnatR representation output. If the
+   --  result is easily representable as a standard Ada literal, it will be
+   --  given that way, but as a result of evaluation of static expressions, it
+   --  is possible to generate constants (e.g. 1/13) which have no such
+   --  representation. In such cases (and in cases where it is too much work to
+   --  figure out the Ada literal), the string that is output is of the form
+   --  of some expression such as integer/integer, or integer*integer**integer.
+   --  In the case where an expression is output, if Brackets is set to True,
+   --  the expression is surrounded by square brackets.
 
    procedure pr (Real : Ureal);
    pragma Export (Ada, pr);

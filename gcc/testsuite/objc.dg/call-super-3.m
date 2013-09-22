@@ -1,15 +1,16 @@
 /* Check if sending messages to super does not interfere with sending messages
    to classes. */
 /* Contributed by Ziemowit Laski <zlaski@apple.com>.  */
+/* { dg-options "" } */
 /* { dg-do run } */
-/* { dg-options "-lobjc" } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 
 extern void abort(void);
 #define CHECK_IF(expr) if(!(expr)) abort()
 
-@interface Base: Object
+@interface Base: TestsuiteObject
 + (int) class_func1;
 - (int) instance_func1;
 @end
@@ -52,3 +53,4 @@ int main(void) {
   CHECK_IF([derived instance_func1] == 234 + 345);
   return 0;
 }
+

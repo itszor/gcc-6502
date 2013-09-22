@@ -35,7 +35,7 @@ int main1 (int n, int *a)
 
 int main (void)
 { 
-  int a[N] __attribute__ ((__aligned__(16)));
+  int a[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 
   check_vect ();
 
@@ -51,6 +51,6 @@ int main (void)
 /* Fails for targets that don't vectorize PLUS (e.g alpha).  */
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
 /* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 0 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" {target vector_alignment_reachable } } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 1 "vect" {target {! vector_alignment_reachable} } } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" {target vector_alignment_reachable} } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 1 "vect" {target { {! vector_alignment_reachable} && {! vect_hw_misalign} } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

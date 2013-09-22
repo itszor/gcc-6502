@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package java.util;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,6 +48,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.io.Reader;
 
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
@@ -72,7 +75,7 @@ import org.w3c.dom.ls.LSSerializer;
  * and put it in the CLASSPATH.  (The character
  * <code>\</code><code>u00e4</code> is the german umlaut)
  *
- * 
+ *
 <pre>s1=3
 s2=MeineDisk
 s3=3. M\<code></code>u00e4rz 96
@@ -155,7 +158,7 @@ public class Properties extends Hashtable<Object, Object>
   }
 
   /**
-   * Reads a property list from an input stream.  The stream should
+   * Reads a property list from a character stream.  The stream should
    * have the following format: <br>
    *
    * An empty line or a line starting with <code>#</code> or
@@ -176,7 +179,7 @@ public class Properties extends Hashtable<Object, Object>
    * <code>\\u</code><em>xxxx</em> notation are detected, and
    * converted to the corresponding single character. <br>
    *
-   * 
+   *
 <pre># This is a comment
 key     = value
 k\:5      \ a string starting with space and ending with newline\n
@@ -187,37 +190,36 @@ weekdays: Sunday,Monday,Tuesday,Wednesday,\\
 # The safest way to include a space at the end of a value:
 label   = Name:\\u0020</pre>
    *
-   * @param inStream the input stream
+   * @param inReader the input {@link java.io.Reader}.
    * @throws IOException if an error occurred when reading the input
    * @throws NullPointerException if in is null
+   * @since 1.6
    */
-  public void load(InputStream inStream) throws IOException
+  public void load(Reader inReader) throws IOException
   {
-    // The spec says that the file must be encoded using ISO-8859-1.
-    BufferedReader reader =
-      new BufferedReader(new InputStreamReader(inStream, "ISO-8859-1"));
+    BufferedReader reader = new BufferedReader(inReader);
     String line;
 
     while ((line = reader.readLine()) != null)
       {
         char c = 0;
         int pos = 0;
-	// Leading whitespaces must be deleted first.
+        // Leading whitespaces must be deleted first.
         while (pos < line.length()
                && Character.isWhitespace(c = line.charAt(pos)))
           pos++;
 
         // If empty line or begins with a comment character, skip this line.
         if ((line.length() - pos) == 0
-	    || line.charAt(pos) == '#' || line.charAt(pos) == '!')
+            || line.charAt(pos) == '#' || line.charAt(pos) == '!')
           continue;
 
         // The characters up to the next Whitespace, ':', or '='
         // describe the key.  But look for escape sequences.
-	// Try to short-circuit when there is no escape char.
-	int start = pos;
-	boolean needsEscape = line.indexOf('\\', pos) != -1;
-        StringBuilder key = needsEscape ? new StringBuilder() : null;
+        // Try to short-circuit when there is no escape char.
+        int start = pos;
+        boolean needsEscape = line.indexOf('\\', pos) != -1;
+        CPStringBuilder key = needsEscape ? new CPStringBuilder() : null;
         while (pos < line.length()
                && ! Character.isWhitespace(c = line.charAt(pos++))
                && c != '=' && c != ':')
@@ -230,8 +232,8 @@ label   = Name:\\u0020</pre>
                     // is no next line, just treat it as a key with an
                     // empty value.
                     line = reader.readLine();
-		    if (line == null)
-		      line = "";
+                    if (line == null)
+                      line = "";
                     pos = 0;
                     while (pos < line.length()
                            && Character.isWhitespace(c = line.charAt(pos)))
@@ -272,13 +274,13 @@ label   = Name:\\u0020</pre>
 
         boolean isDelim = (c == ':' || c == '=');
 
-	String keyString;
-	if (needsEscape)
-	  keyString = key.toString();
-	else if (isDelim || Character.isWhitespace(c))
-	  keyString = line.substring(start, pos - 1);
-	else
-	  keyString = line.substring(start, pos);
+        String keyString;
+        if (needsEscape)
+          keyString = key.toString();
+        else if (isDelim || Character.isWhitespace(c))
+          keyString = line.substring(start, pos - 1);
+        else
+          keyString = line.substring(start, pos);
 
         while (pos < line.length()
                && Character.isWhitespace(c = line.charAt(pos)))
@@ -292,14 +294,14 @@ label   = Name:\\u0020</pre>
               pos++;
           }
 
-	// Short-circuit if no escape chars found.
-	if (!needsEscape)
-	  {
-	    put(keyString, line.substring(pos));
-	    continue;
-	  }
+        // Short-circuit if no escape chars found.
+        if (!needsEscape)
+          {
+            put(keyString, line.substring(pos));
+            continue;
+          }
 
-	// Escape char found so iterate through the rest of the line.
+        // Escape char found so iterate through the rest of the line.
         StringBuilder element = new StringBuilder(line.length() - pos);
         while (pos < line.length())
           {
@@ -311,11 +313,11 @@ label   = Name:\\u0020</pre>
                     // The line continues on the next line.
                     line = reader.readLine();
 
-		    // We might have seen a backslash at the end of
-		    // the file.  The JDK ignores the backslash in
-		    // this case, so we follow for compatibility.
-		    if (line == null)
-		      break;
+                    // We might have seen a backslash at the end of
+                    // the file.  The JDK ignores the backslash in
+                    // this case, so we follow for compatibility.
+                    if (line == null)
+                      break;
 
                     pos = 0;
                     while (pos < line.length()
@@ -358,6 +360,24 @@ label   = Name:\\u0020</pre>
           }
         put(keyString, element.toString());
       }
+  }
+
+  /**
+   * Reads a property list from the supplied input stream.
+   * This method has the same functionality as {@link #load(Reader)}
+   * but the character encoding is assumed to be ISO-8859-1.
+   * Unicode characters not within the Latin1 set supplied by
+   * ISO-8859-1 should be escaped using '\\uXXXX' where XXXX
+   * is the UTF-16 code unit in hexadecimal.
+   *
+   * @param inStream the byte stream to read the property list from.
+   * @throws IOException if an I/O error occurs.
+   * @see #load(Reader)
+   * @since 1.2
+   */
+  public void load(InputStream inStream) throws IOException
+  {
+    load(new InputStreamReader(inStream, "ISO-8859-1"));
   }
 
   /**
@@ -418,10 +438,10 @@ label   = Name:\\u0020</pre>
     if (header != null)
       writer.println("#" + header);
     writer.println ("#" + Calendar.getInstance ().getTime ());
-    
+
     Iterator iter = entrySet ().iterator ();
     int i = size ();
-    StringBuilder s = new StringBuilder (); // Reuse the same buffer.
+    CPStringBuilder s = new CPStringBuilder (); // Reuse the same buffer.
     while (--i >= 0)
       {
         Map.Entry entry = (Map.Entry) iter.next ();
@@ -508,7 +528,7 @@ label   = Name:\\u0020</pre>
   }
 
   /**
-   * Prints the key/value pairs to the given print stream.  This is 
+   * Prints the key/value pairs to the given print stream.  This is
    * mainly useful for debugging purposes.
    *
    * @param out the print stream, where the key/value pairs are written to
@@ -564,7 +584,7 @@ label   = Name:\\u0020</pre>
    *        leading spaces must be escaped for the value
    * @see #store(OutputStream, String)
    */
-  private void formatForOutput(String str, StringBuilder buffer, boolean key)
+  private void formatForOutput(String str, CPStringBuilder buffer, boolean key)
   {
     if (key)
       {
@@ -625,7 +645,7 @@ label   = Name:\\u0020</pre>
    * Invoking this method provides the same behaviour as invoking
    * <code>storeToXML(os, comment, "UTF-8")</code>.
    * </p>
-   * 
+   *
    * @param os the stream to output to.
    * @param comment a comment to include at the top of the XML file, or
    *                <code>null</code> if one is not required.
@@ -646,7 +666,7 @@ label   = Name:\\u0020</pre>
    * <a href="http://java.sun.com/dtd/properties.dtd">
    * http://java.sun.com/dtd/properties.dtd</a>.
    * </p>
-   * 
+   *
    * @param os the stream to output to.
    * @param comment a comment to include at the top of the XML file, or
    *                <code>null</code> if one is not required.
@@ -665,53 +685,53 @@ label   = Name:\\u0020</pre>
       throw new NullPointerException("Null encoding supplied.");
     try
       {
-	DOMImplementationRegistry registry = 
-	  DOMImplementationRegistry.newInstance();
-	DOMImplementation domImpl = registry.getDOMImplementation("LS 3.0");
-	DocumentType doctype =
-	  domImpl.createDocumentType("properties", null,
-				     "http://java.sun.com/dtd/properties.dtd");
-	Document doc = domImpl.createDocument(null, "properties", doctype);
-	Element root = doc.getDocumentElement();
-	if (comment != null)
-	  {
-	    Element commentElement = doc.createElement("comment");
-	    commentElement.appendChild(doc.createTextNode(comment));
-	    root.appendChild(commentElement);
-	  }
-	Iterator iterator = entrySet().iterator();
-	while (iterator.hasNext())
-	  {
-	    Map.Entry entry = (Map.Entry) iterator.next();
-	    Element entryElement = doc.createElement("entry");
-	    entryElement.setAttribute("key", (String) entry.getKey());
-	    entryElement.appendChild(doc.createTextNode((String)
-							entry.getValue()));
-	    root.appendChild(entryElement);
-	  }
-	DOMImplementationLS loadAndSave = (DOMImplementationLS) domImpl;
-	LSSerializer serializer = loadAndSave.createLSSerializer();
-	LSOutput output = loadAndSave.createLSOutput();
-	output.setByteStream(os);
-	output.setEncoding(encoding);
-	serializer.write(doc, output);
+        DOMImplementationRegistry registry =
+          DOMImplementationRegistry.newInstance();
+        DOMImplementation domImpl = registry.getDOMImplementation("LS 3.0");
+        DocumentType doctype =
+          domImpl.createDocumentType("properties", null,
+                                     "http://java.sun.com/dtd/properties.dtd");
+        Document doc = domImpl.createDocument(null, "properties", doctype);
+        Element root = doc.getDocumentElement();
+        if (comment != null)
+          {
+            Element commentElement = doc.createElement("comment");
+            commentElement.appendChild(doc.createTextNode(comment));
+            root.appendChild(commentElement);
+          }
+        Iterator iterator = entrySet().iterator();
+        while (iterator.hasNext())
+          {
+            Map.Entry entry = (Map.Entry) iterator.next();
+            Element entryElement = doc.createElement("entry");
+            entryElement.setAttribute("key", (String) entry.getKey());
+            entryElement.appendChild(doc.createTextNode((String)
+                                                        entry.getValue()));
+            root.appendChild(entryElement);
+          }
+        DOMImplementationLS loadAndSave = (DOMImplementationLS) domImpl;
+        LSSerializer serializer = loadAndSave.createLSSerializer();
+        LSOutput output = loadAndSave.createLSOutput();
+        output.setByteStream(os);
+        output.setEncoding(encoding);
+        serializer.write(doc, output);
       }
     catch (ClassNotFoundException e)
       {
-	throw (IOException) 
-	  new IOException("The XML classes could not be found.").initCause(e);
+        throw (IOException)
+          new IOException("The XML classes could not be found.").initCause(e);
       }
     catch (InstantiationException e)
       {
-	throw (IOException)
-	  new IOException("The XML classes could not be instantiated.")
-	  .initCause(e);
+        throw (IOException)
+          new IOException("The XML classes could not be instantiated.")
+          .initCause(e);
       }
     catch (IllegalAccessException e)
       {
-	throw (IOException)
-	  new IOException("The XML classes could not be accessed.")
-	  .initCause(e);
+        throw (IOException)
+          new IOException("The XML classes could not be accessed.")
+          .initCause(e);
       }
   }
 
@@ -745,7 +765,7 @@ label   = Name:\\u0020</pre>
                             Boolean.FALSE);
         XMLStreamReader reader = factory.createXMLStreamReader(in);
         String name, key = null;
-        StringBuffer buf = null;
+        CPStringBuilder buf = null;
         while (reader.hasNext())
           {
             switch (reader.next())
@@ -760,7 +780,7 @@ label   = Name:\\u0020</pre>
                         String msg = "missing 'key' attribute";
                         throw new InvalidPropertiesFormatException(msg);
                       }
-                    buf = new StringBuffer();
+                    buf = new CPStringBuilder();
                   }
                 else if (!"properties".equals(name) && !"comment".equals(name))
                   {
@@ -793,9 +813,9 @@ label   = Name:\\u0020</pre>
       }
     catch (XMLStreamException e)
       {
-	throw (InvalidPropertiesFormatException)
-	  new InvalidPropertiesFormatException("Error in parsing XML.").
-	  initCause(e);
+        throw (InvalidPropertiesFormatException)
+          new InvalidPropertiesFormatException("Error in parsing XML.").
+          initCause(e);
       }
   }
 

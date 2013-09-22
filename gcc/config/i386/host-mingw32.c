@@ -1,5 +1,5 @@
 /* mingw32 host-specific hook definitions.
-   Copyright (C) 2004, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
@@ -22,12 +22,12 @@
 #include "coretypes.h"
 #include "hosthooks.h"
 #include "hosthooks-def.h"
-#include "toplev.h"
 #include "diagnostic.h"
 
 
 #define WIN32_LEAN_AND_MEAN  /* Not so important if we have windows.h.gch.  */
 #include <windows.h>
+#include <stdlib.h>
 
 static void * mingw32_gt_pch_get_address (size_t, int);
 static int mingw32_gt_pch_use_address (void *, size_t, int, size_t);
@@ -46,7 +46,7 @@ static inline void w32_error(const char*, const char*, int, const char*);
 static const size_t pch_VA_max_size  = 128 * 1024 * 1024;
 
 /* Granularity for reserving address space.  */
-static const size_t va_granularity = 0x10000;
+static size_t va_granularity = 0x10000;
 
 /* Print out the GetLastError() translation.  */ 
 static inline void
@@ -67,8 +67,14 @@ w32_error (const char* function, const char* file, int line,
 }
 
 /* Granularity for reserving address space.  */
-static size_t mingw32_gt_pch_alloc_granularity (void)
+static size_t
+mingw32_gt_pch_alloc_granularity (void)
 {
+  SYSTEM_INFO si;
+
+  GetSystemInfo (&si);
+  va_granularity = (size_t) si.dwAllocationGranularity;
+
   return va_granularity;
 }
 
@@ -115,19 +121,28 @@ mingw32_gt_pch_use_address (void *addr, size_t size, int fd,
 {
   void * mmap_addr;
   HANDLE mmap_handle;
-
+ 
   /* Apparently, MS Vista puts unnamed file mapping objects into Global
      namespace when running an application in a Terminal Server
      session.  This causes failure since, by default, applications 
      don't get SeCreateGlobalPrivilege. We don't need global
-     memory sharing so explicitly put object into Local namespace.  */
-   const char object_name[] = "Local\\MinGWGCCPCH";
+     memory sharing so explicitly put object into Local namespace.
 
+     If multiple concurrent GCC processes are using PCH functionality,
+     MapViewOfFileEx returns "Access Denied" error.  So we ensure the
+     session-wide mapping name is unique by appending process ID.  */
+
+#define OBJECT_NAME_FMT "Local\\MinGWGCCPCH-"
+
+  char* object_name = NULL;
   /* However, the documentation for CreateFileMapping says that on NT4
      and earlier, backslashes are invalid in object name.  So, we need
      to check if we are on Windows2000 or higher.  */
   OSVERSIONINFO version_info;
-  
+  int r;
+
+  version_info.dwOSVersionInfoSize = sizeof (version_info);
+
   if (size == 0)
     return 0; 
 
@@ -136,21 +151,40 @@ mingw32_gt_pch_use_address (void *addr, size_t size, int fd,
   if ((offset & (va_granularity - 1)) != 0 || size > pch_VA_max_size)
     return -1;
 
-  /* Determine the version of Windows we are running on.  */
-  version_info.dwOSVersionInfoSize = sizeof (version_info);
-  GetVersionEx (&version_info);
 
+  /* Determine the version of Windows we are running on and use a
+     uniquely-named local object if running > 4.  */
+  GetVersionEx (&version_info);
+  if (version_info.dwMajorVersion > 4)
+    {
+      char local_object_name [sizeof (OBJECT_NAME_FMT)
+			      + sizeof (DWORD) * 2];
+      snprintf (local_object_name, sizeof (local_object_name),
+		OBJECT_NAME_FMT "%lx", GetCurrentProcessId());
+      object_name = local_object_name;
+    }
   mmap_handle = CreateFileMappingA ((HANDLE) _get_osfhandle (fd), NULL,
 				    PAGE_WRITECOPY | SEC_COMMIT, 0, 0,
-				    version_info.dwMajorVersion > 4
-				    ? object_name : NULL);
+				    object_name);
+
   if (mmap_handle == NULL)
     {
       w32_error (__FUNCTION__,  __FILE__, __LINE__, "CreateFileMapping");
       return -1; 
     }
-  mmap_addr = MapViewOfFileEx (mmap_handle, FILE_MAP_COPY, 0, offset,
-			       size, addr);
+
+  /* Retry five times, as here might occure a race with multiple gcc's
+     instances at same time.  */
+  for (r = 0; r < 5; r++)
+   {
+      mmap_addr = MapViewOfFileEx (mmap_handle, FILE_MAP_COPY, 0, offset,
+				   size, addr);
+      if (mmap_addr == addr)
+	break;
+      if (r != 4)
+        Sleep (500);
+   }
+      
   if (mmap_addr != addr)
     {
       w32_error (__FUNCTION__, __FILE__, __LINE__, "MapViewOfFileEx");

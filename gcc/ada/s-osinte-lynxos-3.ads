@@ -1,47 +1,46 @@
 ------------------------------------------------------------------------------
 --                                                                          --
---                 GNAT RUN-TIME LIBRARY (GNARL) COMPONENTS                 --
+--                          GNAT RUN-TIME COMPONENTS                        --
 --                                                                          --
 --                   S Y S T E M . O S _ I N T E R F A C E                  --
 --                                                                          --
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2011, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
 --                                                                          --
--- GNARL was developed by the GNARL team at Florida State University.       --
--- Extensive contributions were provided by Ada Core Technologies, Inc.     --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
+--                                                                          --
+-- GNAT was originally developed  by the GNAT team at  New York University. --
+-- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
 --  This is a LynxOS (Native) version of this package
 
 --  This package encapsulates all direct interfaces to OS services
---  that are needed by children of System.
+--  that are needed by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Preelaborate. This package is designed to be a bottom-level (leaf) package.
 
-with Interfaces.C;
 with Ada.Unchecked_Conversion;
+
+with Interfaces.C;
 
 package System.OS_Interface is
    pragma Preelaborate;
@@ -174,13 +173,11 @@ package System.OS_Interface is
    ----------
 
    Time_Slice_Supported : constant Boolean := True;
-   --  Indicates wether time slicing is supported
+   --  Indicates whether time slicing is supported
 
    type timespec is private;
 
-   type clockid_t is private;
-
-   CLOCK_REALTIME : constant clockid_t;
+   type clockid_t is new int;
 
    function clock_gettime
      (clock_id : clockid_t;
@@ -266,8 +263,11 @@ package System.OS_Interface is
    -- Stack --
    -----------
 
+   Alternate_Stack_Size : constant := 0;
+   --  No alternate signal stack is used on this platform
+
    Stack_Base_Available : constant Boolean := False;
-   --  Indicates wether the stack base is available on this target
+   --  Indicates whether the stack base is available on this target
 
    function Get_Stack_Base (thread : pthread_t) return Address;
    pragma Inline (Get_Stack_Base);
@@ -379,7 +379,7 @@ package System.OS_Interface is
       mutex   : access pthread_mutex_t;
       reltime : access timespec) return int;
    pragma Inline (pthread_cond_timedwait);
-   --  LynxOS has a nonstandard pthrad_cond_timedwait
+   --  LynxOS has a nonstandard pthread_cond_timedwait
 
    Relative_Timed_Wait : constant Boolean := True;
    --  pthread_cond_timedwait requires a relative delay time
@@ -513,9 +513,6 @@ private
       tv_nsec : long;
    end record;
    pragma Convention (C, timespec);
-
-   type clockid_t is new unsigned_char;
-   CLOCK_REALTIME : constant clockid_t := 0;
 
    type st_t is record
       stksize      : int;

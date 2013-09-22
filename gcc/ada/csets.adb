@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -620,9 +618,9 @@ package body Csets is
    -- Definitions for IBM PC (Code Page 437) --
    --------------------------------------------
 
-   --  Note: Code page 437 is the typical default in DOS, Windows and OS/2
-   --  for PC's in the US, it corresponds to the original PC character set.
-   --  See also the definitions for code page 850.
+   --  Note: Code page 437 is the typical default in Windows for PC's in the
+   --  US, it corresponds to the original PC character set. See also the
+   --  definitions for code page 850.
 
    Fold_IBM_PC_437 : constant Translate_Table := Translate_Table'(
 
@@ -754,10 +752,10 @@ package body Csets is
    -- Definitions for IBM PC (Code Page 850) --
    --------------------------------------------
 
-   --  Note: Code page 850 is the typical default in DOS, Windows and OS/2
-   --  for PC's in Europe, it is an extension of the original PC character
-   --  set to include the additional characters defined in ISO Latin-1.
-   --  See also the definitions for code page 437.
+   --  Note: Code page 850 is the typical default in Windows for PC's in
+   --  Europe, it is an extension of the original PC character set to include
+   --  the additional characters defined in ISO Latin-1. See also the
+   --  definitions for code page 437.
 
    Fold_IBM_PC_850 : constant Translate_Table := Translate_Table'(
 

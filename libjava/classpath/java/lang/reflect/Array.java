@@ -209,19 +209,19 @@ public final class Array
     if (array instanceof boolean[])
       return ((boolean[]) array)[index] ? Boolean.TRUE : Boolean.FALSE;
     if (array instanceof byte[])
-      return new Byte(((byte[]) array)[index]);
+      return Byte.valueOf(((byte[]) array)[index]);
     if (array instanceof char[])
-      return new Character(((char[]) array)[index]);
+      return Character.valueOf(((char[]) array)[index]);
     if (array instanceof short[])
-      return new Short(((short[]) array)[index]);
+      return Short.valueOf(((short[]) array)[index]);
     if (array instanceof int[])
-      return new Integer(((int[]) array)[index]);
+      return Integer.valueOf(((int[]) array)[index]);
     if (array instanceof long[])
-      return new Long(((long[]) array)[index]);
+      return Long.valueOf(((long[]) array)[index]);
     if (array instanceof float[])
-      return new Float(((float[]) array)[index]);
+      return Float.valueOf(((float[]) array)[index]);
     if (array instanceof double[])
-      return new Double(((double[]) array)[index]);
+      return Double.valueOf(((double[]) array)[index]);
     if (array == null)
       throw new NullPointerException();
     throw new IllegalArgumentException();
@@ -248,7 +248,7 @@ public final class Array
       throw new NullPointerException();
     throw new IllegalArgumentException();
   }
-  
+
   /**
    * Gets an element of a byte array.
    *
@@ -422,11 +422,11 @@ public final class Array
   {
     if (array instanceof Object[])
       {
-	// Too bad the API won't let us throw the easier ArrayStoreException!
-	if (value != null
-	    && ! array.getClass().getComponentType().isInstance(value))
-	  throw new IllegalArgumentException();
-	((Object[]) array)[index] = value;
+        // Too bad the API won't let us throw the easier ArrayStoreException!
+        if (value != null
+            && ! array.getClass().getComponentType().isInstance(value))
+          throw new IllegalArgumentException();
+        ((Object[]) array)[index] = value;
       }
     else if (value instanceof Byte)
       setByte(array, index, ((Byte) value).byteValue());

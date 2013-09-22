@@ -9,11 +9,13 @@
 class B
 {
 public:
-      operator=(B &); // { dg-error "" } no type or storage class
+      operator=(B &); // { dg-error "no type" }
+      // { dg-message "B::operator=|no known conversion" "note" { target *-*-* } 12 }
 };
 
 void
 test(B &b1, const B &b2)
 {
-        b1 = b2;// { dg-error "" } .*
+        b1 = b2;// { dg-error "match" }
+	// { dg-message "candidate" "candidate note" { target *-*-* } 19 }
 }

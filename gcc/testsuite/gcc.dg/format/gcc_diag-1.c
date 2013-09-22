@@ -69,22 +69,14 @@ foo (int i, int i1, int i2, unsigned int u, double d, char *s, void *p,
   tdiag ("%m");
   cdiag ("%m");
   cxxdiag ("%m");
-  diag ("%H", loc);
-  tdiag ("%H", loc);
-  cdiag ("%H", loc);
-  cxxdiag ("%H", loc);
-  diag ("%J", t1);
-  tdiag ("%J", t1);
-  cdiag ("%J", t1);
-  cxxdiag ("%J", t1);
 
-  tdiag ("%D%F%T", t1, t1, t1);
-  tdiag ("%+D%+F%+T", t1, t1, t1);
-  tdiag ("%q+D%q+F%q+T", t1, t1, t1);
+  tdiag ("%D%F%T%V", t1, t1, t1, t1);
+  tdiag ("%+D%+F%+T%+V", t1, t1, t1, t1);
+  tdiag ("%q+D%q+F%q+T%q+V", t1, t1, t1, t1);
   tdiag ("%D%D%D%D", t1, t2, *t3, t4[5]);
-  cdiag ("%D%F%T", t1, t1, t1);
-  cdiag ("%+D%+F%+T", t1, t1, t1);
-  cdiag ("%q+D%q+F%q+T", t1, t1, t1);
+  cdiag ("%D%F%T%V", t1, t1, t1, t1);
+  cdiag ("%+D%+F%+T%+V", t1, t1, t1, t1);
+  cdiag ("%q+D%q+F%q+T%q+V", t1, t1, t1, t1);
   cdiag ("%D%D%D%D", t1, t2, *t3, t4[5]);
   cdiag ("%E", t1);
   cxxdiag ("%A%D%E%F%T%V", t1, t1, t1, t1, t1, t1);
@@ -93,6 +85,10 @@ foo (int i, int i1, int i2, unsigned int u, double d, char *s, void *p,
   cxxdiag ("%+A%+D%+E%+F%+T%+V", t1, t1, t1, t1, t1, t1);
   cxxdiag ("%+#A%+#D%+#E%+#F%+#T%+#V", t1, t1, t1, t1, t1, t1);
   cxxdiag ("%C%L%O%P%Q", i, i, i, i, i);
+
+  tdiag ("%v%qv%#v", i, i, i);
+  cdiag ("%v%qv%#v", i, i, i);
+  cxxdiag ("%v%qv%#v", i, i, i);
 
   /* Bad stuff with extensions.  */
   diag ("%m", i); /* { dg-warning "format" "extra arg" } */
@@ -107,37 +103,9 @@ foo (int i, int i1, int i2, unsigned int u, double d, char *s, void *p,
   tdiag ("%+m"); /* { dg-warning "format" "bogus modifier" } */
   cdiag ("%+m"); /* { dg-warning "format" "bogus modifier" } */
   cxxdiag ("%+m"); /* { dg-warning "format" "bogus modifier" } */
-  diag ("%H"); /* { dg-warning "format" "missing arg" } */
-  tdiag ("%H"); /* { dg-warning "format" "missing arg" } */
-  cdiag ("%H"); /* { dg-warning "format" "missing arg" } */
-  cxxdiag ("%H"); /* { dg-warning "format" "missing arg" } */
-  diag ("%J"); /* { dg-warning "format" "missing arg" } */
-  tdiag ("%J"); /* { dg-warning "format" "missing arg" } */
-  cdiag ("%J"); /* { dg-warning "format" "missing arg" } */
-  cxxdiag ("%J"); /* { dg-warning "format" "missing arg" } */
-  diag ("%H", i); /* { dg-warning "format" "wrong arg" } */
-  tdiag ("%H", i); /* { dg-warning "format" "wrong arg" } */
-  cdiag ("%H", i); /* { dg-warning "format" "wrong arg" } */
-  cxxdiag ("%H", i); /* { dg-warning "format" "wrong arg" } */
-  diag ("%H", p); /* { dg-warning "format" "wrong arg" } */
-  tdiag ("%H", p); /* { dg-warning "format" "wrong arg" } */
-  cdiag ("%H", p); /* { dg-warning "format" "wrong arg" } */
-  cxxdiag ("%H", p); /* { dg-warning "format" "wrong arg" } */
-  diag ("%J", loc); /* { dg-warning "format" "wrong arg" } */
-  tdiag ("%J", loc); /* { dg-warning "format" "wrong arg" } */
-  cdiag ("%J", loc); /* { dg-warning "format" "wrong arg" } */
-  cxxdiag ("%J", loc); /* { dg-warning "format" "wrong arg" } */
-  diag ("%#H", loc); /* { dg-warning "format" "bogus modifier" } */
-  tdiag ("%#H", loc); /* { dg-warning "format" "bogus modifier" } */
-  cdiag ("%#H", loc); /* { dg-warning "format" "bogus modifier" } */
-  cxxdiag ("%#H", loc); /* { dg-warning "format" "bogus modifier" } */
-  diag ("%+H", loc); /* { dg-warning "format" "bogus modifier" } */
-  tdiag ("%+H", loc); /* { dg-warning "format" "bogus modifier" } */
-  cdiag ("%+H", loc); /* { dg-warning "format" "bogus modifier" } */
-  cxxdiag ("%+H", loc); /* { dg-warning "format" "bogus modifier" } */
   diag ("%D", t1); /* { dg-warning "format" "bogus tree" } */
   tdiag ("%A", t1); /* { dg-warning "format" "bogus tree" } */
-  tdiag ("%E", t1); /* { dg-warning "format" "bogus tree" } */
+  tdiag ("%E", t1);
   tdiag ("%#D", t1); /* { dg-warning "format" "bogus modifier" } */
   cdiag ("%A", t1); /* { dg-warning "format" "bogus tree" } */
   cdiag ("%#D", t1); /* { dg-warning "format" "bogus modifier" } */
@@ -156,6 +124,14 @@ foo (int i, int i1, int i2, unsigned int u, double d, char *s, void *p,
   tdiag ("%D", t1, t1); /* { dg-warning "format" "extra arg" } */
   cdiag ("%D", t1, t1); /* { dg-warning "format" "extra arg" } */
   cxxdiag ("%D", t1, t1); /* { dg-warning "format" "extra arg" } */
+
+  tdiag ("%V", i); /* { dg-warning "format" "wrong arg" } */
+  cdiag ("%V", i); /* { dg-warning "format" "wrong arg" } */
+  cxxdiag ("%V", i); /* { dg-warning "format" "wrong arg" } */
+
+  tdiag ("%v", t1); /* { dg-warning "format" "wrong arg" } */
+  cdiag ("%v", t1); /* { dg-warning "format" "wrong arg" } */
+  cxxdiag ("%v", t1); /* { dg-warning "format" "wrong arg" } */
 
   /* Standard specifiers not accepted in the diagnostic framework.  */
   diag ("%X\n", u); /* { dg-warning "format" "HEX" } */
@@ -225,7 +201,7 @@ foo (int i, int i1, int i2, unsigned int u, double d, char *s, void *p,
   diag ("%s", n); /* { dg-warning "format" "bad argument types" } */
 
   /* Wrong number of arguments.  */
-  diag ("%d%d", i); /* { dg-warning "arguments" "wrong number of args" } */
+  diag ("%d%d", i); /* { dg-warning "matching" "wrong number of args" } */
   diag ("%d", i, i); /* { dg-warning "arguments" "wrong number of args" } */
   /* Miscellaneous bogus constructions.  */
   diag (""); /* { dg-warning "zero-length" "warning for empty format" } */

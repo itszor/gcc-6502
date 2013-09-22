@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,14 +34,14 @@
 // warranty.
 
 /**
- * @file erase_fn_imps.hpp
+ * @file splay_tree_/erase_fn_imps.hpp
  * Contains an implementation class for splay_tree_.
  */
 
 PB_DS_CLASS_T_DEC
 inline bool
 PB_DS_CLASS_C_DEC::
-erase(const_key_reference r_key)
+erase(key_const_reference r_key)
 {
   point_iterator it = find(r_key);
   if (it == base_type::end())
@@ -61,13 +55,13 @@ inline typename PB_DS_CLASS_C_DEC::iterator
 PB_DS_CLASS_C_DEC::
 erase(iterator it)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   if (it == base_type::end())
     return it;
   iterator ret_it = it;
   ++ret_it;
   erase_node(it.m_p_nd);
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   return ret_it;
 }
 
@@ -76,13 +70,13 @@ inline typename PB_DS_CLASS_C_DEC::reverse_iterator
 PB_DS_CLASS_C_DEC::
 erase(reverse_iterator it)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   if (it.m_p_nd == base_type::m_p_head)
     return (it);
   reverse_iterator ret_it = it;
   ++ret_it;
   erase_node(it.m_p_nd);
-  _GLIBCXX_DEBUG_ONLY(assert_valid());
+  PB_DS_ASSERT_VALID((*this))
   return ret_it;
 }
 
@@ -92,7 +86,7 @@ inline typename PB_DS_CLASS_C_DEC::size_type
 PB_DS_CLASS_C_DEC::
 erase_if(Pred pred)
 {
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
+  PB_DS_ASSERT_VALID((*this))
   size_type num_ersd = 0;
   iterator it = base_type::begin();
   while (it != base_type::end())
@@ -105,7 +99,7 @@ erase_if(Pred pred)
       else
 	++it;
     }
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
+  PB_DS_ASSERT_VALID((*this))
   return num_ersd;
 }
 
@@ -114,10 +108,10 @@ void
 PB_DS_CLASS_C_DEC::
 erase_node(node_pointer p_nd)
 {
-  _GLIBCXX_DEBUG_ASSERT(p_nd != NULL);
+  _GLIBCXX_DEBUG_ASSERT(p_nd != 0);
   splay(p_nd);
 
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
+  PB_DS_ASSERT_VALID((*this))
   _GLIBCXX_DEBUG_ASSERT(p_nd == this->m_p_head->m_p_parent);
 
   node_pointer p_l = p_nd->m_p_left;
@@ -125,30 +119,30 @@ erase_node(node_pointer p_nd)
 
   base_type::update_min_max_for_erased_node(p_nd);
   base_type::actual_erase_node(p_nd);
-  if (p_r == NULL)
+  if (p_r == 0)
     {
       base_type::m_p_head->m_p_parent = p_l;
-      if (p_l != NULL)
+      if (p_l != 0)
 	p_l->m_p_parent = base_type::m_p_head;
-      _GLIBCXX_DEBUG_ONLY(assert_valid();)
+      PB_DS_ASSERT_VALID((*this))
       return;
     }
 
   node_pointer p_target_r = leftmost(p_r);
-  _GLIBCXX_DEBUG_ASSERT(p_target_r != NULL);
+  _GLIBCXX_DEBUG_ASSERT(p_target_r != 0);
   p_r->m_p_parent = base_type::m_p_head;
   base_type::m_p_head->m_p_parent = p_r;
   splay(p_target_r);
 
-  _GLIBCXX_DEBUG_ONLY(p_target_r->m_p_left = NULL);
+  _GLIBCXX_DEBUG_ONLY(p_target_r->m_p_left = 0);
   _GLIBCXX_DEBUG_ASSERT(p_target_r->m_p_parent == this->m_p_head);
   _GLIBCXX_DEBUG_ASSERT(this->m_p_head->m_p_parent == p_target_r);
 
   p_target_r->m_p_left = p_l;
-  if (p_l != NULL)
+  if (p_l != 0)
     p_l->m_p_parent = p_target_r;
-  _GLIBCXX_DEBUG_ONLY(assert_valid();)
-  apply_update(p_target_r, (node_update* )this);
+  PB_DS_ASSERT_VALID((*this))
+  this->apply_update(p_target_r, (node_update*)this);
 }
 
 PB_DS_CLASS_T_DEC
@@ -156,8 +150,8 @@ inline typename PB_DS_CLASS_C_DEC::node_pointer
 PB_DS_CLASS_C_DEC::
 leftmost(node_pointer p_nd)
 {
-  _GLIBCXX_DEBUG_ASSERT(p_nd != NULL);
-  while (p_nd->m_p_left != NULL)
+  _GLIBCXX_DEBUG_ASSERT(p_nd != 0);
+  while (p_nd->m_p_left != 0)
     p_nd = p_nd->m_p_left;
   return p_nd;
 }

@@ -1,13 +1,11 @@
 // ostream classes -*- C++ -*-
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-// 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 1997-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file ostream.tcc
+/** @file bits/ostream.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ostream}
  */
 
 //
@@ -43,9 +36,11 @@
 
 #pragma GCC system_header
 
-#include <cxxabi-forced.h>
+#include <bits/cxxabi_forced.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits>
     basic_ostream<_CharT, _Traits>::sentry::
@@ -71,19 +66,19 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	sentry __cerb(*this);
 	if (__cerb)
 	  {
-	    ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
-	    try
+	    ios_base::iostate __err = ios_base::goodbit;
+	    __try
 	      {
 		const __num_put_type& __np = __check_facet(this->_M_num_put);
 		if (__np.put(*this, *this, this->fill(), __v).failed())
 		  __err |= ios_base::badbit;
 	      }
-	    catch(__cxxabiv1::__forced_unwind&)
+	    __catch(__cxxabiv1::__forced_unwind&)
 	      {
 		this->_M_setstate(ios_base::badbit);		
 		__throw_exception_again;
 	      }
-	    catch(...)
+	    __catch(...)
 	      { this->_M_setstate(ios_base::badbit); }
 	    if (__err)
 	      this->setstate(__err);
@@ -124,21 +119,21 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     basic_ostream<_CharT, _Traits>::
     operator<<(__streambuf_type* __sbin)
     {
-      ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
+      ios_base::iostate __err = ios_base::goodbit;
       sentry __cerb(*this);
       if (__cerb && __sbin)
 	{
-	  try
+	  __try
 	    {
 	      if (!__copy_streambufs(__sbin, this->rdbuf()))
 		__err |= ios_base::failbit;
 	    }
-	  catch(__cxxabiv1::__forced_unwind&)
+	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
 	      this->_M_setstate(ios_base::badbit);		
 	      __throw_exception_again;
 	    }
-	  catch(...)
+	  __catch(...)
 	    { this->_M_setstate(ios_base::failbit); }
 	}
       else if (!__sbin)
@@ -162,19 +157,19 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       sentry __cerb(*this);
       if (__cerb)
 	{
-	  ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
-	  try
+	  ios_base::iostate __err = ios_base::goodbit;
+	  __try
 	    {
 	      const int_type __put = this->rdbuf()->sputc(__c);
 	      if (traits_type::eq_int_type(__put, traits_type::eof()))
 		__err |= ios_base::badbit;
 	    }
-	  catch(__cxxabiv1::__forced_unwind&)
+	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
 	      this->_M_setstate(ios_base::badbit);		
 	      __throw_exception_again;
 	    }
-	  catch(...)
+	  __catch(...)
 	    { this->_M_setstate(ios_base::badbit); }
 	  if (__err)
 	    this->setstate(__err);
@@ -197,14 +192,14 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       sentry __cerb(*this);
       if (__cerb)
 	{
-	  try
+	  __try
 	    { _M_write(__s, __n); }
-	  catch(__cxxabiv1::__forced_unwind&)
+	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
 	      this->_M_setstate(ios_base::badbit);		
 	      __throw_exception_again;
 	    }
-	  catch(...)
+	  __catch(...)
 	    { this->_M_setstate(ios_base::badbit); }
 	}
       return *this;
@@ -218,18 +213,18 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       // _GLIBCXX_RESOLVE_LIB_DEFECTS
       // DR 60. What is a formatted input function?
       // basic_ostream::flush() is *not* an unformatted output function.
-      ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
-      try
+      ios_base::iostate __err = ios_base::goodbit;
+      __try
 	{
 	  if (this->rdbuf() && this->rdbuf()->pubsync() == -1)
 	    __err |= ios_base::badbit;
 	}
-      catch(__cxxabiv1::__forced_unwind&)
+      __catch(__cxxabiv1::__forced_unwind&)
 	{
 	  this->_M_setstate(ios_base::badbit);		
 	  __throw_exception_again;
 	}
-      catch(...)
+      __catch(...)
 	{ this->_M_setstate(ios_base::badbit); }
       if (__err)
 	this->setstate(__err);
@@ -242,17 +237,17 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     tellp()
     {
       pos_type __ret = pos_type(-1);
-      try
+      __try
 	{
 	  if (!this->fail())
 	    __ret = this->rdbuf()->pubseekoff(0, ios_base::cur, ios_base::out);
 	}
-      catch(__cxxabiv1::__forced_unwind&)
+      __catch(__cxxabiv1::__forced_unwind&)
 	{
 	  this->_M_setstate(ios_base::badbit);		
 	  __throw_exception_again;
 	}
-      catch(...)
+      __catch(...)
 	{ this->_M_setstate(ios_base::badbit); }
       return __ret;
     }
@@ -262,8 +257,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     basic_ostream<_CharT, _Traits>::
     seekp(pos_type __pos)
     {
-      ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
-      try
+      ios_base::iostate __err = ios_base::goodbit;
+      __try
 	{
 	  if (!this->fail())
 	    {
@@ -277,12 +272,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		__err |= ios_base::failbit;
 	    }
 	}
-      catch(__cxxabiv1::__forced_unwind&)
+      __catch(__cxxabiv1::__forced_unwind&)
 	{
 	  this->_M_setstate(ios_base::badbit);		
 	  __throw_exception_again;
 	}
-      catch(...)
+      __catch(...)
 	{ this->_M_setstate(ios_base::badbit); }
       if (__err)
 	this->setstate(__err);
@@ -294,8 +289,8 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     basic_ostream<_CharT, _Traits>::
     seekp(off_type __off, ios_base::seekdir __dir)
     {
-      ios_base::iostate __err = ios_base::iostate(ios_base::goodbit);
-      try
+      ios_base::iostate __err = ios_base::goodbit;
+      __try
 	{
 	  if (!this->fail())
 	    {
@@ -309,12 +304,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		__err |= ios_base::failbit;
 	    }
 	}
-      catch(__cxxabiv1::__forced_unwind&)
+      __catch(__cxxabiv1::__forced_unwind&)
 	{
 	  this->_M_setstate(ios_base::badbit);		
 	  __throw_exception_again;
 	}
-      catch(...)
+      __catch(...)
 	{ this->_M_setstate(ios_base::badbit); }
       if (__err)
 	this->setstate(__err);
@@ -332,7 +327,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	  // 167.  Improper use of traits_type::length()
 	  const size_t __clen = char_traits<char>::length(__s);
-	  try
+	  __try
 	    {
 	      struct __ptr_guard
 	      {
@@ -347,12 +342,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		__ws[__i] = __out.widen(__s[__i]);
 	      __ostream_insert(__out, __ws, __clen);
 	    }
-	  catch(__cxxabiv1::__forced_unwind&)
+	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
 	      __out._M_setstate(ios_base::badbit);
 	      __throw_exception_again;
 	    }
-	  catch(...)
+	  __catch(...)
 	    { __out._M_setstate(ios_base::badbit); }
 	}
       return __out;
@@ -360,7 +355,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
-  // NB:  This syntax is a GNU extension.
 #if _GLIBCXX_EXTERN_TEMPLATE
   extern template class basic_ostream<char>;
   extern template ostream& endl(ostream&);
@@ -407,6 +401,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif

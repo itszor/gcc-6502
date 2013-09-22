@@ -9,13 +9,13 @@
 # Contents:
 #   Script to create a GCC release.
 #
-# Copyright (c) 2001, 2002, 2006 Free Software Foundation.
+# Copyright (c) 2001, 2002, 2006, 2009, 2010, 2011 Free Software Foundation.
 #
 # This file is part of GCC.
 #
 # GCC is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2, or (at your option)
+# the Free Software Foundation; either version 3, or (at your option)
 # any later version.
 #
 # GCC is distributed in the hope that it will be useful,
@@ -24,9 +24,8 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with GCC; see the file COPYING.  If not, write to
-# the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-# Boston, MA 02110-1301, USA.
+# along with GCC; see the file COPYING3.  If not see
+# <http://www.gnu.org/licenses/>.
 #
 ########################################################################
 
@@ -90,16 +89,6 @@ changedir() {
     error "Could not change directory to $1"
 }
 
-# Each of the arguments is a directory name, relative to the top
-# of the source tree.  Return another name for that directory, relative
-# to the working directory.
-
-adjust_dirs() {
-  for x in $@; do
-    echo `basename ${SOURCE_DIRECTORY}`/$x
-  done
-}
-
 # Build the source tree that will be the basis for the release
 # in ${WORKING_DIRECTORY}/gcc-${RELEASE}.
 
@@ -139,25 +128,14 @@ EOF
       fi
     done
 
-    # Update gcc/DEV-PHASE if it exists, otherwise gcc/version.c.
+    # Update gcc/DEV-PHASE.
 
-    if [ -f ${SOURCE_DIRECTORY}/gcc/DEV-PHASE ]; then
-      [ `cat ${SOURCE_DIRECTORY}/gcc/BASE-VER` = ${RELEASE} ] || \
-      error "Release number ${RELEASE} does not match BASE-VER"
-      (changedir ${SOURCE_DIRECTORY}/gcc && \
-       : > DEV-PHASE && \
-       ${SVN} -q ci -m 'Mark as release' DEV-PHASE) || \
-      error "Could not update DEV-PHASE"
-    else
-      for x in gcc/version.c; do 
-        y=`basename ${x}`
-        (changedir `dirname ${SOURCE_DIRECTORY}/${x}` && \
-            sed -e 's|version_string\[\] = \".*\"|version_string\[\] = \"'${RELEASE}'\"|g' < ${y} > ${y}.new && \
-	    mv ${y}.new ${y} && \
-            ${SVN} -q ci -m 'Update version' ${y}) || \
-	    error "Could not update ${x}"
-      done
-    fi
+    [ `cat ${SOURCE_DIRECTORY}/gcc/BASE-VER` = ${RELEASE} ] || \
+    error "Release number ${RELEASE} does not match BASE-VER"
+    (changedir ${SOURCE_DIRECTORY}/gcc && \
+     : > DEV-PHASE && \
+     ${SVN} -q ci -m 'Mark as release' DEV-PHASE) || \
+    error "Could not update DEV-PHASE"
 
     # Make sure we tag the sources for a final release.
     TAG="tags/gcc_`echo ${RELEASE} | tr . _`_release"
@@ -243,10 +221,10 @@ EOF
   xargs md5sum >>MD5SUMS
 }
 
-# Buid a single tarfile.  The first argument is the name of the name
-# of the tarfile to build, without any suffixes.  They will be added
-# automatically.  The rest of the arguments are the files or
-# directories to include, and possibly other arguments to tar.
+# Build a single tarfile.  The first argument is the name of the tarfile
+# to build, without any suffixes.  They will be added automatically.  The
+# rest of the arguments are files or directories to include, and possibly
+# other arguments to tar.
 
 build_tarfile() {
   # Get the name of the destination tar file.
@@ -259,25 +237,6 @@ build_tarfile() {
   FILE_LIST="${FILE_LIST} ${TARFILE}"
 }
 
-# Build a single tarfile if any of the directories listed exist,
-# but not if none of them do (because that component doesn't exist
-# on this branch).
-maybe_build_tarfile() {
-  dest=$1
-  shift
-  dir_exists=0
-  for maybe_dir in "$@"; do
-    if [ -d "$maybe_dir" ]; then
-      dir_exists=1
-    fi
-  done
-  if [ $dir_exists = 1 ]; then
-    build_tarfile "$dest" "$@"
-  else
-    echo "Not building $dest tarfile"
-  fi
-}
-
 # Build the various tar files for the release.
 
 build_tarfiles() {
@@ -288,29 +247,11 @@ build_tarfiles() {
   # The GNU Coding Standards specify that all files should
   # world readable.
   chmod -R a+r ${SOURCE_DIRECTORY}
-  # And that all directories have mode 777.
-  find ${SOURCE_DIRECTORY} -type d -exec chmod 777 {} \;
+  # And that all directories have mode 755.
+  find ${SOURCE_DIRECTORY} -type d -exec chmod 755 {} \;
  
   # Build one huge tarfile for the entire distribution.
   build_tarfile gcc-${RELEASE} `basename ${SOURCE_DIRECTORY}`
-
-  # Now, build one for each of the languages.
-  maybe_build_tarfile gcc-ada-${RELEASE} ${ADA_DIRS}
-  maybe_build_tarfile gcc-g++-${RELEASE} ${CPLUSPLUS_DIRS}
-  maybe_build_tarfile gcc-g77-${RELEASE} ${FORTRAN_DIRS}
-  maybe_build_tarfile gcc-fortran-${RELEASE} ${FORTRAN95_DIRS}
-  maybe_build_tarfile gcc-java-${RELEASE} ${JAVA_DIRS}
-  maybe_build_tarfile gcc-objc-${RELEASE} ${OBJECTIVEC_DIRS}
-  maybe_build_tarfile gcc-testsuite-${RELEASE} ${TESTSUITE_DIRS}
-   
-  # The core is everything else.
-  EXCLUDES=""
-  for x in ${ADA_DIRS} ${CPLUSPLUS_DIRS} ${FORTRAN_DIRS} ${FORTRAN95_DIRS}\
-	   ${JAVA_DIRS} ${OBJECTIVEC_DIRS} ${TESTSUITE_DIRS}; do
-    EXCLUDES="${EXCLUDES} --exclude $x"
-  done
-  build_tarfile gcc-core-${RELEASE} ${EXCLUDES} \
-    `basename ${SOURCE_DIRECTORY}`
 }
 
 # Build .gz files.
@@ -328,7 +269,7 @@ build_diffs() {
   old_vers=${old_file%.tar.bz2}
   old_vers=${old_vers#gcc-}
   inform "Building diffs against version $old_vers"
-  for f in gcc gcc-ada gcc-g++ gcc-g77 gcc-fortran gcc-java gcc-objc gcc-testsuite gcc-core; do
+  for f in gcc; do
     old_tar=${old_dir}/${f}-${old_vers}.tar.bz2
     new_tar=${WORKING_DIRECTORY}/${f}-${RELEASE}.tar.bz2
     if [ ! -e $old_tar ]; then
@@ -396,10 +337,15 @@ upload_files() {
   done
 }
 
-#Print description if snapshot exists
+# Print description if snapshot exists.
 snapshot_print() {
   if [ -e ${RELEASE}/$1 ]; then
-     printf "%-38s%s\n\n" "$1" "$2" >> ${SNAPSHOT_README}
+    hash=`openssl  md5  ${RELEASE}/$1 | sed -e 's#(.*)##' -e 's# *= *#=#'`
+    hash2=`openssl sha1 ${RELEASE}/$1 | sed -e 's#(.*)##' -e 's# *= *#=#'`
+
+    printf " %-37s%s\n\n  %s\n  %s\n\n" "$1" "$2" "$hash" "$hash2" \
+      >> ${SNAPSHOT_README}
+
      echo "  <tr><td><a href=\"$1\">$1</a></td>" >> ${SNAPSHOT_INDEX}
      echo "      <td>$2</td></tr>" >> ${SNAPSHOT_INDEX}
   fi
@@ -448,15 +394,7 @@ with the following options: <code>"svn://gcc.gnu.org/svn/gcc/${SVNBRANCH} revisi
 
 <table>" > ${SNAPSHOT_INDEX}
        
-  snapshot_print gcc-${RELEASE}.tar.bz2 "Complete GCC (includes all of below)"
-  snapshot_print gcc-core-${RELEASE}.tar.bz2 "C front end and core compiler"
-  snapshot_print gcc-ada-${RELEASE}.tar.bz2 "Ada front end and runtime"
-  snapshot_print gcc-fortran-${RELEASE}.tar.bz2 "Fortran front end and runtime"
-  snapshot_print gcc-g++-${RELEASE}.tar.bz2 "C++ front end and runtime"
-  snapshot_print gcc-g77-${RELEASE}.tar.bz2 "Fortran 77 front end and runtime"
-  snapshot_print gcc-java-${RELEASE}.tar.bz2 "Java front end and runtime"
-  snapshot_print gcc-objc-${RELEASE}.tar.bz2 "Objective-C front end and runtime"
-  snapshot_print gcc-testsuite-${RELEASE}.tar.bz2 "The GCC testsuite"
+  snapshot_print gcc-${RELEASE}.tar.bz2 "Complete GCC"
 
   echo \
 "Diffs from "${BRANCH}"-"${LAST_DATE}" are available in the diffs/ subdirectory.
@@ -549,22 +487,12 @@ TAG=""
 OLD_TARS=""
 
 # The directory that will be used to construct the release.  The
-# release itself will be placed in a subdirectory of this diretory.
+# release itself will be placed in a subdirectory of this directory.
 DESTINATION=${HOME}
 # The subdirectory.
 WORKING_DIRECTORY=""
 # The directory that will contain the GCC sources.
 SOURCE_DIRECTORY=""
-
-# The directories that should be part of the various language-specific
-# tar files.  These are all relative to the top of the source tree.
-ADA_DIRS="gcc/ada libada gnattools"
-CPLUSPLUS_DIRS="gcc/cp libstdc++-v3"
-FORTRAN_DIRS="gcc/f libf2c"
-FORTRAN95_DIRS="gcc/fortran libgfortran"
-JAVA_DIRS="gcc/java libjava libffi fastjar zlib boehm-gc"
-OBJECTIVEC_DIRS="gcc/objc gcc/objcp libobjc"
-TESTSUITE_DIRS="gcc/testsuite"
 
 # Non-zero if this is the final release, rather than a prerelease.
 FINAL=0
@@ -692,7 +620,7 @@ else
 
   # If diffs are requested when building locally on gcc.gnu.org, we (usually)
   # know what the last snapshot date was and take the corresponding tarballs,
-  # unless the user specified tarballs explictly.
+  # unless the user specified tarballs explicitly.
   if [ $MODE_DIFFS -ne 0 ] && [ $LOCAL -ne 0 ] && [ -z "${OLD_TARS}" ]; then
     LAST_DATE=`cat ~/.snapshot_date-${BRANCH}`
     OLD_TARS=${SNAPSHOTS_DIR}/${BRANCH}-${LAST_DATE}/gcc-${BRANCH}-${LAST_DATE}.tar.bz2
@@ -703,26 +631,13 @@ fi
 WORKING_DIRECTORY="${DESTINATION}/gcc-${RELEASE}"
 SOURCE_DIRECTORY="${WORKING_DIRECTORY}/gcc-${RELEASE}"
 
-# Recompute the names of all the language-specific directories,
-# relative to the WORKING_DIRECTORY.
-ADA_DIRS=`adjust_dirs ${ADA_DIRS}`
-CPLUSPLUS_DIRS=`adjust_dirs ${CPLUSPLUS_DIRS}`
-FORTRAN_DIRS=`adjust_dirs ${FORTRAN_DIRS}`
-FORTRAN95_DIRS=`adjust_dirs ${FORTRAN95_DIRS}`
-JAVA_DIRS=`adjust_dirs ${JAVA_DIRS}`
-OBJECTIVEC_DIRS=`adjust_dirs ${OBJECTIVEC_DIRS}`
-TESTSUITE_DIRS=`adjust_dirs ${TESTSUITE_DIRS}`
-
 # Set up SVNROOT.
 if [ $LOCAL -eq 0 ]; then
     SVNROOT="svn+ssh://${SVN_USERNAME}@${SVN_SERVER}${SVN_REPOSITORY}"
-    CVSROOT=":ext:${SVN_USERNAME}@gcc.gnu.org/cvs/gcc"
 else
     SVNROOT="file:///svn/gcc"
-    CVSROOT="/cvs/gcc"
 fi
 export SVNROOT
-export CVSROOT
 
 ########################################################################
 # Main Program

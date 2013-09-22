@@ -1,11 +1,10 @@
-/* Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008
-   Free Software Foundation, Inc.
+/* Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    GCC is distributed in the hope that it will be useful,
@@ -13,17 +12,14 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-   Boston, MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you include this header file into source
-   files compiled by GCC, this header file does not by itself cause
-   the resulting executable to be covered by the GNU General Public
-   License.  This exception does not however invalidate any other
-   reasons why the executable file might be covered by the GNU General
-   Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* Implemented from the specification included in the Intel C++ Compiler
    User Guide and Reference, version 9.0.  */
@@ -621,7 +617,7 @@ _mm_cvtpi16_ps (__m64 __A)
 {
   __v4hi __sign;
   __v2si __hisi, __losi;
-  __v4sf __r;
+  __v4sf __zero, __ra, __rb;
 
   /* This comparison against zero gives us a mask that can be used to
      fill in the missing sign bits in the unpack operations below, so
@@ -629,16 +625,15 @@ _mm_cvtpi16_ps (__m64 __A)
   __sign = __builtin_ia32_pcmpgtw ((__v4hi)0LL, (__v4hi)__A);
 
   /* Convert the four words to doublewords.  */
-  __hisi = (__v2si) __builtin_ia32_punpckhwd ((__v4hi)__A, __sign);
   __losi = (__v2si) __builtin_ia32_punpcklwd ((__v4hi)__A, __sign);
+  __hisi = (__v2si) __builtin_ia32_punpckhwd ((__v4hi)__A, __sign);
 
   /* Convert the doublewords to floating point two at a time.  */
-  __r = (__v4sf) _mm_setzero_ps ();
-  __r = __builtin_ia32_cvtpi2ps (__r, __hisi);
-  __r = __builtin_ia32_movlhps (__r, __r);
-  __r = __builtin_ia32_cvtpi2ps (__r, __losi);
+  __zero = (__v4sf) _mm_setzero_ps ();
+  __ra = __builtin_ia32_cvtpi2ps (__zero, __losi);
+  __rb = __builtin_ia32_cvtpi2ps (__ra, __hisi);
 
-  return (__m128) __r;
+  return (__m128) __builtin_ia32_movlhps (__ra, __rb);
 }
 
 /* Convert the four unsigned 16-bit values in A to SPFP form.  */
@@ -646,19 +641,18 @@ extern __inline __m128 __attribute__((__gnu_inline__, __always_inline__, __artif
 _mm_cvtpu16_ps (__m64 __A)
 {
   __v2si __hisi, __losi;
-  __v4sf __r;
+  __v4sf __zero, __ra, __rb;
 
   /* Convert the four words to doublewords.  */
-  __hisi = (__v2si) __builtin_ia32_punpckhwd ((__v4hi)__A, (__v4hi)0LL);
   __losi = (__v2si) __builtin_ia32_punpcklwd ((__v4hi)__A, (__v4hi)0LL);
+  __hisi = (__v2si) __builtin_ia32_punpckhwd ((__v4hi)__A, (__v4hi)0LL);
 
   /* Convert the doublewords to floating point two at a time.  */
-  __r = (__v4sf) _mm_setzero_ps ();
-  __r = __builtin_ia32_cvtpi2ps (__r, __hisi);
-  __r = __builtin_ia32_movlhps (__r, __r);
-  __r = __builtin_ia32_cvtpi2ps (__r, __losi);
+  __zero = (__v4sf) _mm_setzero_ps ();
+  __ra = __builtin_ia32_cvtpi2ps (__zero, __losi);
+  __rb = __builtin_ia32_cvtpi2ps (__ra, __hisi);
 
-  return (__m128) __r;
+  return (__m128) __builtin_ia32_movlhps (__ra, __rb);
 }
 
 /* Convert the low four signed 8-bit values in A to SPFP form.  */
@@ -692,7 +686,7 @@ _mm_cvtpi32x2_ps(__m64 __A, __m64 __B)
 {
   __v4sf __zero = (__v4sf) _mm_setzero_ps ();
   __v4sf __sfa = __builtin_ia32_cvtpi2ps (__zero, (__v2si)__A);
-  __v4sf __sfb = __builtin_ia32_cvtpi2ps (__zero, (__v2si)__B);
+  __v4sf __sfb = __builtin_ia32_cvtpi2ps (__sfa, (__v2si)__B);
   return (__m128) __builtin_ia32_movlhps (__sfa, __sfb);
 }
 
@@ -747,14 +741,14 @@ _mm_unpacklo_ps (__m128 __A, __m128 __B)
 extern __inline __m128 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_loadh_pi (__m128 __A, __m64 const *__P)
 {
-  return (__m128) __builtin_ia32_loadhps ((__v4sf)__A, (__v2si *)__P);
+  return (__m128) __builtin_ia32_loadhps ((__v4sf)__A, (const __v2sf *)__P);
 }
 
 /* Stores the upper two SPFP values of A into P.  */
 extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_storeh_pi (__m64 *__P, __m128 __A)
 {
-  __builtin_ia32_storehps ((__v2si *)__P, (__v4sf)__A);
+  __builtin_ia32_storehps ((__v2sf *)__P, (__v4sf)__A);
 }
 
 /* Moves the upper two values of B into the lower two values of A.  */
@@ -776,14 +770,14 @@ _mm_movelh_ps (__m128 __A, __m128 __B)
 extern __inline __m128 __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_loadl_pi (__m128 __A, __m64 const *__P)
 {
-  return (__m128) __builtin_ia32_loadlps ((__v4sf)__A, (__v2si *)__P);
+  return (__m128) __builtin_ia32_loadlps ((__v4sf)__A, (const __v2sf *)__P);
 }
 
 /* Stores the lower two SPFP values of A into P.  */
 extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_storel_pi (__m64 *__P, __m128 __A)
 {
-  __builtin_ia32_storelps ((__v2si *)__P, (__v4sf)__A);
+  __builtin_ia32_storelps ((__v2sf *)__P, (__v4sf)__A);
 }
 
 /* Creates a 4-bit mask from the most significant bits of the SPFP values.  */
@@ -1230,7 +1224,7 @@ _mm_sfence (void)
 extern __inline void __attribute__((__gnu_inline__, __always_inline__, __artificial__))
 _mm_pause (void)
 {
-  __asm__ __volatile__ ("rep; nop" : : );
+  __builtin_ia32_pause ();
 }
 
 /* Transpose the 4x4 matrix composed of row[0-3].  */

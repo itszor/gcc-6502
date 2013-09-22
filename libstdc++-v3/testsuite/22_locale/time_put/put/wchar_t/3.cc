@@ -1,13 +1,13 @@
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "en_HK" }
 
 // 2001-09-17 Benjamin Kosnik  <bkoz@redhat.com>
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -16,9 +16,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.2.5.3.1 time_put members
 
@@ -45,32 +44,32 @@ void test03()
   const wstring empty;
   wostringstream oss;
   oss.imbue(loc_hk);
-  const time_put<wchar_t>& tim_put = use_facet<time_put<wchar_t> >(oss.getloc()); 
+  const time_put<wchar_t>& tim_put
+    = use_facet<time_put<wchar_t> >(oss.getloc()); 
 
-  iterator_type os_it03 = tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'a');
+  tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'a');
   wstring result3 = oss.str();
   VERIFY( result3 == L"Sun" );
 
   oss.str(empty); // "%A, %B %d, %Y"
-  iterator_type os_it25 = tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'x');
+  tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'x');
   wstring result25 = oss.str(); // "Sunday, April 04, 1971"
   VERIFY( result25 == L"Sunday, April 04, 1971" );
 
   oss.str(empty); // "%I:%M:%S %Z"
-  iterator_type os_it26 = tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'X');
+  tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'X');
   wstring result26 = oss.str(); // "12:00:00 CET" or whatever timezone
   VERIFY( result26.find(L"12:00:00") != wstring::npos );
 
   oss.str(empty);
-  iterator_type os_it35 = tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'x', 'E');
+  tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'x', 'E');
   wstring result35 = oss.str(); // "Sunday, April 04, 1971"
   VERIFY( result35 == L"Sunday, April 04, 1971" );
 
   oss.str(empty);
-  iterator_type os_it36 = tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'X', 'E');
+  tim_put.put(oss.rdbuf(), oss, L'*', &time1, 'X', 'E');
   wstring result36 = oss.str(); // "12:00:00 CET"
   VERIFY( result36.find(L"12:00:00") != wstring::npos );
-
 }
 
 int main()

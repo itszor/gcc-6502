@@ -1,6 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005, 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2005-2013 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -35,7 +34,7 @@
   [(set (mem:HI (plus:HI (reg:HI SP_REGNO) (const_int -2)))
 	(reg:HI FB_REGNO))
    (set (reg:HI FB_REGNO)
-	(reg:HI SP_REGNO))
+	(plus:HI (reg:HI SP_REGNO) (const_int -2)))
    (set (reg:HI SP_REGNO)
 	(minus:HI (reg:HI SP_REGNO)
 	           (match_operand 0 "const_int_operand" "i")))
@@ -54,7 +53,7 @@
   [(set (mem:SI (plus:PSI (reg:PSI SP_REGNO) (const_int -4)))
 	(reg:SI FB_REGNO))
    (set (reg:PSI FB_REGNO)
-	(reg:PSI SP_REGNO))
+	(plus:PSI (reg:PSI SP_REGNO) (const_int -4)))
    (set (reg:PSI SP_REGNO)
 	(minus:PSI (reg:PSI SP_REGNO)
 	           (match_operand 0 "const_int_operand" "i")))
@@ -88,14 +87,17 @@
 (define_expand "eh_return"
   [(match_operand:PSI 0 "" "")]
   ""
-  "m32c_emit_eh_epilogue(operands[0]); DONE;"
+  "m32c_emit_eh_epilogue(operands[0]);
+   emit_barrier ();
+   DONE;"
   )
 
 (define_insn "eh_epilogue"
   [(set (pc)
 	(unspec_volatile [(match_operand 0 "m32c_r1_operand" "")
 			  (match_operand 1 "m32c_r0_operand" "")
-			  ] UNS_EH_EPILOGUE))]
+			  ] UNS_EH_EPILOGUE))
+   (return)]
   ""
   "jmp.a\t__m32c_eh_return"
   [(set_attr "flags" "x")]
@@ -149,6 +151,15 @@
   [(set_attr "flags" "x")]
   )
 
+(define_insn "epilogue_freit"
+  [(unspec [(const_int 0)] UNS_FREIT)
+   (return)
+   ]
+  ""
+  "freit"
+  [(set_attr "flags" "x")]
+  )
+
 (define_insn "epilogue_rts"
   [(return)
    ]
@@ -180,3 +191,11 @@
   "popm\t%p0"
   [(set_attr "flags" "n")]
   )
+
+(define_insn "fset_b"
+  [(unspec [(const_int 0)] UNS_FSETB)]
+  ""
+  "fset\tB"
+  [(set_attr "flags" "n")]
+  )
+

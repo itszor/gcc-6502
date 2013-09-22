@@ -1,36 +1,33 @@
-/* Copyright (C) 2002, 2003, 2005, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with Libgfortran; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 
 /* Implement the non-IOLENGTH variant of the INQUIRY statement */
 
 #include "io.h"
+#include "unix.h"
+#include <string.h>
 
 
 static const char undefined[] = "UNDEFINED";
@@ -69,7 +66,37 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit * u)
 
   if ((cf & IOPARM_INQUIRE_HAS_NAME) != 0
       && u != NULL && u->flags.status != STATUS_SCRATCH)
+    {
+#if defined(HAVE_TTYNAME_R) || defined(HAVE_TTYNAME)
+      if (u->unit_number == options.stdin_unit
+	  || u->unit_number == options.stdout_unit
+	  || u->unit_number == options.stderr_unit)
+	{
+	  int err = stream_ttyname (u->s, iqp->name, iqp->name_len);
+	  if (err == 0)
+	    {
+	      gfc_charlen_type tmplen = strlen (iqp->name);
+	      if (iqp->name_len > tmplen)
+		memset (&iqp->name[tmplen], ' ', iqp->name_len - tmplen);
+	    }
+	  else /* If ttyname does not work, go with the default.  */
+	    fstrcpy (iqp->name, iqp->name_len, u->file, u->file_len);
+	}
+      else
+	fstrcpy (iqp->name, iqp->name_len, u->file, u->file_len);
+#elif defined __MINGW32__
+      if (u->unit_number == options.stdin_unit)
+	fstrcpy (iqp->name, iqp->name_len, "CONIN$", sizeof("CONIN$"));
+      else if (u->unit_number == options.stdout_unit)
+	fstrcpy (iqp->name, iqp->name_len, "CONOUT$", sizeof("CONOUT$"));
+      else if (u->unit_number == options.stderr_unit)
+	fstrcpy (iqp->name, iqp->name_len, "CONERR$", sizeof("CONERR$"));
+      else
+	fstrcpy (iqp->name, iqp->name_len, u->file, u->file_len);
+#else
     fstrcpy (iqp->name, iqp->name_len, u->file, u->file_len);
+#endif
+    }
 
   if ((cf & IOPARM_INQUIRE_HAS_ACCESS) != 0)
     {
@@ -213,7 +240,7 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit * u)
 
   if ((cf & IOPARM_INQUIRE_HAS_BLANK) != 0)
     {
-      if (u == NULL)
+      if (u == NULL || u->flags.form != FORM_FORMATTED)
 	p = undefined;
       else
 	switch (u->flags.blank)
@@ -231,29 +258,219 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit * u)
       cf_strcpy (iqp->blank, iqp->blank_len, p);
     }
 
+  if ((cf & IOPARM_INQUIRE_HAS_PAD) != 0)
+    {
+      if (u == NULL || u->flags.form != FORM_FORMATTED)
+	p = undefined;
+      else
+	switch (u->flags.pad)
+	  {
+	  case PAD_YES:
+	    p = "YES";
+	    break;
+	  case PAD_NO:
+	    p = "NO";
+	    break;
+	  default:
+	    internal_error (&iqp->common, "inquire_via_unit(): Bad pad");
+	  }
+
+      cf_strcpy (iqp->pad, iqp->pad_len, p);
+    }
+
+  if (cf & IOPARM_INQUIRE_HAS_FLAGS2)
+    {
+      GFC_INTEGER_4 cf2 = iqp->flags2;
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_PENDING) != 0)
+	*iqp->pending = 0;
+  
+      if ((cf2 & IOPARM_INQUIRE_HAS_ID) != 0)
+        *iqp->id = 0;
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
+	{
+	  if (u == NULL || u->flags.form != FORM_FORMATTED)
+	    p = undefined;
+          else
+	    switch (u->flags.encoding)
+	      {
+	      case ENCODING_DEFAULT:
+		p = "UNKNOWN";
+		break;
+	      case ENCODING_UTF8:
+		p = "UTF-8";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad encoding");
+	      }
+
+	  cf_strcpy (iqp->encoding, iqp->encoding_len, p);
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_DECIMAL) != 0)
+	{
+	  if (u == NULL || u->flags.form != FORM_FORMATTED)
+	    p = undefined;
+	  else
+	    switch (u->flags.decimal)
+	      {
+	      case DECIMAL_POINT:
+		p = "POINT";
+		break;
+	      case DECIMAL_COMMA:
+		p = "COMMA";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad comma");
+	      }
+
+	  cf_strcpy (iqp->decimal, iqp->decimal_len, p);
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_ASYNCHRONOUS) != 0)
+	{
+	  if (u == NULL)
+	    p = undefined;
+	  else
+	    switch (u->flags.async)
+	    {
+	      case ASYNC_YES:
+		p = "YES";
+		break;
+	      case ASYNC_NO:
+		p = "NO";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad async");
+	    }
+
+	  cf_strcpy (iqp->asynchronous, iqp->asynchronous_len, p);
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_SIGN) != 0)
+	{
+	  if (u == NULL)
+	    p = undefined;
+	  else
+	    switch (u->flags.sign)
+	    {
+	      case SIGN_PROCDEFINED:
+		p = "PROCESSOR_DEFINED";
+		break;
+	      case SIGN_SUPPRESS:
+		p = "SUPPRESS";
+		break;
+	      case SIGN_PLUS:
+		p = "PLUS";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad sign");
+	    }
+
+	  cf_strcpy (iqp->sign, iqp->sign_len, p);
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_ROUND) != 0)
+	{
+	  if (u == NULL)
+	    p = undefined;
+	  else
+	    switch (u->flags.round)
+	    {
+	      case ROUND_UP:
+		p = "UP";
+		break;
+	      case ROUND_DOWN:
+		p = "DOWN";
+		break;
+	      case ROUND_ZERO:
+		p = "ZERO";
+		break;
+	      case ROUND_NEAREST:
+		p = "NEAREST";
+		break;
+	      case ROUND_COMPATIBLE:
+		p = "COMPATIBLE";
+		break;
+	      case ROUND_PROCDEFINED:
+		p = "PROCESSOR_DEFINED";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad round");
+	    }
+
+	  cf_strcpy (iqp->round, iqp->round_len, p);
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_SIZE) != 0)
+	{
+	  if (u == NULL)
+	    *iqp->size = -1;
+	  else
+	    {
+	      sflush (u->s);
+	      *iqp->size = ssize (u->s);
+	    }
+	}
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_IQSTREAM) != 0)
+	{
+	  if (u == NULL)
+	    p = "UNKNOWN";
+	  else
+	    switch (u->flags.access)
+	      {
+	      case ACCESS_SEQUENTIAL:
+	      case ACCESS_DIRECT:
+		p = "NO";
+		break;
+	      case ACCESS_STREAM:
+		p = "YES";
+		break;
+	      default:
+		internal_error (&iqp->common, "inquire_via_unit(): Bad pad");
+	      }
+    
+	  cf_strcpy (iqp->iqstream, iqp->iqstream_len, p);
+	}
+    }
+
   if ((cf & IOPARM_INQUIRE_HAS_POSITION) != 0)
     {
       if (u == NULL || u->flags.access == ACCESS_DIRECT)
         p = undefined;
       else
-        switch (u->flags.position)
-          {
-             case POSITION_REWIND:
-               p = "REWIND";
-               break;
-             case POSITION_APPEND:
-               p = "APPEND";
-               break;
-             case POSITION_ASIS:
-               p = "ASIS";
-               break;
-             default:
-               /* if not direct access, it must be
-                  either REWIND, APPEND, or ASIS.
-                  ASIS seems to be the best default */
-               p = "ASIS";
-               break;
-          }
+	{
+	  /* If the position is unspecified, check if we can figure
+	     out whether it's at the beginning or end.  */
+	  if (u->flags.position == POSITION_UNSPECIFIED)
+	    {
+	      gfc_offset cur = stell (u->s);
+	      if (cur == 0)
+		u->flags.position = POSITION_REWIND;
+	      else if (cur != -1 && (ssize (u->s) == cur))
+		u->flags.position = POSITION_APPEND;
+	    }
+	  switch (u->flags.position)
+	    {
+	    case POSITION_REWIND:
+	      p = "REWIND";
+	      break;
+	    case POSITION_APPEND:
+	      p = "APPEND";
+	      break;
+	    case POSITION_ASIS:
+	      p = "ASIS";
+	      break;
+	    default:
+	      /* If the position has changed and is not rewind or
+		 append, it must be set to a processor-dependent
+		 value.  */
+	      p = "UNSPECIFIED";
+	      break;
+	    }
+	}
       cf_strcpy (iqp->position, iqp->position_len, p);
     }
 
@@ -354,13 +571,13 @@ inquire_via_unit (st_parameter_inquire *iqp, gfc_unit * u)
       else
 	switch (u->flags.convert)
 	  {
-	    /*  l8_to_l4_offset is 0 for little-endian, 1 for big-endian.  */
+	    /*  big_endian is 0 for little-endian, 1 for big-endian.  */
 	  case GFC_CONVERT_NATIVE:
-	    p = l8_to_l4_offset ? "BIG_ENDIAN" : "LITTLE_ENDIAN";
+	    p = big_endian ? "BIG_ENDIAN" : "LITTLE_ENDIAN";
 	    break;
 
 	  case GFC_CONVERT_SWAP:
-	    p = l8_to_l4_offset ? "LITTLE_ENDIAN" : "BIG_ENDIAN";
+	    p = big_endian ? "LITTLE_ENDIAN" : "BIG_ENDIAN";
 	    break;
 
 	  default:
@@ -435,6 +652,38 @@ inquire_via_filename (st_parameter_inquire *iqp)
   if ((cf & IOPARM_INQUIRE_HAS_BLANK) != 0)
     cf_strcpy (iqp->blank, iqp->blank_len, undefined);
 
+  if ((cf & IOPARM_INQUIRE_HAS_PAD) != 0)
+    cf_strcpy (iqp->pad, iqp->pad_len, undefined);
+
+  if (cf & IOPARM_INQUIRE_HAS_FLAGS2)
+    {
+      GFC_INTEGER_4 cf2 = iqp->flags2;
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
+	cf_strcpy (iqp->encoding, iqp->encoding_len, undefined);
+  
+      if ((cf2 & IOPARM_INQUIRE_HAS_DELIM) != 0)
+	cf_strcpy (iqp->delim, iqp->delim_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_DECIMAL) != 0)
+	cf_strcpy (iqp->decimal, iqp->decimal_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_DELIM) != 0)
+	cf_strcpy (iqp->delim, iqp->delim_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_PAD) != 0)
+	cf_strcpy (iqp->pad, iqp->pad_len, undefined);
+  
+      if ((cf2 & IOPARM_INQUIRE_HAS_ENCODING) != 0)
+	cf_strcpy (iqp->encoding, iqp->encoding_len, undefined);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_SIZE) != 0)
+	*iqp->size = file_size (iqp->file, iqp->file_len);
+
+      if ((cf2 & IOPARM_INQUIRE_HAS_IQSTREAM) != 0)
+	cf_strcpy (iqp->iqstream, iqp->iqstream_len, "UNKNOWN");
+    }
+
   if ((cf & IOPARM_INQUIRE_HAS_POSITION) != 0)
     cf_strcpy (iqp->position, iqp->position_len, undefined);
 
@@ -458,12 +707,6 @@ inquire_via_filename (st_parameter_inquire *iqp)
       p = inquire_read (iqp->file, iqp->file_len);
       cf_strcpy (iqp->readwrite, iqp->readwrite_len, p);
     }
-
-  if ((cf & IOPARM_INQUIRE_HAS_DELIM) != 0)
-    cf_strcpy (iqp->delim, iqp->delim_len, undefined);
-
-  if ((cf & IOPARM_INQUIRE_HAS_PAD) != 0)
-    cf_strcpy (iqp->pad, iqp->pad_len, undefined);
 }
 
 

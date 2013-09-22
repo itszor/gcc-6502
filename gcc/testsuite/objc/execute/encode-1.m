@@ -1,7 +1,7 @@
 /* Contributed by Nicola Pero - Thu Mar  8 16:27:46 CET 2001 */
+#include <stdlib.h>
+#import "../../objc-obj-c++-shared/TestsuiteObject.h"
 #include <objc/objc.h>
-#include <objc/objc-api.h>
-#include <objc/Object.h>
 
 /* Test very simple @encode */
 
@@ -17,7 +17,7 @@ int main (void)
       abort ();
     }
 
-  if (strcmp ("@", @encode (Object *)))
+  if (strcmp ("@", @encode (TestsuiteObject *)))
     {
       abort ();
     }

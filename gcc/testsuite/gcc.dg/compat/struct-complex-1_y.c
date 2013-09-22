@@ -1,4 +1,4 @@
-/* { dg-options "-O" } */
+/* { dg-options "-O -Wno-psabi" } */
 
 #ifdef __x86_64__
 #include <stdlib.h>

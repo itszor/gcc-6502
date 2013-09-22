@@ -1,10 +1,24 @@
-This is cp-tools.info, produced by makeinfo version 4.11 from
-/gcc-4.3/gcc-4.3.1/gcc-4.3.1/libjava/classpath/doc/cp-tools.texinfo.
+This is cp-tools.info, produced by makeinfo version 4.13 from
+/d/gcc-4.8.1/gcc-4.8.1/libjava/classpath/doc/cp-tools.texinfo.
 
 This file documents the Tools included in a standard distribution of
 the GNU Classpath project deliverables.
 
    Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+
+     Permission is granted to make and distribute verbatim copies of
+     this document provided the copyright notice and this permission
+     notice are preserved on all copies.
+
+     Permission is granted to copy and distribute modified versions of
+     this document under the conditions for verbatim copying, provided
+     that the entire resulting derived work is distributed under the
+     terms of a permission notice identical to this one.
+
+     Permission is granted to copy and distribute translations of this
+     manual into another language, under the above conditions for
+     modified versions, except that this permission notice may be
+     stated in a translation approved by the Free Software Foundation.
 
 INFO-DIR-SECTION GNU Libraries
 START-INFO-DIR-ENTRY
@@ -95,6 +109,59 @@ Other Tools
 * rmid Tool::                  RMI activation daemon
 * rmiregistry Tool::           Remote object registry
 * tnameserv Tool::             Naming service
+* gjdoc Tool::                 Documenation generator tool.
+
+Generating HTML Documentation
+
+* Invoking the Standard Doclet::   How to generate HTML documentation.
+* Invoking a Custom Doclet::       How to run third-party and other
+                                   built-in Doclets.
+
+* Option Summary by Type::         Brief list of all options, grouped by type.
+* Gjdoc Option Summary::           List of all options accepted by Gjdoc.
+
+* Source Set Options::      Select the set of source codes to run Gjdoc on.
+* Source Format Options::   Specify the format of the source codes to document.
+
+* Interlinking Options::    Connection your documentation with other projects.
+* Output Control Options::  Specify the target directory and locale, and more.
+* Generation Options::      Select which pieces of information to generate.
+* Decoration Options::      Add or modify some titles, headers and footers or
+                            override/amend static resources like stylesheets.
+* Taglet Options::          Define your own javadoc @tags.
+
+* Virtual Machine Options:: Controlling the kind of output:
+                            an executable, object files, assembler files,
+                            or preprocessed source.
+* Verbosity Options::
+* Doclet Options::
+
+* Other Doclets::           Generating Other Output Types.
+
+* Built-in Doclets::        Using the Built-in Doclets.
+* Using XmlDoclet::
+* Using TexiDoclet::
+* Using IspellDoclet::
+* Using DebugDoclet::
+
+* Third-party Doclets::     Using Third-Party Doclets.
+* DocBook Doclet::
+* PDFDoclet::
+* JUnitDoclet::
+
+* Gjdoc Concepts::          Advanced Concepts.
+* Writing Doclets::
+
+* Doclet Invocation Interface::    Implementing the Doclet Invocation Interface
+* Using AbstractDoclet::           Deriving Your Doclet from AbstractDoclet.
+* GNU Doclet SPI::                 Preparing the GNU Doclet Service Provider
+                                   Interface.
+
+* Taglets::                        Adding Custom Tags to the Documentation.
+* XHTML Fragments::                Well-Formed Documentation Fragments.
+* First Sentence Detector::        How Gjdoc Determines where the First
+                                   Sentence Ends.
+* Adding Custom Resources::        Adding Images and Other Resources.
 
 I18N Issues
 
@@ -272,7 +339,7 @@ forms, as follows:
 The second form, on the other hand, is used to verify a previously
 signed JAR file.
 
-   FILE is the .JAR file to process; i.e. to sign if the first syntax
+   FILE is the .JAR file to process; i.e., to sign if the first syntax
 form is used, or to verify if the second syntax form is used instead.
 
    ALIAS must be a known Alias of a Key Entry in the designated Key
@@ -378,7 +445,7 @@ purposes.
 `-signedjar FILE'
      Use this option to specify the file name of the signed JAR. If
      this option is omitted, then the signed JAR will be named the same
-     as FILE; i.e. the input JAR file will be replaced with the signed
+     as FILE; i.e., the input JAR file will be replaced with the signed
      copy.
 
 
@@ -696,7 +763,7 @@ chain and will be saved in the key store.
 `-sigalg ALGORITHM'
      The canonical name of the digital signature algorithm to use for
      signing certificates. If this option is omitted, a default value
-     will be chosen based on the type of the key-pair; i.e. the
+     will be chosen based on the type of the key-pair; i.e., the
      algorithm that ends up being used by the -keyalg option. If the
      key-pair generation algorithm is `DSA', the value for the
      signature algorithm will be `SHA1withDSA'. If on the other hand
@@ -1294,6 +1361,7 @@ gcjh, native2ascii, orbd, serialver, rmid, rmiregistry and tnameserv.
 * rmid Tool::                  RMI activation daemon
 * rmiregistry Tool::           Remote object registry
 * tnameserv Tool::             Naming service
+* gjdoc Tool::                 A documentation generator
 
 
 File: cp-tools.info,  Node: jar Tool,  Next: javah Tool,  Up: Other Tools
@@ -1642,7 +1710,7 @@ no port number is specified, then port 1099 is used.
    java(1), ...
 
 
-File: cp-tools.info,  Node: tnameserv Tool,  Prev: rmiregistry Tool,  Up: Other Tools
+File: cp-tools.info,  Node: tnameserv Tool,  Next: gjdoc Tool,  Prev: rmiregistry Tool,  Up: Other Tools
 
 3.9 The `tnameserv' Tool
 ========================
@@ -1667,14 +1735,1251 @@ To be written ...
 
    java(1), ...
 
+   Info entry for `gjdoc'.  Please report bugs to
+`http://savannah.gnu.org/bugs/?group=classpath'.  Julian Scheid
+
+
+File: cp-tools.info,  Node: gjdoc Tool,  Prev: tnameserv Tool,  Up: Other Tools
+
+4 Generating HTML Documentation
+*******************************
+
+Gjdoc can be used in two ways: as a stand-alone documentation tool, or
+as a driver for a user-specified Doclet. *Note Other Doclets::.
+
+   In the default mode, Gjdoc will use the Standard Doclet `HtmlDoclet'
+to generate a set of HTML pages.  The canonical usage is:
+
+     gjdoc -s src/java/ -all -d api-docs/
+
+   Here, `src/java/' is the root of your source code class hierarchy,
+`-all' means that all valid Java files found under this root directory
+should be processed, and `api-docs/' is the directory where the
+generated documentation should be placed.
+
+   To learn more about running Doclets other than the Standard Doclet,
+refer to the manual.  *Note Invoking a Custom Doclet::.
+
+* Menu:
+
+* Invoking the Standard Doclet::   How to generate HTML documentation.
+* Invoking a Custom Doclet::       How to run third-party and other
+                                   built-in Doclets.
+
+* Option Summary by Type::         Brief list of all options, grouped by type.
+* Gjdoc Option Summary::           List of all options accepted by Gjdoc.
+
+* Source Set Options::      Select the set of source codes to run Gjdoc on.
+* Source Format Options::   Specify the format of the source codes to document.
+
+* Interlinking Options::    Connection your documentation with other projects.
+* Output Control Options::  Specify the target directory and locale, and more.
+* Generation Options::       Select which pieces of information to generate.
+* Decoration Options::      Add or modify some titles, headers and footers or
+                              override/amend static resources like stylesheets.
+* Taglet Options::          Define your own javadoc @tags
+
+* Virtual Machine Options::
+* Verbosity Options::
+* Doclet Options::
+
+* Other Doclets::                  Generating Other Output Types
+* Gjdoc Concepts::                 Advanced Concepts
+
+
+File: cp-tools.info,  Node: Invoking the Standard Doclet,  Next: Invoking a Custom Doclet,  Up: gjdoc Tool
+
+4.1 Invoking the Standard Doclet
+================================
+
+Running the Gjdoc Standard Doclet `HtmlDoclet' is the default mode of
+operation for Gjdoc.  This section lists the command line options you
+can specify in this mode.  It doesn't distinguish between general Gjdoc
+options and options specific to the Standard Doclet.
+
+   If you want to learn which options are accepted when Gjdoc is used as
+a doclet driver, *Note Invoking a Custom Doclet::.
+
+* Menu:
+
+* Source Set Options::      Select the set of source codes to run Gjdoc on.
+* Source Format Options::   Specify the format of the source codes to document.
+
+* Output Control Options::  Specify the target directory and locale, and more.
+* Generation Options::       Select which pieces of information to generate.
+* Decoration Options::      Add or modify some titles, headers and footers or
+                              override/amend static resources like stylesheets.
+* Taglet Options::          Define your own javadoc @tags
+
+* Virtual Machine Options::
+* Doclet Options::
+
+
+File: cp-tools.info,  Node: Option Summary by Type,  Next: Gjdoc Option Summary,  Prev: Invoking a Custom Doclet,  Up: gjdoc Tool
+
+4.2 Option Summary by Type
+==========================
+
+Here is a summary of all the options of both Gjdoc and the Standard
+Doclet, grouped by type.  Explanations are in the following sections.
+
+_Source Set Options_
+     *Note Options For Specifying the Source Files To Operate on:
+     Source Set Options.
+          -sourcepath PATHLIST  -subpackages PKGLIST  -exclude PKGLIST
+
+_Source Format Options_
+     *Note Options For Specifying the Source Format: Source Format
+     Options.
+          -source RELEASE  -encoding ENCODING  -breakiterator
+
+_Interlinking Options_
+     *Note Options For Specifying the Source Files To Operate on:
+     Interlinking Options.
+          -link URL  -linkoffline URL FILE  -noqualifier PKG:PKG:...
+
+_Generation Options_
+     *Note Options Controlling What is Included in the Output:
+     Generation Options.
+          -author  -licensetext  -use  -version  -splitindex  -noindex
+           -nodeprecated  -nodeprecatedlist  -nohelp  -nonavbar
+           -nosince  -notree  -public  -protected  -package  -private
+           -docfilessubdirs  -excludedocfilessubdir DIRNAME
+           -linksource
+
+_Output Options_
+     *Note Options Controlling the Output: Generation Options.
+          -d  -locale NAME  -charset CHARSET  -docencoding CHARSET
+           -validhtml  -baseurl URL
+
+_Decoration Options_
+          -windowtitle TEXT  -doctitle TEXT  -title TEXT
+           -header TEXT  -footer TEXT  -bottom TEXT
+           -helpfile FILE  -stylesheetfile FILE  -addstylesheet FILE
+           -group GROUPHEADING PKGPATTERN:PKGPATTERN:...
+
+_Taglet Options_
+     *Note Options For Specifying user-defined Taglets: Taglet Options.
+          -tagletpath  -taglet CLASSNAME  -tag TAGSPEC
+
+_Doclet Options_
+     *Note Options For Specifying the Doclet to use: Doclet Options.
+          -docletpath  -doclet CLASSNAME
+
+_Verbosity Options_
+     *Note Options Controlling Gjdoc Behavior: Verbosity Options.
+          -quiet  -verbose
+
+_Virtual Machine Options_
+     *Note Options Controlling Gjdoc Behavior: Virtual Machine Options.
+          -classpath  -bootclasspath  -J VMOPT
+
+
+* Menu:
+
+* Virtual Machine Options::     Controlling the kind of output:
+                        an executable, object files, assembler files,
+                        or preprocessed source.
+
+
+File: cp-tools.info,  Node: Source Set Options,  Next: Source Format Options,  Prev: Gjdoc Option Summary,  Up: gjdoc Tool
+
+4.3 Selecting which Source Files to Process
+===========================================
+
+`-s PATHLIST'
+
+`-sourcepath PATHLIST'
+     Look for source files in the specified directory or directories.
+
+     PATHLIST should be one or more directory paths separated by your
+     platform's path separator (usually `:' or `;').
+
+     If this option is not given, `gjdoc' will look for source files in
+     the current directory.
+
+     The directories specified should be root directories in terms of
+     the Java package system.  For example, if you want to generate
+     documentation for classes in package `foo.bar', you must specify
+     the directory containing the top-level ``foo'' sub-directory, not
+     the directory ``foo/bar/'' in which the Java source files reside.
+
+     The short-hand alias `-s' is specific to `gjdoc' and not
+     compatible to Sun `javadoc'.
+
+`-all'
+     _[EXPERIMENTAL]_ Process all valid Java source files found in the
+     directories listed in the source path and their sub-directories.
+
+     This is an option specific to `gjdoc' and not compatible to Sun
+     `javadoc'.
+
+`-subpackages PKG:PKG:...'
+     Process the classes in the given Java packages and all
+     sub-packages, recursively.  Note that multiple package names must
+     be separated with colons instead of whitespace.
+
+`-exclude PKG:PKG:...'
+     Do not process classes in the given Java packages and all
+     sub-packages, recursively.  This option can be used in conjunction
+     with `-all' or `-subpackages' in order to exclude individual
+     packages or package sub-trees from the output.
+
+`PACKAGES...'
+     Process all classes in the given Java packages.
+
+`SOURCEFILES...'
+     Process the classes in the given Java source files.
+
+
+File: cp-tools.info,  Node: Source Format Options,  Next: Interlinking Options,  Prev: Source Set Options,  Up: gjdoc Tool
+
+4.4 Specifying the Format of Input Files
+========================================
+
+`-source RELEASE'
+     Assume that the source files are targeted at the given release of
+     the Java platform.
+
+     RELEASE should be the version number of a Java platform release in
+     the format MAJOR.MINOR, for example `1.4'.
+
+     This option is currently ignored except that an error is raised if
+     a release number other than `1.2', `1.3' or `1.4' is specified.
+
+`-encoding CHARSET'
+     Assume that the source files are encoded using CHARSET.
+
+     Examples for CHARSET are `US-ASCII', `ISO-8859-1' or `UTF-8'.
+
+     The semantics of CHARSET are identical to those of
+     `java.nio.charset.Charset.forName(String)'.
+
+`-breakiterator'
+     Use the locale's java.text.BreakIterator instead of the internal
+     first sentence detector.
+
+     By default, `gjdoc' uses an internal algorithm to determine where
+     a sentence ends. When this option is given, it will instead use
+     the `java.text.BreakIterator' instance for the locale given with
+     `-locale' (or the default locale).
+
+     This option should be specified when applying `gjdoc' to source
+     code commented in a non-latin language for which the default first
+     sentence detector does not work. For all other cases, the default
+     (do not use BreakIterator) produces better results at the time of
+     this writing.
+
+
+File: cp-tools.info,  Node: Interlinking Options,  Next: Output Control Options,  Prev: Source Format Options,  Up: gjdoc Tool
+
+4.5 Interlinking with other Documentation Sets
+==============================================
+
+`-link URL'
+     Create hyperlinks to another documentation set.
+
+     By default, `gjdoc' will only create hyperlinks to classes in the
+     source set.  Use this option to additionally create hyperlinks to
+     classes covered by the specified documentation set.
+
+     URL should be the root URL of the other documentation set. For
+     example, to add hyperlinks to GNU Classpath, specify the following:
+
+          -link http://developer.classpath.org/doc/
+
+     The `-link' option can be specified multiple times.
+
+     Note that specifying the `-link' option will cause an HTTP access
+     every time gjdoc is invoked. You can use `-linkoffline' instead to
+     avoid this access.
+
+`-linkoffline URL FILE'
+     Create hyperlinks to another documentation set which is also
+     present on the local file system.
+
+     This option works exactly like `-link', except that it accesses
+     the local file system instead of the network for determining which
+     classes are covered by the linked documentation set.
+
+     When using `-linkoffline' the remote documentation set is not
+     accessed at all, which can significantly speed up generation time
+     depending on your network connection.  The generated hyperlinks to
+     the documentation set however refer to the remote set, not to the
+     local one, so that you can distribute the documentation without
+     any further dependencies.
+
+     The `-linkoffline' option can be specified multiple times.
+
+`-noqualifier PKG:PKG:...'
+     Do not qualify names of classes in the given packages with their
+     package name.
+
+     By default, a class name is displayed unqualified only if the
+     class is part of the source set or a linked documentation set, and
+     qualified with the name of its containing package if it is not.
+     You can use this option to force unqualified names for classes
+     even if they are not part of the documentation set.
+
+     For example, usually a reference to the String class is represented
+     fully-qualified as `java.lang.String' (unless you link to the
+     appropriate documentation set using `-link') because it isn't part
+     of the documentation set.  You can specify `-noqualifier
+     java.lang' to render the same references just as `String'.
+
+     Note that for all unqualified class names, a tooltip is provided
+     when you place your mouse pointer over it in the HTML
+     documentation.
+
+`-noqualifier `all''
+     Omit package name qualifier from all class names.
+
+     Specify this option to omit package name qualifiers altogether,
+
+
+
+File: cp-tools.info,  Node: Generation Options,  Next: Decoration Options,  Prev: Output Control Options,  Up: gjdoc Tool
+
+4.6 Selecting which Information to Generate
+===========================================
+
+`-public'
+     Only include public members of public classes in the output.  By
+     default, protected class members are included as well.
+
+`-protected'
+     Include public or protected members of public classes in the
+     output.  This is the default.
+
+`-package'
+     Include public, protected and package-private members of public and
+     package-private classes.
+
+`-private'
+     Include all classes and class members regardless of their access
+     level.
+
+`-splitindex'
+     Generate one index page per letter instead of a single, monolithic
+     index page.
+
+     By default, the index created by the Standard Doclet contains all
+     entries on a single page.  This is fine for small documentation
+     sets, but for large sets you should specify this option.
+
+`-nosince'
+     Ignore `@since' tags in javadoc comments.
+
+     By default, the generated output contains sections listing the
+     version of your API since which the package, class or class member
+     in question exists when this tag is encountered.  Specify this
+     option to omit this information.
+
+`-notree'
+     Do not generate any tree pages.
+
+     By default, the generated output includes one inheritance tree per
+     package, and - if the documentation set consists of multiple
+     packages - a page with the full inheritance tree.  Specify this
+     option to omit generation of these pages.
+
+`-noindex'
+     Do not output the alphabetical index.
+
+     By default, gjdoc generates an alphabetical index of all program
+     elements in the documentation set (packages, classes, inner
+     classes, constructors, methods, and fields).  Specify this option
+     to omit this information.
+
+`-nohelp'
+     Do not generate the help page.
+
+     This option is currently ignored as the Standard Doclet doesn't
+     provide a help page.
+
+`-nodeprecated'
+     Do not output inline information about deprecated packages,
+     classes or class members.
+
+     By default, the Standard Doclet adds a highlighted paragraph with
+     deprecation information to the description of each deprecated
+     program element.  Specify this option to omit this information.
+
+`-nodeprecatedlist'
+     Do not output the summary page for deprecated API elements.
+
+     By default, the Standard Doclet generates a page listing all
+     deprecated API elements along with a deprecation description which
+     usually includes the reason for deprecation and possible
+     alternatives.  Specify this option to omit this information.
+
+`-nonavbar'
+     Do not output the navigation bar, header, and footer.
+
+     By default, each output page is equipped with a top navigation bar
+     (which may include a user-specified header) and a bottom navigation
+     bar (which may include a user-specified footer).  Specify this
+     option to omit this decoration.
+
+`-nocomment'
+     Omit all documentation text from the generated files and output
+     only declarations and program element relationships.
+
+     This option is here for compatibility with `javadoc'.  If you plan
+     on extracting information about your project via `gjdoc', you
+     should consider using a different Doclet for your purposes
+     instead, for example XmlDoclet.  You could also use the Doclet API
+     directly by implementing a new Doclet.
+
+`-linksource'
+     Generate a page with syntax-highlighted source code for each class.
+     By default, this page is not generated.
+
+     The source code can be accessed by clicking on the button labelled
+     "Source" in the navigation bar, or by clicking on the name of a
+     constructor, field, method, or inner class in the detail section
+     of a class documentation page.
+
+`-use'
+     Generate a page with cross-reference information. By default, this
+     page is not generated.
+
+     The cross-reference information can be accessed by clicking on the
+     button labelled `Use' in the navigation bar.
+
+     The `Use' page lists all classes/interfaces in the documentation
+     set that extend/implement the class (type) in question; fields of
+     the type; methods or constructors accepting a parameter of the
+     type; methods returning the type; and methods or constructors
+     throwing the type.
+
+`-author'
+     Include author information in the output.
+
+     When specified, author information as specified using the
+     `@author' tag in javadoc comments is incorporated into the output.
+     By default, `@author' tags are ignored.
+
+`-version'
+     Include version information in the output.
+
+     When specified, version information as specified using the
+     `@version' tag in javadoc comments is incorporated into the
+     output. By default, `@version' tags are ignored.
+
+`-licensetext'
+     Assume that the first comment in each source file contains the
+     license text, and add license information to the footer of each
+     generated class page.
+
+     This is an option specific to `gjdoc' and not compatible to Sun
+     `javadoc'.
+
+     This option is intended for use with free and open source projects
+     where source code is typically prefixed with a boilerplate license
+     comment, when there are legal reasons for including the license in
+     the documentation.
+
+`-docfilessubdirs'
+     Recursively copy all files in the `doc-files' sub-directory of each
+     package directory.
+
+     Usually, only the files in the `doc-files' sub-directory are copied
+     without descending recursively.
+
+     *Note Adding Custom Resources::.
+
+`-excludedocfilessubdir NAME:NAME:...'
+     Do not copy some directories directly under the `doc-files'
+     sub-directories when descending recursively.
+
+     The argument to this option should be a colon-separated list of
+     directory names.
+
+     This option only makes sense if `-docfilessubdirs' is also
+     specified.  In this case, any sub-directory located directly
+     beneath a `doc-files' directory is omitted if listed.
+
+
+
+File: cp-tools.info,  Node: Taglet Options,  Next: Virtual Machine Options,  Prev: Decoration Options,  Up: gjdoc Tool
+
+4.7 Custom Documentation Tags
+=============================
+
+`-tagletpath PATHLIST'
+     Search PATHLIST when loading subsequent Taglet classes specified
+     using `-taglet'.
+
+     PATHLIST should be one or more paths to a directory or jar file,
+     separated by your platform's path separator (usually `:' or `;').
+
+`-taglet CLASSNAME'
+     Register a Taglet.
+
+     CLASSNAME should be the fully-qualified name of a Java class
+     implementing `com.sun.tools.doclets.Taglet'.
+
+     The Taglet classes will be loaded from the classpath specified
+     using `-tagletpath', from the classpath specified using
+     `-classpath' and from the default classpath.
+
+     See the documentation of `com.sun.tools.doclets.Taglet' for
+     further information.
+
+     Note that for simple tags, there is also `-tag'.
+
+`-tag TAGSPEC'
+     Register a generic Taglet.
+
+     The format of TAGSPEC must be `<tagname>:<flags>:"<taghead>"'.
+
+     TAGNAME is the tag name to match, without the leading @ sign.
+
+     FLAGS is one or more of the following characters, where each
+     character specifies a source code context in which the tag is to be
+     recognized.
+
+    `a'
+          all contexts
+
+    `c'
+          constructors
+
+    `f'
+          fields
+
+    `m'
+          methods
+
+    `o'
+          overview
+
+    `p'
+          packages
+
+    `t'
+          types (classes, interfaces, exceptions, errors)
+
+    `X'
+          special character which temporarily disables the Taglet
+          altogether.
+
+     TAGHEAD is the string to display in the header of the section
+     devoted to the tag in question.
+
+     For example, to define a tag matching `@cvsid' which is to be
+     accepted in overview, package and type pages and which is labelled
+     with the header `CVS ID', you would specify:
+
+          -tag cvsid:tpo:"CVS ID"
+
+     Let's say that a class javadoc comment contains
+
+          @cvsid $Id: cp-tools.texinfo,v 1.9 2012-03-07 15:27:27 gnu_andrew Exp $
+
+     Then the HTML output will contain something like
+
+          CVS ID:
+            $Id: cp-tools.texinfo,v 1.9 2012-03-07 15:27:27 gnu_andrew Exp $
+
+
+File: cp-tools.info,  Node: Doclet Options,  Next: Other Doclets,  Prev: Verbosity Options,  Up: gjdoc Tool
+
+4.8 Running Other Doclets
+=========================
+
+`-docletpath PATHLIST'
+     Search PATHLIST when loading classes for the Doclet specified
+     using `-doclet'.
+
+     PATHLIST should be one or more paths to a directory or jar file,
+     separated by your platform's path separator (usually `:' or `;').
+
+`-doclet CLASSNAME'
+     Run the specified doclet instead of the standard HtmlDoclet.
+
+     CLASSNAME should be the fully-qualified name of a class which has
+     a public default constructor and contain a method with the
+     following signature:
+
+             import com.sun.javadoc.RootDoc;
+             public static boolean start(RootDoc rootDoc)
+
+     The Doclet classes will be loaded from the classpath specified
+     using `-docletpath', from the classpath specified using
+     `-classpath' and from the default classpath.
+
+     The `start' method should process the information exposed by the
+     Doclet API via `rootDoc' and return `true' on success, `false' on
+     failure.
+
+     If you are using a third-party doclet, refer to its documentation
+     for further instructions.  Note that support for third-party
+     doclets is experimental.  Please report any problems you
+     encounter, or provide feedback when successfully running
+     third-party applets.
+
+     This option can be specified multiple times, in which case all
+     doclets are executed with the same information tree exposed via
+     the Doclet API for each Doclet run.
+
+
+
+File: cp-tools.info,  Node: Decoration Options,  Next: Taglet Options,  Prev: Generation Options,  Up: gjdoc Tool
+
+4.9 Adding Information to the Output
+====================================
+
+`-windowtitle TEXT'
+     Use TEXT as the browser window title prefix.
+
+     When specified, the browser window title for each page will be
+     prefixed with TEXT instead of the default string `Generated API
+     Documentation'.
+
+     TEXT should be plain text (it should not contain HTML tags).
+
+`-doctitle TEXT'
+     Set the header text of the overview page to TEXT.
+
+     TEXT should be a short plain text string.
+
+     When generating documentation for a single package, specifying this
+     option forces generation of the overview page.
+
+`-header HTMLTEXT'
+     Add HTMLTEXT to the right upper corner of every generated page.
+     HTMLTEXT is usually set to the name of the project being
+     documented.
+
+`-footer HTMLTEXT'
+     Add HTMLTEXT to the right bottom corner of every generated page.
+     HTMLTEXT is often set to the same value as for `-header'.
+
+`-bottom HTMLTEXT'
+     Add HTMLTEXT to the very bottom of every generated page, spanning
+     the whole width of the page.  When specified, HTMLTEXT usually
+     consists of a copyright notice and/or links to other project pages.
+
+`-addstylesheet FILE'
+     Augment the default CSS style sheets with the user-specified
+     stylesheet FILE.
+
+     The given stylesheet is simply loaded by each HTML page in
+     addition to the default ones, as the last stylesheet.
+
+     Note that the CSS cascading rules apply.  That is, your style
+     properties will only be assigned if they have a higher cascading
+     order than `gjdoc''s default style.  One simple way to make sure
+     that this is the case is to declare your overrides `!important'.
+
+     See `http://www.w3.org/TR/REC-CSS2/cascade.html#cascading-order'.
+
+`-group HEADING PKGWILDCARD:PKGWILDCARD:...'
+     Arrange the given packages in a separate group on the overview
+     page.
+
+     The first argument should be a short plain text which is used as
+     the title of the package group.  The second argument should be a
+     colon-separated list of package wildcards.  The group will consist
+     of all packages in the documentation set whose name matches any of
+     the given wildcards.
+
+     There is only one wildcard character, `*', which matches both
+     letters in package name components and the `.' separating package
+     name components.  For example, `j*regex' would match package
+     `java.util.regex'.  A more useful example would be `javax.swing*'
+     to match `javax.swing' and all of its sub-packages.
+
+     This option can be given multiple times.
+
+     FIXME: Information about group nesting here.
+
+          gjdoc -group "Core Classes" 'java*' \
+                -group "Swing" 'javax.swing*' \
+                -group "XML APIs" 'javax.xml*' \
+                -group "Other Extensions" javax* \
+                ...
+
+`-overview FILE'
+     Add the XHTML body fragment from FILE to the overview page.
+
+     FILE should contain an XHTML fragment with the HTML `body' tag as
+     the root node.  *Note XHTML Fragments::.
+
+     This option can be used to supply a description of the
+     documentation set as a whole.
+
+     When specified, the first sentence of the fragment will be put
+     above the tables listing the documented packages, along with a
+     link to the full copy of the fragment which is put below the
+     tables.  *Note First Sentence Detector::.
+
+     When generating documentation for a single package, specifying this
+     option forces generation of the overview page.
+
+`-stylesheetfile FILE'
+     Use the CSS stylesheet in FILE instead of the default CSS
+     stylesheets.
+
+     If you only want to override parts of the default stylesheets, use
+     `-addstylesheet' instead.
+
+`-title TEXT'
+     _Deprecated._ Use `-doctitle' TEXT instead.
+
+`-helpfile FILE'
+     This option is currently ignored.
+
+     When implemented, it will use the XHTML fragment in FILE for the
+     help page contents instead of the default help text.
+
+
+
+File: cp-tools.info,  Node: Output Control Options,  Next: Generation Options,  Prev: Interlinking Options,  Up: gjdoc Tool
+
+4.10 Controlling the Output.
+============================
+
+`-d DIRECTORY'
+     Place all output files into DIRECTORY (and sub-directories).
+     DIRECTORY will be created if it does not exist, including all
+     non-existing parent directories and all required sub-directories.
+
+     If not specified, output will be placed into the current directory.
+
+`-locale NAME'
+     Use locale NAME instead of the default locale for all purposes.
+
+     NAME should be a locale specifier in the form `ll_CC[_VAR]' where
+     `ll' is a lowercase two-letter ISO-639 language code, `CC' is an
+     optional uppercase two-letter ISO-3166 country code, and `VAR' is
+     an optional variant code.  For example, `en' specifies English,
+     `en_US' specifies US English, and `en_US_WIN' specifies a deviant
+     variant of the US English locale.
+
+     Note that the semantics of this option correspond exactly to those
+     of the constructors of class `java.util.Locale'.
+
+     This option currently only determines which Collator is being used
+     for sorting output elements.  This means that the locale will only
+     have an effect when you are using non-ASCII characters in
+     identifiers.
+
+`-charset CHARSET'
+     _Deprecated._ Override the specified encoding in output XHTML
+     files with the one given by `charset'.
+
+     If this option is not given, the encoding specification in output
+     XHTML is chosen to match the encoding used when writing the file
+     (the encoding given with `-docencoding', or your platform's default
+     encoding).
+
+     The semantics for CHARSET are specified here:
+     `http://www.w3.org/TR/2000/REC-xml-20001006#NT-EncName'.  For all
+     practical purposes, they are identical to those of the other
+     options accepting charset parameters.
+
+     This option is here for compatibility with `javadoc' and should be
+     avoided.
+
+`-docencoding CHARSET'
+     Use the given charset encoding when writing output files instead of
+     your platform's default encoding.
+
+     Examples for CHARSET are `US-ASCII', `ISO-8859-1' or `UTF-8'.
+
+     The semantics of this option correspond exactly to those of the
+     constructors of class `java.util.Locale'.
+
+`-validhtml'
+     Force generation of valid XHTML code.  This breaks compatibility to
+     the traditional Javadoc tool to some extent.
+
+     If this option is specified, anchor names will be mangled so that
+     they are valid according to the XHTML 1.1 specification.  However,
+     a documentation set generated with this option cannot be linked to
+     properly using the traditional Javadoc tool.  It can be linked to
+     just fine using Gjdoc, though.
+
+     Without this option, anchor names for executable class members use
+     the traditional format, for example: "foo(String,int[])".  This is
+     compatible to the traditional Javadoc tool, but according to both
+     the HTML 4.0 and XHTML 1.0 and 1.1 specifications, this format
+     includes illegal characters.  Parentheses, square brackets, and
+     the comma are not allowed in anchor names.
+
+`-baseurl URL'
+     Hardwire a page URL relative to URL into each generated page.
+
+     If you are generating documentation which will exclusively be
+     available at a certain URL, you should use this option to specify
+     this URL.
+
+     This can help avoid certain redirect attacks used by spammers, and
+     it can be helpful for certain web clients.
+
+
+
+File: cp-tools.info,  Node: Verbosity Options,  Next: Doclet Options,  Prev: Virtual Machine Options,  Up: gjdoc Tool
+
+4.11 Verbosity Options
+======================
+
+`-quiet'
+     Suppress all output except for warnings and error messages.
+
+`-verbose'
+     Be very verbose about what `gjdoc' is doing.
+
+     This option is currently ignored.
+
+
+
+File: cp-tools.info,  Node: Virtual Machine Options,  Next: Verbosity Options,  Prev: Taglet Options,  Up: gjdoc Tool
+
+4.12 Virtual Machine Options
+============================
+
+Sun's `javadoc' tool seems to be based on `javac' and as such it seems
+to operate on the VM level.  `gjdoc', in contrast, is a pure Java
+application.
+
+   Therefore, `gjdoc' can only fake, or simulate, the following
+VM-level options.
+
+`-classpath PATHLIST'
+     Set the Virtual Machine `classpath' to PATHLIST.
+
+     In most cases you should use `-docletpath' or `-tagletpath'
+     instead of this option.
+
+     PATHLIST should be one or more paths to a directory or jar file,
+     separated by your platform's path separator (usually `:' or `;').
+
+     If this option is not intercepted at the wrapper level, `gjdoc'
+     currently fakes it by calling
+     `System.setProperty("java.class.path", PATHLIST);' and outputs a
+     warning.
+
+`-bootclasspath PATHLIST'
+     Set the Virtual Machine `bootclasspath' to PATHLIST.
+
+     If this option is not intercepted at the wrapper level, `gjdoc'
+     outputs a warning.
+
+`-JVMOPT'
+     Pass an arbitrary parameter to the Virtual Machine `gjdoc' runs on.
+
+     If this option is not intercepted at the wrapper level, `gjdoc'
+     tries to emulate the option and outputs a warning.
+
+     Currently, only the VM option `-D' for setting system properties
+     is emulated.
+
+
+
+File: cp-tools.info,  Node: Invoking a Custom Doclet,  Next: Option Summary by Type,  Prev: Invoking the Standard Doclet,  Up: gjdoc Tool
+
+4.13 Invoking a Custom Doclet
+=============================
+
+For invoking one of the other doclets shipping with `gjdoc' or a
+third-party doclet, the canonical usage is:
+
+     gjdoc -s src/java/ -all \
+       -docletpath /path/to/doclet.jar -doclet foo.BarDoclet \
+       (more Gjdoc core options and Doclet-specific options here)
+
+   `/path/to/doclet.jar' is a placeholder for a class path specifying
+where the Doclet classes and dependencies can be found and
+`foo.BarDoclet' is the fully-qualified name of the Doclet's main class.
+
+
+File: cp-tools.info,  Node: Gjdoc Option Summary,  Next: Source Set Options,  Prev: Option Summary by Type,  Up: gjdoc Tool
+
+4.14 Gjdoc Option Summary
+=========================
+
+
+File: cp-tools.info,  Node: Other Doclets,  Next: Gjdoc Concepts,  Prev: Doclet Options,  Up: gjdoc Tool
+
+5 Generating Other Output Types
+*******************************
+
+* Menu:
+
+* Built-in Doclets::
+* Third-party Doclets::
+
+
+File: cp-tools.info,  Node: Built-in Doclets,  Next: Third-party Doclets,  Up: Other Doclets
+
+5.1 Using the Built-in Doclets
+==============================
+
+* Menu:
+
+* Using XmlDoclet::
+* Using TexiDoclet::
+* Using IspellDoclet::
+* Using DebugDoclet::
+
+
+File: cp-tools.info,  Node: Using TexiDoclet,  Next: Using XmlDoclet,  Up: Built-in Doclets
+
+5.1.1 TexiDoclet: Generating Info, PDF, and other formats
+---------------------------------------------------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: Using XmlDoclet,  Next: Using IspellDoclet,  Prev: Using TexiDoclet,  Up: Built-in Doclets
+
+5.1.2 XmlDoclet: Generating XML Documentation
+---------------------------------------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: Using IspellDoclet,  Next: Using DebugDoclet,  Prev: Using XmlDoclet,  Up: Built-in Doclets
+
+5.1.3 IspellDoclet: Spell-checking Source Code
+----------------------------------------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: Using DebugDoclet,  Prev: Using IspellDoclet,  Up: Built-in Doclets
+
+5.1.4 DebugDoclet: Inspecting the Doclet API
+--------------------------------------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: Third-party Doclets,  Prev: Built-in Doclets,  Up: Other Doclets
+
+5.2 Using Third-Party Doclets
+=============================
+
+* Menu:
+
+* DocBook Doclet::
+* PDFDoclet::
+* JUnitDoclet::
+
+
+File: cp-tools.info,  Node: DocBook Doclet,  Next: PDFDoclet,  Up: Third-party Doclets
+
+5.2.1 DocBook Doclet
+--------------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: PDFDoclet,  Next: JUnitDoclet,  Prev: DocBook Doclet,  Up: Third-party Doclets
+
+5.2.2 PDFDoclet
+---------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: JUnitDoclet,  Prev: PDFDoclet,  Up: Third-party Doclets
+
+5.2.3 JUnitDoclet
+-----------------
+
+Missing.
+
+
+File: cp-tools.info,  Node: Gjdoc Concepts,  Prev: Other Doclets,  Up: gjdoc Tool
+
+6 Advanced Concepts
+*******************
+
+* Menu:
+
+* Writing Doclets::
+* Taglets::
+* XHTML Fragments::
+* First Sentence Detector::
+* Adding Custom Resources::
+
+
+File: cp-tools.info,  Node: Taglets,  Next: Writing Doclets,  Up: Gjdoc Concepts
+
+6.1 Adding Custom Tags to the Documentation
+===========================================
+
+Missing.
+
+
+File: cp-tools.info,  Node: Writing Doclets,  Next: XHTML Fragments,  Prev: Taglets,  Up: Gjdoc Concepts
+
+6.2 Writing Doclets
+===================
+
+If the various Doclets already available don't suit your needs, you can
+write a custom Doclet yourself.
+
+* Menu:
+
+* Doclet Invocation Interface::
+* Using AbstractDoclet::
+* GNU Doclet SPI::
+
+
+File: cp-tools.info,  Node: Doclet Invocation Interface,  Next: Using AbstractDoclet,  Up: Writing Doclets
+
+6.2.1 Implementing the Doclet Invocation Interface
+--------------------------------------------------
+
+A Doclet is a class that contains a method with the following signature:
+
+     public static boolean start(RootDoc rootDoc);
+
+   ROOTDOC is the root of an object hierarchy containing the
+information `gjdoc' extracted from the source files.  See the Doclet
+API for more details.
+
+   `start' should process all the information and return `true' on
+success, `false' on failure.
+
+   For printing status information, the Doclet should use methods
+`printNotice', `printWarning' and `printError' instead of `System.err'.
+The Doclet can opt to use `System.out' for redirectable output.
+
+
+File: cp-tools.info,  Node: Using AbstractDoclet,  Next: GNU Doclet SPI,  Prev: Doclet Invocation Interface,  Up: Writing Doclets
+
+6.2.2 Deriving Your Doclet from AbstractDoclet
+----------------------------------------------
+
+You may want your Doclet to provide functionality similar to
+HtmlDoclet.  For example, you may want it to support Taglets, generate
+Index, Tree, and Uses pages, or show other cross-reference information
+like `Overrides' and `All Implementing Classes'.
+
+   This information is not directly provided by the Doclet API, so your
+Doclet would normally have to assemble it itself.  For example, it
+would have to add the names of all program elements to a list and sort
+this list in order to create the Index page.
+
+   If you want to provide this information or part of it, you should
+consider deriving your class from
+`gnu.classpath.tools.doclets.AbstractDoclet'.  This class provides the
+following benefits:
+
+   * Handles options `-tag', `-taglet', `-tagletpath' (Taglets)
+
+   * Provides standard taglets for @version, @author, @since, @serial,
+     @deprecated, @see, @param, @return and handles all related options
+     (`-version', `-author', `-nosince', `-nodeprecated')
+
+   * Handles option `-d' (destination directory)
+
+   * Handles option `-noqualifier' (classes to omit qualifier for)
+
+   * Handles options `-docfilessubdirs' and `-excludedocfilessubdir'
+     (resource copying)
+
+   * Can generate a full index or an index split by first letter
+
+   * Can generate a full tree and package trees
+
+   * Can generate cross-reference information
+
+   * Can aggregate interface information (all superinterfaces, all
+     subinterfaces, all implementing classes)
+
+   * Provides convenient access to constructors, fields, methods, and
+     inner classes sorted by name/signature instead of the default sort
+     order.
+
+   * Provides various other convenience methods
+
+
+   If you derive from `AbstractDoclet', there are a number of things
+you need to take care of:
+
+   *
+   you should not implement the `start(RootDoc)' method as it is
+already defined by `AbstractDoclet' so that it can care about parsing
+the options.
+
+   Instead, you implement method `run()', `getOptions()' and the other
+abstract methods to define your Doclet's behavior.
+
+   Note that all information provided by `AbstractDoclet' is evaluated
+lazily.  That is, if your Doclet doesn't need to create an Index page,
+then `AbstractDoclet' will not spend resources on creating the
+corresponding information.
+
+   See the API documentation for
+`gnu.classpath.tools.doclets.AbstractDoclet' for more details.
+
+   You should be aware that if you base your Doclet on `AbstractDoclet'
+then you have to bundle this and all related classes with your Doclet,
+with all implications such as possible licensing issues.  Otherwise,
+your Doclet will only be runnable on `gjdoc' and not on other
+documentation systems.  Also note that `AbstractDoclet' has not been
+extensively tested in environments other than `gjdoc'.
+
+
+File: cp-tools.info,  Node: GNU Doclet SPI,  Prev: Using AbstractDoclet,  Up: Writing Doclets
+
+6.2.3 Preparing for the GNU Doclet Service Provider Interface
+-------------------------------------------------------------
+
+In addition to the standard Doclet invocation interface described
+above, `gjdoc' also offers a Service Provider Interface conforming to
+the Java standard.  Adding support for this interface to your Doclet
+simplifies usage for `gjdoc' users because it makes your Doclet
+"discoverable".
+
+   In order to provide the alternate interface, you have to add a class
+implementing `gnu.classpath.tools.gjdoc.spi.DocletSpi' to your Doclet
+classes, and bundle all Doclet classes in a Jar file along with a file
+named `META_INF/services/gnu.classpath.tools.gjdoc.spi.DocletSpi' which
+contains the name of your class implementing DocletSpi on a single line.
+
+   Note that if your Doclet depends on third-party classes bundled in
+separate Jar files, you can link in these classes using the
+`Class-path:' Manifest attribute of your Doclet Jar.
+
+   Your Doclet can then be invoked in one of the following ways:
+     gjdoc -docletjar /path/to/doclet.jar
+     gjdoc -docletpath /path/to/doclet.jar -docletname DOCLETNAME
+     gjdoc -docletname DOCLETNAME
+
+   Here, DOCLETNAME is the name of your doclet as returned by
+`DocletSpi.getDocletName()'.
+
+   The last example will only work if your Doclet Jar is in `gjdoc''s
+`doclets' directory or if it is on the classpath.
+
+
+File: cp-tools.info,  Node: XHTML Fragments,  Next: First Sentence Detector,  Prev: Writing Doclets,  Up: Gjdoc Concepts
+
+6.3 Well-formed Documentation Fragments
+=======================================
+
+For many Doclets it is advantagous if the HTML code in the comments and
+HTML code passed via the command line is well-formed.  For example,
+HtmlDoclet outputs XHTML code, and XmlDoclet XML code, both of which
+results in invalid files if the user-specified HTML isn't wellformed.
+
+   Unfortunately, comments were never required to contain well-formed
+HTML code, which means that every Doclet must deal with non-wellformed
+code as well.
+
+   The `gjdoc' built-in Doclets deal with this problem by "fixing" the
+HTML code - making sure that all tags are closed, attribute values are
+provided and quoted, tags are properly nested, etc.
+
+   This approach works OK in most instances, but since it uses some
+crude heuristics it can sometimes produce undesirable result.
+
+   Therefore, in order to make sure that your comments are always
+properly formatted, make sure they are well-formed as described in
+XHTML 1.0: Documents must be well-formed (http://www.w3.org/TR/xhtml1/#h-4.1).
+
+   In addition, you should use meaningful tags instead of text
+formatting tags to make your output look better in other output formats
+derived from your HTML code.  For example, you should use the <em> tag
+instead of <b> if you want to emphasize text.
+
+
+File: cp-tools.info,  Node: First Sentence Detector,  Next: Adding Custom Resources,  Prev: XHTML Fragments,  Up: Gjdoc Concepts
+
+6.4 How Gjdoc Determines where the First Sentence Ends
+======================================================
+
+For a package, class or member summary, `gjdoc' only shows the first
+sentence of the documentation comment in question.  Because `gjdoc' is
+not human, it is not always obvious to `gjdoc' where the first sentence
+ends.
+
+   You might be tempted to say that the first sentence ends at the first
+occurrence of a punctuation character like `.' or `!'. However,
+consider examples like this:
+     This work, by Thomas J. Shahan et al., is about the middle ages.
+
+   As you can see, it is not trivial to determine the end of the
+sentence.
+
+   `gjdoc' gives you the choice between two approaches.  By default it
+uses built-in heuristics which should be compatible to Sun's `javadoc'
+tool.  This approach works quiet well in most cases, at least for
+english comments.
+
+   Alternatively, you can specify option `-breakiterator' in which case
+`gjdoc' will use
+`java.text.BreakIterator.getSentenceInstance(LOCALE).next()' to find
+the end of sentence, where LOCALE is the locale specified by option
+`-locale' or the default locale if none specified.
+
+   _NOT YET IMPLEMENTED:_
+
+   `gjdoc' also allows you to explicitly delineate the first sentence
+by putting it in a `<span>' tag with the CSS class `first-sentence'.
+For example:
+     /**
+      *  <span class="first-sentence">This. is. the. first.
+      *  sentence.</span> This is the second sentence.
+      */
+
+   Note that this will only work with `gjdoc', but shouldn't hurt when
+using another documentation system since the `<span>' tag usually
+doesn't show up in the output.
+
+
+File: cp-tools.info,  Node: Adding Custom Resources,  Prev: First Sentence Detector,  Up: Gjdoc Concepts
+
+6.5 Adding Images and Other Resources
+=====================================
+
+Sometimes you want to decorate your documentation with secondary
+resources such as images, SVG graphics, applets, and so on.  To do so,
+simply put the required files in a subdirectory 'doc-files' in the
+package directory corresponding to the documentation entry you want to
+decorate, and refer to it with the URL `doc-files/FILENAME'.
+
+   For example, if you want to add an image to the description of class
+`baz.FooBar', create a directory `doc-files' in the directory `baz'
+containing `FooBar.java' and put your file, say `diagram.png', into
+that directory.  Then, add the HTML code like this to a comment in
+`FooBar.java':
+     <img src="doc-files/diagram.png" width="200" height="150"
+       alt="Foo Diagram"/>
+
+   This works because the `doc-files' subdirectories will be copied to
+the target documentation directory every time you generate the
+documentation.
+
+   Note however that by default, the `doc-files' directory will not be
+copied deeply.  In other words, if you create subdirectories under
+`doc-files' they will not be copied and any resources located in these
+subdirectories will not be accessible in your generated documentation.
+You can specify option `-docfilessubdirs' to remove this limitation.
+
+   Sometimes you want to use option `-docfilessubdirs', but there are
+certain directories which you don't want to be copied, for example
+because they contain source files for the resources in `doc-files'.
+For cases like this, use `-excludedocfilessubdir' to specify
+directories to be omitted.
+
 
 File: cp-tools.info,  Node: I18N Issues,  Prev: Other Tools,  Up: Top
 
-4 I18N Issues
+7 I18N Issues
 *************
 
 Some tools -*note Security Tools::- allow using other than the English
-language when prompting the User for input, and outputing messages.
+language when prompting the User for input, and outputting messages.
 This chapter describes the elements used to offer this support and how
 they can be adapted for use with specific languages.
 
@@ -1686,7 +2991,7 @@ they can be adapted for use with specific languages.
 
 File: cp-tools.info,  Node: Language Resources,  Next: Message Formats,  Prev: I18N Issues,  Up: I18N Issues
 
-4.1 Language-specific resources
+7.1 Language-specific resources
 ===============================
 
 The Tools use Java `ResourceBundle's to store messages, and message
@@ -1694,7 +2999,7 @@ templates they use at runtime to generate the message text itself,
 depending on the locale in use at the time.
 
    The Resource Bundles these tools use are essentially Java Properties
-files consisting of a set of Name/Value pairs. The Name is the Propery
+files consisting of a set of Name/Value pairs. The Name is the Property
 Name and the Value is a substitution string that is used when the code
 references the associated Name. For example the following is a line in
 a Resource Bundle used by the `keytool' Tool:
@@ -1761,7 +3066,7 @@ the hierarchy.
 
    You can see from the examples above that `messages.properties' is
 the safety net that the Java runtime falls back to when failing to find
-a specific bunlde and its parent(s). This file is always provided with
+a specific bundle and its parent(s). This file is always provided with
 the Tool. In time, more localized versions will be included to cater
 for other languages.
 
@@ -1773,7 +3078,7 @@ and mail it to `classpath@gnu.org'.
 
 File: cp-tools.info,  Node: Message Formats,  Prev: Language Resources,  Up: I18N Issues
 
-4.2 Message formats
+7.2 Message formats
 ===================
 
 If you open any of the `messages.properties' described in the previous
@@ -1794,59 +3099,93 @@ alter text between curly braces.
 
 
 Tag Table:
-Node: Top432
-Node: Applet Tools3881
-Node: appletviewer Tool4454
-Node: gcjwebplugin7569
-Node: Security Tools7881
-Node: jarsigner Tool8534
-Node: Common jarsigner Options9581
-Node: Signing Options10896
-Node: Verification Options13478
-Node: keytool Tool14066
-Node: Getting Help18494
-Node: Common keytool Options19238
-Ref: alias19511
-Ref: keyalg19893
-Ref: keysize20123
-Ref: validity20388
-Ref: storetype20603
-Ref: storepass20934
-Ref: keystore21131
-Ref: provider21674
-Ref: file22081
-Ref: verbose22552
-Node: Distinguished Names22644
-Ref: dn22838
-Node: Add/Update Commands23901
-Node: Command -genkey24429
-Node: Command -import26837
-Node: Command -selfcert29981
-Node: Command -cacert32160
-Node: Command -identitydb33213
-Node: Export Commands33871
-Node: Command -certreq34187
-Node: Command -export36593
-Node: Display Commands37790
-Node: Command -list38122
-Node: Command -printcert39255
-Node: Management Commands39639
-Node: Command -keyclone40071
-Node: Command -storepasswd41474
-Node: Command -keypasswd42203
-Node: Command -delete43397
-Node: Other Tools44020
-Node: jar Tool44805
-Node: javah Tool46197
-Node: gcjh Tool47416
-Node: native2ascii Tool48529
-Node: orbd Tool48990
-Node: serialver Tool49720
-Node: rmid Tool50189
-Node: rmiregistry Tool51130
-Node: tnameserv Tool51970
-Node: I18N Issues52460
-Node: Language Resources52961
-Node: Message Formats56624
+Node: Top1150
+Node: Applet Tools6870
+Node: appletviewer Tool7443
+Node: gcjwebplugin10558
+Node: Security Tools10870
+Node: jarsigner Tool11523
+Node: Common jarsigner Options12571
+Node: Signing Options13886
+Node: Verification Options16469
+Node: keytool Tool17057
+Node: Getting Help21485
+Node: Common keytool Options22229
+Ref: alias22502
+Ref: keyalg22884
+Ref: keysize23114
+Ref: validity23379
+Ref: storetype23594
+Ref: storepass23925
+Ref: keystore24122
+Ref: provider24665
+Ref: file25072
+Ref: verbose25543
+Node: Distinguished Names25635
+Ref: dn25829
+Node: Add/Update Commands26892
+Node: Command -genkey27420
+Node: Command -import29829
+Node: Command -selfcert32973
+Node: Command -cacert35152
+Node: Command -identitydb36205
+Node: Export Commands36863
+Node: Command -certreq37179
+Node: Command -export39585
+Node: Display Commands40782
+Node: Command -list41114
+Node: Command -printcert42247
+Node: Management Commands42631
+Node: Command -keyclone43063
+Node: Command -storepasswd44466
+Node: Command -keypasswd45195
+Node: Command -delete46389
+Node: Other Tools47012
+Node: jar Tool47854
+Node: javah Tool49246
+Node: gcjh Tool50465
+Node: native2ascii Tool51578
+Node: orbd Tool52039
+Node: serialver Tool52769
+Node: rmid Tool53238
+Node: rmiregistry Tool54179
+Node: tnameserv Tool55019
+Node: gjdoc Tool55643
+Node: Invoking the Standard Doclet57631
+Node: Option Summary by Type58786
+Node: Source Set Options61216
+Node: Source Format Options63080
+Node: Interlinking Options64594
+Node: Generation Options67371
+Node: Taglet Options73468
+Node: Doclet Options75695
+Node: Decoration Options77271
+Node: Output Control Options81362
+Node: Verbosity Options84894
+Node: Virtual Machine Options85240
+Node: Invoking a Custom Doclet86636
+Node: Gjdoc Option Summary87311
+Node: Other Doclets87491
+Node: Built-in Doclets87719
+Node: Using TexiDoclet87974
+Node: Using XmlDoclet88196
+Node: Using IspellDoclet88421
+Node: Using DebugDoclet88649
+Node: Third-party Doclets88849
+Node: DocBook Doclet89065
+Node: PDFDoclet89208
+Node: JUnitDoclet89361
+Node: Gjdoc Concepts89495
+Node: Taglets89739
+Node: Writing Doclets89922
+Node: Doclet Invocation Interface90262
+Node: Using AbstractDoclet91054
+Node: GNU Doclet SPI94048
+Node: XHTML Fragments95520
+Node: First Sentence Detector96953
+Node: Adding Custom Resources98715
+Node: I18N Issues100411
+Node: Language Resources100913
+Node: Message Formats104577
 
 End Tag Table

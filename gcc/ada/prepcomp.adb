@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2003-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,8 +23,7 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
-with Ada.Unchecked_Deallocation;
-
+with Atree;    use Atree;
 with Errout;   use Errout;
 with Lib.Writ; use Lib.Writ;
 with Opt;      use Opt;
@@ -45,26 +44,15 @@ package body Prepcomp is
 
    Source_Index_Of_Preproc_Data_File : Source_File_Index := No_Source_File;
 
-   --  The following variable should be a constant, but this is not
-   --  possible. Warnings are Off because it is never assigned a value.
+   --  The following variable should be a constant, but this is not possible
+   --  because its type GNAT.Dynamic_Tables.Instance has a component P of
+   --  uninitialized private type GNAT.Dynamic_Tables.Table_Private and there
+   --  are no exported values for this private type. Warnings are Off because
+   --  it is never assigned a value.
 
    pragma Warnings (Off);
    No_Mapping : Prep.Symbol_Table.Instance;
    pragma Warnings (On);
-
-   type String_Ptr is access String;
-   type String_Array is array (Positive range <>) of String_Ptr;
-   type String_Array_Ptr is access String_Array;
-
-   procedure Free is
-      new Ada.Unchecked_Deallocation (String_Array, String_Array_Ptr);
-
-   Symbol_Definitions : String_Array_Ptr := new String_Array (1 .. 4);
-   --  An extensible array to temporarily stores symbol definitions specified
-   --  on the command line with -gnateD switches.
-
-   Last_Definition : Natural := 0;
-   --  Index of last symbol definition in array Symbol_Definitions
 
    type Preproc_Data is record
       Mapping      : Symbol_Table.Instance;
@@ -73,6 +61,7 @@ package body Prepcomp is
       Undef_False  : Boolean        := False;
       Always_Blank : Boolean        := False;
       Comments     : Boolean        := False;
+      No_Deletion  : Boolean        := False;
       List_Symbols : Boolean        := False;
       Processed    : Boolean        := False;
    end record;
@@ -86,6 +75,7 @@ package body Prepcomp is
       Undef_False  => False,
       Always_Blank => False,
       Comments     => False,
+      No_Deletion  => False,
       List_Symbols => False,
       Processed    => False);
 
@@ -122,8 +112,7 @@ package body Prepcomp is
    --  Table to store the dependencies on preprocessing files
 
    procedure Add_Command_Line_Symbols;
-   --  Add the command line symbol definitions, if any, to the
-   --  Prep.Mapping table.
+   --  Add the command line symbol definitions, if any, to Prep.Mapping table
 
    procedure Skip_To_End_Of_Line;
    --  Ignore errors and scan up to the next end of line or the end of file
@@ -158,31 +147,6 @@ package body Prepcomp is
          Add_Preprocessing_Dependency (Dependencies.Table (Index));
       end loop;
    end Add_Dependencies;
-
-   ---------------------------
-   -- Add_Symbol_Definition --
-   ---------------------------
-
-   procedure Add_Symbol_Definition (Def : String) is
-   begin
-      --  If Symbol_Definitions is not large enough, double it
-
-      if Last_Definition = Symbol_Definitions'Last then
-         declare
-            New_Symbol_Definitions : constant String_Array_Ptr :=
-              new String_Array (1 .. 2 * Last_Definition);
-
-         begin
-            New_Symbol_Definitions (Symbol_Definitions'Range) :=
-              Symbol_Definitions.all;
-            Free (Symbol_Definitions);
-            Symbol_Definitions := New_Symbol_Definitions;
-         end;
-      end if;
-
-      Last_Definition := Last_Definition + 1;
-      Symbol_Definitions (Last_Definition) := new String'(Def);
-   end Add_Symbol_Definition;
 
    -------------------
    -- Check_Symbols --
@@ -240,12 +204,12 @@ package body Prepcomp is
 
       if Source_Index_Of_Preproc_Data_File = No_Source_File then
          Get_Name_String (N);
-         Fail ("preprocessing data file """,
-               Name_Buffer (1 .. Name_Len),
-               """ not found");
+         Fail ("preprocessing data file """
+               & Name_Buffer (1 .. Name_Len)
+               & """ not found");
       end if;
 
-      --  Initialize the sanner and set its behavior for a processing data file
+      --  Initialize scanner and set its behavior for processing a data file
 
       Scn.Scanner.Initialize_Scanner (Source_Index_Of_Preproc_Data_File);
       Scn.Scanner.Set_End_Of_Line_As_Token (True);
@@ -340,7 +304,8 @@ package body Prepcomp is
 
          while Token /= Tok_End_Of_Line and then Token /= Tok_EOF loop
             if Token /= Tok_Minus then
-               Error_Msg ("`'-` expected", Token_Ptr);
+               Error_Msg -- CODEFIX
+                 ("`'-` expected", Token_Ptr);
                Skip_To_End_Of_Line;
                goto Scan_Line;
             end if;
@@ -368,6 +333,16 @@ package body Prepcomp is
                --  significant.
 
                case Sinput.Source (Token_Ptr) is
+                  when 'a' =>
+
+                     --  All source text preserved (also implies -u)
+
+                     if Name_Len = 1 then
+                        Current_Data.No_Deletion := True;
+                        Current_Data.Undef_False := True;
+                        OK := True;
+                     end if;
+
                   when 'u' =>
 
                      --  Undefined symbol are False
@@ -416,7 +391,7 @@ package body Prepcomp is
                         --  with an underline or a digit.
 
                         if Name_Buffer (2) = '_'
-                          or Name_Buffer (2) in '0' .. '9'
+                          or else Name_Buffer (2) in '0' .. '9'
                         then
                            Error_Msg ("symbol expected", Token_Ptr + 1);
                            Skip_To_End_Of_Line;
@@ -461,7 +436,8 @@ package body Prepcomp is
                         Scan;
 
                         if Token /= Tok_Equal then
-                           Error_Msg ("`=` expected", Token_Ptr);
+                           Error_Msg -- CODEFIX
+                             ("`=` expected", Token_Ptr);
                            Skip_To_End_Of_Line;
                            goto Scan_Line;
                         end if;
@@ -561,9 +537,8 @@ package body Prepcomp is
       if Total_Errors_Detected > T then
          Errout.Finalize (Last_Call => True);
          Errout.Output_Messages;
-         Fail ("errors found in preprocessing data file """,
-               Get_Name_String (N),
-               """");
+         Fail ("errors found in preprocessing data file """
+               & Get_Name_String (N) & """");
       end if;
 
       --  Record the dependency on the preprocessor data file
@@ -619,15 +594,15 @@ package body Prepcomp is
 
       --  Set the preprocessing flags according to the preprocessing data
 
-      if Current_Data.Comments and then not Current_Data.Always_Blank then
+      if Current_Data.Comments and not Current_Data.Always_Blank then
          Comment_Deleted_Lines := True;
          Blank_Deleted_Lines   := False;
-
       else
          Comment_Deleted_Lines := False;
          Blank_Deleted_Lines   := True;
       end if;
 
+      No_Deletion                 := Current_Data.No_Deletion;
       Undefined_Symbols_Are_False := Current_Data.Undef_False;
       List_Preprocessing_Symbols  := Current_Data.List_Symbols;
 
@@ -656,15 +631,15 @@ package body Prepcomp is
 
          begin
             if Deffile = No_Source_File then
-               Fail ("definition file """,
-                     Get_Name_String (N),
-                     """ cannot be found");
+               Fail ("definition file """
+                     & Get_Name_String (N)
+                     & """ not found");
             end if;
 
             --  Initialize the preprocessor and set the characteristics of the
             --  scanner for a definition file.
 
-            Prep.Initialize
+            Prep.Setup_Hooks
               (Error_Msg         => Errout.Error_Msg'Access,
                Scan              => Scn.Scanner.Scan'Access,
                Set_Ignore_Errors => Errout.Set_Ignore_Errors'Access,
@@ -688,9 +663,9 @@ package body Prepcomp is
             if T /= Total_Errors_Detected then
                Errout.Finalize (Last_Call => True);
                Errout.Output_Messages;
-               Fail ("errors found in definition file """,
-                     Get_Name_String (N),
-                     """");
+               Fail ("errors found in definition file """
+                     & Get_Name_String (N)
+                     & """");
             end if;
 
             for Index in 1 .. Dependencies.Last loop
@@ -737,13 +712,13 @@ package body Prepcomp is
       --  The command line definitions have been stored temporarily in
       --  array Symbol_Definitions.
 
-      for Index in 1 .. Last_Definition loop
+      for Index in 1 .. Preprocessing_Symbol_Last loop
          --  Check each symbol definition, fail immediately if syntax is not
          --  correct.
 
          Check_Command_Line_Symbol_Definition
-           (Definition => Symbol_Definitions (Index).all,
-            Data => Symbol_Data);
+           (Definition => Preprocessing_Symbol_Defs (Index).all,
+            Data       => Symbol_Data);
          Found := False;
 
          --  If there is already a definition for this symbol, replace the old

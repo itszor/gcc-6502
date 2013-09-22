@@ -1,4 +1,4 @@
-/* StreamSerializer.java -- 
+/* StreamSerializer.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,10 +37,11 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
@@ -66,7 +67,7 @@ import org.w3c.dom.Node;
  */
 public class StreamSerializer
 {
-  
+
   static final int SPACE = 0x20;
   static final int BANG = 0x21; // !
   static final int APOS = 0x27; // '
@@ -82,7 +83,7 @@ public class StreamSerializer
   static
   {
     HashSet set;
-    
+
     set = new HashSet();
     set.add("nohref");
     HTML_BOOLEAN_ATTRIBUTES.put("area", set);
@@ -94,11 +95,11 @@ public class StreamSerializer
     set = new HashSet();
     set.add("declare");
     HTML_BOOLEAN_ATTRIBUTES.put("object", set);
-    
+
     set = new HashSet();
     set.add("noshade");
     HTML_BOOLEAN_ATTRIBUTES.put("hr", set);
-    
+
     set = new HashSet();
     set.add("compact");
     HTML_BOOLEAN_ATTRIBUTES.put("dl", set);
@@ -106,46 +107,46 @@ public class StreamSerializer
     HTML_BOOLEAN_ATTRIBUTES.put("ul", set);
     HTML_BOOLEAN_ATTRIBUTES.put("dir", set);
     HTML_BOOLEAN_ATTRIBUTES.put("menu", set);
-    
+
     set = new HashSet();
     set.add("checked");
     set.add("disabled");
     set.add("readonly");
     set.add("ismap");
     HTML_BOOLEAN_ATTRIBUTES.put("input", set);
-    
+
     set = new HashSet();
     set.add("multiple");
     set.add("disabled");
     HTML_BOOLEAN_ATTRIBUTES.put("select", set);
-    
+
     set = new HashSet();
     set.add("disabled");
     HTML_BOOLEAN_ATTRIBUTES.put("optgroup", set);
-    
+
     set = new HashSet();
     set.add("selected");
     set.add("disabled");
     HTML_BOOLEAN_ATTRIBUTES.put("option", set);
-    
+
     set = new HashSet();
     set.add("disabled");
     set.add("readonly");
     HTML_BOOLEAN_ATTRIBUTES.put("textarea", set);
-    
+
     set = new HashSet();
     set.add("disabled");
     HTML_BOOLEAN_ATTRIBUTES.put("button", set);
-    
+
     set = new HashSet();
     set.add("nowrap");
     HTML_BOOLEAN_ATTRIBUTES.put("th", set);
     HTML_BOOLEAN_ATTRIBUTES.put("td", set);
-    
+
     set = new HashSet();
     set.add("noresize");
     HTML_BOOLEAN_ATTRIBUTES.put("frame", set);
-    
+
     set = new HashSet();
     set.add("defer");
     HTML_BOOLEAN_ATTRIBUTES.put("script", set);
@@ -167,7 +168,7 @@ public class StreamSerializer
 
   protected boolean discardDefaultContent;
   protected boolean xmlDeclaration = true;
-  
+
   // has a META element with the encoding been added?
   private boolean htmlEncoded;
 
@@ -203,7 +204,7 @@ public class StreamSerializer
   {
     serialize(node, out, false);
   }
-  
+
   void serialize(Node node, final OutputStream out,
                  boolean convertToCdata)
     throws IOException
@@ -596,7 +597,7 @@ public class StreamSerializer
     if (!encoder.canEncode(text) || htmlNeedingEncoding)
       {
         // Check each character
-        StringBuffer buf = new StringBuffer();
+        CPStringBuilder buf = new CPStringBuilder();
         int len = text.length();
         for (int i = 0; i < len; i++)
           {
@@ -649,20 +650,20 @@ public class StreamSerializer
   String encode(String text, boolean encodeCtl, boolean inAttr)
   {
     int len = text.length();
-    StringBuffer buf = null;
+    CPStringBuilder buf = null;
     for (int i = 0; i < len; i++)
       {
         char c = text.charAt(i);
         if (c == '<')
           {
             if (buf == null)
-              buf = new StringBuffer(text.substring(0, i));
+              buf = new CPStringBuilder(text.substring(0, i));
             buf.append("&lt;");
           }
         else if (c == '>')
           {
             if (buf == null)
-              buf = new StringBuffer(text.substring(0, i));
+              buf = new CPStringBuilder(text.substring(0, i));
             buf.append("&gt;");
           }
         else if (c == '&')
@@ -676,14 +677,14 @@ public class StreamSerializer
             else
               {
                 if (buf == null)
-                  buf = new StringBuffer(text.substring(0, i));
+                  buf = new CPStringBuilder(text.substring(0, i));
                 buf.append("&amp;");
               }
           }
         else if (c == '\'' && inAttr)
           {
             if (buf == null)
-              buf = new StringBuffer(text.substring(0, i));
+              buf = new CPStringBuilder(text.substring(0, i));
             if (mode == Stylesheet.OUTPUT_HTML)
               // HTML does not define &apos;, use character entity ref
               buf.append("&#x27;");
@@ -693,7 +694,7 @@ public class StreamSerializer
         else if (c == '"' && inAttr)
           {
             if (buf == null)
-              buf = new StringBuffer(text.substring(0, i));
+              buf = new CPStringBuilder(text.substring(0, i));
             buf.append("&quot;");
           }
         else if (encodeCtl)
@@ -701,7 +702,7 @@ public class StreamSerializer
             if (c < 0x20)
               {
                 if (buf == null)
-                  buf = new StringBuffer(text.substring(0, i));
+                  buf = new CPStringBuilder(text.substring(0, i));
                 buf.append('&');
                 buf.append('#');
                 buf.append((int) c);

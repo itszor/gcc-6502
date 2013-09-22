@@ -6,10 +6,9 @@ template<int> struct A {};
 
 template<int N>
 void foo(const A<N> &a)
-{ -A<N>(a); } // { dg-error "\\(\\(const A<0>\\*\\)a\\)" "" }
+{ -A<N>(a); } // { dg-error "operand type is 'A<0>'" }
 
 void bar()
 {
-    foo(A<0>()); // { dg-error "instantiated from here" "" }
+    foo(A<0>()); // { dg-message "required from here" "" }
 }
-

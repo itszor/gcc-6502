@@ -1,7 +1,6 @@
 /* Functions for handling dependency tracking when reading .class files.
 
-   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1998-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,10 +27,7 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "mkdeps.h"
-
-#include <assert.h>
 
 #include "jcf.h"
 
@@ -90,7 +86,7 @@ jcf_dependency_add_target (const char *name)
 void
 jcf_dependency_set_dep_file (const char *name)
 {
-  assert (dep_out != stdout);
+  gcc_assert (dep_out != stdout);
   if (dep_out)
     fclose (dep_out);
   if (! strcmp (name, "-"))
@@ -118,7 +114,7 @@ jcf_dependency_add_file (const char *filename ATTRIBUTE_UNUSED, int system_p)
 void
 jcf_dependency_init (int system_p)
 {
-  assert (! dependencies);
+  gcc_assert (! dependencies);
   system_files = system_p;
   dependencies = deps_init ();
 }
@@ -135,7 +131,7 @@ jcf_dependency_write (void)
   if (! dep_out)
     return;
 
-  assert (dependencies);
+  gcc_assert (dependencies);
 
   deps_write (dependencies, dep_out, 72);
   if (print_dummies)

@@ -1,6 +1,5 @@
 /* Subroutines for insn-output.c for Tensilica's Xtensa architecture.
-   Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
    Contributed by Bob Wilson (bwilson@tensilica.com) at Tensilica.
 
 This file is part of GCC.
@@ -27,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "basic-block.h"
-#include "real.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "insn-flags.h"
@@ -41,14 +39,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "reload.h"
 #include "tm_p.h"
 #include "function.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "optabs.h"
 #include "libfuncs.h"
 #include "ggc.h"
 #include "target.h"
 #include "target-def.h"
 #include "langhooks.h"
-#include "tree-gimple.h"
+#include "gimple.h"
 #include "df.h"
 
 
@@ -71,13 +69,6 @@ enum internal_test
   ITEST_MAX
 };
 
-/* Cached operands, and operator to compare for use in set/branch on
-   condition codes.  */
-rtx branch_cmp[2];
-
-/* what type of branch to use */
-enum cmp_type branch_type;
-
 /* Array giving truth value on whether or not a given hard register
    can support a given mode.  */
 char xtensa_hard_regno_mode_ok[(int) MAX_MACHINE_MODE][FIRST_PSEUDO_REGISTER];
@@ -89,7 +80,7 @@ unsigned xtensa_current_frame_size;
 #define LARGEST_MOVE_RATIO 15
 
 /* Define the structure for the machine field in struct function.  */
-struct machine_function GTY(())
+struct GTY(()) machine_function
 {
   int accesses_prev_frame;
   bool need_a7_copy;
@@ -125,28 +116,66 @@ const enum reg_class xtensa_regno_to_class[FIRST_PSEUDO_REGISTER] =
   ACC_REG,
 };
 
+static void xtensa_option_override (void);
 static enum internal_test map_test_to_internal_test (enum rtx_code);
 static rtx gen_int_relational (enum rtx_code, rtx, rtx, int *);
 static rtx gen_float_relational (enum rtx_code, rtx, rtx);
-static rtx gen_conditional_move (rtx);
+static rtx gen_conditional_move (enum rtx_code, enum machine_mode, rtx, rtx);
 static rtx fixup_subreg_mem (rtx);
 static struct machine_function * xtensa_init_machine_status (void);
+static rtx xtensa_legitimize_tls_address (rtx);
+static rtx xtensa_legitimize_address (rtx, rtx, enum machine_mode);
+static bool xtensa_mode_dependent_address_p (const_rtx, addr_space_t);
 static bool xtensa_return_in_msb (const_tree);
 static void printx (FILE *, signed int);
 static void xtensa_function_epilogue (FILE *, HOST_WIDE_INT);
 static rtx xtensa_builtin_saveregs (void);
+static bool xtensa_legitimate_address_p (enum machine_mode, rtx, bool);
 static unsigned int xtensa_multibss_section_type_flags (tree, const char *,
 							int) ATTRIBUTE_UNUSED;
 static section *xtensa_select_rtx_section (enum machine_mode, rtx,
 					   unsigned HOST_WIDE_INT);
-static bool xtensa_rtx_costs (rtx, int, int, int *);
+static bool xtensa_rtx_costs (rtx, int, int, int, int *, bool);
+static int xtensa_register_move_cost (enum machine_mode, reg_class_t,
+				      reg_class_t);
+static int xtensa_memory_move_cost (enum machine_mode, reg_class_t, bool);
 static tree xtensa_build_builtin_va_list (void);
 static bool xtensa_return_in_memory (const_tree, const_tree);
-static tree xtensa_gimplify_va_arg_expr (tree, tree, tree *, tree *);
+static tree xtensa_gimplify_va_arg_expr (tree, tree, gimple_seq *,
+					 gimple_seq *);
+static void xtensa_function_arg_advance (cumulative_args_t, enum machine_mode,
+					 const_tree, bool);
+static rtx xtensa_function_arg (cumulative_args_t, enum machine_mode,
+				const_tree, bool);
+static rtx xtensa_function_incoming_arg (cumulative_args_t,
+					 enum machine_mode, const_tree, bool);
+static rtx xtensa_function_value (const_tree, const_tree, bool);
+static rtx xtensa_libcall_value (enum machine_mode, const_rtx);
+static bool xtensa_function_value_regno_p (const unsigned int);
+static unsigned int xtensa_function_arg_boundary (enum machine_mode,
+						  const_tree);
 static void xtensa_init_builtins (void);
-static tree xtensa_fold_builtin (tree, tree, bool);
+static tree xtensa_fold_builtin (tree, int, tree *, bool);
 static rtx xtensa_expand_builtin (tree, rtx, rtx, enum machine_mode, int);
 static void xtensa_va_start (tree, rtx);
+static bool xtensa_frame_pointer_required (void);
+static rtx xtensa_static_chain (const_tree, bool);
+static void xtensa_asm_trampoline_template (FILE *);
+static void xtensa_trampoline_init (rtx, tree, rtx);
+static bool xtensa_output_addr_const_extra (FILE *, rtx);
+static bool xtensa_cannot_force_const_mem (enum machine_mode, rtx);
+
+static reg_class_t xtensa_preferred_reload_class (rtx, reg_class_t);
+static reg_class_t xtensa_preferred_output_reload_class (rtx, reg_class_t);
+static reg_class_t xtensa_secondary_reload (bool, rtx, reg_class_t,
+					    enum machine_mode,
+					    struct secondary_reload_info *);
+
+static bool constantpool_address_p (const_rtx addr);
+static bool xtensa_legitimate_constant_p (enum machine_mode, rtx);
+
+static bool xtensa_member_type_forces_blk (const_tree,
+					   enum machine_mode mode);
 
 static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
   REG_ALLOC_ORDER;
@@ -169,13 +198,22 @@ static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
 #undef TARGET_ASM_SELECT_RTX_SECTION
 #define TARGET_ASM_SELECT_RTX_SECTION  xtensa_select_rtx_section
 
-#undef TARGET_DEFAULT_TARGET_FLAGS
-#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT | MASK_FUSED_MADD)
+#undef TARGET_LEGITIMIZE_ADDRESS
+#define TARGET_LEGITIMIZE_ADDRESS xtensa_legitimize_address
+#undef TARGET_MODE_DEPENDENT_ADDRESS_P
+#define TARGET_MODE_DEPENDENT_ADDRESS_P xtensa_mode_dependent_address_p
 
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST xtensa_register_move_cost
+#undef TARGET_MEMORY_MOVE_COST
+#define TARGET_MEMORY_MOVE_COST xtensa_memory_move_cost
 #undef TARGET_RTX_COSTS
 #define TARGET_RTX_COSTS xtensa_rtx_costs
 #undef TARGET_ADDRESS_COST
-#define TARGET_ADDRESS_COST hook_int_rtx_0
+#define TARGET_ADDRESS_COST hook_int_rtx_mode_as_bool_0
+
+#undef TARGET_MEMBER_TYPE_FORCES_BLK
+#define TARGET_MEMBER_TYPE_FORCES_BLK xtensa_member_type_forces_blk
 
 #undef TARGET_BUILD_BUILTIN_VA_LIST
 #define TARGET_BUILD_BUILTIN_VA_LIST xtensa_build_builtin_va_list
@@ -183,19 +221,32 @@ static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
 #undef TARGET_EXPAND_BUILTIN_VA_START
 #define TARGET_EXPAND_BUILTIN_VA_START xtensa_va_start
 
-#undef TARGET_PROMOTE_FUNCTION_ARGS
-#define TARGET_PROMOTE_FUNCTION_ARGS hook_bool_const_tree_true
-#undef TARGET_PROMOTE_FUNCTION_RETURN
-#define TARGET_PROMOTE_FUNCTION_RETURN hook_bool_const_tree_true
+#undef TARGET_PROMOTE_FUNCTION_MODE
+#define TARGET_PROMOTE_FUNCTION_MODE default_promote_function_mode_always_promote
 #undef TARGET_PROMOTE_PROTOTYPES
 #define TARGET_PROMOTE_PROTOTYPES hook_bool_const_tree_true
 
 #undef TARGET_RETURN_IN_MEMORY
 #define TARGET_RETURN_IN_MEMORY xtensa_return_in_memory
+#undef TARGET_FUNCTION_VALUE
+#define TARGET_FUNCTION_VALUE xtensa_function_value
+#undef TARGET_LIBCALL_VALUE
+#define TARGET_LIBCALL_VALUE xtensa_libcall_value
+#undef TARGET_FUNCTION_VALUE_REGNO_P
+#define TARGET_FUNCTION_VALUE_REGNO_P xtensa_function_value_regno_p
+
 #undef TARGET_SPLIT_COMPLEX_ARG
 #define TARGET_SPLIT_COMPLEX_ARG hook_bool_const_tree_true
 #undef TARGET_MUST_PASS_IN_STACK
 #define TARGET_MUST_PASS_IN_STACK must_pass_in_stack_var_size
+#undef TARGET_FUNCTION_ARG_ADVANCE
+#define TARGET_FUNCTION_ARG_ADVANCE xtensa_function_arg_advance
+#undef TARGET_FUNCTION_ARG
+#define TARGET_FUNCTION_ARG xtensa_function_arg
+#undef TARGET_FUNCTION_INCOMING_ARG
+#define TARGET_FUNCTION_INCOMING_ARG xtensa_function_incoming_arg
+#undef TARGET_FUNCTION_ARG_BOUNDARY
+#define TARGET_FUNCTION_ARG_BOUNDARY xtensa_function_arg_boundary
 
 #undef TARGET_EXPAND_BUILTIN_SAVEREGS
 #define TARGET_EXPAND_BUILTIN_SAVEREGS xtensa_builtin_saveregs
@@ -211,6 +262,42 @@ static const int reg_nonleaf_alloc_order[FIRST_PSEUDO_REGISTER] =
 #define TARGET_FOLD_BUILTIN xtensa_fold_builtin
 #undef  TARGET_EXPAND_BUILTIN
 #define TARGET_EXPAND_BUILTIN xtensa_expand_builtin
+
+#undef  TARGET_PREFERRED_RELOAD_CLASS
+#define TARGET_PREFERRED_RELOAD_CLASS xtensa_preferred_reload_class
+#undef  TARGET_PREFERRED_OUTPUT_RELOAD_CLASS
+#define TARGET_PREFERRED_OUTPUT_RELOAD_CLASS xtensa_preferred_output_reload_class
+
+#undef TARGET_SECONDARY_RELOAD
+#define TARGET_SECONDARY_RELOAD xtensa_secondary_reload
+
+#undef TARGET_HAVE_TLS
+#define TARGET_HAVE_TLS (TARGET_THREADPTR && HAVE_AS_TLS)
+
+#undef TARGET_CANNOT_FORCE_CONST_MEM
+#define TARGET_CANNOT_FORCE_CONST_MEM xtensa_cannot_force_const_mem
+
+#undef TARGET_LEGITIMATE_ADDRESS_P
+#define TARGET_LEGITIMATE_ADDRESS_P	xtensa_legitimate_address_p
+
+#undef TARGET_FRAME_POINTER_REQUIRED
+#define TARGET_FRAME_POINTER_REQUIRED xtensa_frame_pointer_required
+
+#undef TARGET_STATIC_CHAIN
+#define TARGET_STATIC_CHAIN xtensa_static_chain
+#undef TARGET_ASM_TRAMPOLINE_TEMPLATE
+#define TARGET_ASM_TRAMPOLINE_TEMPLATE xtensa_asm_trampoline_template
+#undef TARGET_TRAMPOLINE_INIT
+#define TARGET_TRAMPOLINE_INIT xtensa_trampoline_init
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE xtensa_option_override
+
+#undef TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA
+#define TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA xtensa_output_addr_const_extra
+
+#undef TARGET_LEGITIMATE_CONSTANT_P
+#define TARGET_LEGITIMATE_CONSTANT_P xtensa_legitimate_constant_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
@@ -421,10 +508,10 @@ smalloffset_mem_p (rtx op)
 }
 
 
-int
-constantpool_address_p (rtx addr)
+static bool
+constantpool_address_p (const_rtx addr)
 {
-  rtx sym = addr;
+  const_rtx sym = addr;
 
   if (GET_CODE (addr) == CONST)
     {
@@ -433,21 +520,21 @@ constantpool_address_p (rtx addr)
       /* Only handle (PLUS (SYM, OFFSET)) form.  */
       addr = XEXP (addr, 0);
       if (GET_CODE (addr) != PLUS)
-	return FALSE;
+	return false;
 
       /* Make sure the address is word aligned.  */
       offset = XEXP (addr, 1);
-      if ((GET_CODE (offset) != CONST_INT)
+      if ((!CONST_INT_P (offset))
 	  || ((INTVAL (offset) & 3) != 0))
-	return FALSE;
+	return false;
 
       sym = XEXP (addr, 0);
     }
 
   if ((GET_CODE (sym) == SYMBOL_REF)
       && CONSTANT_POOL_ADDRESS_P (sym))
-    return TRUE;
-  return FALSE;
+    return true;
+  return false;
 }
 
 
@@ -459,6 +546,18 @@ constantpool_mem_p (rtx op)
   if (GET_CODE (op) == MEM)
     return constantpool_address_p (XEXP (op, 0));
   return FALSE;
+}
+
+
+/* Return TRUE if X is a thread-local symbol.  */
+
+static bool
+xtensa_tls_symbol_p (rtx x)
+{
+  if (! TARGET_HAVE_TLS)
+    return false;
+
+  return GET_CODE (x) == SYMBOL_REF && SYMBOL_REF_TLS_MODEL (x) != 0;
 }
 
 
@@ -652,6 +751,16 @@ gen_float_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
     case GT: reverse_regs = 1; invert = 0; gen_fn = gen_slt_sf; break;
     case LT: reverse_regs = 0; invert = 0; gen_fn = gen_slt_sf; break;
     case GE: reverse_regs = 1; invert = 0; gen_fn = gen_sle_sf; break;
+    case UNEQ: reverse_regs = 0; invert = 0; gen_fn = gen_suneq_sf; break;
+    case LTGT: reverse_regs = 0; invert = 1; gen_fn = gen_suneq_sf; break;
+    case UNLE: reverse_regs = 0; invert = 0; gen_fn = gen_sunle_sf; break;
+    case UNGT: reverse_regs = 1; invert = 0; gen_fn = gen_sunlt_sf; break;
+    case UNLT: reverse_regs = 0; invert = 0; gen_fn = gen_sunlt_sf; break;
+    case UNGE: reverse_regs = 1; invert = 0; gen_fn = gen_sunle_sf; break;
+    case UNORDERED:
+      reverse_regs = 0; invert = 0; gen_fn = gen_sunordered_sf; break;
+    case ORDERED:
+      reverse_regs = 0; invert = 1; gen_fn = gen_sunordered_sf; break;
     default:
       fatal_insn ("bad test", gen_rtx_fmt_ee (test_code, VOIDmode, cmp0, cmp1));
       reverse_regs = 0; invert = 0; gen_fn = 0; /* avoid compiler warnings */
@@ -672,27 +781,27 @@ gen_float_relational (enum rtx_code test_code, /* relational test (EQ, etc) */
 
 
 void
-xtensa_expand_conditional_branch (rtx *operands, enum rtx_code test_code)
+xtensa_expand_conditional_branch (rtx *operands, enum machine_mode mode)
 {
-  enum cmp_type type = branch_type;
-  rtx cmp0 = branch_cmp[0];
-  rtx cmp1 = branch_cmp[1];
+  enum rtx_code test_code = GET_CODE (operands[0]);
+  rtx cmp0 = operands[1];
+  rtx cmp1 = operands[2];
   rtx cmp;
   int invert;
   rtx label1, label2;
 
-  switch (type)
+  switch (mode)
     {
-    case CMP_DF:
+    case DFmode:
     default:
       fatal_insn ("bad test", gen_rtx_fmt_ee (test_code, VOIDmode, cmp0, cmp1));
 
-    case CMP_SI:
+    case SImode:
       invert = FALSE;
       cmp = gen_int_relational (test_code, cmp0, cmp1, &invert);
       break;
 
-    case CMP_SF:
+    case SFmode:
       if (!TARGET_HARD_FLOAT)
 	fatal_insn ("bad test", gen_rtx_fmt_ee (test_code, VOIDmode,
 						cmp0, cmp1));
@@ -703,7 +812,7 @@ xtensa_expand_conditional_branch (rtx *operands, enum rtx_code test_code)
 
   /* Generate the branch.  */
 
-  label1 = gen_rtx_LABEL_REF (VOIDmode, operands[0]);
+  label1 = gen_rtx_LABEL_REF (VOIDmode, operands[3]);
   label2 = pc_rtx;
 
   if (invert)
@@ -720,14 +829,13 @@ xtensa_expand_conditional_branch (rtx *operands, enum rtx_code test_code)
 
 
 static rtx
-gen_conditional_move (rtx cmp)
+gen_conditional_move (enum rtx_code code, enum machine_mode mode,
+		      rtx op0, rtx op1)
 {
-  enum rtx_code code = GET_CODE (cmp);
-  rtx op0 = branch_cmp[0];
-  rtx op1 = branch_cmp[1];
-
-  if (branch_type == CMP_SI)
+  if (mode == SImode)
     {
+      rtx cmp;
+
       /* Jump optimization calls get_condition() which canonicalizes
 	 comparisons like (GE x <const>) to (GT x <const-1>).
 	 Transform those comparisons back to GE, since that is the
@@ -785,7 +893,7 @@ gen_conditional_move (rtx cmp)
       return gen_rtx_fmt_ee (code, VOIDmode, op0, op1);
     }
 
-  if (TARGET_HARD_FLOAT && (branch_type == CMP_SF))
+  if (TARGET_HARD_FLOAT && mode == SFmode)
     return gen_float_relational (code, op0, op1);
 
   return 0;
@@ -795,36 +903,39 @@ gen_conditional_move (rtx cmp)
 int
 xtensa_expand_conditional_move (rtx *operands, int isflt)
 {
-  rtx cmp;
+  rtx dest = operands[0];
+  rtx cmp = operands[1];
+  enum machine_mode cmp_mode = GET_MODE (XEXP (cmp, 0));
   rtx (*gen_fn) (rtx, rtx, rtx, rtx, rtx);
 
-  if (!(cmp = gen_conditional_move (operands[1])))
+  if (!(cmp = gen_conditional_move (GET_CODE (cmp), cmp_mode,
+				    XEXP (cmp, 0), XEXP (cmp, 1))))
     return 0;
 
   if (isflt)
-    gen_fn = (branch_type == CMP_SI
+    gen_fn = (cmp_mode == SImode
 	      ? gen_movsfcc_internal0
 	      : gen_movsfcc_internal1);
   else
-    gen_fn = (branch_type == CMP_SI
+    gen_fn = (cmp_mode == SImode
 	      ? gen_movsicc_internal0
 	      : gen_movsicc_internal1);
 
-  emit_insn (gen_fn (operands[0], XEXP (cmp, 0),
-		     operands[2], operands[3], cmp));
+  emit_insn (gen_fn (dest, XEXP (cmp, 0), operands[2], operands[3], cmp));
   return 1;
 }
 
 
 int
-xtensa_expand_scc (rtx *operands)
+xtensa_expand_scc (rtx operands[4], enum machine_mode cmp_mode)
 {
   rtx dest = operands[0];
-  rtx cmp = operands[1];
+  rtx cmp;
   rtx one_tmp, zero_tmp;
   rtx (*gen_fn) (rtx, rtx, rtx, rtx, rtx);
 
-  if (!(cmp = gen_conditional_move (cmp)))
+  if (!(cmp = gen_conditional_move (GET_CODE (operands[1]), cmp_mode,
+				    operands[2], operands[3])))
     return 0;
 
   one_tmp = gen_reg_rtx (SImode);
@@ -832,7 +943,7 @@ xtensa_expand_scc (rtx *operands)
   emit_insn (gen_movsi (one_tmp, const_true_rtx));
   emit_insn (gen_movsi (zero_tmp, const0_rtx));
 
-  gen_fn = (branch_type == CMP_SI
+  gen_fn = (cmp_mode == SImode
 	    ? gen_movsicc_internal0
 	    : gen_movsicc_internal1);
   emit_insn (gen_fn (dest, XEXP (cmp, 0), one_tmp, zero_tmp, cmp));
@@ -893,12 +1004,38 @@ xtensa_split_operand_pair (rtx operands[4], enum machine_mode mode)
 int
 xtensa_emit_move_sequence (rtx *operands, enum machine_mode mode)
 {
-  if (CONSTANT_P (operands[1])
-      && (GET_CODE (operands[1]) != CONST_INT
-	  || !xtensa_simm12b (INTVAL (operands[1]))))
+  rtx src = operands[1];
+
+  if (CONSTANT_P (src)
+      && (GET_CODE (src) != CONST_INT || ! xtensa_simm12b (INTVAL (src))))
     {
-      if (!TARGET_CONST16)
-	operands[1] = force_const_mem (SImode, operands[1]);
+      rtx dst = operands[0];
+
+      if (xtensa_tls_referenced_p (src))
+	{
+	  rtx addend = NULL;
+
+	  if (GET_CODE (src) == CONST && GET_CODE (XEXP (src, 0)) == PLUS)
+	    {
+	      addend = XEXP (XEXP (src, 0), 1);
+	      src = XEXP (XEXP (src, 0), 0);
+	    }
+
+	  src = xtensa_legitimize_tls_address (src);
+	  if (addend)
+	    {
+	      src = gen_rtx_PLUS (mode, src, addend);
+	      src = force_operand (src, dst);
+	    }
+	  emit_move_insn (dst, src);
+	  return 1;
+	}
+
+      if (! TARGET_CONST16)
+	{
+	  src = force_const_mem (SImode, src);
+	  operands[1] = src;
+	}
 
       /* PC-relative loads are always SImode, and CONST16 is only
 	 supported in the movsi pattern, so add a SUBREG for any other
@@ -906,16 +1043,16 @@ xtensa_emit_move_sequence (rtx *operands, enum machine_mode mode)
 
       if (mode != SImode)
 	{
-	  if (register_operand (operands[0], mode))
+	  if (register_operand (dst, mode))
 	    {
-	      operands[0] = simplify_gen_subreg (SImode, operands[0], mode, 0);
-	      emit_move_insn (operands[0], operands[1]);
+	      emit_move_insn (simplify_gen_subreg (SImode, dst, mode, 0), src);
 	      return 1;
 	    }
 	  else
 	    {
-	      operands[1] = force_reg (SImode, operands[1]);
-	      operands[1] = gen_lowpart_SUBREG (mode, operands[1]);
+	      src = force_reg (SImode, src);
+	      src = gen_lowpart_SUBREG (mode, src);
+	      operands[1] = src;
 	    }
 	}
     }
@@ -947,9 +1084,9 @@ fixup_subreg_mem (rtx x)
     {
       rtx temp =
 	gen_rtx_SUBREG (GET_MODE (x),
-			reg_equiv_mem [REGNO (SUBREG_REG (x))],
+			reg_equiv_mem (REGNO (SUBREG_REG (x))),
 			SUBREG_BYTE (x));
-      x = alter_subreg (&temp);
+      x = alter_subreg (&temp, true);
     }
   return x;
 }
@@ -1016,8 +1153,10 @@ xtensa_copy_incoming_a7 (rtx opnd)
     {
     case DFmode:
     case DImode:
-      emit_insn (gen_movsi_internal (gen_rtx_SUBREG (SImode, tmp, 0),
-				     gen_rtx_REG (SImode, A7_REG - 1)));
+      /* Copy the value out of A7 here but keep the first word in A6 until
+	 after the set_frame_ptr insn.  Otherwise, the register allocator
+	 may decide to put "subreg (tmp, 0)" in A7 and clobber the incoming
+	 value.  */
       emit_insn (gen_movsi_internal (gen_rtx_SUBREG (SImode, tmp, 4),
 				     gen_raw_REG (SImode, A7_REG)));
       break;
@@ -1038,6 +1177,11 @@ xtensa_copy_incoming_a7 (rtx opnd)
     }
 
   cfun->machine->set_frame_ptr_insn = emit_insn (gen_set_frame_ptr ());
+
+  /* For DF and DI mode arguments, copy the incoming value in A6 now.  */
+  if (mode == DFmode || mode == DImode)
+    emit_insn (gen_movsi_internal (gen_rtx_SUBREG (SImode, tmp, 0),
+				   gen_rtx_REG (SImode, A7_REG - 1)));
   entry_insns = get_insns ();
   end_sequence ();
 
@@ -1189,7 +1333,7 @@ xtensa_expand_nonlocal_goto (rtx *operands)
     containing_fp = force_reg (Pmode, containing_fp);
 
   emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__xtensa_nonlocal_goto"),
-		     0, VOIDmode, 2,
+		     LCT_NORMAL, VOIDmode, 2,
 		     containing_fp, Pmode,
 		     goto_handler, Pmode);
 }
@@ -1198,7 +1342,7 @@ xtensa_expand_nonlocal_goto (rtx *operands)
 static struct machine_function *
 xtensa_init_machine_status (void)
 {
-  return ggc_alloc_cleared (sizeof (struct machine_function));
+  return ggc_alloc_cleared_machine_function ();
 }
 
 
@@ -1296,10 +1440,10 @@ init_alignment_context (struct alignment_context *ac, rtx mem)
 
 /* Expand an atomic compare and swap operation for HImode and QImode.
    MEM is the memory location, CMP the old value to compare MEM with
-   and NEW the value to set if CMP == MEM.  */
+   and NEW_RTX the value to set if CMP == MEM.  */
 
 void
-xtensa_expand_compare_and_swap (rtx target, rtx mem, rtx cmp, rtx new)
+xtensa_expand_compare_and_swap (rtx target, rtx mem, rtx cmp, rtx new_rtx)
 {
   enum machine_mode mode = GET_MODE (mem);
   struct alignment_context ac;
@@ -1314,7 +1458,7 @@ xtensa_expand_compare_and_swap (rtx target, rtx mem, rtx cmp, rtx new)
   if (ac.shift != NULL_RTX)
     {
       cmp = xtensa_expand_mask_and_shift (cmp, mode, ac.shift);
-      new = xtensa_expand_mask_and_shift (new, mode, ac.shift);
+      new_rtx = xtensa_expand_mask_and_shift (new_rtx, mode, ac.shift);
     }
 
   /* Load the surrounding word into VAL with the MEM value masked out.  */
@@ -1323,10 +1467,10 @@ xtensa_expand_compare_and_swap (rtx target, rtx mem, rtx cmp, rtx new)
 						OPTAB_DIRECT));
   emit_label (csloop);
 
-  /* Patch CMP and NEW into VAL at correct position.  */
+  /* Patch CMP and NEW_RTX into VAL at correct position.  */
   cmpv = force_reg (SImode, expand_simple_binop (SImode, IOR, cmp, val,
 						 NULL_RTX, 1, OPTAB_DIRECT));
-  newv = force_reg (SImode, expand_simple_binop (SImode, IOR, new, val,
+  newv = force_reg (SImode, expand_simple_binop (SImode, IOR, new_rtx, val,
 						 NULL_RTX, 1, OPTAB_DIRECT));
 
   /* Jump to end if we're done.  */
@@ -1370,7 +1514,7 @@ xtensa_expand_atomic (enum rtx_code code, rtx target, rtx mem, rtx val,
   rtx csloop = gen_label_rtx ();
   rtx cmp, tmp;
   rtx old = gen_reg_rtx (SImode);
-  rtx new = gen_reg_rtx (SImode);
+  rtx new_rtx = gen_reg_rtx (SImode);
   rtx orig = NULL_RTX;
 
   init_alignment_context (&ac, mem);
@@ -1421,35 +1565,35 @@ xtensa_expand_atomic (enum rtx_code code, rtx target, rtx mem, rtx val,
       tmp = expand_simple_binop (SImode, AND, old, ac.modemaski,
 				 NULL_RTX, 1, OPTAB_DIRECT);
       tmp = expand_simple_binop (SImode, IOR, tmp, val,
-				 new, 1, OPTAB_DIRECT);
+				 new_rtx, 1, OPTAB_DIRECT);
       break;
 
     case AND:
     case IOR:
     case XOR:
       tmp = expand_simple_binop (SImode, code, old, val,
-				 new, 1, OPTAB_DIRECT);
+				 new_rtx, 1, OPTAB_DIRECT);
       break;
 
     case MULT: /* NAND */
       tmp = expand_simple_binop (SImode, XOR, old, ac.modemask,
 				 NULL_RTX, 1, OPTAB_DIRECT);
       tmp = expand_simple_binop (SImode, AND, tmp, val,
-				 new, 1, OPTAB_DIRECT);
+				 new_rtx, 1, OPTAB_DIRECT);
       break;
 
     default:
       gcc_unreachable ();
     }
 
-  if (tmp != new)
-    emit_move_insn (new, tmp);
-  emit_insn (gen_sync_compare_and_swapsi (cmp, ac.memsi, old, new));
+  if (tmp != new_rtx)
+    emit_move_insn (new_rtx, tmp);
+  emit_insn (gen_sync_compare_and_swapsi (cmp, ac.memsi, old, new_rtx));
   emit_cmp_and_jump_insns (cmp, old, NE, const0_rtx, SImode, true, csloop);
 
   if (target)
     {
-      tmp = (after ? new : cmp);
+      tmp = (after ? new_rtx : cmp);
       convert_move (target,
 		    (ac.shift == NULL_RTX ? tmp
 		     : expand_simple_binop (SImode, LSHIFTRT, tmp, ac.shift,
@@ -1462,12 +1606,12 @@ xtensa_expand_atomic (enum rtx_code code, rtx target, rtx mem, rtx val,
 void
 xtensa_setup_frame_addresses (void)
 {
-  /* Set flag to cause FRAME_POINTER_REQUIRED to be set.  */
+  /* Set flag to cause TARGET_FRAME_POINTER_REQUIRED to return true.  */
   cfun->machine->accesses_prev_frame = 1;
 
   emit_library_call
     (gen_rtx_SYMBOL_REF (Pmode, "__xtensa_libgcc_window_spill"),
-     0, VOIDmode, 0);
+     LCT_NORMAL, VOIDmode, 0);
 }
 
 
@@ -1640,7 +1784,8 @@ xtensa_legitimate_address_p (enum machine_mode mode, rtx addr, bool strict)
 {
   /* Allow constant pool addresses.  */
   if (mode != BLKmode && GET_MODE_SIZE (mode) >= UNITS_PER_WORD
-      && ! TARGET_CONST16 && constantpool_address_p (addr))
+      && ! TARGET_CONST16 && constantpool_address_p (addr)
+      && ! xtensa_tls_referenced_p (addr))
     return true;
 
   while (GET_CODE (addr) == SUBREG)
@@ -1685,11 +1830,95 @@ xtensa_legitimate_address_p (enum machine_mode mode, rtx addr, bool strict)
 }
 
 
+/* Construct the SYMBOL_REF for the _TLS_MODULE_BASE_ symbol.  */
+
+static GTY(()) rtx xtensa_tls_module_base_symbol;
+
+static rtx
+xtensa_tls_module_base (void)
+{
+  if (! xtensa_tls_module_base_symbol)
+    {
+      xtensa_tls_module_base_symbol =
+	gen_rtx_SYMBOL_REF (Pmode, "_TLS_MODULE_BASE_");
+      SYMBOL_REF_FLAGS (xtensa_tls_module_base_symbol)
+        |= TLS_MODEL_GLOBAL_DYNAMIC << SYMBOL_FLAG_TLS_SHIFT;
+    }
+
+  return xtensa_tls_module_base_symbol;
+}
+
+
+static rtx
+xtensa_call_tls_desc (rtx sym, rtx *retp)
+{
+  rtx fn, arg, a10, call_insn, insns;
+
+  start_sequence ();
+  fn = gen_reg_rtx (Pmode);
+  arg = gen_reg_rtx (Pmode);
+  a10 = gen_rtx_REG (Pmode, 10);
+
+  emit_insn (gen_tls_func (fn, sym));
+  emit_insn (gen_tls_arg (arg, sym));
+  emit_move_insn (a10, arg);
+  call_insn = emit_call_insn (gen_tls_call (a10, fn, sym, const1_rtx));
+  use_reg (&CALL_INSN_FUNCTION_USAGE (call_insn), a10);
+  insns = get_insns ();
+  end_sequence ();
+
+  *retp = a10;
+  return insns;
+}
+
+
+static rtx
+xtensa_legitimize_tls_address (rtx x)
+{
+  unsigned int model = SYMBOL_REF_TLS_MODEL (x);
+  rtx dest, tp, ret, modbase, base, addend, insns;
+
+  dest = gen_reg_rtx (Pmode);
+  switch (model)
+    {
+    case TLS_MODEL_GLOBAL_DYNAMIC:
+      insns = xtensa_call_tls_desc (x, &ret);
+      emit_libcall_block (insns, dest, ret, x);
+      break;
+
+    case TLS_MODEL_LOCAL_DYNAMIC:
+      base = gen_reg_rtx (Pmode);
+      modbase = xtensa_tls_module_base ();
+      insns = xtensa_call_tls_desc (modbase, &ret);
+      emit_libcall_block (insns, base, ret, modbase);
+      addend = force_reg (SImode, gen_sym_DTPOFF (x));
+      emit_insn (gen_addsi3 (dest, base, addend));
+      break;
+
+    case TLS_MODEL_INITIAL_EXEC:
+    case TLS_MODEL_LOCAL_EXEC:
+      tp = gen_reg_rtx (SImode);
+      emit_insn (gen_get_thread_pointersi (tp));
+      addend = force_reg (SImode, gen_sym_TPOFF (x));
+      emit_insn (gen_addsi3 (dest, tp, addend));
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  return dest;
+}
+
+
 rtx
 xtensa_legitimize_address (rtx x,
 			   rtx oldx ATTRIBUTE_UNUSED,
 			   enum machine_mode mode)
 {
+  if (xtensa_tls_symbol_p (x))
+    return xtensa_legitimize_tls_address (x);
+
   if (GET_CODE (x) == PLUS)
     {
       rtx plus0 = XEXP (x, 0);
@@ -1717,7 +1946,72 @@ xtensa_legitimize_address (rtx x,
 	}
     }
 
-  return NULL_RTX;
+  return x;
+}
+
+/* Worker function for TARGET_MODE_DEPENDENT_ADDRESS_P.
+
+   Treat constant-pool references as "mode dependent" since they can
+   only be accessed with SImode loads.  This works around a bug in the
+   combiner where a constant pool reference is temporarily converted
+   to an HImode load, which is then assumed to zero-extend based on
+   our definition of LOAD_EXTEND_OP.  This is wrong because the high
+   bits of a 16-bit value in the constant pool are now sign-extended
+   by default.  */
+
+static bool
+xtensa_mode_dependent_address_p (const_rtx addr,
+				 addr_space_t as ATTRIBUTE_UNUSED)
+{
+  return constantpool_address_p (addr);
+}
+
+/* Helper for xtensa_tls_referenced_p.  */
+
+static int
+xtensa_tls_referenced_p_1 (rtx *x, void *data ATTRIBUTE_UNUSED)
+{
+  if (GET_CODE (*x) == SYMBOL_REF)
+    return SYMBOL_REF_TLS_MODEL (*x) != 0;
+
+  /* Ignore TLS references that have already been legitimized.  */
+  if (GET_CODE (*x) == UNSPEC)
+    {
+      switch (XINT (*x, 1))
+	{
+	case UNSPEC_TPOFF:
+	case UNSPEC_DTPOFF:
+	case UNSPEC_TLS_FUNC:
+	case UNSPEC_TLS_ARG:
+	case UNSPEC_TLS_CALL:
+	  return -1;
+	default:
+	  break;
+	}
+    }
+
+  return 0;
+}
+
+
+/* Return TRUE if X contains any TLS symbol references.  */
+
+bool
+xtensa_tls_referenced_p (rtx x)
+{
+  if (! TARGET_HAVE_TLS)
+    return false;
+
+  return for_each_rtx (&x, xtensa_tls_referenced_p_1, NULL);
+}
+
+
+/* Implement TARGET_CANNOT_FORCE_CONST_MEM.  */
+
+static bool
+xtensa_cannot_force_const_mem (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return xtensa_tls_referenced_p (x);
 }
 
 
@@ -1772,13 +2066,14 @@ init_cumulative_args (CUMULATIVE_ARGS *cum, int incoming)
 
 /* Advance the argument to the next argument position.  */
 
-void
-function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode, tree type)
+static void
+xtensa_function_arg_advance (cumulative_args_t cum, enum machine_mode mode,
+			     const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   int words, max;
   int *arg_words;
 
-  arg_words = &cum->arg_words;
+  arg_words = &get_cumulative_args (cum)->arg_words;
   max = MAX_ARGS_IN_REGISTERS;
 
   words = (((mode != BLKmode)
@@ -1798,10 +2093,11 @@ function_arg_advance (CUMULATIVE_ARGS *cum, enum machine_mode mode, tree type)
    or 0 if the argument is to be passed on the stack.  INCOMING_P is nonzero
    if this is an incoming argument to the current function.  */
 
-rtx
-function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode, tree type,
-	      int incoming_p)
+static rtx
+xtensa_function_arg_1 (cumulative_args_t cum_v, enum machine_mode mode,
+		       const_tree type, bool incoming_p)
 {
+  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
   int regbase, words, max;
   int *arg_words;
   int regno;
@@ -1831,9 +2127,26 @@ function_arg (CUMULATIVE_ARGS *cum, enum machine_mode mode, tree type,
   return gen_rtx_REG (mode, regno);
 }
 
+/* Implement TARGET_FUNCTION_ARG.  */
 
-int
-function_arg_boundary (enum machine_mode mode, tree type)
+static rtx
+xtensa_function_arg (cumulative_args_t cum, enum machine_mode mode,
+		     const_tree type, bool named ATTRIBUTE_UNUSED)
+{
+  return xtensa_function_arg_1 (cum, mode, type, false);
+}
+
+/* Implement TARGET_FUNCTION_INCOMING_ARG.  */
+
+static rtx
+xtensa_function_incoming_arg (cumulative_args_t cum, enum machine_mode mode,
+			      const_tree type, bool named ATTRIBUTE_UNUSED)
+{
+  return xtensa_function_arg_1 (cum, mode, type, true);
+}
+
+static unsigned int
+xtensa_function_arg_boundary (enum machine_mode mode, const_tree type)
 {
   unsigned int alignment;
 
@@ -1855,8 +2168,8 @@ xtensa_return_in_msb (const_tree valtype)
 }
 
 
-void
-override_options (void)
+static void
+xtensa_option_override (void)
 {
   int regno;
   enum machine_mode mode;
@@ -1870,7 +2183,7 @@ override_options (void)
        mode = (enum machine_mode) ((int) mode + 1))
     {
       int size = GET_MODE_SIZE (mode);
-      enum mode_class class = GET_MODE_CLASS (mode);
+      enum mode_class mclass = GET_MODE_CLASS (mode);
 
       for (regno = 0; regno < FIRST_PSEUDO_REGISTER; regno++)
 	{
@@ -1878,7 +2191,7 @@ override_options (void)
 
 	  if (ACC_REG_P (regno))
 	    temp = (TARGET_MAC16
-		    && (class == MODE_INT) && (size <= UNITS_PER_WORD));
+		    && (mclass == MODE_INT) && (size <= UNITS_PER_WORD));
 	  else if (GP_REG_P (regno))
 	    temp = ((regno & 1) == 0 || (size <= UNITS_PER_WORD));
 	  else if (FP_REG_P (regno))
@@ -1899,6 +2212,8 @@ override_options (void)
   if (flag_pic && TARGET_CONST16)
     error ("-f%s is not supported with CONST16 instructions",
 	   (flag_pic > 1 ? "PIC" : "pic"));
+  else if (TARGET_FORCE_NO_PIC)
+    flag_pic = 0;
   else if (XTENSA_ALWAYS_PIC)
     {
       if (TARGET_CONST16)
@@ -1920,7 +2235,6 @@ override_options (void)
       flag_reorder_blocks = 1;
     }
 }
-
 
 /* A C compound statement to output to stdio stream STREAM the
    assembler syntax for an instruction operand X.  X is an RTL
@@ -1991,7 +2305,7 @@ print_operand (FILE *file, rtx x, int letter)
 	{
 	  /* For a volatile memory reference, emit a MEMW before the
 	     load or store.  */
-	  if (MEM_VOLATILE_P (x))
+	  if (MEM_VOLATILE_P (x) && TARGET_SERIALIZE_VOLATILE)
 	    fprintf (file, "memw\n\t");
 	}
       else
@@ -2172,14 +2486,23 @@ print_operand_address (FILE *file, rtx addr)
     }
 }
 
+/* Implement TARGET_ASM_OUTPUT_ADDR_CONST_EXTRA.  */
 
-bool
+static bool
 xtensa_output_addr_const_extra (FILE *fp, rtx x)
 {
   if (GET_CODE (x) == UNSPEC && XVECLEN (x, 0) == 1)
     {
       switch (XINT (x, 1))
 	{
+	case UNSPEC_TPOFF:
+	  output_addr_const (fp, XVECEXP (x, 0, 0));
+	  fputs ("@TPOFF", fp);
+	  return true;
+	case UNSPEC_DTPOFF:
+	  output_addr_const (fp, XVECEXP (x, 0, 0));
+	  fputs ("@DTPOFF", fp);
+	  return true;
 	case UNSPEC_PLT:
 	  if (flag_pic)
 	    {
@@ -2282,13 +2605,13 @@ compute_frame_size (int size)
 
   xtensa_current_frame_size =
     XTENSA_STACK_ALIGN (size
-			+ current_function_outgoing_args_size
+			+ crtl->outgoing_args_size
 			+ (WINDOW_SIZE * UNITS_PER_WORD));
   return xtensa_current_frame_size;
 }
 
 
-int
+bool
 xtensa_frame_pointer_required (void)
 {
   /* The code to expand builtin_frame_addr and builtin_return_addr
@@ -2297,9 +2620,9 @@ xtensa_frame_pointer_required (void)
      This function is derived from the i386 code.  */
 
   if (cfun->machine->accesses_prev_frame)
-    return 1;
+    return true;
 
-  return 0;
+  return false;
 }
 
 
@@ -2365,10 +2688,10 @@ xtensa_expand_prologue (void)
   note_rtx = gen_rtx_SET (VOIDmode, (frame_pointer_needed
 				     ? hard_frame_pointer_rtx
 				     : stack_pointer_rtx),
-			  plus_constant (stack_pointer_rtx, -total_size));
+			  plus_constant (Pmode, stack_pointer_rtx,
+					 -total_size));
   RTX_FRAME_RELATED_P (insn) = 1;
-  REG_NOTES (insn) = gen_rtx_EXPR_LIST (REG_FRAME_RELATED_EXPR,
-					note_rtx, REG_NOTES (insn));
+  add_reg_note (insn, REG_FRAME_RELATED_EXPR, note_rtx);
 }
 
 
@@ -2391,7 +2714,7 @@ xtensa_return_addr (int count, rtx frame)
     retaddr = gen_rtx_REG (Pmode, A0_REG);
   else
     {
-      rtx addr = plus_constant (frame, -4 * UNITS_PER_WORD);
+      rtx addr = plus_constant (Pmode, frame, -4 * UNITS_PER_WORD);
       addr = memory_address (Pmode, addr);
       retaddr = gen_reg_rtx (Pmode);
       emit_move_insn (retaddr, gen_rtx_MEM (Pmode, addr));
@@ -2421,6 +2744,18 @@ xtensa_return_addr (int count, rtx frame)
   return result;
 }
 
+/* Disable the use of word-sized or smaller complex modes for structures,
+   and for function arguments in particular, where they cause problems with
+   register a7.  The xtensa_copy_incoming_a7 function assumes that there is
+   a single reference to an argument in a7, but with small complex modes the
+   real and imaginary components may be extracted separately, leading to two
+   uses of the register, only one of which would be replaced.  */
+
+static bool
+xtensa_member_type_forces_blk (const_tree, enum machine_mode mode)
+{
+  return mode == CQImode || mode == CHImode;
+}
 
 /* Create the va_list data type.
 
@@ -2444,24 +2779,28 @@ xtensa_build_builtin_va_list (void)
   tree f_stk, f_reg, f_ndx, record, type_decl;
 
   record = (*lang_hooks.types.make_type) (RECORD_TYPE);
-  type_decl = build_decl (TYPE_DECL, get_identifier ("__va_list_tag"), record);
+  type_decl = build_decl (BUILTINS_LOCATION,
+			  TYPE_DECL, get_identifier ("__va_list_tag"), record);
 
-  f_stk = build_decl (FIELD_DECL, get_identifier ("__va_stk"),
+  f_stk = build_decl (BUILTINS_LOCATION,
+		      FIELD_DECL, get_identifier ("__va_stk"),
 		      ptr_type_node);
-  f_reg = build_decl (FIELD_DECL, get_identifier ("__va_reg"),
+  f_reg = build_decl (BUILTINS_LOCATION,
+		      FIELD_DECL, get_identifier ("__va_reg"),
 		      ptr_type_node);
-  f_ndx = build_decl (FIELD_DECL, get_identifier ("__va_ndx"),
+  f_ndx = build_decl (BUILTINS_LOCATION,
+		      FIELD_DECL, get_identifier ("__va_ndx"),
 		      integer_type_node);
 
   DECL_FIELD_CONTEXT (f_stk) = record;
   DECL_FIELD_CONTEXT (f_reg) = record;
   DECL_FIELD_CONTEXT (f_ndx) = record;
 
-  TREE_CHAIN (record) = type_decl;
+  TYPE_STUB_DECL (record) = type_decl;
   TYPE_NAME (record) = type_decl;
   TYPE_FIELDS (record) = f_stk;
-  TREE_CHAIN (f_stk) = f_reg;
-  TREE_CHAIN (f_reg) = f_ndx;
+  DECL_CHAIN (f_stk) = f_reg;
+  DECL_CHAIN (f_reg) = f_ndx;
 
   layout_type (record);
   return record;
@@ -2475,7 +2814,7 @@ static rtx
 xtensa_builtin_saveregs (void)
 {
   rtx gp_regs;
-  int arg_words = current_function_args_info.arg_words;
+  int arg_words = crtl->args.info.arg_words;
   int gp_left = MAX_ARGS_IN_REGISTERS - arg_words;
 
   if (gp_left <= 0)
@@ -2512,27 +2851,29 @@ xtensa_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
   tree t, u;
   int arg_words;
 
-  arg_words = current_function_args_info.arg_words;
+  arg_words = crtl->args.info.arg_words;
 
   f_stk = TYPE_FIELDS (va_list_type_node);
-  f_reg = TREE_CHAIN (f_stk);
-  f_ndx = TREE_CHAIN (f_reg);
+  f_reg = DECL_CHAIN (f_stk);
+  f_ndx = DECL_CHAIN (f_reg);
 
   stk = build3 (COMPONENT_REF, TREE_TYPE (f_stk), valist, f_stk, NULL_TREE);
-  reg = build3 (COMPONENT_REF, TREE_TYPE (f_reg), valist, f_reg, NULL_TREE);
-  ndx = build3 (COMPONENT_REF, TREE_TYPE (f_ndx), valist, f_ndx, NULL_TREE);
+  reg = build3 (COMPONENT_REF, TREE_TYPE (f_reg), unshare_expr (valist),
+		f_reg, NULL_TREE);
+  ndx = build3 (COMPONENT_REF, TREE_TYPE (f_ndx), unshare_expr (valist),
+		f_ndx, NULL_TREE);
 
   /* Call __builtin_saveregs; save the result in __va_reg */
   u = make_tree (sizetype, expand_builtin_saveregs ());
   u = fold_convert (ptr_type_node, u);
-  t = build2 (GIMPLE_MODIFY_STMT, ptr_type_node, reg, u);
+  t = build2 (MODIFY_EXPR, ptr_type_node, reg, u);
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
 
   /* Set the __va_stk member to ($arg_ptr - 32).  */
   u = make_tree (ptr_type_node, virtual_incoming_args_rtx);
-  u = fold_build2 (POINTER_PLUS_EXPR, ptr_type_node, u, size_int (-32));
-  t = build2 (GIMPLE_MODIFY_STMT, ptr_type_node, stk, u);
+  u = fold_build_pointer_plus_hwi (u, -32);
+  t = build2 (MODIFY_EXPR, ptr_type_node, stk, u);
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
 
@@ -2541,8 +2882,8 @@ xtensa_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
      alignment offset for __va_stk.  */
   if (arg_words >= MAX_ARGS_IN_REGISTERS)
     arg_words += 2;
-  t = build2 (GIMPLE_MODIFY_STMT, integer_type_node, ndx,
-	      size_int (arg_words * UNITS_PER_WORD));
+  t = build2 (MODIFY_EXPR, integer_type_node, ndx,
+	      build_int_cst (integer_type_node, arg_words * UNITS_PER_WORD));
   TREE_SIDE_EFFECTS (t) = 1;
   expand_expr (t, const0_rtx, VOIDmode, EXPAND_NORMAL);
 }
@@ -2551,8 +2892,8 @@ xtensa_va_start (tree valist, rtx nextarg ATTRIBUTE_UNUSED)
 /* Implement `va_arg'.  */
 
 static tree
-xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
-			     tree *post_p ATTRIBUTE_UNUSED)
+xtensa_gimplify_va_arg_expr (tree valist, tree type, gimple_seq *pre_p,
+			     gimple_seq *post_p ATTRIBUTE_UNUSED)
 {
   tree f_stk, stk;
   tree f_reg, reg;
@@ -2574,7 +2915,8 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
 					       pre_p, NULL);
       real_part = get_initialized_tmp_var (real_part, pre_p, NULL);
 
-      imag_part = xtensa_gimplify_va_arg_expr (valist, TREE_TYPE (type),
+      imag_part = xtensa_gimplify_va_arg_expr (unshare_expr (valist),
+					       TREE_TYPE (type),
 					       pre_p, NULL);
       imag_part = get_initialized_tmp_var (imag_part, pre_p, NULL);
 
@@ -2582,12 +2924,15 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
     }
 
   f_stk = TYPE_FIELDS (va_list_type_node);
-  f_reg = TREE_CHAIN (f_stk);
-  f_ndx = TREE_CHAIN (f_reg);
+  f_reg = DECL_CHAIN (f_stk);
+  f_ndx = DECL_CHAIN (f_reg);
 
-  stk = build3 (COMPONENT_REF, TREE_TYPE (f_stk), valist, f_stk, NULL_TREE);
-  reg = build3 (COMPONENT_REF, TREE_TYPE (f_reg), valist, f_reg, NULL_TREE);
-  ndx = build3 (COMPONENT_REF, TREE_TYPE (f_ndx), valist, f_ndx, NULL_TREE);
+  stk = build3 (COMPONENT_REF, TREE_TYPE (f_stk), valist,
+		f_stk, NULL_TREE);
+  reg = build3 (COMPONENT_REF, TREE_TYPE (f_reg), unshare_expr (valist),
+		f_reg, NULL_TREE);
+  ndx = build3 (COMPONENT_REF, TREE_TYPE (f_ndx), unshare_expr (valist),
+		f_ndx, NULL_TREE);
 
   type_size = size_in_bytes (type);
   va_size = round_up (type_size, UNITS_PER_WORD);
@@ -2607,10 +2952,11 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
     {
       int align = MIN (TYPE_ALIGN (type), STACK_BOUNDARY) / BITS_PER_UNIT;
 
-      t = build2 (PLUS_EXPR, integer_type_node, orig_ndx, size_int (align - 1));
-      t = build2 (BIT_AND_EXPR, integer_type_node, t, size_int (-align));
-      t = build2 (GIMPLE_MODIFY_STMT, integer_type_node, orig_ndx, t);
-      gimplify_and_add (t, pre_p);
+      t = build2 (PLUS_EXPR, integer_type_node, unshare_expr (orig_ndx),
+		  build_int_cst (integer_type_node, align - 1));
+      t = build2 (BIT_AND_EXPR, integer_type_node, t,
+		  build_int_cst (integer_type_node, -align));
+      gimplify_assign (unshare_expr (orig_ndx), t, pre_p);
     }
 
 
@@ -2620,8 +2966,7 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
 
   t = fold_convert (integer_type_node, va_size);
   t = build2 (PLUS_EXPR, integer_type_node, orig_ndx, t);
-  t = build2 (GIMPLE_MODIFY_STMT, integer_type_node, ndx, t);
-  gimplify_and_add (t, pre_p);
+  gimplify_assign (unshare_expr (ndx), t, pre_p);
 
 
   /* Check if the argument is in registers:
@@ -2635,18 +2980,18 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
   lab_over = NULL;
   if (!targetm.calls.must_pass_in_stack (TYPE_MODE (type), type))
     {
-      lab_false = create_artificial_label ();
-      lab_over = create_artificial_label ();
+      lab_false = create_artificial_label (UNKNOWN_LOCATION);
+      lab_over = create_artificial_label (UNKNOWN_LOCATION);
 
-      t = build2 (GT_EXPR, boolean_type_node, ndx,
-		  size_int (MAX_ARGS_IN_REGISTERS * UNITS_PER_WORD));
+      t = build2 (GT_EXPR, boolean_type_node, unshare_expr (ndx),
+		  build_int_cst (integer_type_node,
+				 MAX_ARGS_IN_REGISTERS * UNITS_PER_WORD));
       t = build3 (COND_EXPR, void_type_node, t,
 		  build1 (GOTO_EXPR, void_type_node, lab_false),
 		  NULL_TREE);
       gimplify_and_add (t, pre_p);
 
-      t = build2 (GIMPLE_MODIFY_STMT, void_type_node, array, reg);
-      gimplify_and_add (t, pre_p);
+      gimplify_assign (unshare_expr (array), reg, pre_p);
 
       t = build1 (GOTO_EXPR, void_type_node, lab_over);
       gimplify_and_add (t, pre_p);
@@ -2666,25 +3011,24 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
 	 __array = (AP).__va_stk;
        } */
 
-  lab_false2 = create_artificial_label ();
+  lab_false2 = create_artificial_label (UNKNOWN_LOCATION);
 
-  t = build2 (GT_EXPR, boolean_type_node, orig_ndx,
-	      size_int (MAX_ARGS_IN_REGISTERS * UNITS_PER_WORD));
+  t = build2 (GT_EXPR, boolean_type_node, unshare_expr (orig_ndx),
+	      build_int_cst (integer_type_node,
+			     MAX_ARGS_IN_REGISTERS * UNITS_PER_WORD));
   t = build3 (COND_EXPR, void_type_node, t,
 	      build1 (GOTO_EXPR, void_type_node, lab_false2),
 	      NULL_TREE);
   gimplify_and_add (t, pre_p);
 
-  t = size_binop (PLUS_EXPR, va_size, size_int (32));
+  t = size_binop (PLUS_EXPR, unshare_expr (va_size), size_int (32));
   t = fold_convert (integer_type_node, t);
-  t = build2 (GIMPLE_MODIFY_STMT, integer_type_node, ndx, t);
-  gimplify_and_add (t, pre_p);
+  gimplify_assign (unshare_expr (ndx), t, pre_p);
 
   t = build1 (LABEL_EXPR, void_type_node, lab_false2);
   gimplify_and_add (t, pre_p);
 
-  t = build2 (GIMPLE_MODIFY_STMT, void_type_node, array, stk);
-  gimplify_and_add (t, pre_p);
+  gimplify_assign (array, stk, pre_p);
 
   if (lab_over)
     {
@@ -2706,16 +3050,18 @@ xtensa_gimplify_va_arg_expr (tree valist, tree type, tree *pre_p,
 
   if (BYTES_BIG_ENDIAN && TREE_CODE (type_size) == INTEGER_CST)
     {
-      t = fold_build2 (GE_EXPR, boolean_type_node, type_size,
+      t = fold_build2 (GE_EXPR, boolean_type_node, unshare_expr (type_size),
 		       size_int (PARM_BOUNDARY / BITS_PER_UNIT));
-      t = fold_build3 (COND_EXPR, sizetype, t, va_size, type_size);
+      t = fold_build3 (COND_EXPR, sizetype, t, unshare_expr (va_size),
+		       unshare_expr (type_size));
       size = t;
     }
   else
-    size = va_size;
+    size = unshare_expr (va_size);
 
-  t = build2 (MINUS_EXPR, sizetype, ndx, size);
-  addr = build2 (POINTER_PLUS_EXPR, ptr_type_node, array, t);
+  t = fold_convert (sizetype, unshare_expr (ndx));
+  t = build2 (MINUS_EXPR, sizetype, t, size);
+  addr = fold_build_pointer_plus (unshare_expr (array), t);
 
   addr = fold_convert (build_pointer_type (type), addr);
   if (indirect)
@@ -2736,38 +3082,44 @@ enum xtensa_builtin
 static void
 xtensa_init_builtins (void)
 {
-  tree ftype;
+  tree ftype, decl;
 
   ftype = build_function_type_list (unsigned_intDI_type_node,
 				    unsigned_intSI_type_node,
 				    unsigned_intSI_type_node, NULL_TREE);
 
-  add_builtin_function ("__builtin_umulsidi3", ftype,
-			XTENSA_BUILTIN_UMULSIDI3, BUILT_IN_MD,
-			"__umulsidi3", NULL_TREE);
+  decl = add_builtin_function ("__builtin_umulsidi3", ftype,
+			       XTENSA_BUILTIN_UMULSIDI3, BUILT_IN_MD,
+			       "__umulsidi3", NULL_TREE);
+  TREE_NOTHROW (decl) = 1;
+  TREE_READONLY (decl) = 1;
 }
 
 
 static tree
-xtensa_fold_builtin (tree fndecl, tree arglist, bool ignore ATTRIBUTE_UNUSED)
+xtensa_fold_builtin (tree fndecl, int n_args ATTRIBUTE_UNUSED, tree *args,
+		     bool ignore ATTRIBUTE_UNUSED)
 {
   unsigned int fcode = DECL_FUNCTION_CODE (fndecl);
   tree arg0, arg1;
 
-  if (fcode == XTENSA_BUILTIN_UMULSIDI3)
+  switch (fcode)
     {
-      arg0 = TREE_VALUE (arglist);
-      arg1 = TREE_VALUE (TREE_CHAIN (arglist));
+    case XTENSA_BUILTIN_UMULSIDI3:
+      arg0 = args[0];
+      arg1 = args[1];
       if ((TREE_CODE (arg0) == INTEGER_CST && TREE_CODE (arg1) == INTEGER_CST)
 	  || TARGET_MUL32_HIGH)
 	return fold_build2 (MULT_EXPR, unsigned_intDI_type_node,
 			    fold_convert (unsigned_intDI_type_node, arg0),
 			    fold_convert (unsigned_intDI_type_node, arg1));
-      else
-	return NULL;
+      break;
+
+    default:
+      internal_error ("bad builtin code");
+      break;
     }
 
-  internal_error ("bad builtin code");
   return NULL;
 }
 
@@ -2781,21 +3133,26 @@ xtensa_expand_builtin (tree exp, rtx target,
   tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
   unsigned int fcode = DECL_FUNCTION_CODE (fndecl);
 
-  /* The umulsidi3 builtin is just a mechanism to avoid calling the real
-     __umulsidi3 function when the Xtensa configuration can directly
-     implement it.  If not, just call the function.  */
-  if (fcode == XTENSA_BUILTIN_UMULSIDI3)
-    return expand_call (exp, target, ignore);
+  switch (fcode)
+    {
+    case XTENSA_BUILTIN_UMULSIDI3:
+      /* The umulsidi3 builtin is just a mechanism to avoid calling the real
+	 __umulsidi3 function when the Xtensa configuration can directly
+	 implement it.  If not, just call the function.  */
+      return expand_call (exp, target, ignore);
 
-  internal_error ("bad builtin code");
+    default:
+      internal_error ("bad builtin code");
+    }
   return NULL_RTX;
 }
 
+/* Worker function for TARGET_PREFERRED_RELOAD_CLASS.  */
 
-enum reg_class
-xtensa_preferred_reload_class (rtx x, enum reg_class class, int isoutput)
+static reg_class_t
+xtensa_preferred_reload_class (rtx x, reg_class_t rclass)
 {
-  if (!isoutput && CONSTANT_P (x) && GET_CODE (x) == CONST_DOUBLE)
+  if (CONSTANT_P (x) && CONST_DOUBLE_P (x))
     return NO_REGS;
 
   /* Don't use the stack pointer or hard frame pointer for reloads!
@@ -2804,33 +3161,53 @@ xtensa_preferred_reload_class (rtx x, enum reg_class class, int isoutput)
      won't know that it is live because the hard frame pointer is
      treated specially.  */
 
-  if (class == AR_REGS || class == GR_REGS)
+  if (rclass == AR_REGS || rclass == GR_REGS)
     return RL_REGS;
 
-  return class;
+  return rclass;
 }
 
+/* Worker function for TARGET_PREFERRED_OUTPUT_RELOAD_CLASS.  */
 
-enum reg_class
-xtensa_secondary_reload_class (enum reg_class class,
-			       enum machine_mode mode ATTRIBUTE_UNUSED,
-			       rtx x, int isoutput)
+static reg_class_t
+xtensa_preferred_output_reload_class (rtx x ATTRIBUTE_UNUSED,
+				      reg_class_t rclass)
+{
+  /* Don't use the stack pointer or hard frame pointer for reloads!
+     The hard frame pointer would normally be OK except that it may
+     briefly hold an incoming argument in the prologue, and reload
+     won't know that it is live because the hard frame pointer is
+     treated specially.  */
+
+  if (rclass == AR_REGS || rclass == GR_REGS)
+    return RL_REGS;
+
+  return rclass;
+}
+
+/* Worker function for TARGET_SECONDARY_RELOAD.  */
+
+static reg_class_t
+xtensa_secondary_reload (bool in_p, rtx x, reg_class_t rclass,
+			 enum machine_mode mode, secondary_reload_info *sri)
 {
   int regno;
 
-  if (GET_CODE (x) == SIGN_EXTEND)
-    x = XEXP (x, 0);
-  regno = xt_true_regnum (x);
-
-  if (!isoutput)
+  if (in_p && constantpool_mem_p (x))
     {
-      if (class == FP_REGS && constantpool_mem_p (x))
+      if (rclass == FP_REGS)
 	return RL_REGS;
+
+      if (mode == QImode)
+	sri->icode = CODE_FOR_reloadqi_literal;
+      else if (mode == HImode)
+	sri->icode = CODE_FOR_reloadhi_literal;
     }
 
+  regno = xt_true_regnum (x);
   if (ACC_REG_P (regno))
-    return ((class == GR_REGS || class == RL_REGS) ? NO_REGS : RL_REGS);
-  if (class == ACC_REG)
+    return ((rclass == GR_REGS || rclass == RL_REGS) ? NO_REGS : RL_REGS);
+  if (rclass == ACC_REG)
     return (GP_REG_P (regno) ? NO_REGS : RL_REGS);
 
   return NO_REGS;
@@ -2852,7 +3229,7 @@ order_regs_for_local_alloc (void)
 
       /* Use the AR registers in increasing order (skipping a0 and a1)
 	 but save the incoming argument registers for a last resort.  */
-      num_arg_regs = current_function_args_info.arg_words;
+      num_arg_regs = crtl->args.info.arg_words;
       if (num_arg_regs > MAX_ARGS_IN_REGISTERS)
 	num_arg_regs = MAX_ARGS_IN_REGISTERS;
       for (i = GP_ARG_FIRST; i < 16 - num_arg_regs; i++)
@@ -2913,13 +3290,42 @@ xtensa_select_rtx_section (enum machine_mode mode ATTRIBUTE_UNUSED,
   return function_section (current_function_decl);
 }
 
+/* Worker function for TARGET_REGISTER_MOVE_COST.  */
+
+static int
+xtensa_register_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+			   reg_class_t from, reg_class_t to)
+{
+  if (from == to && from != BR_REGS && to != BR_REGS)
+    return 2;
+  else if (reg_class_subset_p (from, AR_REGS)
+	   && reg_class_subset_p (to, AR_REGS))
+    return 2;
+  else if (reg_class_subset_p (from, AR_REGS) && to == ACC_REG)
+    return 3;
+  else if (from == ACC_REG && reg_class_subset_p (to, AR_REGS))
+    return 3;
+  else
+    return 10;
+}
+
+/* Worker function for TARGET_MEMORY_MOVE_COST.  */
+
+static int
+xtensa_memory_move_cost (enum machine_mode mode ATTRIBUTE_UNUSED,
+			 reg_class_t rclass ATTRIBUTE_UNUSED,
+			 bool in ATTRIBUTE_UNUSED)
+{
+  return 4;
+}
 
 /* Compute a (partial) cost for rtx X.  Return true if the complete
    cost has been computed, and false if subexpressions should be
    scanned.  In either case, *TOTAL contains the cost result.  */
 
 static bool
-xtensa_rtx_costs (rtx x, int code, int outer_code, int *total)
+xtensa_rtx_costs (rtx x, int code, int outer_code, int opno ATTRIBUTE_UNUSED,
+		  int *total, bool speed ATTRIBUTE_UNUSED)
 {
   switch (code)
     {
@@ -3147,6 +3553,47 @@ xtensa_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 	  > 4 * UNITS_PER_WORD);
 }
 
+/* Worker function for TARGET_FUNCTION_VALUE.  */
+
+rtx
+xtensa_function_value (const_tree valtype, const_tree func ATTRIBUTE_UNUSED, 
+                      bool outgoing)
+{
+  return gen_rtx_REG ((INTEGRAL_TYPE_P (valtype)
+                      && TYPE_PRECISION (valtype) < BITS_PER_WORD)
+                     ? SImode : TYPE_MODE (valtype),
+                     outgoing ? GP_OUTGOING_RETURN : GP_RETURN);
+}
+
+/* Worker function for TARGET_LIBCALL_VALUE.  */
+
+static rtx
+xtensa_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
+{
+  return gen_rtx_REG ((GET_MODE_CLASS (mode) == MODE_INT
+		       && GET_MODE_SIZE (mode) < UNITS_PER_WORD)
+		      ? SImode : mode, GP_RETURN);
+}
+
+/* Worker function TARGET_FUNCTION_VALUE_REGNO_P.  */
+
+static bool
+xtensa_function_value_regno_p (const unsigned int regno)
+{
+  return (regno == GP_RETURN);
+}
+
+/* The static chain is passed in memory.  Provide rtx giving 'mem'
+   expressions that denote where they are stored.  */
+
+static rtx
+xtensa_static_chain (const_tree ARG_UNUSED (fndecl), bool incoming_p)
+{
+  rtx base = incoming_p ? arg_pointer_rtx : stack_pointer_rtx;
+  return gen_frame_mem (Pmode, plus_constant (Pmode, base,
+					      -5 * UNITS_PER_WORD));
+}
+
 
 /* TRAMPOLINE_TEMPLATE: For Xtensa, the trampoline must perform an ENTRY
    instruction with a minimal stack frame in order to get some free
@@ -3156,8 +3603,8 @@ xtensa_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
    control to the instruction following the ENTRY at the target.  Note:
    this assumes that the target begins with an ENTRY instruction.  */
 
-void
-xtensa_trampoline_template (FILE *stream)
+static void
+xtensa_asm_trampoline_template (FILE *stream)
 {
   bool use_call0 = (TARGET_CONST16 || TARGET_ABSOLUTE_LITERALS);
 
@@ -3224,18 +3671,29 @@ xtensa_trampoline_template (FILE *stream)
   fprintf (stream, "\t.end no-transform\n");
 }
 
-
-void
-xtensa_initialize_trampoline (rtx addr, rtx func, rtx chain)
+static void
+xtensa_trampoline_init (rtx m_tramp, tree fndecl, rtx chain)
 {
+  rtx func = XEXP (DECL_RTL (fndecl), 0);
   bool use_call0 = (TARGET_CONST16 || TARGET_ABSOLUTE_LITERALS);
   int chain_off = use_call0 ? 12 : 8;
   int func_off = use_call0 ? 16 : 12;
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant (addr, chain_off)), chain);
-  emit_move_insn (gen_rtx_MEM (SImode, plus_constant (addr, func_off)), func);
+
+  emit_block_move (m_tramp, assemble_trampoline_template (),
+		   GEN_INT (TRAMPOLINE_SIZE), BLOCK_OP_NORMAL);
+
+  emit_move_insn (adjust_address (m_tramp, SImode, chain_off), chain);
+  emit_move_insn (adjust_address (m_tramp, SImode, func_off), func);
   emit_library_call (gen_rtx_SYMBOL_REF (Pmode, "__xtensa_sync_caches"),
-		     0, VOIDmode, 1, addr, Pmode);
+		     LCT_NORMAL, VOIDmode, 1, XEXP (m_tramp, 0), Pmode);
 }
 
+/* Implement TARGET_LEGITIMATE_CONSTANT_P.  */
+
+static bool
+xtensa_legitimate_constant_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
+{
+  return !xtensa_tls_referenced_p (x);
+}
 
 #include "gt-xtensa.h"

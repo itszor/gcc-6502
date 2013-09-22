@@ -1,4 +1,4 @@
-/* SAXSerializer.java -- 
+/* SAXSerializer.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -200,7 +200,8 @@ class SAXSerializer
 
   public String getValue(String qName)
   {
-    return attrs.getNamedItem(qName).getNodeValue();
+    Attr attr = (Attr) attrs.getNamedItem(qName);
+    return (attr == null) ? null :  attr.getNodeValue();
   }
 
   void serialize(Node node, ContentHandler ch, LexicalHandler lh)

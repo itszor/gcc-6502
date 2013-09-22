@@ -1,4 +1,4 @@
-! { dg-require-effective-target tls_native }
+! { dg-require-effective-target tls }
       module omp_threadprivate1
 	common /T/ a
       end module omp_threadprivate1
@@ -15,4 +15,3 @@
 !$omp end parallel		! { dg-error "" }
 	end subroutine bad3
       end subroutine bad2
-! { dg-final { cleanup-modules "omp_threadprivate1" } }

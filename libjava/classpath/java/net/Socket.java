@@ -377,23 +377,23 @@ public class Socket
     // bind to address/port
     try
       {
-	getImpl().bind(tmp.getAddress(), tmp.getPort());
-	bound = true;
+        getImpl().bind(tmp.getAddress(), tmp.getPort());
+        bound = true;
       }
     catch (IOException exception)
       {
-	close();
-	throw exception;
+        close();
+        throw exception;
       }
     catch (RuntimeException exception)
       {
-	close();
-	throw exception;
+        close();
+        throw exception;
       }
     catch (Error error)
       {
-	close();
-	throw error;
+        close();
+        throw error;
       }
   }
 
@@ -428,7 +428,9 @@ public class Socket
    * @exception IllegalBlockingModeException If this socket has an associated
    * channel, and the channel is in non-blocking mode
    * @exception SocketTimeoutException If the timeout is reached
-   *
+   * @throws SecurityException if the SocketAddress is an {@link InetSocketAddress}
+   *                           and a security manager is present which does not
+   *                           allow connections on the given host and port.
    * @since 1.4
    */
   public void connect(SocketAddress endpoint, int timeout)
@@ -439,6 +441,13 @@ public class Socket
 
     if (! (endpoint instanceof InetSocketAddress))
       throw new IllegalArgumentException("unsupported address type");
+
+    SecurityManager sm = System.getSecurityManager();
+    if (sm != null)
+      {
+        InetSocketAddress inetAddr = (InetSocketAddress) endpoint;
+        sm.checkConnect(inetAddr.getHostName(), inetAddr.getPort());
+      }
 
     // The Sun spec says that if we have an associated channel and
     // it is in non-blocking mode, we throw an IllegalBlockingModeException.
@@ -467,11 +476,11 @@ public class Socket
 
     try
       {
-	return getImpl().getInetAddress();
+        return getImpl().getInetAddress();
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are connected.
+        // This cannot happen as we are connected.
       }
 
     return null;
@@ -495,7 +504,7 @@ public class Socket
 
     if (impl instanceof PlainSocketImpl)
       addr = ((PlainSocketImpl) impl).getLocalAddress().getAddress();
-    
+
     if (addr == null)
       {
         try
@@ -536,11 +545,11 @@ public class Socket
 
     try
       {
-	return getImpl().getPort();
+        return getImpl().getPort();
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are connected.
+        // This cannot happen as we are connected.
       }
 
     return 0;
@@ -559,12 +568,12 @@ public class Socket
 
     try
       {
-	if (getImpl() != null)
-	  return getImpl().getLocalPort();
+        if (getImpl() != null)
+          return getImpl().getLocalPort();
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are bound.
+        // This cannot happen as we are bound.
       }
 
     return -1;
@@ -586,12 +595,12 @@ public class Socket
 
     try
       {
-	return new InetSocketAddress(addr, getImpl().getLocalPort());
+        return new InetSocketAddress(addr, getImpl().getLocalPort());
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are bound.
-	return null;
+        // This cannot happen as we are bound.
+        return null;
       }
   }
 
@@ -609,13 +618,13 @@ public class Socket
 
     try
       {
-	return new InetSocketAddress(getImpl().getInetAddress(),
-	                             getImpl().getPort());
+        return new InetSocketAddress(getImpl().getInetAddress(),
+                                     getImpl().getPort());
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are connected.
-	return null;
+        // This cannot happen as we are connected.
+        return null;
       }
   }
 
@@ -721,13 +730,13 @@ public class Socket
 
     if (on)
       {
-	if (linger < 0)
-	  throw new IllegalArgumentException("SO_LINGER must be >= 0");
+        if (linger < 0)
+          throw new IllegalArgumentException("SO_LINGER must be >= 0");
 
-	if (linger > 65535)
-	  linger = 65535;
+        if (linger > 65535)
+          linger = 65535;
 
-	getImpl().setOption(SocketOptions.SO_LINGER, Integer.valueOf(linger));
+        getImpl().setOption(SocketOptions.SO_LINGER, Integer.valueOf(linger));
       }
     else
       getImpl().setOption(SocketOptions.SO_LINGER, Integer.valueOf(-1));
@@ -844,7 +853,7 @@ public class Socket
     if (timeout < 0)
       throw new IllegalArgumentException("SO_TIMEOUT value must be >= 0");
 
-    getImpl().setOption(SocketOptions.SO_TIMEOUT, new Integer(timeout));
+    getImpl().setOption(SocketOptions.SO_TIMEOUT, Integer.valueOf(timeout));
   }
 
   /**
@@ -896,7 +905,7 @@ public class Socket
     if (size <= 0)
       throw new IllegalArgumentException("SO_SNDBUF value must be > 0");
 
-    getImpl().setOption(SocketOptions.SO_SNDBUF, new Integer(size));
+    getImpl().setOption(SocketOptions.SO_SNDBUF, Integer.valueOf(size));
   }
 
   /**
@@ -943,7 +952,7 @@ public class Socket
     if (size <= 0)
       throw new IllegalArgumentException("SO_RCVBUF value must be > 0");
 
-    getImpl().setOption(SocketOptions.SO_RCVBUF, new Integer(size));
+    getImpl().setOption(SocketOptions.SO_RCVBUF, Integer.valueOf(size));
   }
 
   /**
@@ -1034,15 +1043,15 @@ public class Socket
   {
     try
       {
-	if (isConnected())
-	  return (super.toString()
+        if (isConnected())
+          return (super.toString()
                   + " [addr=" + getImpl().getInetAddress() + ",port="
-	          + getImpl().getPort() + ",localport="
-	          + getImpl().getLocalPort() + "]");
+                  + getImpl().getPort() + ",localport="
+                  + getImpl().getLocalPort() + "]");
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are connected.
+        // This cannot happen as we are connected.
       }
 
     return super.toString() + " [unconnected]";
@@ -1211,7 +1220,7 @@ public class Socket
     if (tc < 0 || tc > 255)
       throw new IllegalArgumentException();
 
-    getImpl().setOption(SocketOptions.IP_TOS, new Integer(tc));
+    getImpl().setOption(SocketOptions.IP_TOS, Integer.valueOf(tc));
   }
 
   /**
@@ -1225,7 +1234,7 @@ public class Socket
   {
     if (impl == null)
       return false;
-    
+
     return impl.getInetAddress() != null;
   }
 
@@ -1242,7 +1251,7 @@ public class Socket
       return false;
     if (impl instanceof PlainSocketImpl)
       {
-        InetSocketAddress addr = ((PlainSocketImpl) impl).getLocalAddress(); 
+        InetSocketAddress addr = ((PlainSocketImpl) impl).getLocalAddress();
         return addr != null && addr.getAddress() != null;
       }
     return bound;
@@ -1258,7 +1267,7 @@ public class Socket
   public boolean isClosed()
   {
     SocketChannel channel = getChannel();
-    
+
     return impl == null || (channel != null && ! channel.isOpen());
   }
 

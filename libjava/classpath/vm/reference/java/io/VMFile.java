@@ -1,5 +1,5 @@
 /* VMFile.java -- Class for methods natively accessing files
-   Copyright (C) 2004, 2006  Free Software Foundation, Inc.
+   Copyright (C) 2004, 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -50,6 +50,7 @@ import gnu.java.io.PlatformHelper;
  */
 final class VMFile
 {
+
   // FIXME: We support only case sensitive filesystems currently.
   static final boolean IS_CASE_SENSITIVE = true;
   static final boolean IS_DOS_8_3 = false;
@@ -58,130 +59,153 @@ final class VMFile
   {
     if (Configuration.INIT_LOAD_LIBRARY)
       {
-	System.loadLibrary("javaio");
+        System.loadLibrary("javaio");
       }
   }
 
-  /*
+  private VMFile() {} // Prohibits instantiation.
+
+  /**
    * This native method does the actual work of getting the last file
    * modification time.  It also does the existence check to avoid the
-   * overhead of a call to exists()
+   * overhead of a call to exists().
    */
   static native long lastModified(String path);
 
-  /*
+  /**
    * This native method sets the permissions to make the file read only.
+   *
+   * @return true if file exists and the operation completed successfully
    */
   static native boolean setReadOnly(String path);
 
   /**
-   * This method is used to create a temporary file
+   * This method is used to create a temporary file.
    */
   static native boolean create(String path) throws IOException;
 
-  /*
-   * This native function actually produces the list of file in this
-   * directory
+  /**
+   * This native function actually produces the list of files in this
+   * directory.
+   *
+   * @return null if dirpath does not exist or is not a directory;
+   * null or empty array if the directory is unreadable; an array of
+   * file names in the directory otherwise.
    */
-  static native String[] list(String dirpath);
+  static native synchronized String[] list(String dirpath);
 
-  /*
+  /**
    * This native method actually performs the rename.
    */
   static native boolean renameTo(String targetpath, String destpath);
 
-  /*
+  /**
    * This native method actually determines the length of the file and
-   * handles the existence check
+   * handles the existence check.
    */
   static native long length(String path);
 
-  /*
+  /**
    * This native method does the actual checking of file existence.
    */
   static native boolean exists(String path);
 
-  /*
-   * This native method handles the actual deleting of the file
+  /**
+   * This native method handles the actual deleting of the file.
    */
   static native boolean delete(String path);
 
-  /*
+  /**
    * This method does the actual setting of the modification time.
    */
   static native boolean setLastModified(String path, long time);
 
-  /*
-   * This native method actually creates the directory
+  /**
+   * This native method actually creates the directory.
    */
   static native boolean mkdir(String dirpath);
 
   /**
+   * Gets the total bytes of the filesystem named by path.
+   */
+  static native long getTotalSpace(String path);
+
+  /**
+   * Gets the total free bytes of the filesystem named by path.
+   */
+  static native long getFreeSpace(String path);
+
+  /**
+   * Gets the available bytes of the filesystem named by path.
+   */
+  static native long getUsableSpace(String path);
+
+  /**
    * Set the read permission of the file.
    */
-  public static synchronized native boolean setReadable(String path,
-                                           		boolean readable,
-                                           		boolean ownerOnly);
-  
+  static synchronized native boolean setReadable(String path,
+                                                 boolean readable,
+                                                 boolean ownerOnly);
+
   /**
    * Set the write permission of the file.
    */
-  public static synchronized native boolean setWritable(String path,
-                                                        boolean writable,
-                                                        boolean ownerOnly);
-  
+  static synchronized native boolean setWritable(String path,
+                                                 boolean writable,
+                                                 boolean ownerOnly);
+
   /**
    * Set the execute permission of the file.
    */
-  public static synchronized native boolean setExecutable(String path,
-                                                          boolean executable,
-                                                          boolean ownerOnly);
-  
-  /*
+  static synchronized native boolean setExecutable(String path,
+                                                   boolean executable,
+                                                   boolean ownerOnly);
+
+  /**
    * This native method does the actual check of whether or not a file
    * is a plain file or not.  It also handles the existence check to
-   * eliminate the overhead of a call to exists()
+   * eliminate the overhead of a call to exists().
    */
   static native boolean isFile(String path);
 
   /**
-   * This native method checks file permissions for writing
+   * This native method checks file permissions for writing.
    */
   static synchronized native boolean canWrite(String path);
-  
+
   /**
    * This methods checks if a directory can be written to.
    */
-  static boolean canWriteDirectory(File dir)
-  {
-    try
-      {
-        String filename = IS_DOS_8_3 ? "tst" : "test-dir-write";
-        File test = File.createTempFile(filename, null, dir);
-        return (test != null && test.delete());
-      }
-    catch (IOException ioe)
-      {
-        return false;
-      }
-  }
+  static native boolean canWriteDirectory(String path);
 
   /**
-   * This native method checks file permissions for reading
+   * This native method checks file permissions for reading.
+   * It also handles the existence check to eliminate the overhead of
+   * a call to exists().
    */
   static synchronized native boolean canRead(String path);
 
   /**
-   * This native method checks file permissions for execution
+   * This native method checks file permissions for execution.
+   * It also handles the existence check to eliminate the overhead of
+   * a call to exists().
    */
   static synchronized native boolean canExecute(String path);
-  
-  /*
+
+  /**
    * This method does the actual check of whether or not a file is a
-   * directory or not.  It also handle the existence check to eliminate
-   * the overhead of a call to exists()
+   * directory or not.  It also handles the existence check to eliminate
+   * the overhead of a call to exists().
    */
   static native boolean isDirectory(String dirpath);
+
+  /**
+   * This methods checks if a directory can be written to.
+   */
+  static boolean canWriteDirectory(File path)
+  {
+    return canWriteDirectory(path.getAbsolutePath());
+  }
 
   /**
    * This method returns an array of filesystem roots.  Some operating systems
@@ -196,9 +220,9 @@ final class VMFile
    */
   static File[] listRoots()
   {
-	File[] roots = new File[1];
-	roots[0] = new File("/");
-	return roots;
+        File[] roots = new File[1];
+        roots[0] = new File("/");
+        return roots;
   }
 
   /**
@@ -214,8 +238,8 @@ final class VMFile
    */
   static boolean isHidden(String path)
   {
-	// FIXME: this only works on UNIX
-	return getName(path).startsWith(".");
+        // FIXME: this only works on UNIX
+        return getName(path).startsWith(".");
   }
 
   /**
@@ -227,14 +251,14 @@ final class VMFile
    */
   static String getName(String path)
   {
-	int pos = PlatformHelper.lastIndexOfSeparator(path);
-	if (pos == -1)
-	  return path;
-	
-	if (PlatformHelper.endWithSeparator(path))
-	  return "";
-	
-	return path.substring(pos + File.separator.length());
+        int pos = PlatformHelper.lastIndexOfSeparator(path);
+        if (pos == -1)
+          return path;
+
+        if (PlatformHelper.endWithSeparator(path))
+          return "";
+
+        return path.substring(pos + File.separator.length());
   }
 
   /**
@@ -249,7 +273,7 @@ final class VMFile
    */
   static String getAbsolutePath(String path)
   {
-    if (File.separatorChar == '\\' 
+    if (File.separatorChar == '\\'
       && path.length() > 0 && path.charAt (0) == '\\')
       {
         // On Windows, even if the path starts with a '\\' it is not
@@ -263,8 +287,8 @@ final class VMFile
              || (path.charAt (0) >= 'A' && path.charAt (0) <= 'Z')))
       {
         // On Windows, a process has a current working directory for
-        // each drive and a path like "G:foo\bar" would mean the 
-        // absolute path "G:\wombat\foo\bar" if "\wombat" is the 
+        // each drive and a path like "G:foo\bar" would mean the
+        // absolute path "G:\wombat\foo\bar" if "\wombat" is the
         // working directory on the G drive.
         String drvDir = null;
         try
@@ -277,7 +301,7 @@ final class VMFile
           }
 
         // Note: this would return "C:\\." for the path "C:.", if "\"
-        // is the working folder on the C drive, but this is 
+        // is the working folder on the C drive, but this is
         // consistent with what Sun's JRE 1.4.1.01 actually returns!
         if (path.length() > 2)
           return drvDir + '\\' + path.substring (2, path.length());
@@ -330,7 +354,7 @@ final class VMFile
     throws MalformedURLException
   {
     // On Win32, Sun's JDK returns URLs of the form "file:/c:/foo/bar.txt",
-    // while on UNIX, it returns URLs of the form "file:/foo/bar.txt". 
+    // while on UNIX, it returns URLs of the form "file:/foo/bar.txt".
     if (File.separatorChar == '\\')
       return new URL ("file:/" + file.getAbsolutePath().replace ('\\', '/')
                       + (file.isDirectory() ? "/" : ""));
@@ -347,10 +371,10 @@ final class VMFile
    * "." and "..", and symbolic links.
    * <p>
    * Note that this method, unlike the other methods which return path
-   * names, can throw an IOException.  This is because native method 
-   * might be required in order to resolve the canonical path
+   * names, can throw an IOException.  This is because native method
+   * might be required in order to resolve the canonical path.
    *
    * @exception IOException If an error occurs
    */
-  public static native String toCanonicalForm(String path) throws IOException;
+  static native String toCanonicalForm(String path) throws IOException;
 }

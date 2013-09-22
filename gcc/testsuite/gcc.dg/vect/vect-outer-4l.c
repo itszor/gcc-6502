@@ -2,7 +2,7 @@
 #include <stdarg.h>
 #include "tree-vect.h"
 
-#define N 40
+#define N 96
 #define M 128
 unsigned short in[N+M];
 unsigned int out[N];
@@ -66,5 +66,4 @@ int main (void)
 }
 
 /* { dg-final { scan-tree-dump-times "OUTER LOOP VECTORIZED" 1 "vect" { xfail *-*-* } } } */
-/* { dg-final { scan-tree-dump-times "vect_recog_widen_sum_pattern: not allowed" 1 "vect" } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

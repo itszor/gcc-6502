@@ -1,5 +1,5 @@
 /* PlainDatagramSocketImpl.java -- VM interface for DatagramSocket impl
-   Copyright (C) 2005 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -53,7 +53,7 @@ import java.net.SocketException;
  * @author Ingo Proetel (proetel@aicas.com)
  * @author Roman Kennke (kennke@aicas.com)
  */
-public final class VMPlainDatagramSocketImpl
+final class VMPlainDatagramSocketImpl
 {
   /**
    * Option id for the IP_TTL (time to live) value.
@@ -69,18 +69,20 @@ public final class VMPlainDatagramSocketImpl
         System.loadLibrary("javanet");
       }
   }
-  
+
+  private VMPlainDatagramSocketImpl() {} // Prohibits instantiation.
+
   /**
-   * Binds this socket to a particular port and interface
+   * Binds this socket to a particular port and interface.
    *
    * @param socket the socket object
    * @param port the port to bind to
    * @param addr the address to bind to
    *
    * @throws SocketException If an error occurs
-   */  
+   */
   static native void bind(PlainDatagramSocketImpl socket, int port,
-                          InetAddress addr) 
+                          InetAddress addr)
     throws SocketException;
 
   /**
@@ -127,7 +129,7 @@ public final class VMPlainDatagramSocketImpl
    *
    * @param socket the socket object
    * @param addr the address to send to
-   * @param port the port to send to 
+   * @param port the port to send to
    * @param buf the buffer to send
    * @param offset the offset of the data in the buffer to send
    * @param len the length of the data to send

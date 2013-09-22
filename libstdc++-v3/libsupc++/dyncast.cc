@@ -1,11 +1,10 @@
-// Copyright (C) 1994, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2007
-// Free Software Foundation
+// Copyright (C) 1994-2013 Free Software Foundation, Inc.
 //
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // GCC is distributed in the hope that it will be useful,
@@ -13,19 +12,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA. 
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline enums from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 #include "tinfo.h"
 
@@ -33,12 +27,26 @@ namespace __cxxabiv1 {
 
 
 // this is the external interface to the dynamic cast machinery
+/* sub: source address to be adjusted; nonnull, and since the
+ *      source object is polymorphic, *(void**)sub is a virtual pointer.
+ * src: static type of the source object.
+ * dst: destination type (the "T" in "dynamic_cast<T>(v)").
+ * src2dst_offset: a static hint about the location of the
+ *    source subobject with respect to the complete object;
+ *    special negative values are:
+ *       -1: no hint
+ *       -2: src is not a public base of dst
+ *       -3: src is a multiple public base type but never a
+ *           virtual base type
+ *    otherwise, the src type is a unique public nonvirtual
+ *    base type of dst at offset src2dst_offset from the
+ *    origin of dst.  */
 extern "C" void *
 __dynamic_cast (const void *src_ptr,    // object started from
                 const __class_type_info *src_type, // type of the starting object
                 const __class_type_info *dst_type, // desired target type
                 ptrdiff_t src2dst) // how src and dst are related
-{
+  {
   const void *vtable = *static_cast <const void *const *> (src_ptr);
   const vtable_prefix *prefix =
       adjust_pointer <vtable_prefix> (vtable, 

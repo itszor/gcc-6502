@@ -33,7 +33,7 @@
 
 int main ();
 
-short s = (short) &main;	// { dg-warning "" "" { xfail h8*-*-* xstormy16-*-* } } small integer 
-char c = (char) &main;		// { dg-warning "" } small integer
+short s = (short) &main;	// { dg-error "loses precision" "lose" { xfail h8*-*-* xstormy16-*-* } }
+char c = (char) &main;		// { dg-error "loses precision" "lose" }
 
 int main () { return 0; }

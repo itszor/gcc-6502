@@ -1,6 +1,5 @@
 /* DDG - Data Dependence Graph - interface.
-   Copyright (C) 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by Ayal Zaks and Mustafa Hagog <zaks,mustafa@il.ibm.com>
 
 This file is part of GCC.
@@ -27,7 +26,7 @@ along with GCC; see the file COPYING3.  If not see
 /* For basic_block.  */
 #include "basic-block.h"
 #include "df.h"
- 
+
 typedef struct ddg_node *ddg_node_ptr;
 typedef struct ddg_edge *ddg_edge_ptr;
 typedef struct ddg *ddg_ptr;
@@ -121,6 +120,9 @@ struct ddg
   int num_loads;
   int num_stores;
 
+  /* Number of debug instructions in the BB.  */
+  int num_debug;
+
   /* This array holds the nodes in the graph; it is indexed by the node
      cuid, which follows the order of the instructions in the BB.  */
   ddg_node_ptr nodes;
@@ -134,8 +136,8 @@ struct ddg
   int closing_branch_deps;
 
   /* Array and number of backarcs (edges with distance > 0) in the DDG.  */
-  ddg_edge_ptr *backarcs;
   int num_backarcs;
+  ddg_edge_ptr *backarcs;
 };
 
 
@@ -182,5 +184,7 @@ void free_ddg_all_sccs (ddg_all_sccs_ptr);
 
 int find_nodes_on_paths (sbitmap result, ddg_ptr, sbitmap from, sbitmap to);
 int longest_simple_path (ddg_ptr, int from, int to, sbitmap via);
+
+bool autoinc_var_is_used_p (rtx, rtx);
 
 #endif /* GCC_DDG_H */

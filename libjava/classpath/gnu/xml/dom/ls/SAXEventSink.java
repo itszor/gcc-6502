@@ -1,4 +1,4 @@
-/* SAXEventSink.java -- 
+/* SAXEventSink.java --
    Copyright (C) 1999,2000,2001 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -89,14 +89,14 @@ public class SAXEventSink
     PREDEFINED_ENTITIES.add("apos");
   }
 
-  boolean namespaceAware;
+  private boolean namespaceAware;
   boolean ignoreWhitespace;
   boolean expandEntityReferences;
   boolean ignoreComments;
   boolean coalescing;
 
   XMLReader reader; // reference back to the parser to get features
-  
+
   DomDocument doc; // document being constructed
   Node ctx; // current context (parent node)
   LinkedList entityCtx; // entity context
@@ -122,10 +122,15 @@ public class SAXEventSink
   }
 
   // -- ContentHandler2 --
-  
+
   public void setDocumentLocator(Locator locator)
   {
     this.locator = locator;
+  }
+
+  public void setNamespaceAware(boolean namespaceAware)
+  {
+    this.namespaceAware = namespaceAware;
   }
 
   public void startDocument()
@@ -373,7 +378,7 @@ public class SAXEventSink
   }
 
   // -- LexicalHandler --
-  
+
   public void startDTD(String name, String publicId, String systemId)
     throws SAXException
   {
@@ -529,7 +534,7 @@ public class SAXEventSink
   }
 
   // -- DeclHandler --
-  
+
   public void elementDecl(String name, String model)
     throws SAXException
   {
@@ -594,6 +599,5 @@ public class SAXEventSink
     DomDoctype doctype = (DomDoctype) ctx;
     Entity entity = doctype.declareEntity(name, publicId, systemId, null);
   }
-  
-}
 
+}

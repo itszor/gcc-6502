@@ -1,4 +1,4 @@
-/* XMLStreamWriterImpl.java -- 
+/* XMLStreamWriterImpl.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -84,7 +84,7 @@ public class XMLStreamWriterImpl
    * in scope.
    */
   protected NamespaceContext namespaceContext;
-  
+
   /**
    * The stack of elements in scope.
    * Used to close the remaining elements.
@@ -100,7 +100,7 @@ public class XMLStreamWriterImpl
    * Whether we are in an empty element.
    */
   private boolean emptyElement;
-  
+
   private NamespaceSupport namespaces;
   private int count = 0;
 
@@ -153,10 +153,10 @@ public class XMLStreamWriterImpl
 
         endStartElement();
         namespaces.pushContext();
-        
+
         writer.write('<');
         writer.write(localName);
-        
+
         elements.addLast(new String[] { null, localName });
         inStartElement = true;
       }
@@ -180,7 +180,7 @@ public class XMLStreamWriterImpl
 
         endStartElement();
         namespaces.pushContext();
-        
+
         String prefix = getPrefix(namespaceURI);
         boolean isDeclared = (prefix != null);
         if (!isDeclared)
@@ -203,7 +203,7 @@ public class XMLStreamWriterImpl
           {
             writeNamespaceImpl(prefix, namespaceURI);
           }
-        
+
         elements.addLast(new String[] { prefix, localName });
       }
     catch (IOException e)
@@ -242,14 +242,14 @@ public class XMLStreamWriterImpl
       {
         if (namespaceURI != null && !isURI(namespaceURI))
           throw new IllegalArgumentException("illegal URI: " + namespaceURI);
-        if (prefix != null && !isNCName(prefix))
+        if (prefix != null && !isPrefix(prefix))
           throw new IllegalArgumentException("illegal NCName: " + prefix);
         if (!isNCName(localName))
           throw new IllegalArgumentException("illegal NCName: " + localName);
 
         endStartElement();
         namespaces.pushContext();
-        
+
         String currentPrefix = getPrefix(namespaceURI);
         boolean isCurrent = prefix.equals(currentPrefix);
         writer.write('<');
@@ -263,7 +263,7 @@ public class XMLStreamWriterImpl
           {
             writeNamespaceImpl(prefix, namespaceURI);
           }
-        
+
         elements.addLast(new String[] { prefix, localName });
         inStartElement = true;
       }
@@ -394,7 +394,7 @@ public class XMLStreamWriterImpl
       {
         if (namespaceURI != null && !isURI(namespaceURI))
           throw new IllegalArgumentException("illegal URI: " + namespaceURI);
-        if (prefix != null && !isNCName(prefix))
+        if (prefix != null && !isPrefix(prefix))
           throw new IllegalArgumentException("illegal NCName: " + prefix);
         if (!isNCName(localName))
           throw new IllegalArgumentException("illegal NCName: " + localName);
@@ -451,7 +451,7 @@ public class XMLStreamWriterImpl
           throw new IllegalArgumentException("illegal Name: " + localName);
         if (!isChars(value))
           throw new IllegalArgumentException("illegal character: " + value);
-        
+
         String prefix = getPrefix(namespaceURI);
         if (prefix == null)
           {
@@ -490,13 +490,18 @@ public class XMLStreamWriterImpl
   public void writeNamespace(String prefix, String namespaceURI)
     throws XMLStreamException
   {
+    if (prefix == null || "".equals(prefix) || "xmlns".equals(prefix))
+    {
+      writeDefaultNamespace(namespaceURI);
+      return;
+    }
     if (!inStartElement)
       throw new IllegalStateException();
     try
       {
         if (!isURI(namespaceURI))
           throw new IllegalArgumentException("illegal URI: " + namespaceURI);
-        if (!isNCName(prefix))
+        if (!isPrefix(prefix))
           throw new IllegalArgumentException("illegal NCName: " + prefix);
       }
     catch (IOException e)
@@ -517,7 +522,7 @@ public class XMLStreamWriterImpl
           prefix = XMLConstants.DEFAULT_NS_PREFIX;
 
         setPrefix(prefix, namespaceURI);
-        
+
         writer.write(' ');
         writer.write("xmlns");
         if (!XMLConstants.DEFAULT_NS_PREFIX.equals(prefix))
@@ -561,7 +566,7 @@ public class XMLStreamWriterImpl
           throw new IllegalArgumentException("illegal comment: " + data);
 
         endStartElement();
-        
+
         writer.write("<!--");
         if (hasXML11RestrictedChars)
           {
@@ -646,7 +651,7 @@ public class XMLStreamWriterImpl
           throw new IllegalArgumentException("illegal XML character: " + data);
         if (data.indexOf("]]") != -1)
           throw new IllegalArgumentException("illegal CDATA section: " + data);
-        
+
         endStartElement();
 
         writer.write("<![CDATA[");
@@ -790,7 +795,7 @@ public class XMLStreamWriterImpl
       {
         if (!isURI(uri))
           throw new IllegalArgumentException("illegal URI: " + uri);
-        if (!isNCName(prefix))
+        if (!isPrefix(prefix))
           throw new IllegalArgumentException("illegal NCName: " + prefix);
       }
     catch (IOException e)
@@ -938,6 +943,15 @@ public class XMLStreamWriterImpl
     return true;
   }
 
+  private boolean isPrefix(String text)
+    throws IOException
+  {
+    if (XMLConstants.DEFAULT_NS_PREFIX.equals(text)) {
+        return true;
+    }
+    return isNCName(text);
+  }
+
   private boolean isNCName(String text)
     throws IOException
   {
@@ -998,6 +1012,5 @@ public class XMLStreamWriterImpl
       }
     return true;
   }
-  
-}
 
+}

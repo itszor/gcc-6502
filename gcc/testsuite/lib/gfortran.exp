@@ -1,4 +1,4 @@
-# Copyright (C) 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,9 @@
 #
 load_lib prune.exp
 load_lib gcc-defs.exp
+load_lib timeout.exp
 load_lib target-libpath.exp
+load_lib target-supports.exp
 
 #
 # GFORTRAN_UNDER_TEST is the compiler under test.
@@ -87,6 +89,9 @@ proc gfortran_link_flags { paths } {
 
     if { $gccpath != "" } {
       if [file exists "${gccpath}/libgfortran/.libs/libgfortran.a"] {
+          # Some targets use libgfortran.a%s in their specs, so they need a -B option
+          # for uninstalled testing.
+          append flags "-B${gccpath}/libgfortran/.libs "
           append flags "-L${gccpath}/libgfortran/.libs "
           append ld_library_path ":${gccpath}/libgfortran/.libs"
       }
@@ -97,11 +102,22 @@ proc gfortran_link_flags { paths } {
       if [file exists "${gccpath}/libgfortran/libgforbegin.a"] {
           append flags "-L${gccpath}/libgfortran "
       }
+      if [file exists "${gccpath}/libquadmath/.libs/libquadmath.a"] {
+          # Some targets use libquadmath.a%s in their specs, so they need a -B option
+          # for uninstalled testing.
+          append flags "-B${gccpath}/libquadmath/.libs "
+          append flags "-L${gccpath}/libquadmath/.libs "
+          append ld_library_path ":${gccpath}/libquadmath/.libs"
+      }
+      if [file exists "${gccpath}/libquadmath/.libs/libquadmath.${shlib_ext}"] {
+	  append flags "-L${gccpath}/libquadmath/.libs "
+	  append ld_library_path ":${gccpath}/libquadmath/.libs"
+      }
       if [file exists "${gccpath}/libiberty/libiberty.a"] {
           append flags "-L${gccpath}/libiberty "
       }
       append ld_library_path \
-	[gcc-set-multilib-library-path $GFORTRAN_UNDER_TEST]
+	[gcc-set-multilib-library-path $GFORTRAN_UNDER_TEST ]
     }
 
     set_ld_library_path_env_vars
@@ -125,10 +141,23 @@ proc gfortran_init { args } {
     global TOOL_EXECUTABLE TOOL_OPTIONS
     global GFORTRAN_UNDER_TEST
     global TESTING_IN_BUILD_TREE
+    global gcc_warning_prefix
+    global gcc_error_prefix
+    global TEST_ALWAYS_FLAGS
 
     # We set LC_ALL and LANG to C so that we get the same error messages as expected.
     setenv LC_ALL C
     setenv LANG C
+
+    set gcc_warning_prefix "\[Ww\]arning:"
+    set gcc_error_prefix "(Fatal )?\[Ee\]rror:"
+
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
 
     if ![info exists GFORTRAN_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {
@@ -137,7 +166,12 @@ proc gfortran_init { args } {
 	    if { [is_remote host] || ! [info exists TESTING_IN_BUILD_TREE] } {
 		set GFORTRAN_UNDER_TEST [transform gfortran]
 	    } else {
-		set GFORTRAN_UNDER_TEST [findfile $base_dir/../../gfortran "$base_dir/../../gfortran -B$base_dir/../../" [findfile $base_dir/gfortran "$base_dir/gfortran -B$base_dir/" [transform gfortran]]]
+		if [info exists TOOL_OPTIONS] {
+	            set specpath [get_multilibs ${TOOL_OPTIONS}]
+		} else {
+		    set specpath [get_multilibs]
+		}
+		set GFORTRAN_UNDER_TEST [findfile $base_dir/../../gfortran "$base_dir/../../gfortran -B$base_dir/../../ -B$specpath/libgfortran/" [findfile $base_dir/gfortran "$base_dir/gfortran -B$base_dir/" [transform gfortran]]]
 	    }
 	}
     }
@@ -160,6 +194,13 @@ proc gfortran_init { args } {
 
     set ALWAYS_GFORTRANFLAGS ""
 
+    # TEST_ALWAYS_FLAGS are flags that should be passed to every
+    # compilation.  They are passed first to allow individual
+    # tests to override them.
+    if [info exists TEST_ALWAYS_FLAGS] {
+	lappend ALWAYS_GFORTRANFLAGS "additional_flags=$TEST_ALWAYS_FLAGS"
+    }
+
     if ![is_remote host] {
 	if [info exists TOOL_OPTIONS] {
 	    lappend ALWAYS_GFORTRANFLAGS "ldflags=[gfortran_link_flags [get_multilibs ${TOOL_OPTIONS}] ]"
@@ -170,6 +211,13 @@ proc gfortran_init { args } {
 
     if [info exists TOOL_OPTIONS] {
 	lappend ALWAYS_GFORTRANFLAGS "additional_flags=$TOOL_OPTIONS"
+    }
+
+    # On the SPU, most of the fortran test cases exceed local store size.
+    # Use automatic overlay support to make them fit.
+    if { [check_effective_target_spu_auto_overlay] } {
+	lappend ALWAYS_GFORTRANFLAGS "ldflags=-Wl,--auto-overlay"
+	lappend ALWAYS_GFORTRANFLAGS "ldflags=-Wl,--reserved-space=131072"
     }
 
     verbose -log "ALWAYS_GFORTRANFLAGS set to $ALWAYS_GFORTRANFLAGS"
@@ -193,6 +241,7 @@ proc gfortran_target_compile { source dest type options } {
     }
 
     lappend options "compiler=$GFORTRAN_UNDER_TEST"
+    lappend options "timeout=[timeout_value]"
 
     set options [concat "$ALWAYS_GFORTRANFLAGS" $options]
     set options [dg-additional-files-options $options $source]

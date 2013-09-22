@@ -1,5 +1,5 @@
 /* SoundbankResource.java -- An audio resource from a sound bank
-   Copyright (C) 2005 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -40,7 +40,7 @@ package javax.sound.midi;
 
 /**
  * SoundbankResource objects represent audio data stored in a sound bank.
- * 
+ *
  * @author Anthony Green (green@redhat.com)
  * @since 1.3
  *
@@ -49,55 +49,55 @@ public abstract class SoundbankResource
 {
   private final Soundbank soundbank;
   private final String name;
-  private final Class dataClass;
-  
+  private final Class<?> dataClass;
+
   /**
    * Create a SoundbankResource object.
-   * 
+   *
    * @param soundbank the soundbank object containing this resource
    * @param name the name of the resource
    * @param dataClass the class used to represent the audio data
    */
   protected SoundbankResource(Soundbank soundbank, String name, Class<?> dataClass)
   {
-    this.soundbank = soundbank;   
+    this.soundbank = soundbank;
     this.name = name;
     this.dataClass = dataClass;
   }
-  
+
   /**
    * Get the sound bank containing this resource.
-   * 
+   *
    * @return the sound bank in which this resource resides
    */
   public Soundbank getSoundbank()
   {
     return soundbank;
   }
-  
+
   /**
    * Get the name of this resource.
-   * 
+   *
    * @return the name of this resource
    */
   public String getName()
   {
     return name;
   }
-  
+
   /**
    * Get the class used to represent the audio data for this resource.
-   * 
+   *
    * @return the class used to represent the audio data for this resource
    */
   public Class<?> getDataClass()
   {
     return dataClass;
   }
-  
+
   /**
    * Get the audio data for this resource.
-   * 
+   *
    * @return the audio data object for this resource
    */
   public abstract Object getData();

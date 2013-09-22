@@ -1,6 +1,5 @@
 /* Miscellaneous stuff that doesn't fit anywhere else.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -21,42 +20,8 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "coretypes.h"
 #include "gfortran.h"
-
-/* Get a block of memory.  Many callers assume that the memory we
-   return is zeroed.  */
-
-void *
-gfc_getmem (size_t n)
-{
-  void *p;
-
-  if (n == 0)
-    return NULL;
-
-  p = xmalloc (n);
-  if (p == NULL)
-    gfc_fatal_error ("Out of memory-- malloc() failed");
-  memset (p, 0, n);
-  return p;
-}
-
-
-/* gfortran.h defines free to something that triggers a syntax error,
-   but we need free() here.  */
-
-#define temp free
-#undef free
-
-void
-gfc_free (void *p)
-{
-  if (p != NULL)
-    free (p);
-}
-
-#define free temp
-#undef temp
 
 
 /* Get terminal width.  */
@@ -74,15 +39,17 @@ void
 gfc_clear_ts (gfc_typespec *ts)
 {
   ts->type = BT_UNKNOWN;
-  ts->derived = NULL;
+  ts->u.derived = NULL;
   ts->kind = 0;
-  ts->cl = NULL;
+  ts->u.cl = NULL;
+  ts->interface = NULL;
   /* flag that says if the type is C interoperable */
   ts->is_c_interop = 0;
   /* says what f90 type the C kind interops with */
   ts->f90_type = BT_UNKNOWN;
   /* flag that says whether it's from iso_c_binding or not */
   ts->is_iso_c = 0;
+  ts->deferred = false;
 }
 
 
@@ -91,16 +58,8 @@ gfc_clear_ts (gfc_typespec *ts)
 FILE *
 gfc_open_file (const char *name)
 {
-  struct stat statbuf;
-
   if (!*name)
     return stdin;
-
-  if (stat (name, &statbuf) < 0)
-    return NULL;
-
-  if (!S_ISREG (statbuf.st_mode))
-    return NULL;
 
   return fopen (name, "r");
 }
@@ -136,6 +95,9 @@ gfc_basic_typename (bt type)
     case BT_DERIVED:
       p = "DERIVED";
       break;
+    case BT_CLASS:
+      p = "CLASS";
+      break;
     case BT_PROCEDURE:
       p = "PROCEDURE";
       break;
@@ -144,6 +106,9 @@ gfc_basic_typename (bt type)
       break;
     case BT_UNKNOWN:
       p = "UNKNOWN";
+      break;
+    case BT_ASSUMED:
+      p = "TYPE(*)";
       break;
     default:
       gfc_internal_error ("gfc_basic_typename(): Undefined type");
@@ -189,7 +154,17 @@ gfc_typename (gfc_typespec *ts)
       sprintf (buffer, "HOLLERITH");
       break;
     case BT_DERIVED:
-      sprintf (buffer, "TYPE(%s)", ts->derived->name);
+      sprintf (buffer, "TYPE(%s)", ts->u.derived->name);
+      break;
+    case BT_CLASS:
+      ts = &ts->u.derived->components->ts;
+      if (ts->u.derived->attr.unlimited_polymorphic)
+	sprintf (buffer, "CLASS(*)");
+      else
+	sprintf (buffer, "CLASS(%s)", ts->u.derived->name);
+      break;
+    case BT_ASSUMED:
+      sprintf (buffer, "TYPE(*)");
       break;
     case BT_PROCEDURE:
       strcpy (buffer, "PROCEDURE");

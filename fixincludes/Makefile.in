@@ -1,13 +1,13 @@
 # Makefile for fixincludes.
 #
-#   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004
+#   Copyright (C) 1998, 1999, 2000, 2001, 2003, 2004, 2009, 2010, 2012
 #   Free Software Foundation, Inc.
 
 #This file is part of fixincludes.
 
 #fixincludes is free software; you can redistribute it and/or modify
 #it under the terms of the GNU General Public License as published by
-#the Free Software Foundation; either version 2, or (at your option)
+#the Free Software Foundation; either version 3, or (at your option)
 #any later version.
 
 #fixincludes is distributed in the hope that it will be useful,
@@ -16,9 +16,8 @@
 #GNU General Public License for more details.
 
 #You should have received a copy of the GNU General Public License
-#along with fixincludes; see the file COPYING.  If not, write to
-#the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-#Boston, MA 02110-1301, USA.
+#along with fixincludes; see the file COPYING3.  If not see
+#<http://www.gnu.org/licenses/>.
 
 SHELL=@SHELL@
 
@@ -63,6 +62,11 @@ itoolsdatadir = $(libsubdir)/install-tools
 
 # Locate mkinstalldirs.
 mkinstalldirs=$(SHELL) $(srcdir)/../mkinstalldirs
+
+AUTOCONF = autoconf
+AUTOHEADER = autoheader
+ACLOCAL = aclocal
+ACLOCAL_AMFLAGS = -I .. -I ../config
 
 default : all
 
@@ -159,14 +163,14 @@ stamp-h: $(srcdir)/config.h.in config.status
 config.status: $(srcdir)/configure
 	$(SHELL) ./config.status --recheck
 
-$(srcdir)/configure: @MAINT@ $(srcdir)/configure.ac
-	cd $(srcdir) && autoconf
+$(srcdir)/configure: @MAINT@ $(srcdir)/configure.ac $(srcdir)/aclocal.m4
+	cd $(srcdir) && $(AUTOCONF)
 
 $(srcdir)/config.h.in: @MAINT@ $(srcdir)/configure.ac
-	cd $(srcdir) && autoheader
+	cd $(srcdir) && $(AUTOHEADER)
 
-$(srcdir)/aclocal.m4: @MAINT@ $(srcdir)/../gcc/aclocal.m4
-	cp $(srcdir)/../gcc/aclocal.m4 .
+$(srcdir)/aclocal.m4: @MAINT@ $(srcdir)/configure.ac
+	cd $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 
 check : all
 	autogen -T $(srcdir)/check.tpl $(srcdir)/inclhack.def
@@ -184,6 +188,11 @@ install : all
 	  $(DESTDIR)$(itoolsdir)/fixincl@EXEEXT@
 	$(INSTALL_SCRIPT) mkheaders $(DESTDIR)$(itoolsdir)/mkheaders
 
+install-strip: install
+	test -z '$(STRIP)' \
+	  || $(STRIP) $(DESTDIR)$(itoolsdir)/fixincl@EXEEXT@
+
+.PHONY: all check install install-strip
 .PHONY: dvi pdf info html install-pdf install-info install-html
 
 dvi :

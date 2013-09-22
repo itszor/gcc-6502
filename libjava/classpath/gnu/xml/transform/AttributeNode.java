@@ -1,4 +1,4 @@
-/* AttributeNode.java -- 
+/* AttributeNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerException;
@@ -59,7 +61,7 @@ final class AttributeNode
   final TemplateNode name;
   final TemplateNode namespace;
   final Node source;
-  
+
   AttributeNode(TemplateNode name,
                 TemplateNode namespace, Node source)
   {
@@ -96,10 +98,10 @@ final class AttributeNode
                fragment, null);
     // Use XPath string-value of fragment
     String nameValue = Expr.stringValue(fragment);
-  
+
     String namespaceValue = null;
     if (namespace != null)
-      {  
+      {
         // Create a document fragment to hold the namespace
         fragment = doc.createDocumentFragment();
         // Apply namespace to the fragment
@@ -111,7 +113,7 @@ final class AttributeNode
         if (namespaceValue.length() == 0)
           namespaceValue = null;
       }
-    
+
     String prefix = getPrefix(nameValue);
     if (namespaceValue == null)
       {
@@ -228,15 +230,15 @@ final class AttributeNode
       return true;
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("attribute");
+    CPStringBuilder buf = new CPStringBuilder("attribute");
     buf.append('[');
     buf.append("name=");
     buf.append(name);
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

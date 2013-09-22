@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,21 +14,19 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -37,22 +35,21 @@
 
 --  This version of Ada.Exceptions is a full Ada 95 version. It omits Ada 2005
 --  features such as the additional definitions of Exception_Name returning
---  Wide_[Wide_]String.
+--  Wide_[Wide_]String. It differs from the Ada 95 version only in that it is
+--  declared Preelaborate (see declaration below for why this is done).
 
 --  It is used for building the compiler and the basic tools, since these
 --  builds may be done with bootstrap compilers that cannot handle these
 --  additions. The full version of Ada.Exceptions can be found in the files
 --  a-except-2005.ads/adb, and is used for all other builds where full Ada
---  2005 functionality is required. in particular, it is used for building
+--  2005 functionality is required. In particular, it is used for building
 --  run times on all targets.
+
+pragma Compiler_Unit;
 
 pragma Polling (Off);
 --  We must turn polling off for this unit, because otherwise we get
 --  elaboration circularities with ourself.
-
-pragma Warnings (Off);
-pragma Compiler_Unit;
-pragma Warnings (On);
 
 with System;
 with System.Parameters;
@@ -60,12 +57,10 @@ with System.Standard_Library;
 with System.Traceback_Entries;
 
 package Ada.Exceptions is
-   pragma Warnings (Off);
-   pragma Preelaborate_05;
-   pragma Warnings (On);
-   --  We make this preelaborable in Ada 2005 mode. If we did not do this, then
-   --  run time units used by the compiler (e.g. s-soflin.ads) would run
-   --  into trouble. Conformance is not an issue, since this version is used
+   pragma Preelaborate;
+   --  We make this preelaborable. If we did not do this, then run time units
+   --  used by the compiler (e.g. s-soflin.ads) would run into trouble.
+   --  Conformance with Ada 95 is not an issue, since this version is used
    --  only by the compiler.
 
    type Exception_Id is private;
@@ -84,12 +79,8 @@ package Ada.Exceptions is
    function Exception_Name (Id : Exception_Id) return String;
 
    procedure Raise_Exception (E : Exception_Id; Message : String := "");
-   --  Note: it would be really nice to give a pragma No_Return for this
-   --  procedure, but it would be wrong, since Raise_Exception does return if
-   --  given the null exception in Ada 95 mode. However we do special case the
-   --  name in the test in the compiler for issuing a warning for a missing
-   --  return after this call. Program_Error seems reasonable enough in such a
-   --  case. See also the routine Raise_Exception_Always in the private part.
+   pragma No_Return (Raise_Exception);
+   --  Note: In accordance with AI-466, CE is raised if E = Null_Id
 
    function Exception_Message (X : Exception_Occurrence) return String;
 
@@ -183,10 +174,10 @@ private
    pragma No_Return (Raise_Exception_Always);
    pragma Export (Ada, Raise_Exception_Always, "__gnat_raise_exception");
    --  This differs from Raise_Exception only in that the caller has determined
-   --  that for sure the parameter E is not null, and that therefore the call
-   --  to this procedure cannot return. The expander converts Raise_Exception
-   --  calls to Raise_Exception_Always if it can determine this is the case.
-   --  The Export allows this routine to be accessed from Pure units.
+   --  that for sure the parameter E is not null, and that therefore no check
+   --  for Null_Id is required. The expander converts Raise_Exception calls to
+   --  Raise_Exception_Always if it can determine this is the case. The Export
+   --  allows this routine to be accessed from Pure units.
 
    procedure Raise_From_Signal_Handler
      (E : Exception_Id;
@@ -209,8 +200,18 @@ private
    procedure Raise_From_Controlled_Operation
      (X : Ada.Exceptions.Exception_Occurrence);
    pragma No_Return (Raise_From_Controlled_Operation);
-   --  Raise Program_Error, proviving information about X (an exception
-   --  raised during a controlled operation) in the exception message.
+   pragma Export
+     (Ada, Raise_From_Controlled_Operation,
+           "__gnat_raise_from_controlled_operation");
+   --  Raise Program_Error, providing information about X (an exception raised
+   --  during a controlled operation) in the exception message.
+
+   procedure Reraise_Library_Exception_If_Any;
+   pragma Export
+     (Ada, Reraise_Library_Exception_If_Any,
+           "__gnat_reraise_library_exception_if_any");
+   --  If there was an exception raised during library-level finalization,
+   --  reraise the exception.
 
    procedure Reraise_Occurrence_Always (X : Exception_Occurrence);
    pragma No_Return (Reraise_Occurrence_Always);
@@ -226,6 +227,10 @@ private
    --  occurrence. This is used in generated code when it is known that
    --  abort is already deferred.
 
+   function Triggered_By_Abort return Boolean;
+   --  Determine whether the current exception (if it exists) is an instance of
+   --  Standard'Abort_Signal.
+
    -----------------------
    -- Polling Interface --
    -----------------------
@@ -240,7 +245,7 @@ private
    --  purposes (e.g. implementing watchpoints in software or in the debugger).
 
    --  In the GNAT technology itself, this interface is used to implement
-   --  immediate aynschronous transfer of control and immediate abort on
+   --  immediate asynchronous transfer of control and immediate abort on
    --  targets which do not provide for one thread interrupting another.
 
    --  Note: this used to be in a separate unit called System.Poll, but that
@@ -266,22 +271,12 @@ private
    type Exception_Occurrence is record
       Id : Exception_Id;
       --  Exception_Identity for this exception occurrence
-      --  WARNING System.System.Finalization_Implementation.Finalize_List
-      --  relies on the fact that this field is always first in the exception
-      --  occurrence
 
       Msg_Length : Natural := 0;
       --  Length of message (zero = no message)
 
       Msg : String (1 .. Exception_Msg_Max_Length);
       --  Characters of message
-
-      Cleanup_Flag : Boolean := False;
-      --  The cleanup flag is normally False, it is set True for an exception
-      --  occurrence passed to a cleanup routine, and will still be set True
-      --  when the cleanup routine does a Reraise_Occurrence call using this
-      --  exception occurrence. This is used to avoid recording a bogus trace
-      --  back entry from this reraise call.
 
       Exception_Raised : Boolean := False;
       --  Set to true to indicate that this exception occurrence has actually
@@ -300,11 +295,6 @@ private
 
       Tracebacks : Tracebacks_Array;
       --  Stored tracebacks (in Tracebacks (1 .. Num_Tracebacks))
-
-      Private_Data : System.Address := System.Null_Address;
-      --  Field used by low level exception mechanism to store specific data.
-      --  Currently used by the GCC exception mechanism to store a pointer to
-      --  a GNAT_GCC_Exception.
    end record;
 
    function "=" (Left, Right : Exception_Occurrence) return Boolean
@@ -322,11 +312,9 @@ private
      Id               => null,
      Msg_Length       => 0,
      Msg              => (others => ' '),
-     Cleanup_Flag     => False,
      Exception_Raised => False,
      Pid              => 0,
      Num_Tracebacks   => 0,
-     Tracebacks       => (others => TBE.Null_TB_Entry),
-     Private_Data     => System.Null_Address);
+     Tracebacks       => (others => TBE.Null_TB_Entry));
 
 end Ada.Exceptions;

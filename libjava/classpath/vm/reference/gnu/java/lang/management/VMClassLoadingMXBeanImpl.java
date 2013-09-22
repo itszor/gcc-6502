@@ -1,5 +1,5 @@
 /* VMClassLoadingMXBeanImpl.java - VM impl. of a class loading bean
-   Copyright (C) 2006 Free Software Foundation
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -38,7 +38,7 @@ exception statement from your version. */
 package gnu.java.lang.management;
 
 /**
- * Provides access to information about the class loading 
+ * Provides access to information about the class loading
  * behaviour of the current invocation of the virtual
  * machine.  Instances of this bean are obtained by calling
  * {@link ManagementFactory#getClassLoadingMXBean()}.
@@ -48,6 +48,8 @@ package gnu.java.lang.management;
  */
 final class VMClassLoadingMXBeanImpl
 {
+
+  private VMClassLoadingMXBeanImpl() {} // Prohibits instantiation.
 
   /**
    * Returns the number of classes currently loaded by

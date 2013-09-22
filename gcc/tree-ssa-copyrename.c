@@ -1,5 +1,5 @@
 /* Rename SSA copies.
-   Copyright (C) 2004, 2006, 2007, 2008 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
    Contributed by Andrew MacLeod <amacleod@redhat.com>
 
 This file is part of GCC.
@@ -23,20 +23,25 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "gimple.h"
 #include "flags.h"
 #include "basic-block.h"
 #include "function.h"
-#include "diagnostic.h"
+#include "tree-pretty-print.h"
 #include "bitmap.h"
 #include "tree-flow.h"
-#include "tree-gimple.h"
+#include "gimple.h"
 #include "tree-inline.h"
-#include "timevar.h"
 #include "hashtab.h"
-#include "tree-dump.h"
 #include "tree-ssa-live.h"
 #include "tree-pass.h"
 #include "langhooks.h"
+
+static struct
+{
+  /* Number of copies coalesced.  */
+  int coalesced;
+} stats;
 
 /* The following routines implement the SSA copy renaming phase.
 
@@ -49,22 +54,22 @@ along with GCC; see the file COPYING3.  If not see
    T.3_5 = <blah>
    a_1 = T.3_5
 
-   If this copy couldn't be copy propagated, it could possibly remain in the 
-   program throughout the optimization phases.   After SSA->normal, it would 
+   If this copy couldn't be copy propagated, it could possibly remain in the
+   program throughout the optimization phases.   After SSA->normal, it would
    become:
 
    T.3 = <blah>
    a = T.3
-   
-   Since T.3_5 is distinct from all other SSA versions of T.3, there is no 
-   fundamental reason why the base variable needs to be T.3, subject to 
-   certain restrictions.  This optimization attempts to determine if we can 
+
+   Since T.3_5 is distinct from all other SSA versions of T.3, there is no
+   fundamental reason why the base variable needs to be T.3, subject to
+   certain restrictions.  This optimization attempts to determine if we can
    change the base variable on copies like this, and result in code such as:
 
    a_5 = <blah>
    a_1 = a_5
 
-   This gives the SSA->normal pass a shot at coalescing a_1 and a_5. If it is 
+   This gives the SSA->normal pass a shot at coalescing a_1 and a_5. If it is
    possible, the copy goes away completely. If it isn't possible, a new temp
    will be created for a_5, and you will end up with the exact same code:
 
@@ -78,8 +83,8 @@ along with GCC; see the file COPYING3.  If not see
    a_1 = <blah>
    <blah2> = a_1
 
-   get turned into 
-    
+   get turned into
+
    T.3_5 = <blah>
    a_1 = T.3_5
    <blah2> = a_1
@@ -98,7 +103,7 @@ along with GCC; see the file COPYING3.  If not see
    <blah2> = a_1
 
    which copy propagation would then turn into:
-   
+
    a_5 = <blah>
    <blah2> = a_5
 
@@ -108,13 +113,12 @@ along with GCC; see the file COPYING3.  If not see
 /* Coalesce the partitions in MAP representing VAR1 and VAR2 if it is valid.
    Choose a representative for the partition, and send debug info to DEBUG.  */
 
-static bool
+static void
 copy_rename_partition_coalesce (var_map map, tree var1, tree var2, FILE *debug)
 {
   int p1, p2, p3;
   tree root1, root2;
   tree rep1, rep2;
-  var_ann_t ann1, ann2, ann3;
   bool ign1, ign2, abnorm;
 
   gcc_assert (TREE_CODE (var1) == SSA_NAME);
@@ -138,20 +142,19 @@ copy_rename_partition_coalesce (var_map map, tree var1, tree var2, FILE *debug)
   gcc_assert (p1 != NO_PARTITION);
   gcc_assert (p2 != NO_PARTITION);
 
-  rep1 = partition_to_var (map, p1);
-  rep2 = partition_to_var (map, p2);
-  root1 = SSA_NAME_VAR (rep1);
-  root2 = SSA_NAME_VAR (rep2);
-
-  ann1 = var_ann (root1);
-  ann2 = var_ann (root2);
-
   if (p1 == p2)
     {
       if (debug)
 	fprintf (debug, " : Already coalesced.\n");
-      return false;
+      return;
     }
+
+  rep1 = partition_to_var (map, p1);
+  rep2 = partition_to_var (map, p2);
+  root1 = SSA_NAME_VAR (rep1);
+  root2 = SSA_NAME_VAR (rep2);
+  if (!root1 && !root2)
+    return;
 
   /* Don't coalesce if one of the variables occurs in an abnormal PHI.  */
   abnorm = (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (rep1)
@@ -160,7 +163,7 @@ copy_rename_partition_coalesce (var_map map, tree var1, tree var2, FILE *debug)
     {
       if (debug)
 	fprintf (debug, " : Abnormal PHI barrier.  No coalesce.\n");
-      return false;
+      return;
     }
 
   /* Partitions already have the same root, simply merge them.  */
@@ -169,62 +172,55 @@ copy_rename_partition_coalesce (var_map map, tree var1, tree var2, FILE *debug)
       p1 = partition_union (map->var_partition, p1, p2);
       if (debug)
 	fprintf (debug, " : Same root, coalesced --> P%d.\n", p1);
-      return false;
+      return;
     }
 
-  /* Never attempt to coalesce 2 difference parameters.  */
-  if (TREE_CODE (root1) == PARM_DECL && TREE_CODE (root2) == PARM_DECL)
+  /* Never attempt to coalesce 2 different parameters.  */
+  if ((root1 && TREE_CODE (root1) == PARM_DECL)
+      && (root2 && TREE_CODE (root2) == PARM_DECL))
     {
       if (debug)
         fprintf (debug, " : 2 different PARM_DECLS. No coalesce.\n");
-      return false;
+      return;
     }
 
-  if ((TREE_CODE (root1) == RESULT_DECL) != (TREE_CODE (root2) == RESULT_DECL))
+  if ((root1 && TREE_CODE (root1) == RESULT_DECL)
+      != (root2 && TREE_CODE (root2) == RESULT_DECL))
     {
       if (debug)
         fprintf (debug, " : One root a RESULT_DECL. No coalesce.\n");
-      return false;
+      return;
     }
 
-  ign1 = TREE_CODE (root1) == VAR_DECL && DECL_IGNORED_P (root1);
-  ign2 = TREE_CODE (root2) == VAR_DECL && DECL_IGNORED_P (root2);
+  ign1 = !root1 || (TREE_CODE (root1) == VAR_DECL && DECL_IGNORED_P (root1));
+  ign2 = !root2 || (TREE_CODE (root2) == VAR_DECL && DECL_IGNORED_P (root2));
 
-  /* Never attempt to coalesce 2 user variables unless one is an inline 
-     variable.  */
+  /* Refrain from coalescing user variables, if requested.  */
   if (!ign1 && !ign2)
     {
-      if (DECL_FROM_INLINE (root2))
-        ign2 = true;
-      else if (DECL_FROM_INLINE (root1))
+      if (flag_ssa_coalesce_vars && DECL_FROM_INLINE (root2))
+	ign2 = true;
+      else if (flag_ssa_coalesce_vars && DECL_FROM_INLINE (root1))
 	ign1 = true;
-      else 
+      else if (flag_ssa_coalesce_vars != 2)
 	{
 	  if (debug)
 	    fprintf (debug, " : 2 different USER vars. No coalesce.\n");
-	  return false;
+	  return;
 	}
+      else
+	ign2 = true;
     }
 
-  /* Don't coalesce if there are two different memory tags.  */
-  if (ann1->symbol_mem_tag
-      && ann2->symbol_mem_tag
-      && ann1->symbol_mem_tag != ann2->symbol_mem_tag)
-    {
-      if (debug)
-	fprintf (debug, " : 2 memory tags. No coalesce.\n");
-      return false;
-    }
-
-  /* If both values have default defs, we can't coalesce.  If only one has a 
+  /* If both values have default defs, we can't coalesce.  If only one has a
      tag, make sure that variable is the new root partition.  */
-  if (gimple_default_def (cfun, root1))
+  if (root1 && ssa_default_def (cfun, root1))
     {
-      if (gimple_default_def (cfun, root2))
+      if (root2 && ssa_default_def (cfun, root2))
 	{
 	  if (debug)
 	    fprintf (debug, " : 2 default defs. No coalesce.\n");
-	  return false;
+	  return;
 	}
       else
         {
@@ -232,67 +228,73 @@ copy_rename_partition_coalesce (var_map map, tree var1, tree var2, FILE *debug)
 	  ign1 = false;
 	}
     }
-  else if (gimple_default_def (cfun, root2))
+  else if (root2 && ssa_default_def (cfun, root2))
     {
       ign1 = true;
       ign2 = false;
     }
 
-  /* Don't coalesce if the two variables aren't type compatible.  */
-  if (!types_compatible_p (TREE_TYPE (root1), TREE_TYPE (root2)))
+  /* Do not coalesce if we cannot assign a symbol to the partition.  */
+  if (!(!ign2 && root2)
+      && !(!ign1 && root1))
+    {
+      if (debug)
+	fprintf (debug, " : Choosen variable has no root.  No coalesce.\n");
+      return;
+    }
+
+  /* Don't coalesce if the new chosen root variable would be read-only.
+     If both ign1 && ign2, then the root var of the larger partition
+     wins, so reject in that case if any of the root vars is TREE_READONLY.
+     Otherwise reject only if the root var, on which replace_ssa_name_symbol
+     will be called below, is readonly.  */
+  if (((root1 && TREE_READONLY (root1)) && ign2)
+      || ((root2 && TREE_READONLY (root2)) && ign1))
+    {
+      if (debug)
+	fprintf (debug, " : Readonly variable.  No coalesce.\n");
+      return;
+    }
+
+  /* Don't coalesce if the two variables aren't type compatible .  */
+  if (!types_compatible_p (TREE_TYPE (var1), TREE_TYPE (var2))
+      /* There is a disconnect between the middle-end type-system and
+         VRP, avoid coalescing enum types with different bounds.  */
+      || ((TREE_CODE (TREE_TYPE (var1)) == ENUMERAL_TYPE
+	   || TREE_CODE (TREE_TYPE (var2)) == ENUMERAL_TYPE)
+	  && TREE_TYPE (var1) != TREE_TYPE (var2)))
     {
       if (debug)
 	fprintf (debug, " : Incompatible types.  No coalesce.\n");
-      return false;
+      return;
     }
-
-  /* Don't coalesce if the aliasing sets of the types are different.  */
-  if (POINTER_TYPE_P (TREE_TYPE (root1))
-      && POINTER_TYPE_P (TREE_TYPE (root2))
-      && ((get_alias_set (TREE_TYPE (TREE_TYPE (root1)))
-	   != get_alias_set (TREE_TYPE (TREE_TYPE (root2))))
-	  || ((DECL_P (root1) && !MTAG_P (root1))
-	      && (DECL_P (root2) && !MTAG_P (root2))
-	      && DECL_NO_TBAA_P (root1) != DECL_NO_TBAA_P (root2))))
-    {
-      if (debug)
-	fprintf (debug, " : 2 different aliasing sets. No coalesce.\n");
-      return false;
-    }
-
 
   /* Merge the two partitions.  */
   p3 = partition_union (map->var_partition, p1, p2);
 
-  /* Set the root variable of the partition to the better choice, if there is 
+  /* Set the root variable of the partition to the better choice, if there is
      one.  */
-  if (!ign2)
+  if (!ign2 && root2)
     replace_ssa_name_symbol (partition_to_var (map, p3), root2);
-  else if (!ign1)
+  else if (!ign1 && root1)
     replace_ssa_name_symbol (partition_to_var (map, p3), root1);
-
-  /* Update the various flag widgitry of the current base representative.  */
-  ann3 = var_ann (SSA_NAME_VAR (partition_to_var (map, p3)));
-  if (ann1->symbol_mem_tag)
-    ann3->symbol_mem_tag = ann1->symbol_mem_tag;
   else
-    ann3->symbol_mem_tag = ann2->symbol_mem_tag;
+    gcc_unreachable ();
 
   if (debug)
     {
       fprintf (debug, " --> P%d ", p3);
-      print_generic_expr (debug, SSA_NAME_VAR (partition_to_var (map, p3)), 
+      print_generic_expr (debug, SSA_NAME_VAR (partition_to_var (map, p3)),
 			  TDF_SLIM);
       fprintf (debug, "\n");
     }
-  return true;
 }
 
 
 /* This function will make a pass through the IL, and attempt to coalesce any
    SSA versions which occur in PHI's or copies.  Coalescing is accomplished by
-   changing the underlying root variable of all coalesced version.  This will 
-   then cause the SSA->normal pass to attempt to coalesce them all to the same 
+   changing the underlying root variable of all coalesced version.  This will
+   then cause the SSA->normal pass to attempt to coalesce them all to the same
    variable.  */
 
 static unsigned int
@@ -300,32 +302,33 @@ rename_ssa_copies (void)
 {
   var_map map;
   basic_block bb;
-  block_stmt_iterator bsi;
-  tree phi, stmt, var, part_var;
+  gimple_stmt_iterator gsi;
+  tree var, part_var;
+  gimple stmt, phi;
   unsigned x;
   FILE *debug;
-  bool updated = false;
+
+  memset (&stats, 0, sizeof (stats));
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     debug = dump_file;
   else
     debug = NULL;
 
-  map = init_var_map (num_ssa_names + 1);
+  map = init_var_map (num_ssa_names);
 
   FOR_EACH_BB (bb)
     {
       /* Scan for real copies.  */
-      for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
+      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  stmt = bsi_stmt (bsi); 
-	  if (TREE_CODE (stmt) == GIMPLE_MODIFY_STMT)
+	  stmt = gsi_stmt (gsi);
+	  if (gimple_assign_ssa_name_copy_p (stmt))
 	    {
-	      tree lhs = GIMPLE_STMT_OPERAND (stmt, 0);
-	      tree rhs = GIMPLE_STMT_OPERAND (stmt, 1);
+	      tree lhs = gimple_assign_lhs (stmt);
+	      tree rhs = gimple_assign_rhs1 (stmt);
 
-              if (TREE_CODE (lhs) == SSA_NAME && TREE_CODE (rhs) == SSA_NAME)
-		updated |= copy_rename_partition_coalesce (map, lhs, rhs, debug);
+	      copy_rename_partition_coalesce (map, lhs, rhs, debug);
 	    }
 	}
     }
@@ -333,21 +336,62 @@ rename_ssa_copies (void)
   FOR_EACH_BB (bb)
     {
       /* Treat PHI nodes as copies between the result and each argument.  */
-      for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
+      for (gsi = gsi_start_phis (bb); !gsi_end_p (gsi); gsi_next (&gsi))
         {
-          int i;
-	  tree res = PHI_RESULT (phi);
+          size_t i;
+	  tree res;
+
+	  phi = gsi_stmt (gsi);
+	  res = gimple_phi_result (phi);
 
 	  /* Do not process virtual SSA_NAMES.  */
-	  if (!is_gimple_reg (SSA_NAME_VAR (res)))
+	  if (virtual_operand_p (res))
 	    continue;
 
-          for (i = 0; i < PHI_NUM_ARGS (phi); i++)
-            {
-              tree arg = PHI_ARG_DEF (phi, i);
-              if (TREE_CODE (arg) == SSA_NAME)
-		updated |= copy_rename_partition_coalesce (map, res, arg, debug);
-            }
+	  /* Make sure to only use the same partition for an argument
+	     as the result but never the other way around.  */
+	  if (SSA_NAME_VAR (res)
+	      && !DECL_IGNORED_P (SSA_NAME_VAR (res)))
+	    for (i = 0; i < gimple_phi_num_args (phi); i++)
+	      {
+		tree arg = PHI_ARG_DEF (phi, i);
+		if (TREE_CODE (arg) == SSA_NAME)
+		  copy_rename_partition_coalesce (map, res, arg,
+						  debug);
+	      }
+	  /* Else if all arguments are in the same partition try to merge
+	     it with the result.  */
+	  else
+	    {
+	      int all_p_same = -1;
+	      int p = -1;
+	      for (i = 0; i < gimple_phi_num_args (phi); i++)
+		{
+		  tree arg = PHI_ARG_DEF (phi, i);
+		  if (TREE_CODE (arg) != SSA_NAME)
+		    {
+		      all_p_same = 0;
+		      break;
+		    }
+		  else if (all_p_same == -1)
+		    {
+		      p = partition_find (map->var_partition,
+					  SSA_NAME_VERSION (arg));
+		      all_p_same = 1;
+		    }
+		  else if (all_p_same == 1
+			   && p != partition_find (map->var_partition,
+						   SSA_NAME_VERSION (arg)))
+		    {
+		      all_p_same = 0;
+		      break;
+		    }
+		}
+	      if (all_p_same == 1)
+		copy_rename_partition_coalesce (map, res,
+						PHI_ARG_DEF (phi, 0),
+						debug);
+	    }
         }
     }
 
@@ -356,29 +400,31 @@ rename_ssa_copies (void)
 
   /* Now one more pass to make all elements of a partition share the same
      root variable.  */
-  
-  for (x = 1; x <= num_ssa_names; x++)
+
+  for (x = 1; x < num_ssa_names; x++)
     {
       part_var = partition_to_var (map, x);
       if (!part_var)
         continue;
-      var = map->partition_to_var[x];
+      var = ssa_name (x);
+      if (SSA_NAME_VAR (var) == SSA_NAME_VAR (part_var))
+	continue;
       if (debug)
         {
-	  if (SSA_NAME_VAR (var) != SSA_NAME_VAR (part_var))
-	    {
-	      fprintf (debug, "Coalesced ");
-	      print_generic_expr (debug, var, TDF_SLIM);
-	      fprintf (debug, " to ");
-	      print_generic_expr (debug, part_var, TDF_SLIM);
-	      fprintf (debug, "\n");
-	    }
+	  fprintf (debug, "Coalesced ");
+	  print_generic_expr (debug, var, TDF_SLIM);
+	  fprintf (debug, " to ");
+	  print_generic_expr (debug, part_var, TDF_SLIM);
+	  fprintf (debug, "\n");
 	}
+      stats.coalesced++;
       replace_ssa_name_symbol (var, SSA_NAME_VAR (part_var));
     }
 
+  statistics_counter_event (cfun, "copies coalesced",
+			    stats.coalesced);
   delete_var_map (map);
-  return updated ? TODO_remove_unused_locals : 0;
+  return 0;
 }
 
 /* Return true if copy rename is to be performed.  */
@@ -389,9 +435,12 @@ gate_copyrename (void)
   return flag_tree_copyrename != 0;
 }
 
-struct tree_opt_pass pass_rename_ssa_copies = 
-{  
+struct gimple_opt_pass pass_rename_ssa_copies =
+{
+ {
+  GIMPLE_PASS,
   "copyrename",				/* name */
+  OPTGROUP_NONE,                        /* optinfo_flags */
   gate_copyrename,			/* gate */
   rename_ssa_copies,			/* execute */
   NULL,					/* sub */
@@ -401,8 +450,7 @@ struct tree_opt_pass pass_rename_ssa_copies =
   PROP_cfg | PROP_ssa,			/* properties_required */
   0,					/* properties_provided */
   0,					/* properties_destroyed */
-  0,					/* todo_flags_start */ 
-  TODO_dump_func | TODO_verify_ssa,     /* todo_flags_finish */
-  0					/* letter */
-}; 
-
+  0,					/* todo_flags_start */
+  TODO_verify_ssa                       /* todo_flags_finish */
+ }
+};

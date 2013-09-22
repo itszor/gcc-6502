@@ -7,25 +7,23 @@
 --                                 B o d y                                  --
 --                         (Soft Binding Version)                           --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -378,11 +376,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for K in Varray_Type'Range loop
-            if A (K) /= Component_Type'First then
-               D (K) := abs (A (K));
-            else
-               D (K) := Component_Type'First;
-            end if;
+            D (K) := (if A (K) /= Component_Type'First
+                      then abs (A (K)) else Component_Type'First);
          end loop;
 
          return D;
@@ -445,11 +440,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) > B (J) then
-               D (J) := Bool_True;
-            else
-               D (J) := Bool_False;
-            end if;
+            D (J) := (if A (J) > B (J) then Bool_True else Bool_False);
          end loop;
 
          return D;
@@ -491,11 +482,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) > B (J) then
-               D (J) := A (J);
-            else
-               D (J) := B (J);
-            end if;
+            D (J) := (if A (J) > B (J) then A (J) else B (J));
          end loop;
 
          return D;
@@ -547,11 +534,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) < B (J) then
-               D (J) := A (J);
-            else
-               D (J) := B (J);
-            end if;
+            D (J) := (if A (J) < B (J) then A (J) else B (J));
          end loop;
 
          return D;
@@ -660,8 +643,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            All_Element := All_Element and (D (J) = Bool_True);
-            Any_Element := Any_Element or  (D (J) = Bool_True);
+            All_Element := All_Element and then (D (J) = Bool_True);
+            Any_Element := Any_Element or else  (D (J) = Bool_True);
          end loop;
 
          if A = CR6_LT then
@@ -973,11 +956,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) = B (J) then
-               D (J) := Bool_True;
-            else
-               D (J) := Bool_False;
-            end if;
+            D (J) := (if A (J) = B (J) then Bool_True else Bool_False);
          end loop;
 
          return D;
@@ -994,11 +973,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
          D : Varray_Type;
       begin
          for J in Varray_Type'Range loop
-            if A (J) > B (J) then
-               D (J) := Bool_True;
-            else
-               D (J) := Bool_False;
-            end if;
+            D (J) := (if A (J) > B (J) then Bool_True else Bool_False);
          end loop;
 
          return D;
@@ -1013,11 +988,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) > B (J) then
-               D (J) := A (J);
-            else
-               D (J) := B (J);
-            end if;
+            D (J) := (if A (J) > B (J) then A (J) else B (J));
          end loop;
 
          return D;
@@ -1032,11 +1003,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            if A (J) < B (J) then
-               D (J) := A (J);
-            else
-               D (J) := B (J);
-            end if;
+            D (J) := (if A (J) < B (J) then A (J) else B (J));
          end loop;
 
          return D;
@@ -1122,8 +1089,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in Varray_Type'Range loop
-            All_Element := All_Element and (D (J) = Bool_True);
-            Any_Element := Any_Element or  (D (J) = Bool_True);
+            All_Element := All_Element and then (D (J) = Bool_True);
+            Any_Element := Any_Element or else  (D (J) = Bool_True);
          end loop;
 
          if A = CR6_LT then
@@ -1250,17 +1217,15 @@ package body GNAT.Altivec.Low_Level_Vectors is
       begin
 
          for J in 0 .. N - 1 loop
-            if Use_Even_Components then
-               Offset := Index_Type (2 * J + Integer (Index_Type'First));
-            else
-               Offset := Index_Type (2 * J + 1 + Integer (Index_Type'First));
-            end if;
+            Offset :=
+              Index_Type ((if Use_Even_Components then 2 * J else 2 * J + 1) +
+                          Integer (Index_Type'First));
 
             Double_Offset :=
               Double_Index_Type (J + Integer (Double_Index_Type'First));
             D (Double_Offset) :=
-              Double_Component_Type (A (Offset))
-              * Double_Component_Type (B (Offset));
+              Double_Component_Type (A (Offset)) *
+              Double_Component_Type (B (Offset));
          end loop;
 
          return D;
@@ -1420,17 +1385,15 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
       begin
          for J in 0 .. N - 1 loop
-            if Use_Even_Components then
-               Offset := Index_Type (2 * J + Integer (Index_Type'First));
-            else
-               Offset := Index_Type (2 * J + 1 + Integer (Index_Type'First));
-            end if;
+            Offset :=
+              Index_Type ((if Use_Even_Components then 2 * J else 2 * J + 1) +
+                          Integer (Index_Type'First));
 
             Double_Offset :=
               Double_Index_Type (J + Integer (Double_Index_Type'First));
             D (Double_Offset) :=
-              Double_Component_Type (A (Offset))
-              * Double_Component_Type (B (Offset));
+              Double_Component_Type (A (Offset)) *
+              Double_Component_Type (B (Offset));
          end loop;
 
          return D;
@@ -1622,11 +1585,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
       if (Bits (VSCR, NJ_POS, NJ_POS) = 1)
         and then abs (X) < 2.0 ** (-126)
       then
-         if X < 0.0 then
-            D := -0.0;
-         else
-            D := 0.0;
-         end if;
+         D := (if X < 0.0 then -0.0 else +0.0);
       else
          D := X;
       end if;
@@ -1650,17 +1609,18 @@ package body GNAT.Altivec.Low_Level_Vectors is
    function Rnd_To_FPI_Near (X : F64) return F64 is
       Result  : F64;
       Ceiling : F64;
+
    begin
       Result := F64 (SI64 (X));
 
       if (F64'Ceiling (X) - X) = (X + 1.0 - F64'Ceiling (X)) then
+
          --  Round to even
+
          Ceiling := F64'Ceiling (X);
-         if Rnd_To_FPI_Trunc (Ceiling / 2.0) * 2.0 = Ceiling then
-            Result := Ceiling;
-         else
-            Result := Ceiling - 1.0;
-         end if;
+         Result :=
+           (if Rnd_To_FPI_Trunc (Ceiling / 2.0) * 2.0 = Ceiling
+            then Ceiling else Ceiling - 1.0);
       end if;
 
       return Result;
@@ -1864,7 +1824,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    function To_Pixel (Source : unsigned_short) return Pixel_16 is
 
-      --  This conversion should not depend on the host endianess;
+      --  This conversion should not depend on the host endianness;
       --  therefore, we cannot use an unchecked conversion.
 
       Target : Pixel_16;
@@ -1879,7 +1839,7 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    function To_Pixel (Source : unsigned_int) return Pixel_32 is
 
-      --  This conversion should not depend on the host endianess;
+      --  This conversion should not depend on the host endianness;
       --  therefore, we cannot use an unchecked conversion.
 
       Target : Pixel_32;
@@ -1898,10 +1858,10 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    function To_unsigned_int (Source : Pixel_32) return unsigned_int is
 
-      --  This conversion should not depend on the host endianess;
+      --  This conversion should not depend on the host endianness;
       --  therefore, we cannot use an unchecked conversion.
       --  It should also be the same result, value-wise, on two hosts
-      --  with the same endianess.
+      --  with the same endianness.
 
       Target : unsigned_int := 0;
 
@@ -1930,10 +1890,10 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    function To_unsigned_short (Source : Pixel_16) return unsigned_short is
 
-      --  This conversion should not depend on the host endianess;
+      --  This conversion should not depend on the host endianness;
       --  therefore, we cannot use an unchecked conversion.
       --  It should also be the same result, value-wise, on two hosts
-      --  with the same endianess.
+      --  with the same endianness.
 
       Target : unsigned_short := 0;
 
@@ -2113,14 +2073,9 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    begin
       for J in Varray_unsigned_int'Range loop
-         Addition_Result :=
-           UI64 (VA.Values (J)) + UI64 (VB.Values (J));
-
-         if Addition_Result > UI64 (unsigned_int'Last) then
-            D.Values (J) := 1;
-         else
-            D.Values (J) := 0;
-         end if;
+         Addition_Result := UI64 (VA.Values (J)) + UI64 (VB.Values (J));
+         D.Values (J) :=
+           (if Addition_Result > UI64 (unsigned_int'Last) then 1 else 0);
       end loop;
 
       return To_LL_VSI (To_Vector (D));
@@ -2376,19 +2331,15 @@ package body GNAT.Altivec.Low_Level_Vectors is
             D.Values (K) := Write_Bit (D.Values (K), 1, 1);
 
          else
-            if NJ_Truncate (VA.Values (J))
-              <= NJ_Truncate (VB.Values (J)) then
-               D.Values (K) := Write_Bit (D.Values (K), 0, 0);
-            else
-               D.Values (K) := Write_Bit (D.Values (K), 0, 1);
-            end if;
+            D.Values (K) :=
+              (if NJ_Truncate (VA.Values (J)) <= NJ_Truncate (VB.Values (J))
+               then Write_Bit (D.Values (K), 0, 0)
+               else Write_Bit (D.Values (K), 0, 1));
 
-            if NJ_Truncate (VA.Values (J))
-              >= -NJ_Truncate (VB.Values (J)) then
-               D.Values (K) := Write_Bit (D.Values (K), 1, 0);
-            else
-               D.Values (K) := Write_Bit (D.Values (K), 1, 1);
-            end if;
+            D.Values (K) :=
+              (if NJ_Truncate (VA.Values (J)) >= -NJ_Truncate (VB.Values (J))
+               then Write_Bit (D.Values (K), 1, 0)
+               else Write_Bit (D.Values (K), 1, 1));
          end if;
       end loop;
 
@@ -2443,17 +2394,11 @@ package body GNAT.Altivec.Low_Level_Vectors is
       VA : constant VF_View := To_View (A);
       VB : constant VF_View := To_View (B);
       D  : VUI_View;
-      K  : Vint_Range;
 
    begin
       for J in Varray_float'Range loop
-         K := Vint_Range (J);
-
-         if VA.Values (J) = VB.Values (J) then
-            D.Values (K) := unsigned_int'Last;
-         else
-            D.Values (K) := 0;
-         end if;
+         D.Values (Vint_Range (J)) :=
+            (if VA.Values (J) = VB.Values (J) then unsigned_int'Last else 0);
       end loop;
 
       return To_LL_VSI (To_Vector (D));
@@ -2467,17 +2412,12 @@ package body GNAT.Altivec.Low_Level_Vectors is
       VA : constant VF_View := To_View (A);
       VB : constant VF_View := To_View (B);
       D : VSI_View;
-      K : Vint_Range;
 
    begin
       for J in Varray_float'Range loop
-         K := Vint_Range (J);
-
-         if VA.Values (J) >= VB.Values (J) then
-            D.Values (K) := Signed_Bool_True;
-         else
-            D.Values (K) := Signed_Bool_False;
-         end if;
+         D.Values (Vint_Range (J)) :=
+           (if VA.Values (J) >= VB.Values (J) then Signed_Bool_True
+                                              else Signed_Bool_False);
       end loop;
 
       return To_Vector (D);
@@ -2569,18 +2509,12 @@ package body GNAT.Altivec.Low_Level_Vectors is
       VA : constant VF_View := To_View (A);
       VB : constant VF_View := To_View (B);
       D  : VSI_View;
-      K  : Vint_Range;
 
    begin
       for J in Varray_float'Range loop
-         K := Vint_Range (J);
-
-         if NJ_Truncate (VA.Values (J))
-           > NJ_Truncate (VB.Values (J)) then
-            D.Values (K) := Signed_Bool_True;
-         else
-            D.Values (K) := Signed_Bool_False;
-         end if;
+         D.Values (Vint_Range (J)) :=
+           (if NJ_Truncate (VA.Values (J)) > NJ_Truncate (VB.Values (J))
+            then Signed_Bool_True else Signed_Bool_False);
       end loop;
 
       return To_Vector (D);
@@ -2765,9 +2699,9 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
          --  ??? Check the precision of the operation.
          --  As described in [PEM-6 vexptefp]:
-         --  If theorical_result is equal to 2 at the power of A (J) with
+         --  If theoretical_result is equal to 2 at the power of A (J) with
          --  infinite precision, we should have:
-         --  abs ((D (J) - theorical_result) / theorical_result) <= 1/16
+         --  abs ((D (J) - theoretical_result) / theoretical_result) <= 1/16
 
          D.Values (J) := 2.0 ** NJ_Truncate (VA.Values (J));
       end loop;
@@ -3071,11 +3005,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    begin
       for J in Varray_float'Range loop
-         if VA.Values (J) > VB.Values (J) then
-            D.Values (J) := VA.Values (J);
-         else
-            D.Values (J) := VB.Values (J);
-         end if;
+         D.Values (J) := (if VA.Values (J) > VB.Values (J) then VA.Values (J)
+                                                           else VB.Values (J));
       end loop;
 
       return To_Vector (D);
@@ -3188,11 +3119,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
 
    begin
       for J in Varray_float'Range loop
-         if VA.Values (J) < VB.Values (J) then
-            D.Values (J) := VA.Values (J);
-         else
-            D.Values (J) := VB.Values (J);
-         end if;
+         D.Values (J) := (if VA.Values (J) < VB.Values (J) then VA.Values (J)
+                                                           else VB.Values (J));
       end loop;
 
       return To_Vector (D);
@@ -3926,12 +3854,9 @@ package body GNAT.Altivec.Low_Level_Vectors is
       for N in Vchar_Range'Range loop
          J := Vchar_Range (Integer (Bits (VC.Values (N), 4, 7))
                            + Integer (Vchar_Range'First));
-
-         if Bits (VC.Values (N), 3, 3) = 0 then
-            D.Values (N) := VA.Values (J);
-         else
-            D.Values (N) := VB.Values (J);
-         end if;
+         D.Values (N) :=
+           (if Bits (VC.Values (N), 3, 3) = 0 then VA.Values (J)
+                                              else VB.Values (J));
       end loop;
 
       return To_LL_VSI (To_Vector (D));
@@ -4186,12 +4111,9 @@ package body GNAT.Altivec.Low_Level_Vectors is
    begin
       for N in Vchar_Range'Range loop
          J := Natural (N) + M;
-
-         if J <= Natural (Vchar_Range'Last) then
-            D.Values (N) := VA.Values (Vchar_Range (J));
-         else
-            D.Values (N) := 0;
-         end if;
+         D.Values (N) :=
+           (if J <= Natural (Vchar_Range'Last) then VA.Values (Vchar_Range (J))
+                                               else 0);
       end loop;
 
       return To_LL_VSI (To_Vector (D));
@@ -4532,12 +4454,8 @@ package body GNAT.Altivec.Low_Level_Vectors is
    begin
       for J in Vint_Range'Range loop
          Subst_Result := SI64 (VA.Values (J)) - SI64 (VB.Values (J));
-
-         if Subst_Result < SI64 (unsigned_int'First) then
-            D.Values (J) := 0;
-         else
-            D.Values (J) := 1;
-         end if;
+         D.Values (J) :=
+           (if Subst_Result < SI64 (unsigned_int'First) then 0 else 1);
       end loop;
 
       return To_LL_VSI (To_Vector (D));
@@ -5025,12 +4943,11 @@ package body GNAT.Altivec.Low_Level_Vectors is
       D := To_View (vcmpbfp (B, C));
 
       for J in Vint_Range'Range loop
+
          --  vcmpbfp is not returning the usual bool vector; do the conversion
-         if D.Values (J) = 0 then
-            D.Values (J) := Signed_Bool_False;
-         else
-            D.Values (J) := Signed_Bool_True;
-         end if;
+
+         D.Values (J) :=
+           (if D.Values (J) = 0 then Signed_Bool_False else Signed_Bool_True);
       end loop;
 
       return LL_VSI_Operations.Check_CR6 (A, D.Values);

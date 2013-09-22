@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -46,7 +44,7 @@ package body Urealp is
       Num  : Uint;
       --  Numerator (always non-negative)
 
-      Den  : Uint;
+      Den : Uint;
       --  Denominator (always non-zero, always positive if base is zero)
 
       Rbase : Nat;
@@ -82,20 +80,20 @@ package body Urealp is
    --  The following universal reals are the values returned by the constant
    --  functions. They are initialized by the initialization procedure.
 
-   UR_0          : Ureal;
-   UR_M_0        : Ureal;
-   UR_Tenth      : Ureal;
-   UR_Half       : Ureal;
-   UR_1          : Ureal;
-   UR_2          : Ureal;
-   UR_10         : Ureal;
-   UR_10_36      : Ureal;
-   UR_M_10_36    : Ureal;
-   UR_100        : Ureal;
-   UR_2_128      : Ureal;
-   UR_2_80       : Ureal;
-   UR_2_M_128    : Ureal;
-   UR_2_M_80     : Ureal;
+   UR_0       : Ureal;
+   UR_M_0     : Ureal;
+   UR_Tenth   : Ureal;
+   UR_Half    : Ureal;
+   UR_1       : Ureal;
+   UR_2       : Ureal;
+   UR_10      : Ureal;
+   UR_10_36   : Ureal;
+   UR_M_10_36 : Ureal;
+   UR_100     : Ureal;
+   UR_2_128   : Ureal;
+   UR_2_80    : Ureal;
+   UR_2_M_128 : Ureal;
+   UR_2_M_80  : Ureal;
 
    Num_Ureal_Constants : constant := 10;
    --  This is used for an assertion check in Tree_Read and Tree_Write to
@@ -130,24 +128,28 @@ package body Urealp is
    --  U is a Ureal entry for which the base value is non-zero, the value
    --  returned is the equivalent decimal exponent value, i.e. the value of
    --  Den, adjusted as though the base were base 10. The value is rounded
-   --  to the nearest integer, and so can be one off.
+   --  toward zero (truncated), and so its value can be off by one.
 
    function Is_Integer (Num, Den : Uint) return Boolean;
    --  Return true if the real quotient of Num / Den is an integer value
 
    function Normalize (Val : Ureal_Entry) return Ureal_Entry;
-   --  Normalizes the Ureal_Entry by reducing it to lowest terms (with a
-   --  base value of 0).
+   --  Normalizes the Ureal_Entry by reducing it to lowest terms (with a base
+   --  value of 0).
 
    function Same (U1, U2 : Ureal) return Boolean;
    pragma Inline (Same);
    --  Determines if U1 and U2 are the same Ureal. Note that we cannot use
-   --  the equals operator for this test, since that tests for equality,
-   --  not identity.
+   --  the equals operator for this test, since that tests for equality, not
+   --  identity.
 
    function Store_Ureal (Val : Ureal_Entry) return Ureal;
-   --  This store a new entry in the universal reals table and return
-   --  its index in the table.
+   --  This store a new entry in the universal reals table and return its index
+   --  in the table.
+
+   function Store_Ureal_Normalized (Val : Ureal_Entry) return Ureal;
+   pragma Inline (Store_Ureal_Normalized);
+   --  Like Store_Ureal, but normalizes its operand first
 
    -------------------------
    -- Decimal_Exponent_Hi --
@@ -242,29 +244,52 @@ package body Urealp is
 
    function Equivalent_Decimal_Exponent (U : Ureal_Entry) return Int is
 
-      --  The following table is a table of logs to the base 10
+      type Ratio is record
+         Num : Nat;
+         Den : Nat;
+      end record;
 
-      Logs : constant array (Nat range 1 .. 16) of Long_Float := (
-                1 => 0.000000000000000,
-                2 => 0.301029995663981,
-                3 => 0.477121254719662,
-                4 => 0.602059991327962,
-                5 => 0.698970004336019,
-                6 => 0.778151250383644,
-                7 => 0.845098040014257,
-                8 => 0.903089986991944,
-                9 => 0.954242509439325,
-               10 => 1.000000000000000,
-               11 => 1.041392685158230,
-               12 => 1.079181246047620,
-               13 => 1.113943352306840,
-               14 => 1.146128035678240,
-               15 => 1.176091259055680,
-               16 => 1.204119982655920);
+      --  The following table is a table of logs to the base 10. All values
+      --  have at least 15 digits of precision, and do not exceed the true
+      --  value. To avoid the use of floating point, and as a result potential
+      --  target dependency, each entry is represented as a fraction of two
+      --  integers.
+
+      Logs : constant array (Nat range 1 .. 16) of Ratio :=
+        (1 => (Num =>           0, Den =>            1),  -- 0
+         2 => (Num =>  15_392_313, Den =>   51_132_157),  -- 0.301029995663981
+         3 => (Num => 731_111_920, Den => 1532_339_867),  -- 0.477121254719662
+         4 => (Num =>  30_784_626, Den =>   51_132_157),  -- 0.602059991327962
+         5 => (Num => 111_488_153, Den =>  159_503_487),  -- 0.698970004336018
+         6 => (Num =>  84_253_929, Den =>  108_274_489),  -- 0.778151250383643
+         7 => (Num =>  35_275_468, Den =>   41_741_273),  -- 0.845098040014256
+         8 => (Num =>  46_176_939, Den =>   51_132_157),  -- 0.903089986991943
+         9 => (Num => 417_620_173, Den =>  437_645_744),  -- 0.954242509439324
+        10 => (Num =>           1, Den =>            1),  -- 1.000000000000000
+        11 => (Num => 136_507_510, Den =>  131_081_687),  -- 1.041392685158225
+        12 => (Num =>  26_797_783, Den =>   24_831_587),  -- 1.079181246047624
+        13 => (Num =>  73_333_297, Den =>   65_832_160),  -- 1.113943352306836
+        14 => (Num => 102_941_258, Den =>   89_816_543),  -- 1.146128035678238
+        15 => (Num =>  53_385_559, Den =>   45_392_361),  -- 1.176091259055681
+        16 => (Num =>  78_897_839, Den =>   65_523_237)); -- 1.204119982655924
+
+      function Scale (X : Int; R : Ratio) return Int;
+      --  Compute the value of X scaled by R
+
+      -----------
+      -- Scale --
+      -----------
+
+      function Scale (X : Int; R : Ratio) return Int is
+         type Wide_Int is range -2**63 .. 2**63 - 1;
+
+      begin
+         return Int (Wide_Int (X) * Wide_Int (R.Num) / Wide_Int (R.Den));
+      end Scale;
 
    begin
       pragma Assert (U.Rbase /= 0);
-      return Int (Long_Float (UI_To_Int (U.Den)) * Logs (U.Rbase));
+      return Scale (UI_To_Int (U.Den), Logs (U.Rbase));
    end Equivalent_Decimal_Exponent;
 
    ----------------
@@ -441,8 +466,7 @@ package body Urealp is
 
    function Store_Ureal (Val : Ureal_Entry) return Ureal is
    begin
-      Ureals.Increment_Last;
-      Ureals.Table (Ureals.Last) := Val;
+      Ureals.Append (Val);
 
       --  Normalize representation of signed values
 
@@ -453,6 +477,15 @@ package body Urealp is
 
       return Ureals.Last;
    end Store_Ureal;
+
+   ----------------------------
+   -- Store_Ureal_Normalized --
+   ----------------------------
+
+   function Store_Ureal_Normalized (Val : Ureal_Entry) return Ureal is
+   begin
+      return Store_Ureal (Normalize (Val));
+   end Store_Ureal_Normalized;
 
    ---------------
    -- Tree_Read --
@@ -508,11 +541,11 @@ package body Urealp is
       Val : constant Ureal_Entry := Ureals.Table (Real);
 
    begin
-      return Store_Ureal (
-               (Num      => Val.Num,
-                Den      => Val.Den,
-                Rbase    => Val.Rbase,
-                Negative => False));
+      return Store_Ureal
+               ((Num      => Val.Num,
+                 Den      => Val.Den,
+                 Rbase    => Val.Rbase,
+                 Negative => False));
    end UR_Abs;
 
    ------------
@@ -532,7 +565,6 @@ package body Urealp is
    function UR_Add (Left : Ureal; Right : Ureal) return Ureal is
       Lval : Ureal_Entry := Ureals.Table (Left);
       Rval : Ureal_Entry := Ureals.Table (Right);
-
       Num  : Uint;
 
    begin
@@ -541,7 +573,6 @@ package body Urealp is
       --  be negative, even though in stored entries this can never be so)
 
       if Lval.Rbase /= 0 and then Lval.Rbase = Rval.Rbase then
-
          declare
             Opd_Min, Opd_Max   : Ureal_Entry;
             Exp_Min, Exp_Max   : Uint;
@@ -571,18 +602,18 @@ package body Urealp is
               Opd_Min.Num * Lval.Rbase ** (Exp_Max - Exp_Min) + Opd_Max.Num;
 
             if Num = 0 then
-               return Store_Ureal (
-                        (Num      => Uint_0,
-                         Den      => Uint_1,
-                         Rbase    => 0,
-                         Negative => Lval.Negative));
+               return Store_Ureal
+                        ((Num      => Uint_0,
+                          Den      => Uint_1,
+                          Rbase    => 0,
+                          Negative => Lval.Negative));
 
             else
-               return Store_Ureal (
-                        (Num      => abs Num,
-                         Den      => Exp_Max,
-                         Rbase    => Lval.Rbase,
-                         Negative => (Num < 0)));
+               return Store_Ureal
+                        ((Num      => abs Num,
+                          Den      => Exp_Max,
+                          Rbase    => Lval.Rbase,
+                          Negative => (Num < 0)));
             end if;
          end;
 
@@ -603,19 +634,18 @@ package body Urealp is
             Num := (Ln.Num * Rn.Den) + (Rn.Num * Ln.Den);
 
             if Num = 0 then
-               return Store_Ureal (
-                        (Num      => Uint_0,
-                         Den      => Uint_1,
-                         Rbase    => 0,
-                         Negative => Lval.Negative));
+               return Store_Ureal
+                        ((Num      => Uint_0,
+                          Den      => Uint_1,
+                          Rbase    => 0,
+                          Negative => Lval.Negative));
 
             else
-               return Store_Ureal (
-                        Normalize (
-                          (Num      => abs Num,
-                           Den      => Ln.Den * Rn.Den,
-                           Rbase    => 0,
-                           Negative => (Num < 0))));
+               return Store_Ureal_Normalized
+                        ((Num      => abs Num,
+                          Den      => Ln.Den * Rn.Den,
+                          Rbase    => 0,
+                          Negative => (Num < 0)));
             end if;
          end;
       end if;
@@ -627,7 +657,6 @@ package body Urealp is
 
    function UR_Ceiling (Real : Ureal) return Uint is
       Val : constant Ureal_Entry := Normalize (Ureals.Table (Real));
-
    begin
       if Val.Negative then
          return UI_Negate (Val.Num / Val.Den);
@@ -659,56 +688,51 @@ package body Urealp is
       pragma Assert (Rval.Num /= Uint_0);
 
       if Lval.Rbase = 0 then
-
          if Rval.Rbase = 0 then
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Lval.Num * Rval.Den,
-                        Den      => Lval.Den * Rval.Num,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Lval.Num * Rval.Den,
+                       Den      => Lval.Den * Rval.Num,
+                       Rbase    => 0,
+                       Negative => Rneg));
 
          elsif Is_Integer (Lval.Num, Rval.Num * Lval.Den) then
-            return Store_Ureal (
-                     (Num      => Lval.Num / (Rval.Num * Lval.Den),
-                      Den      => (-Rval.Den),
-                      Rbase    => Rval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => Lval.Num / (Rval.Num * Lval.Den),
+                       Den      => (-Rval.Den),
+                       Rbase    => Rval.Rbase,
+                       Negative => Rneg));
 
          elsif Rval.Den < 0 then
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Lval.Num,
-                        Den      => Rval.Rbase ** (-Rval.Den) *
-                                    Rval.Num *
-                                    Lval.Den,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Lval.Num,
+                       Den      => Rval.Rbase ** (-Rval.Den) *
+                                   Rval.Num *
+                                   Lval.Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
 
          else
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Lval.Num * Rval.Rbase ** Rval.Den,
-                        Den      => Rval.Num * Lval.Den,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Lval.Num * Rval.Rbase ** Rval.Den,
+                       Den      => Rval.Num * Lval.Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
          end if;
 
       elsif Is_Integer (Lval.Num, Rval.Num) then
-
          if Rval.Rbase = Lval.Rbase then
-            return Store_Ureal (
-                     (Num      => Lval.Num / Rval.Num,
-                      Den      => Lval.Den - Rval.Den,
-                      Rbase    => Lval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => Lval.Num / Rval.Num,
+                       Den      => Lval.Den - Rval.Den,
+                       Rbase    => Lval.Rbase,
+                       Negative => Rneg));
 
          elsif Rval.Rbase = 0 then
-            return Store_Ureal (
-                     (Num      => (Lval.Num / Rval.Num) * Rval.Den,
-                      Den      => Lval.Den,
-                      Rbase    => Lval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => (Lval.Num / Rval.Num) * Rval.Den,
+                       Den      => Lval.Den,
+                       Rbase    => Lval.Rbase,
+                       Negative => Rneg));
 
          elsif Rval.Den < 0 then
             declare
@@ -724,20 +748,20 @@ package body Urealp is
                          (Rval.Rbase ** (-Rval.Den));
                end if;
 
-               return Store_Ureal (
-                        (Num      => Num,
-                         Den      => Den,
-                         Rbase    => 0,
-                         Negative => Rneg));
+               return Store_Ureal
+                        ((Num      => Num,
+                          Den      => Den,
+                          Rbase    => 0,
+                          Negative => Rneg));
             end;
 
          else
-            return Store_Ureal (
-                     (Num      => (Lval.Num / Rval.Num) *
-                                  (Rval.Rbase ** Rval.Den),
-                      Den      => Lval.Den,
-                      Rbase    => Lval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => (Lval.Num / Rval.Num) *
+                                   (Rval.Rbase ** Rval.Den),
+                       Den      => Lval.Den,
+                       Rbase    => Lval.Rbase,
+                       Negative => Rneg));
          end if;
 
       else
@@ -748,7 +772,6 @@ package body Urealp is
             if Lval.Den < 0 then
                Num := Lval.Num * (Lval.Rbase ** (-Lval.Den));
                Den := Rval.Num;
-
             else
                Num := Lval.Num;
                Den := Rval.Num * (Lval.Rbase ** Lval.Den);
@@ -765,12 +788,11 @@ package body Urealp is
                Num := Num * Rval.Den;
             end if;
 
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Num,
-                        Den      => Den,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num,
+                       Den      => Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
          end;
       end if;
    end UR_Div;
@@ -817,11 +839,11 @@ package body Urealp is
       if IBas <= 16
         and then UR_From_Uint (IBas) = Bas
       then
-         return Store_Ureal (
-                 (Num      => Uint_1,
-                  Den      => -N,
-                  Rbase    => UI_To_Int (UR_Trunc (Bas)),
-                  Negative => Neg));
+         return Store_Ureal
+                  ((Num      => Uint_1,
+                    Den      => -N,
+                    Rbase    => UI_To_Int (UR_Trunc (Bas)),
+                    Negative => Neg));
 
       --  If the exponent is negative then we raise the numerator and the
       --  denominator (after normalization) to the absolute value of the
@@ -832,11 +854,11 @@ package body Urealp is
          pragma Assert (Val.Num /= 0);
          Val := Normalize (Val);
 
-         return Store_Ureal (
-                 (Num      => Val.Den ** X,
-                  Den      => Val.Num ** X,
-                  Rbase    => 0,
-                  Negative => Neg));
+         return Store_Ureal
+                  ((Num      => Val.Den ** X,
+                    Den      => Val.Num ** X,
+                    Rbase    => 0,
+                    Negative => Neg));
 
       --  If positive, we distinguish the case when the base is not zero, in
       --  which case the new denominator is just the product of the old one
@@ -845,21 +867,21 @@ package body Urealp is
       else
          if Val.Rbase /= 0 then
 
-            return Store_Ureal (
-                    (Num      => Val.Num ** X,
-                     Den      => Val.Den * X,
-                     Rbase    => Val.Rbase,
-                     Negative => Neg));
+            return Store_Ureal
+                     ((Num      => Val.Num ** X,
+                       Den      => Val.Den * X,
+                       Rbase    => Val.Rbase,
+                       Negative => Neg));
 
          --  And when the base is zero, in which case we exponentiate
          --  the old denominator.
 
          else
-            return Store_Ureal (
-                    (Num      => Val.Num ** X,
-                     Den      => Val.Den ** X,
-                     Rbase    => 0,
-                     Negative => Neg));
+            return Store_Ureal
+                     ((Num      => Val.Num ** X,
+                       Den      => Val.Den ** X,
+                       Rbase    => 0,
+                       Negative => Neg));
          end if;
       end if;
    end UR_Exponentiate;
@@ -870,7 +892,6 @@ package body Urealp is
 
    function UR_Floor (Real : Ureal) return Uint is
       Val : constant Ureal_Entry := Normalize (Ureals.Table (Real));
-
    begin
       if Val.Negative then
          return UI_Negate ((Val.Num + Val.Den - 1) / Val.Den);
@@ -891,11 +912,11 @@ package body Urealp is
       return     Ureal
    is
    begin
-      return Store_Ureal (
-               (Num      => Num,
-                Den      => Den,
-                Rbase    => Rbase,
-                Negative => Negative));
+      return Store_Ureal
+               ((Num      => Num,
+                 Den      => Den,
+                 Rbase    => Rbase,
+                 Negative => Negative));
    end UR_From_Components;
 
    ------------------
@@ -905,7 +926,7 @@ package body Urealp is
    function UR_From_Uint (UI : Uint) return Ureal is
    begin
       return UR_From_Components
-        (abs UI, Uint_1, Negative => (UI < 0));
+               (abs UI, Uint_1, Negative => (UI < 0));
    end UR_From_Uint;
 
    -----------
@@ -1098,67 +1119,62 @@ package body Urealp is
    begin
       if Lval.Rbase = 0 then
          if Rval.Rbase = 0 then
-            return Store_Ureal (
-                     Normalize (
-                        (Num      => Num,
-                         Den      => Lval.Den * Rval.Den,
-                         Rbase    => 0,
-                         Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num,
+                       Den      => Lval.Den * Rval.Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
 
          elsif Is_Integer (Num, Lval.Den) then
-            return Store_Ureal (
-                     (Num      => Num / Lval.Den,
-                      Den      => Rval.Den,
-                      Rbase    => Rval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => Num / Lval.Den,
+                       Den      => Rval.Den,
+                       Rbase    => Rval.Rbase,
+                       Negative => Rneg));
 
          elsif Rval.Den < 0 then
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Num * (Rval.Rbase ** (-Rval.Den)),
-                        Den      => Lval.Den,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num * (Rval.Rbase ** (-Rval.Den)),
+                       Den      => Lval.Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
 
          else
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Num,
-                        Den      => Lval.Den * (Rval.Rbase ** Rval.Den),
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num,
+                       Den      => Lval.Den * (Rval.Rbase ** Rval.Den),
+                       Rbase    => 0,
+                       Negative => Rneg));
          end if;
 
       elsif Lval.Rbase = Rval.Rbase then
-         return Store_Ureal (
-                  (Num      => Num,
-                   Den      => Lval.Den + Rval.Den,
-                   Rbase    => Lval.Rbase,
-                   Negative => Rneg));
+         return Store_Ureal
+                  ((Num      => Num,
+                    Den      => Lval.Den + Rval.Den,
+                    Rbase    => Lval.Rbase,
+                    Negative => Rneg));
 
       elsif Rval.Rbase = 0 then
          if Is_Integer (Num, Rval.Den) then
-            return Store_Ureal (
-                     (Num      => Num / Rval.Den,
-                      Den      => Lval.Den,
-                      Rbase    => Lval.Rbase,
-                      Negative => Rneg));
+            return Store_Ureal
+                     ((Num      => Num / Rval.Den,
+                       Den      => Lval.Den,
+                       Rbase    => Lval.Rbase,
+                       Negative => Rneg));
 
          elsif Lval.Den < 0 then
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Num * (Lval.Rbase ** (-Lval.Den)),
-                        Den      => Rval.Den,
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num * (Lval.Rbase ** (-Lval.Den)),
+                       Den      => Rval.Den,
+                       Rbase    => 0,
+                       Negative => Rneg));
 
          else
-            return Store_Ureal (
-                     Normalize (
-                       (Num      => Num,
-                        Den      => Rval.Den * (Lval.Rbase ** Lval.Den),
-                        Rbase    => 0,
-                        Negative => Rneg)));
+            return Store_Ureal_Normalized
+                     ((Num      => Num,
+                       Den      => Rval.Den * (Lval.Rbase ** Lval.Den),
+                       Rbase    => 0,
+                       Negative => Rneg));
          end if;
 
       else
@@ -1176,12 +1192,11 @@ package body Urealp is
             Den := Den * (Rval.Rbase ** Rval.Den);
          end if;
 
-         return Store_Ureal (
-                  Normalize (
-                    (Num      => Num,
-                     Den      => Den,
-                     Rbase    => 0,
-                     Negative => Rneg)));
+         return Store_Ureal_Normalized
+                  ((Num      => Num,
+                    Den      => Den,
+                    Rbase    => 0,
+                    Negative => Rneg));
       end if;
    end UR_Mul;
 
@@ -1231,8 +1246,8 @@ package body Urealp is
             else
                Result :=
                   Rval.Negative /= Lval.Negative
-                   or else Rval.Num /= Lval.Num
-                   or else Rval.Den /= Lval.Den;
+                    or else Rval.Num /= Lval.Num
+                    or else Rval.Den /= Lval.Den;
                Release (Imrk);
                Release (Rmrk);
                return Result;
@@ -1247,11 +1262,11 @@ package body Urealp is
 
    function UR_Negate (Real : Ureal) return Ureal is
    begin
-      return Store_Ureal (
-               (Num      => Ureals.Table (Real).Num,
-                Den      => Ureals.Table (Real).Den,
-                Rbase    => Ureals.Table (Real).Rbase,
-                Negative => not Ureals.Table (Real).Negative));
+      return Store_Ureal
+               ((Num      => Ureals.Table (Real).Num,
+                 Den      => Ureals.Table (Real).Den,
+                 Rbase    => Ureals.Table (Real).Rbase,
+                 Negative => not Ureals.Table (Real).Negative));
    end UR_Negate;
 
    ------------
@@ -1297,7 +1312,6 @@ package body Urealp is
 
    function UR_Trunc (Real : Ureal) return Uint is
       Val : constant Ureal_Entry := Normalize (Ureals.Table (Real));
-
    begin
       if Val.Negative then
          return -(Val.Num / Val.Den);
@@ -1310,32 +1324,144 @@ package body Urealp is
    -- UR_Write --
    --------------
 
-   procedure UR_Write (Real : Ureal) is
+   procedure UR_Write (Real : Ureal; Brackets : Boolean := False) is
       Val : constant Ureal_Entry := Ureals.Table (Real);
+      T   : Uint;
 
    begin
       --  If value is negative, we precede the constant by a minus sign
-      --  and add an extra layer of parentheses on the outside since the
-      --  minus sign is part of the value, not a negation operator.
 
       if Val.Negative then
-         Write_Str ("(-");
+         Write_Char ('-');
       end if;
 
-      --  Constants in base 10 can be written in normal Ada literal style
+      --  Zero is zero
 
-      if Val.Rbase = 10 then
-         UI_Write (Val.Num / 10);
-         Write_Char ('.');
-         UI_Write (Val.Num mod 10);
+      if Val.Num = 0 then
+         Write_Str ("0.0");
 
-         if Val.Den /= 0 then
-            Write_Char ('E');
-            UI_Write (1 - Val.Den);
+      --  For constants with a denominator of zero, the value is simply the
+      --  numerator value, since we are dividing by base**0, which is 1.
+
+      elsif Val.Den = 0 then
+         UI_Write (Val.Num, Decimal);
+         Write_Str (".0");
+
+      --  Small powers of 2 get written in decimal fixed-point format
+
+      elsif Val.Rbase = 2
+        and then Val.Den <= 3
+        and then Val.Den >= -16
+      then
+         if Val.Den = 1 then
+            T := Val.Num * (10/2);
+            UI_Write (T / 10, Decimal);
+            Write_Char ('.');
+            UI_Write (T mod 10, Decimal);
+
+         elsif Val.Den = 2 then
+            T := Val.Num * (100/4);
+            UI_Write (T / 100, Decimal);
+            Write_Char ('.');
+            UI_Write (T mod 100 / 10, Decimal);
+
+            if T mod 10 /= 0 then
+               UI_Write (T mod 10, Decimal);
+            end if;
+
+         elsif Val.Den = 3 then
+            T := Val.Num * (1000 / 8);
+            UI_Write (T / 1000, Decimal);
+            Write_Char ('.');
+            UI_Write (T mod 1000 / 100, Decimal);
+
+            if T mod 100 /= 0 then
+               UI_Write (T mod 100 / 10, Decimal);
+
+               if T mod 10 /= 0 then
+                  UI_Write (T mod 10, Decimal);
+               end if;
+            end if;
+
+         else
+            UI_Write (Val.Num * (Uint_2 ** (-Val.Den)), Decimal);
+            Write_Str (".0");
          end if;
 
-      --  Constants in a base other than 10 can still be easily written
-      --  in normal Ada literal style if the numerator is one.
+      --  Constants in base 10 or 16 can be written in normal Ada literal
+      --  style, as long as they fit in the UI_Image_Buffer. Using hexadecimal
+      --  notation, 4 bytes are required for the 16# # part, and every fifth
+      --  character is an underscore. So, a buffer of size N has room for
+      --     ((N - 4) - (N - 4) / 5) * 4 bits,
+      --  or at least
+      --     N * 16 / 5 - 12 bits.
+
+      elsif (Val.Rbase = 10 or else Val.Rbase = 16)
+        and then Num_Bits (Val.Num) < UI_Image_Buffer'Length * 16 / 5 - 12
+      then
+         pragma Assert (Val.Den /= 0);
+
+         --  Use fixed-point format for small scaling values
+
+         if (Val.Rbase = 10 and then Val.Den < 0 and then Val.Den > -3)
+              or else (Val.Rbase = 16 and then Val.Den = -1)
+         then
+            UI_Write (Val.Num * Val.Rbase**(-Val.Den), Decimal);
+            Write_Str (".0");
+
+         --  Write hexadecimal constants in exponential notation with a zero
+         --  unit digit. This matches the Ada canonical form for floating point
+         --  numbers, and also ensures that the underscores end up in the
+         --  correct place.
+
+         elsif Val.Rbase = 16 then
+            UI_Image (Val.Num, Hex);
+            pragma Assert (Val.Rbase = 16);
+
+            Write_Str ("16#0.");
+            Write_Str (UI_Image_Buffer (4 .. UI_Image_Length));
+
+            --  For exponent, exclude 16# # and underscores from length
+
+            UI_Image_Length := UI_Image_Length - 4;
+            UI_Image_Length := UI_Image_Length - UI_Image_Length / 5;
+
+            Write_Char ('E');
+            UI_Write (Int (UI_Image_Length) - Val.Den, Decimal);
+
+         elsif Val.Den = 1 then
+            UI_Write (Val.Num / 10, Decimal);
+            Write_Char ('.');
+            UI_Write (Val.Num mod 10, Decimal);
+
+         elsif Val.Den = 2 then
+            UI_Write (Val.Num / 100, Decimal);
+            Write_Char ('.');
+            UI_Write (Val.Num / 10 mod 10, Decimal);
+            UI_Write (Val.Num mod 10, Decimal);
+
+         --  Else use decimal exponential format
+
+         else
+            --  Write decimal constants with a non-zero unit digit. This
+            --  matches usual scientific notation.
+
+            UI_Image (Val.Num, Decimal);
+            Write_Char (UI_Image_Buffer (1));
+            Write_Char ('.');
+
+            if UI_Image_Length = 1 then
+               Write_Char ('0');
+            else
+               Write_Str (UI_Image_Buffer (2 .. UI_Image_Length));
+            end if;
+
+            Write_Char ('E');
+            UI_Write (Int (UI_Image_Length - 1) - Val.Den, Decimal);
+         end if;
+
+      --  Constants in a base other than 10 can still be easily written in
+      --  normal Ada literal style if the numerator is one.
 
       elsif Val.Rbase /= 0 and then Val.Num = 1 then
          Write_Int (Val.Rbase);
@@ -1346,48 +1472,60 @@ package body Urealp is
       --  of the following forms, depending on the sign of the number
       --  and the sign of the exponent (= minus denominator value)
 
-      --    (numerator.0*base**exponent)
-      --    (numerator.0*base**(-exponent))
+      --    numerator.0*base**exponent
+      --    numerator.0*base**-exponent
+
+      --  And of course an exponent of 0 can be omitted
 
       elsif Val.Rbase /= 0 then
-         Write_Char ('(');
-         UI_Write (Val.Num, Decimal);
-         Write_Str (".0*");
-         Write_Int (Val.Rbase);
-         Write_Str ("**");
-
-         if Val.Den <= 0 then
-            UI_Write (-Val.Den, Decimal);
-
-         else
-            Write_Str ("(-");
-            UI_Write (Val.Den, Decimal);
-            Write_Char (')');
+         if Brackets then
+            Write_Char ('[');
          end if;
 
-         Write_Char (')');
-
-      --  Rational constants with a denominator of 1 can be written as
-      --  a real literal for the numerator integer.
-
-      elsif Val.Den = 1 then
          UI_Write (Val.Num, Decimal);
          Write_Str (".0");
 
-      --  Non-based (rational) constants are written in (num/den) style
+         if Val.Den /= 0 then
+            Write_Char ('*');
+            Write_Int (Val.Rbase);
+            Write_Str ("**");
+
+            if Val.Den <= 0 then
+               UI_Write (-Val.Den, Decimal);
+            else
+               Write_Str ("(-");
+               UI_Write (Val.Den, Decimal);
+               Write_Char (')');
+            end if;
+         end if;
+
+         if Brackets then
+            Write_Char (']');
+         end if;
+
+      --  Rationals where numerator is divisible by denominator can be output
+      --  as literals after we do the division. This includes the common case
+      --  where the denominator is 1.
+
+      elsif Val.Num mod Val.Den = 0 then
+         UI_Write (Val.Num / Val.Den, Decimal);
+         Write_Str (".0");
+
+      --  Other non-based (rational) constants are written in num/den style
 
       else
-         Write_Char ('(');
+         if Brackets then
+            Write_Char ('[');
+         end if;
+
          UI_Write (Val.Num, Decimal);
          Write_Str (".0/");
          UI_Write (Val.Den, Decimal);
-         Write_Str (".0)");
-      end if;
+         Write_Str (".0");
 
-      --  Add trailing paren for negative values
-
-      if Val.Negative then
-         Write_Char (')');
+         if Brackets then
+            Write_Char (']');
+         end if;
       end if;
    end UR_Write;
 

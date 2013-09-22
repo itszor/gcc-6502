@@ -1,6 +1,5 @@
 /* Functions related to building resource files.
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005,
-   2007 Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -25,57 +24,48 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "tree.h"
-#include "rtl.h"
-#include "flags.h"
 #include "java-tree.h"
 #include "jcf.h"
-#include "obstack.h"
+#include "diagnostic-core.h"
 #include "toplev.h"
-#include "output.h"
 #include "parse.h"
 #include "function.h"
 #include "ggc.h"
-#include "stdio.h"
-#include "target.h"
-#include "expr.h"
 #include "tree-iterator.h"
 #include "cgraph.h"
 
-/* DOS brain-damage */
-#ifndef O_BINARY
-#define O_BINARY 0 /* MS-DOS brain-damage */
-#endif
-
 /* A list of all the resources files.  */
-static GTY(()) tree resources = NULL;
+static GTY(()) vec<tree, va_gc> *resources;
 
 void
 compile_resource_data (const char *name, const char *buffer, int length)
 {
   tree rtype, field = NULL_TREE, data_type, rinit, data, decl;
+  vec<constructor_elt, va_gc> *v = NULL;
 
   data_type = build_prim_array_type (unsigned_byte_type_node,
 				     strlen (name) + length);
   rtype = make_node (RECORD_TYPE);
-  PUSH_FIELD (rtype, field, "name_length", unsigned_int_type_node);
-  PUSH_FIELD (rtype, field, "resource_length", unsigned_int_type_node);
-  PUSH_FIELD (rtype, field, "data", data_type);
+  PUSH_FIELD (input_location,
+	      rtype, field, "name_length", unsigned_int_type_node);
+  PUSH_FIELD (input_location,
+	      rtype, field, "resource_length", unsigned_int_type_node);
+  PUSH_FIELD (input_location, rtype, field, "data", data_type);
   FINISH_RECORD (rtype);
-  START_RECORD_CONSTRUCTOR (rinit, rtype);
-  PUSH_FIELD_VALUE (rinit, "name_length", 
+  START_RECORD_CONSTRUCTOR (v, rtype);
+  PUSH_FIELD_VALUE (v, "name_length", 
 		    build_int_cst (NULL_TREE, strlen (name)));
-  PUSH_FIELD_VALUE (rinit, "resource_length", 
+  PUSH_FIELD_VALUE (v, "resource_length", 
 		    build_int_cst (NULL_TREE, length));
   data = build_string (strlen(name) + length, buffer);
   TREE_TYPE (data) = data_type;
-  PUSH_FIELD_VALUE (rinit, "data", data);
-  FINISH_RECORD_CONSTRUCTOR (rinit);
+  PUSH_FIELD_VALUE (v, "data", data);
+  FINISH_RECORD_CONSTRUCTOR (rinit, v, rtype);
   TREE_CONSTANT (rinit) = 1;
-  TREE_INVARIANT (rinit) = 1;
 
-  decl = build_decl (VAR_DECL, java_mangle_resource_name (name), rtype);
+  decl = build_decl (input_location,
+		     VAR_DECL, java_mangle_resource_name (name), rtype);
   TREE_STATIC (decl) = 1;
   TREE_PUBLIC (decl) = 1;
   java_hide_decl (decl);
@@ -89,27 +79,29 @@ compile_resource_data (const char *name, const char *buffer, int length)
   rest_of_decl_compilation (decl, global_bindings_p (), 0);
   varpool_finalize_decl (decl);
 
-  resources = tree_cons (NULL_TREE, decl, resources);
+  vec_safe_push (resources, decl);
 }
 
 void
 write_resource_constructor (tree *list_p)
 {
-  tree iter, t, register_resource_fn;
+  tree decl, t, register_resource_fn;
+  unsigned ix;
 
   if (resources == NULL)
     return;
 
   t = build_function_type_list (void_type_node, ptr_type_node, NULL);
-  t = build_decl (FUNCTION_DECL, get_identifier ("_Jv_RegisterResource"), t);
+  t = build_decl (input_location,
+		  FUNCTION_DECL, get_identifier ("_Jv_RegisterResource"), t);
   TREE_PUBLIC (t) = 1;
   DECL_EXTERNAL (t) = 1;
   register_resource_fn = t;
 
   /* Write out entries in the same order in which they were defined.  */
-  for (iter = nreverse (resources); iter ; iter = TREE_CHAIN (iter))
+  FOR_EACH_VEC_ELT (*resources, ix, decl)
     {
-      t = build_fold_addr_expr (TREE_VALUE (iter));
+      t = build_fold_addr_expr (decl);
       t = build_call_expr (register_resource_fn, 1, t);
       append_to_statement_list (t, list_p);
     }

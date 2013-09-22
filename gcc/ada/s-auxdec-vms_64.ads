@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS For A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -74,6 +72,14 @@ package System.Aux_DEC is
    type Integer_64 is range -2 ** (64 - 1) .. +2 ** (64 - 1) - 1;
    for Integer_64'Size use 64;
 
+   type Integer_8_Array  is array (Integer range <>) of Integer_8;
+   type Integer_16_Array is array (Integer range <>) of Integer_16;
+   type Integer_32_Array is array (Integer range <>) of Integer_32;
+   type Integer_64_Array is array (Integer range <>) of Integer_64;
+   --  These array types are not in all versions of DEC System, and in fact it
+   --  is not quite clear why they are in some and not others, but since they
+   --  definitely appear in some versions, we include them unconditionally.
+
    type Largest_Integer is range Min_Int .. Max_Int;
 
    type AST_Handler is private;
@@ -96,14 +102,18 @@ package System.Aux_DEC is
    function "or"  (Left, Right : Largest_Integer) return Largest_Integer;
    function "xor" (Left, Right : Largest_Integer) return Largest_Integer;
 
-   Address_Zero : constant Address;
-   No_Addr      : constant Address;
-   Address_Size : constant := Standard'Address_Size;
+   Address_Zero       : constant Address;
+   No_Addr            : constant Address;
+   Address_Size       : constant := Standard'Address_Size;
+   Short_Address_Size : constant := 32;
 
    function "+" (Left : Address; Right : Integer) return Address;
    function "+" (Left : Integer; Right : Address) return Address;
    function "-" (Left : Address; Right : Address) return Integer;
    function "-" (Left : Address; Right : Integer) return Address;
+
+   pragma Import (Intrinsic, "+");
+   pragma Import (Intrinsic, "-");
 
    generic
       type Target is private;
@@ -116,6 +126,7 @@ package System.Aux_DEC is
    --  Floating point type declarations for VAX floating point data types
 
    pragma Warnings (Off);
+   --  ??? needs comment
 
    type F_Float is digits 6;
    pragma Float_Representation (VAX_Float, F_Float);
@@ -219,16 +230,16 @@ package System.Aux_DEC is
    type Unsigned_Quadword_Array is
       array (Integer range <>) of Unsigned_Quadword;
 
-   function To_Address      (X : Integer)           return Address;
+   function To_Address      (X : Integer)           return Short_Address;
    pragma Pure_Function (To_Address);
 
-   function To_Address_Long (X : Unsigned_Longword) return Address;
+   function To_Address_Long (X : Unsigned_Longword) return Short_Address;
    pragma Pure_Function (To_Address_Long);
 
-   function To_Integer      (X : Address)           return Integer;
+   function To_Integer      (X : Short_Address)     return Integer;
 
-   function To_Unsigned_Longword (X : Address)     return Unsigned_Longword;
-   function To_Unsigned_Longword (X : AST_Handler) return Unsigned_Longword;
+   function To_Unsigned_Longword (X : Short_Address) return Unsigned_Longword;
+   function To_Unsigned_Longword (X : AST_Handler)   return Unsigned_Longword;
 
    --  Conventional names for static subtypes of type UNSIGNED_LONGWORD
 
@@ -274,9 +285,9 @@ package System.Aux_DEC is
    pragma Import (Intrinsic, Import_Address);
    pragma Import (Intrinsic, Import_Largest_Value);
 
-   --  For the following declarations, note that the declaration without
-   --  a Retry_Count parameter means to retry infinitely. A value of zero
-   --  for the Retry_Count parameter means do not retry.
+   --  For the following declarations, note that the declaration without a
+   --  Retry_Count parameter means to retry infinitely. A value of zero for
+   --  the Retry_Count parameter means do not retry.
 
    --  Interlocked-instruction procedures
 
@@ -292,8 +303,7 @@ package System.Aux_DEC is
       Value : Short_Integer;
    end record;
 
-   for Aligned_Word'Alignment use
-     Integer'Min (2, Standard'Maximum_Alignment);
+   for Aligned_Word'Alignment use Integer'Min (2, Standard'Maximum_Alignment);
 
    procedure Clear_Interlocked
      (Bit          : in out Boolean;
@@ -326,9 +336,9 @@ package System.Aux_DEC is
    for Aligned_Long_Integer'Alignment use
      Integer'Min (8, Standard'Maximum_Alignment);
 
-   --  For the following declarations, note that the declaration without
-   --  a Retry_Count parameter mean to retry infinitely. A value of zero
-   --  for the Retry_Count means do not retry.
+   --  For the following declarations, note that the declaration without a
+   --  Retry_Count parameter mean to retry infinitely. A value of zero for
+   --  the Retry_Count means do not retry.
 
    procedure Add_Atomic
      (To           : in out Aligned_Integer;
@@ -396,12 +406,11 @@ package System.Aux_DEC is
       Old_Value    : out Long_Integer;
       Success_Flag : out Boolean);
 
-   type Insq_Status is
-     (Fail_No_Lock, OK_Not_First, OK_First);
+   type Insq_Status is (Fail_No_Lock, OK_Not_First, OK_First);
 
    for Insq_Status use
      (Fail_No_Lock => -1,
-      OK_Not_First => 0,
+      OK_Not_First =>  0,
       OK_First     => +1);
 
    type Remq_Status is (
@@ -412,7 +421,7 @@ package System.Aux_DEC is
 
    for Remq_Status use
      (Fail_No_Lock   => -1,
-      Fail_Was_Empty => 0,
+      Fail_Was_Empty =>  0,
       OK_Not_Empty   => +1,
       OK_Empty       => +2);
 
@@ -442,7 +451,7 @@ private
    No_Addr      : constant Address := Null_Address;
 
    --  An AST_Handler value is from a typing point of view simply a pointer
-   --  to a procedure taking a single 64bit parameter. However, this
+   --  to a procedure taking a single 64 bit parameter. However, this
    --  is a bit misleading, because the data that this pointer references is
    --  highly stylized. See body of System.AST_Handling for full details.
 
@@ -453,12 +462,10 @@ private
    --  them intrinsic, since the backend can handle them, but the front
    --  end is not prepared to deal with them, so at least inline them.
 
-   pragma Inline_Always ("+");
-   pragma Inline_Always ("-");
-   pragma Inline_Always ("not");
-   pragma Inline_Always ("and");
-   pragma Inline_Always ("or");
-   pragma Inline_Always ("xor");
+   pragma Import (Intrinsic, "not");
+   pragma Import (Intrinsic, "and");
+   pragma Import (Intrinsic, "or");
+   pragma Import (Intrinsic, "xor");
 
    --  Other inlined subprograms
 
@@ -570,6 +577,13 @@ private
       Mechanism       => (Reference, Value, Value, Reference, Reference));
    pragma Inline_Always (Or_Atomic);
 
+   --  Inline the VAX Queue Functions
+
+   pragma Inline_Always (Insqhi);
+   pragma Inline_Always (Remqhi);
+   pragma Inline_Always (Insqti);
+   pragma Inline_Always (Remqti);
+
    --  Provide proper unchecked conversion definitions for transfer
    --  functions. Note that we need this level of indirection because
    --  the formal parameter name is X and not Source (and this is indeed
@@ -641,31 +655,31 @@ private
    --  want warnings when we compile on such systems.
 
    function To_Address_A is new
-     Ada.Unchecked_Conversion (Integer, Address);
+     Ada.Unchecked_Conversion (Integer, Short_Address);
    pragma Pure_Function (To_Address_A);
 
-   function To_Address (X : Integer) return Address
+   function To_Address (X : Integer) return Short_Address
      renames To_Address_A;
    pragma Pure_Function (To_Address);
 
    function To_Address_Long_A is new
-     Ada.Unchecked_Conversion (Unsigned_Longword, Address);
+     Ada.Unchecked_Conversion (Unsigned_Longword, Short_Address);
    pragma Pure_Function (To_Address_Long_A);
 
-   function To_Address_Long (X : Unsigned_Longword) return Address
+   function To_Address_Long (X : Unsigned_Longword) return Short_Address
      renames To_Address_Long_A;
    pragma Pure_Function (To_Address_Long);
 
    function To_Integer_A is new
-     Ada.Unchecked_Conversion (Address, Integer);
+     Ada.Unchecked_Conversion (Short_Address, Integer);
 
-   function To_Integer (X : Address) return Integer
+   function To_Integer (X : Short_Address) return Integer
      renames To_Integer_A;
 
    function To_Unsigned_Longword_A is new
-     Ada.Unchecked_Conversion (Address, Unsigned_Longword);
+     Ada.Unchecked_Conversion (Short_Address, Unsigned_Longword);
 
-   function To_Unsigned_Longword (X : Address) return Unsigned_Longword
+   function To_Unsigned_Longword (X : Short_Address) return Unsigned_Longword
      renames To_Unsigned_Longword_A;
 
    function To_Unsigned_Longword_A is new

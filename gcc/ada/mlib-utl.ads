@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 2001-2007, AdaCore                     --
+--                     Copyright (C) 2001-2008, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -47,12 +47,21 @@ package MLib.Utl is
    procedure Ar
      (Output_File : String;
       Objects     : Argument_List);
-   --  Run ar to move all the binaries inside the archive. If ranlib is on the
-   --  path, run it also. Output_File is the path name of the archive to
+   --  Run ar to move all the binaries inside the archive. If ranlib is on
+   --  the path, run it also. Output_File is the path name of the archive to
    --  create. Objects is the list of the path names of the object files to be
-   --  put in the archive.
+   --  put in the archive. This procedure currently assumes that it is always
+   --  called in the context of gnatmake. If other executables start using this
+   --  procedure, an additional parameter would need to be added, and calls to
+   --  Osint.Program_Name updated accordingly in the body.
 
    function Lib_Directory return String;
    --  Return the directory containing libgnat
+
+   procedure Specify_Adalib_Dir (Path : String);
+   --  Specify the path of the GNAT adalib directory, to be returned by
+   --  function Lib_Directory without looking for it. This is used only in
+   --  gprlib, because we cannot rely on the search in Lib_Directory, as the
+   --  GNAT version may be different for gprbuild/gprlib and the compiler.
 
 end MLib.Utl;

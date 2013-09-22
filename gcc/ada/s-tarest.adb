@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---         Copyright (C) 1999-2007, Free Software Foundation, Inc.          --
+--         Copyright (C) 1999-2012, Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -46,31 +44,18 @@ pragma Polling (Off);
 --  tasking operations. It causes infinite loops and other problems.
 
 with Ada.Exceptions;
---  used for Exception_Occurrence
 
 with System.Task_Primitives.Operations;
---  used for Enter_Task
---           Write_Lock
---           Unlock
---           Wakeup
---           Get_Priority
+with System.Soft_Links.Tasking;
+with System.Secondary_Stack;
+with System.Storage_Elements;
 
 with System.Soft_Links;
---  used for the non-tasking routines (*_NT) that refer to global data.
---  They are needed here before the tasking run time has been elaborated.
---  used for Create_TSD
---  This package also provides initialization routines for task specific data.
---  The GNARL must call these to be sure that all non-tasking
+--  Used for the non-tasking routines (*_NT) that refer to global data. They
+--  are needed here before the tasking run time has been elaborated. used for
+--  Create_TSD This package also provides initialization routines for task
+--  specific data. The GNARL must call these to be sure that all non-tasking
 --  Ada constructs will work.
-
-with System.Soft_Links.Tasking;
---  Used for Init_Tasking_Soft_Links
-
-with System.Secondary_Stack;
---  used for SS_Init;
-
-with System.Storage_Elements;
---  used for Storage_Array;
 
 package body System.Tasking.Restricted.Stages is
 
@@ -84,6 +69,9 @@ package body System.Tasking.Restricted.Stages is
    use Parameters;
    use Task_Primitives.Operations;
    use Task_Info;
+
+   Tasks_Activation_Chain : Task_Id;
+   --  Chain of all the tasks to activate
 
    Global_Task_Lock : aliased System.Task_Primitives.RTS_Lock;
    --  This is a global lock; it is used to execute in mutual exclusion
@@ -122,6 +110,24 @@ package body System.Tasking.Restricted.Stages is
    procedure Terminate_Task (Self_ID : Task_Id);
    --  Terminate the calling task.
    --  This should only be called by the Task_Wrapper procedure.
+
+   procedure Create_Restricted_Task
+     (Priority      : Integer;
+      Stack_Address : System.Address;
+      Size          : System.Parameters.Size_Type;
+      Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
+      State         : Task_Procedure_Access;
+      Discriminants : System.Address;
+      Elaborated    : Access_Boolean;
+      Task_Image    : String;
+      Created_Task  : Task_Id);
+   --  Code shared between Create_Restricted_Task_Concurrent and
+   --  Create_Restricted_Task_Sequential. See comment of the former in the
+   --  specification of this package.
+
+   procedure Activate_Tasks (Chain : Task_Id);
+   --  Activate the list of tasks started by Chain
 
    procedure Init_RTS;
    --  This procedure performs the initialization of the GNARL.
@@ -199,7 +205,7 @@ package body System.Tasking.Restricted.Stages is
 
       Secondary_Stack : aliased SSE.Storage_Array
         (1 .. Self_ID.Common.Compiler_Data.Pri_Stack_Info.Size *
-                SSE.Storage_Offset (Parameters.Sec_Stack_Ratio) / 100);
+                SSE.Storage_Offset (Parameters.Sec_Stack_Percentage) / 100);
 
       pragma Warnings (Off);
       Secondary_Stack_Address : System.Address := Secondary_Stack'Address;
@@ -213,7 +219,7 @@ package body System.Tasking.Restricted.Stages is
       --  a task terminating due to completing the last statement of its body.
       --  If the task terminates because of an exception raised by the
       --  execution of its task body, then Cause is set to Unhandled_Exception.
-      --  Aborts are not allowed in the restriced profile to which this file
+      --  Aborts are not allowed in the restricted profile to which this file
       --  belongs.
 
       EO : Exception_Occurrence;
@@ -313,9 +319,43 @@ package body System.Tasking.Restricted.Stages is
    -- Restricted GNARLI --
    -----------------------
 
+   -----------------------------------
+   -- Activate_All_Tasks_Sequential --
+   -----------------------------------
+
+   procedure Activate_All_Tasks_Sequential is
+   begin
+      pragma Assert (Partition_Elaboration_Policy = 'S');
+
+      Activate_Tasks (Tasks_Activation_Chain);
+      Tasks_Activation_Chain := Null_Task;
+   end Activate_All_Tasks_Sequential;
+
    -------------------------------
    -- Activate_Restricted_Tasks --
    -------------------------------
+
+   procedure Activate_Restricted_Tasks
+     (Chain_Access : Activation_Chain_Access) is
+   begin
+      if Partition_Elaboration_Policy = 'S' then
+
+         --  In sequential elaboration policy, the chain must be empty. This
+         --  procedure can be called if the unit has been compiled without
+         --  partition elaboration policy, but the partition has a sequential
+         --  elaboration policy.
+
+         pragma Assert (Chain_Access.T_ID = Null_Task);
+         null;
+      else
+         Activate_Tasks (Chain_Access.T_ID);
+         Chain_Access.T_ID := Null_Task;
+      end if;
+   end Activate_Restricted_Tasks;
+
+   --------------------
+   -- Activate_Tasks --
+   --------------------
 
    --  Note that locks of activator and activated task are both locked here.
    --  This is necessary because C.State and Self.Wait_Count have to be
@@ -323,9 +363,7 @@ package body System.Tasking.Restricted.Stages is
    --  created before the activated task. That satisfies our
    --  in-order-of-creation ATCB locking policy.
 
-   procedure Activate_Restricted_Tasks
-     (Chain_Access : Activation_Chain_Access)
-   is
+   procedure Activate_Tasks (Chain : Task_Id) is
       Self_ID       : constant Task_Id := STPO.Self;
       C             : Task_Id;
       Activate_Prio : System.Any_Priority;
@@ -347,19 +385,17 @@ package body System.Tasking.Restricted.Stages is
       --  Activate all the tasks in the chain. Creation of the thread of
       --  control was deferred until activation. So create it now.
 
-      C := Chain_Access.T_ID;
-
+      C := Chain;
       while C /= null loop
          if C.Common.State /= Terminated then
             pragma Assert (C.Common.State = Unactivated);
 
             Write_Lock (C);
 
-            if C.Common.Base_Priority < Get_Priority (Self_ID) then
-               Activate_Prio := Get_Priority (Self_ID);
-            else
-               Activate_Prio := C.Common.Base_Priority;
-            end if;
+            Activate_Prio :=
+              (if C.Common.Base_Priority < Get_Priority (Self_ID)
+               then Get_Priority (Self_ID)
+               else C.Common.Base_Priority);
 
             STPO.Create_Task
               (C, Task_Wrapper'Address,
@@ -397,11 +433,7 @@ package body System.Tasking.Restricted.Stages is
       if Single_Lock then
          Unlock_RTS;
       end if;
-
-      --  Remove the tasks from the chain
-
-      Chain_Access.T_ID := null;
-   end Activate_Restricted_Tasks;
+   end Activate_Tasks;
 
    ------------------------------------
    -- Complete_Restricted_Activation --
@@ -474,15 +506,16 @@ package body System.Tasking.Restricted.Stages is
       Stack_Address : System.Address;
       Size          : System.Parameters.Size_Type;
       Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
       State         : Task_Procedure_Access;
       Discriminants : System.Address;
       Elaborated    : Access_Boolean;
-      Chain         : in out Activation_Chain;
       Task_Image    : String;
       Created_Task  : Task_Id)
    is
       Self_ID       : constant Task_Id := STPO.Self;
       Base_Priority : System.Any_Priority;
+      Base_CPU      : System.Multiprocessors.CPU_Range;
       Success       : Boolean;
       Len           : Integer;
 
@@ -492,10 +525,37 @@ package body System.Tasking.Restricted.Stages is
 
       pragma Assert (Stack_Address = Null_Address);
 
-      if Priority = Unspecified_Priority then
-         Base_Priority := Self_ID.Common.Base_Priority;
+      Base_Priority :=
+        (if Priority = Unspecified_Priority
+         then Self_ID.Common.Base_Priority
+         else System.Any_Priority (Priority));
+
+      --  Legal values of CPU are the special Unspecified_CPU value which is
+      --  inserted by the compiler for tasks without CPU aspect, and those in
+      --  the range of CPU_Range but no greater than Number_Of_CPUs. Otherwise
+      --  the task is defined to have failed, and it becomes a completed task
+      --  (RM D.16(14/3)).
+
+      if CPU /= Unspecified_CPU
+        and then (CPU < Integer (System.Multiprocessors.CPU_Range'First)
+          or else CPU > Integer (System.Multiprocessors.CPU_Range'Last)
+          or else CPU > Integer (System.Multiprocessors.Number_Of_CPUs))
+      then
+         raise Tasking_Error with "CPU not in range";
+
+      --  Normal CPU affinity
       else
-         Base_Priority := System.Any_Priority (Priority);
+         --  When the application code says nothing about the task affinity
+         --  (task without CPU aspect) then the compiler inserts the
+         --  Unspecified_CPU value which indicates to the run-time library that
+         --  the task will activate and execute on the same processor as its
+         --  activating task if the activating task is assigned a processor
+         --  (RM D.16(14/3)).
+
+         Base_CPU :=
+           (if CPU = Unspecified_CPU
+            then Self_ID.Common.Base_CPU
+            else System.Multiprocessors.CPU_Range (CPU));
       end if;
 
       if Single_Lock then
@@ -505,11 +565,13 @@ package body System.Tasking.Restricted.Stages is
       Write_Lock (Self_ID);
 
       --  With no task hierarchy, the parent of all non-Environment tasks that
-      --  are created must be the Environment task
+      --  are created must be the Environment task. Dispatching domains are
+      --  not allowed in Ravenscar, so the dispatching domain parameter will
+      --  always be null.
 
       Initialize_ATCB
         (Self_ID, State, Discriminants, Self_ID, Elaborated, Base_Priority,
-         Task_Info, Size, Created_Task, Success);
+         Base_CPU, null, Task_Info, Size, Created_Task, Success);
 
       --  If we do our job right then there should never be any failures, which
       --  was probably said about the Titanic; so just to be safe, let's retain
@@ -543,9 +605,70 @@ package body System.Tasking.Restricted.Stages is
       --  may be used by the operation of Ada code within the task.
 
       SSL.Create_TSD (Created_Task.Common.Compiler_Data);
-      Created_Task.Common.Activation_Link := Chain.T_ID;
-      Chain.T_ID := Created_Task;
    end Create_Restricted_Task;
+
+   procedure Create_Restricted_Task
+     (Priority      : Integer;
+      Stack_Address : System.Address;
+      Size          : System.Parameters.Size_Type;
+      Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
+      State         : Task_Procedure_Access;
+      Discriminants : System.Address;
+      Elaborated    : Access_Boolean;
+      Chain         : in out Activation_Chain;
+      Task_Image    : String;
+      Created_Task  : Task_Id)
+   is
+   begin
+      if Partition_Elaboration_Policy = 'S' then
+
+         --  A unit may have been compiled without partition elaboration
+         --  policy, and in this case the compiler will emit calls for the
+         --  default policy (concurrent). But if the partition policy is
+         --  sequential, activation must be deferred.
+
+         Create_Restricted_Task_Sequential
+           (Priority, Stack_Address, Size, Task_Info, CPU, State,
+            Discriminants, Elaborated, Task_Image, Created_Task);
+
+      else
+         Create_Restricted_Task
+           (Priority, Stack_Address, Size, Task_Info, CPU, State,
+            Discriminants, Elaborated, Task_Image, Created_Task);
+
+         --  Append this task to the activation chain
+
+         Created_Task.Common.Activation_Link := Chain.T_ID;
+         Chain.T_ID := Created_Task;
+      end if;
+   end Create_Restricted_Task;
+
+   ---------------------------------------
+   -- Create_Restricted_Task_Sequential --
+   ---------------------------------------
+
+   procedure Create_Restricted_Task_Sequential
+     (Priority      : Integer;
+      Stack_Address : System.Address;
+      Size          : System.Parameters.Size_Type;
+      Task_Info     : System.Task_Info.Task_Info_Type;
+      CPU           : Integer;
+      State         : Task_Procedure_Access;
+      Discriminants : System.Address;
+      Elaborated    : Access_Boolean;
+      Task_Image    : String;
+      Created_Task  : Task_Id) is
+   begin
+      Create_Restricted_Task (Priority, Stack_Address, Size, Task_Info,
+                              CPU, State, Discriminants, Elaborated,
+                              Task_Image, Created_Task);
+
+      --  Append this task to the activation chain
+
+      Created_Task.Common.Activation_Link := Tasks_Activation_Chain;
+      Tasks_Activation_Chain := Created_Task;
+   end Create_Restricted_Task_Sequential;
 
    ---------------------------
    -- Finalize_Global_Tasks --

@@ -47,17 +47,17 @@ package Interfaces.C is
    type unsigned_char is mod (UCHAR_MAX + 1);
    for unsigned_char'Size use CHAR_BIT;
 
-   subtype plain_char is unsigned_char; -- ??? should be parametrized
+   subtype plain_char is unsigned_char; -- ??? should be parameterized
 
    --  Note: the Integer qualifications used in the declaration of ptrdiff_t
    --  avoid ambiguities when compiling in the presence of s-auxdec.ads and
    --  a non-private system.address type.
 
    type ptrdiff_t is
-     range -(2 ** (Standard'Address_Size - Integer'(1))) ..
-           +(2 ** (Standard'Address_Size - Integer'(1)) - 1);
+     range -(2 ** (System.Parameters.ptr_bits - Integer'(1))) ..
+           +(2 ** (System.Parameters.ptr_bits - Integer'(1)) - 1);
 
-   type size_t is mod 2 ** Standard'Address_Size;
+   type size_t is mod 2 ** System.Parameters.ptr_bits;
 
    --  Floating-Point
 

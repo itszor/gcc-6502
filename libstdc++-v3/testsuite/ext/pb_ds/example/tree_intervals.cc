@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -14,19 +14,9 @@
 // General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// along with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -81,10 +71,10 @@ typedef pair< unsigned int, unsigned int> interval;
 
 // Functor updating maximal endpoints of entries. Algorithm taken from
 // "Introduction to Algorithms" by Cormen, Leiserson, and Rivest.
-template<class Const_Node_Iterator,
-	 class Node_Iterator,
+template<class Node_CItr,
+	 class Node_Itr,
 	 class Cmp_Fn,
-	 class Allocator>
+	 typename _Alloc>
 struct intervals_node_update
 {
 public:
@@ -98,8 +88,8 @@ public:
   bool
   overlaps(const interval& r_interval)
   {
-    Const_Node_Iterator nd_it = node_begin();
-    Const_Node_Iterator end_it = node_end();
+    Node_CItr nd_it = node_begin();
+    Node_CItr end_it = node_end();
 
     while (nd_it != end_it)
       {
@@ -109,7 +99,7 @@ public:
 	  return true;
 
 	// Get the const node iterator of the node's left child.
-	Const_Node_Iterator l_nd_it = nd_it.get_l_child();
+	Node_CItr l_nd_it = nd_it.get_l_child();
 
 	// Calculate the maximal endpoint of the left child. If the
 	// node has no left child, then this is the node's maximal
@@ -132,7 +122,7 @@ protected:
   // updated; end_nd_it is a const node iterator to a just-after leaf
   // node.
   inline void
-  operator()(Node_Iterator nd_it, Const_Node_Iterator end_nd_it)
+  operator()(Node_Itr nd_it, Node_CItr end_nd_it)
   {
     // The left maximal endpoint is 0 if there is no left child.
     const unsigned int l_max_endpoint =(nd_it.get_l_child() == end_nd_it)?
@@ -148,10 +138,10 @@ protected:
       max((*nd_it)->second, max<unsigned int>(l_max_endpoint, r_max_endpoint));
   }
 
-  virtual Const_Node_Iterator
+  virtual Node_CItr
   node_begin() const = 0;
 
-  virtual Const_Node_Iterator
+  virtual Node_CItr
   node_end() const = 0;
 
   virtual
@@ -196,7 +186,7 @@ int main()
   // Test a red-black tree.
   some_op_sequence(tree<
 		   interval,
-		   null_mapped_type,
+		   null_type,
 		   less<interval>,
 		   rb_tree_tag,
 		   intervals_node_update>());
@@ -204,7 +194,7 @@ int main()
   // Test an ordered-vector tree.
   some_op_sequence(tree<
 		   interval,
-		   null_mapped_type,
+		   null_type,
 		   less<interval>,
 		   ov_tree_tag,
 		   intervals_node_update>());
@@ -212,7 +202,7 @@ int main()
   // Test a splay tree.
   some_op_sequence(tree<
 		   interval,
-		   null_mapped_type,
+		   null_type,
 		   less<interval>,
 		   splay_tree_tag,
 		   intervals_node_update>());

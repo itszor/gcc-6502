@@ -1,12 +1,12 @@
 // { dg-require-sharedlib "" }
 // { dg-options "-g -O2 -pthread -ldl -x c" { target *-*-linux* } }
 
-// Copyright (C) 2005 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -15,9 +15,8 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 #include <pthread.h>
 #include <dlfcn.h>
@@ -33,20 +32,20 @@ static void* run(void* arg)
   void (*cb)();
 
   lib = dlopen("./testsuite_shared.so", RTLD_NOW);
-  if (lib == NULL)
+  if (!lib)
     {
       printf("dlopen failed: %s\n", strerror(errno));
-      return NULL;
+      return 0;
     }
   cb = (function_type) dlsym(lib, "try_throw_exception");
-  if (cb == NULL)
+  if (!cb)
     {
       printf("dlsym failed: %s\n", strerror(errno));
-      return NULL;
+      return 0;
     }
   cb();
   dlclose(lib);
-  return NULL;
+  return 0;
 }
 
 // libstdc++/23591
@@ -54,9 +53,9 @@ int main(void)
 {
   pthread_t pt;
 
-  if (pthread_create(&pt, NULL, &run, NULL) != 0)
+  if (pthread_create(&pt, 0, &run, 0) != 0)
     return 1;
-  if (pthread_join(pt, NULL) != 0)
+  if (pthread_join(pt, 0) != 0)
     return 1;
 
   return 0;

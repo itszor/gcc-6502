@@ -71,7 +71,7 @@ final class VMAccessController
     Permissions permissions = new Permissions();
     permissions.add(new AllPermission());
     ProtectionDomain[] domain = new ProtectionDomain[] {
-      new ProtectionDomain(source, permissions)
+      new ProtectionDomain(source, permissions, null, null)
     };
     DEFAULT_CONTEXT = new AccessControlContext(domain);
   }
@@ -188,12 +188,13 @@ final class VMAccessController
       {
         Class clazz = classes[i];
         String method = methods[i];
+        ClassLoader loader = clazz.getClassLoader();
 
         if (DEBUG)
           {
             debug("checking " + clazz + "." + method);
             // subject to getClassLoader RuntimePermission
-            debug("loader = " + clazz.getClassLoader());
+            debug("loader = " + loader);
           }
 
         // If the previous frame was a call to doPrivileged, then this is
@@ -205,8 +206,8 @@ final class VMAccessController
             && method.equals ("doPrivileged"))
           {
             // If there was a call to doPrivileged with a supplied context,
-            // return that context. If using JAAS doAs*, it should be 
-	    // a context with a SubjectDomainCombiner
+            // return that context. If using JAAS doAs*, it should be
+            // a context with a SubjectDomainCombiner
             LinkedList l = (LinkedList) contexts.get();
             if (l != null)
               context = (AccessControlContext) l.getFirst();
@@ -214,7 +215,7 @@ final class VMAccessController
           }
 
         // subject to getProtectionDomain RuntimePermission
-	ProtectionDomain domain = clazz.getProtectionDomain();
+        ProtectionDomain domain = clazz.getProtectionDomain();
 
         if (domain == null)
           continue;
@@ -225,7 +226,8 @@ final class VMAccessController
         // Create a static snapshot of this domain, which may change over time
         // if the current policy changes.
         domains.add(new ProtectionDomain(domain.getCodeSource(),
-                                         domain.getPermissions()));
+                                         domain.getPermissions(),
+                                         loader, null));
       }
 
     if (DEBUG)

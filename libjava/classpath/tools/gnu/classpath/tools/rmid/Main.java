@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -39,7 +39,6 @@ package gnu.classpath.tools.rmid;
 
 import gnu.classpath.tools.rmid.ActivationSystemImpl;
 import gnu.classpath.tools.common.ClasspathToolParser;
-import gnu.classpath.tools.getopt.FileArgumentCallback;
 import gnu.classpath.tools.getopt.Option;
 import gnu.classpath.tools.getopt.OptionException;
 import gnu.classpath.tools.getopt.OptionGroup;
@@ -59,7 +58,7 @@ import java.rmi.server.RMIServerSocketFactory;
 
 /**
  * The persistent RMI activation daemon.
- * 
+ *
  * @author Audrius Meskauskas (audriusa@bioinformatics.org)
  */
 public class Main
@@ -68,17 +67,17 @@ public class Main
    * The RMI server socket factory.
    */
   static RMIServerSocketFactory ACTIVATION_REGISTY_SOCKET_FACTORY = null;
-  
+
   /**
    * The activation registry port.
    */
   static int ACTIVATION_REGISTRY_PORT = ActivationSystem.SYSTEM_PORT;
-  
+
   /**
    * The activation system name.
    */
   static String ACTIVATION_SYSTEM_NAME = "java.rmi.activation.ActivationSystem";
-  
+
   // Parse parameters:
   private boolean stop = false;
   private String directory = ".";
@@ -170,16 +169,16 @@ public class Main
             if (!dataDirectory.exists())
               dataDirectory.mkdirs();
             ActivationSystem system;
-            
+
             if (!persistent)
               system = ActivationSystemTransient.getInstance();
             else
               system = ActivationSystemImpl.getInstance(dataDirectory, cold);
-            
+
             // We must export with the specific activation id that is only
             // possible when going into the gnu.java.rmi.activation.
             UnicastServerRef sref = new UnicastServerRef(
-               new ObjID(ObjID.ACTIVATOR_ID), ACTIVATION_REGISTRY_PORT, 
+               new ObjID(ObjID.ACTIVATOR_ID), ACTIVATION_REGISTRY_PORT,
                ACTIVATION_REGISTY_SOCKET_FACTORY);
             Remote systemStub = sref.exportObject(system);
 
@@ -201,7 +200,7 @@ public class Main
                 r.rebind(ACTIVATION_SYSTEM_NAME, systemStub);
               }
             String host = InetAddress.getLocalHost().getCanonicalHostName();
-            System.out.println("The RMI daemon is listening on " + host + 
+            System.out.println("The RMI daemon is listening on " + host +
                                " (port "
                                + ACTIVATION_REGISTRY_PORT + ")");
 
@@ -217,7 +216,7 @@ public class Main
                 // Expect the naming service running first.
                 // The local host may want to use the shared registry
                 r = LocateRegistry.getRegistry(ACTIVATION_REGISTRY_PORT);
-                ActivationSystem asys = 
+                ActivationSystem asys =
                   (ActivationSystem) r.lookup(ACTIVATION_SYSTEM_NAME);
                 asys.shutdown();
                 System.out.println("OK.");
@@ -237,7 +236,7 @@ public class Main
         if (ActivationSystemTransient.debug)
           e.printStackTrace();
       }
-  } 
+  }
 
   /**
    * The activation system entry point.

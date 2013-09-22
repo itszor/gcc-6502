@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -95,15 +95,15 @@ package Sem_Res is
    procedure Ambiguous_Character (C : Node_Id);
    --  Give list of candidate interpretations when a character literal cannot
    --  be resolved, for example in a (useless) comparison such as 'A' = 'B'.
-   --  In Ada95 the literals in question can be of type Character or Wide_
-   --  Character. In Ada2005 Wide_Wide_Character is also a candidate. The
+   --  In Ada 95 the literals in question can be of type Character or Wide_
+   --  Character. In Ada 2005 Wide_Wide_Character is also a candidate. The
    --  node may also be overloaded with user-defined character types.
 
    procedure Check_Parameterless_Call (N : Node_Id);
    --  Several forms of names can denote calls to entities without para-
    --  meters. The context determines whether the name denotes the entity
    --  or a call to it. When it is a call, the node must be rebuilt
-   --  accordingly and renalyzed to obtain possible interpretations.
+   --  accordingly and reanalyzed to obtain possible interpretations.
    --
    --  The name may be that of an overloadable construct, or it can be an
    --  explicit dereference of a prefix that denotes an access to subprogram.
@@ -113,14 +113,26 @@ package Sem_Res is
    --
    --  The parameter T is the Typ for the corresponding resolve call.
 
-   procedure Pre_Analyze_And_Resolve (N : Node_Id; T : Entity_Id);
-   --  Performs a pre-analysis of expression node N. During pre-analysis
+   procedure Preanalyze_And_Resolve (N : Node_Id; T : Entity_Id);
+   --  Performs a pre-analysis of expression node N. During pre-analysis,
    --  N is analyzed and then resolved against type T, but no expansion
    --  is carried out for N or its children. For more info on pre-analysis
    --  read the spec of Sem.
 
-   procedure Pre_Analyze_And_Resolve (N : Node_Id);
+   procedure Preanalyze_And_Resolve (N : Node_Id);
    --  Same, but use type of node because context does not impose a single type
+
+   function Valid_Conversion
+     (N           : Node_Id;
+      Target      : Entity_Id;
+      Operand     : Node_Id;
+      Report_Errs : Boolean := True) return Boolean;
+   --  Verify legality rules given in 4.6 (8-23). Target is the target type
+   --  of the conversion, which may be an implicit conversion of an actual
+   --  parameter to an anonymous access type (in which case N denotes the
+   --  actual parameter and N = Operand). Returns a Boolean result indicating
+   --  whether the conversion is legal. Reports errors in the case of illegal
+   --  conversions, unless Report_Errs is False.
 
 private
    procedure Resolve_Implicit_Type (N : Node_Id) renames Resolve;

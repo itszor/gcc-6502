@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler,
    for Alpha Linux-based GNU systems.
-   Copyright (C) 1996, 1997, 1998, 2002, 2003, 2004, 2005, 2006, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
    Contributed by Richard Henderson.
 
 This file is part of GCC.
@@ -19,9 +18,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
-
-#undef TARGET_DEFAULT
-#define TARGET_DEFAULT (MASK_FPREGS | MASK_GAS)
 
 #define TARGET_OS_CPP_BUILTINS()				\
     do {							\
@@ -61,8 +57,11 @@ along with GCC; see the file COPYING3.  If not see
 #undef WCHAR_TYPE
 #define WCHAR_TYPE "int"
 
-/* Define this so that all GNU/Linux targets handle the same pragmas.  */
-#define HANDLE_PRAGMA_PACK_PUSH_POP
+#ifdef SINGLE_LIBC
+#define OPTION_GLIBC  (DEFAULT_LIBC == LIBC_GLIBC)
+#else
+#define OPTION_GLIBC  (linux_libc == LIBC_GLIBC)
+#endif
 
 /* Determine whether the entire c99 runtime is present in the
    runtime library.  */
@@ -81,7 +80,21 @@ along with GCC; see the file COPYING3.  If not see
 #define USE_LD_AS_NEEDED 1
 #endif
 
-#define MD_UNWIND_SUPPORT "config/alpha/linux-unwind.h"
-
 /* Define if long doubles should be mangled as 'g'.  */
 #define TARGET_ALTERNATE_LONG_DOUBLE_MANGLING
+
+/* -mcpu=native handling only makes sense with compiler running on
+   an Alpha chip.  */
+#if defined(__alpha__) || defined(__alpha)
+extern const char *host_detect_local_cpu (int argc, const char **argv);
+# define EXTRA_SPEC_FUNCTIONS						\
+  { "local_cpu_detect", host_detect_local_cpu },
+
+# define MCPU_MTUNE_NATIVE_SPECS					\
+   " %{mcpu=native:%<mcpu=native %:local_cpu_detect(cpu)}"		\
+   " %{mtune=native:%<mtune=native %:local_cpu_detect(tune)}"
+#else
+# define MCPU_MTUNE_NATIVE_SPECS ""
+#endif
+
+#define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS

@@ -6,7 +6,7 @@
 
 #pragma interface
 
-#include <javax/xml/stream/util/ReaderDelegate.h>
+#include <javax/xml/stream/util/StreamReaderDelegate.h>
 #include <gcj/array.h>
 
 extern "Java"
@@ -32,7 +32,7 @@ extern "Java"
   {
     namespace xml
     {
-      namespace namespace
+      namespace namespace$
       {
           class QName;
       }
@@ -69,7 +69,7 @@ extern "Java"
   }
 }
 
-class gnu::xml::stream::XIncludeFilter : public ::javax::xml::stream::util::ReaderDelegate
+class gnu::xml::stream::XIncludeFilter : public ::javax::xml::stream::util::StreamReaderDelegate
 {
 
 public: // actually package-private
@@ -79,7 +79,7 @@ public:
   virtual ::java::lang::String * getAttributeLocalName(jint);
   virtual ::java::lang::String * getAttributeNamespace(jint);
   virtual ::java::lang::String * getAttributePrefix(jint);
-  virtual ::javax::xml::namespace::QName * getAttributeName(jint);
+  virtual ::javax::xml::namespace$::QName * getAttributeName(jint);
   virtual ::java::lang::String * getAttributeType(jint);
   virtual jboolean isAttributeSpecified(jint);
   virtual ::java::lang::String * getAttributeValue(jint);
@@ -87,7 +87,7 @@ public:
   virtual ::java::lang::String * getElementText();
   virtual jint getEventType();
   virtual ::java::lang::String * getLocalName();
-  virtual ::javax::xml::namespace::QName * getName();
+  virtual ::javax::xml::namespace$::QName * getName();
   virtual ::java::lang::String * getNamespaceURI();
   virtual ::java::lang::String * getPIData();
   virtual ::java::lang::String * getPITarget();
@@ -111,7 +111,7 @@ public: // actually package-private
   static ::java::lang::String * getParameter(::java::lang::String *, ::java::lang::String *);
   static ::java::lang::String * XINCLUDE_NS_URI;
   static const jint SHOW_FLAGS = 221;
-  ::java::lang::String * __attribute__((aligned(__alignof__( ::javax::xml::stream::util::ReaderDelegate)))) systemId;
+  ::java::lang::String * __attribute__((aligned(__alignof__( ::javax::xml::stream::util::StreamReaderDelegate)))) systemId;
   jboolean namespaceAware;
   jboolean validating;
   jboolean expandERefs;

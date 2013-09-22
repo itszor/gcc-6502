@@ -1,5 +1,5 @@
 /* SignerInfo.java -- a SignerInfo object, from PKCS #7
-   Copyright (C) 2004, 2005  Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -59,7 +59,8 @@ import javax.security.auth.x500.X500Principal;
 
 public class SignerInfo
 {
-  private static final Logger log = Logger.getLogger(SignerInfo.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(SignerInfo.class.getName()) : null;
 
   private final BigInteger version;
   private final BigInteger serialNumber;
@@ -90,9 +91,9 @@ public class SignerInfo
    *   issuer       Name,
    *   serialNumber CertificateSerialNumber
    * }
-   * 
+   *
    * DigestAlgorithmIdentifier ::= AlgorithmIdentifier
-   * 
+   *
    * DigestEncryptionAlgorithmIdentifier ::= AlgorithmIdentifier
    *
    * EncryptedDigest ::= OCTET STRING
@@ -111,7 +112,8 @@ public class SignerInfo
       throw new BEREncodingException("malformed Version");
 
     version = (BigInteger) val.getValue();
-    log.fine("  Version: " + version);
+    if (Configuration.DEBUG)
+      log.fine("  Version: " + version);
 
     val = ber.read();
     if (!val.isConstructed())
@@ -269,7 +271,7 @@ public class SignerInfo
   /**
    * Constructs a new instance of <code>SignerInfo</code> given a designated
    * set of fields.
-   * 
+   *
    * @param issuer the X.500 Principal name of the signer referenced by this
    *          instance.
    * @param serialNumber the serial number of the certificate being used. Both
@@ -369,7 +371,7 @@ public class SignerInfo
   /**
    * Writes to the designated output stream the DER encoding of the current
    * contents of this instance.
-   * 
+   *
    * @param out the destination output stream.
    * @throws IOException if an I/O related exception occurs during the process.
    */

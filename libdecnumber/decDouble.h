@@ -1,54 +1,47 @@
 /* decDouble module header for the decNumber C Library.
-   Copyright (C) 2007 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
    Contributed by IBM Corporation.  Author Mike Cowlishaw.
 
    This file is part of GCC.
 
    GCC is free software; you can redistribute it and/or modify it under
    the terms of the GNU General Public License as published by the Free
-   Software Foundation; either version 2, or (at your option) any later
+   Software Foundation; either version 3, or (at your option) any later
    version.
-
-   In addition to the permissions in the GNU General Public License,
-   the Free Software Foundation gives you unlimited permission to link
-   the compiled version of this file into combinations with other
-   programs, and to distribute those combinations without any
-   restriction coming from the use of this file.  (The General Public
-   License restrictions do apply in other respects; for example, they
-   cover modification of the file, and distribution when not linked
-   into a combine executable.)
 
    GCC is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or
    FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
    for more details.
 
-   You should have received a copy of the GNU General Public License
-   along with GCC; see the file COPYING.  If not, write to the Free
-   Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
-   02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 /* ------------------------------------------------------------------ */
 /* decDouble.h -- Decimal 64-bit format module header		      */
-/* ------------------------------------------------------------------ */
-/* Please see decFloats.h for an overview and documentation details.  */
 /* ------------------------------------------------------------------ */
 
 #if !defined(DECDOUBLE)
   #define DECDOUBLE
 
-  #define DECDOUBLENAME	      "decimalDouble"	      /* Short name   */
+  #define DECDOUBLENAME       "decimalDouble"	      /* Short name   */
   #define DECDOUBLETITLE      "Decimal 64-bit datum"  /* Verbose name */
   #define DECDOUBLEAUTHOR     "Mike Cowlishaw"	      /* Who to blame */
 
   /* parameters for decDoubles */
   #define DECDOUBLE_Bytes   8	   /* length			      */
   #define DECDOUBLE_Pmax    16	   /* maximum precision (digits)      */
-  #define DECDOUBLE_Emin   -383	   /* minimum adjusted exponent	      */
-  #define DECDOUBLE_Emax    384	   /* maximum adjusted exponent	      */
+  #define DECDOUBLE_Emin   -383    /* minimum adjusted exponent       */
+  #define DECDOUBLE_Emax    384    /* maximum adjusted exponent       */
   #define DECDOUBLE_EmaxD   3	   /* maximum exponent digits	      */
-  #define DECDOUBLE_Bias    398	   /* bias for the exponent	      */
-  #define DECDOUBLE_String  25	   /* maximum string length, +1	      */
+  #define DECDOUBLE_Bias    398    /* bias for the exponent	      */
+  #define DECDOUBLE_String  25	   /* maximum string length, +1       */
   #define DECDOUBLE_EconL   8	   /* exponent continuation length    */
   #define DECDOUBLE_Declets 5	   /* count of declets		      */
   /* highest biased exponent (Elimit-1) */
@@ -58,9 +51,14 @@
   #include "decContext.h"
   #include "decQuad.h"
 
-  /* The decDouble decimal 64-bit type, accessible by bytes */
-  typedef struct {
-    uint8_t bytes[DECDOUBLE_Bytes]; /* fields: 1, 5, 8, 50 bits	  */
+  /* The decDouble decimal 64-bit type, accessible by all sizes */
+  typedef union {
+    uint8_t   bytes[DECDOUBLE_Bytes];	/* fields: 1, 5, 8, 50 bits */
+    uint16_t shorts[DECDOUBLE_Bytes/2];
+    uint32_t  words[DECDOUBLE_Bytes/4];
+    #if DECUSE64
+    uint64_t  longs[DECDOUBLE_Bytes/8];
+    #endif
     } decDouble;
 
   /* ---------------------------------------------------------------- */
@@ -73,6 +71,7 @@
   extern decDouble * decDoubleFromBCD(decDouble *, int32_t, const uint8_t *, int32_t);
   extern decDouble * decDoubleFromInt32(decDouble *, int32_t);
   extern decDouble * decDoubleFromPacked(decDouble *, int32_t, const uint8_t *);
+  extern decDouble * decDoubleFromPackedChecked(decDouble *, int32_t, const uint8_t *);
   extern decDouble * decDoubleFromString(decDouble *, const char *, decContext *);
   extern decDouble * decDoubleFromUInt32(decDouble *, uint32_t);
   extern decDouble * decDoubleFromWider(decDouble *, const decQuad *, decContext *);
@@ -158,7 +157,8 @@
 
   /* decNumber conversions; these are implemented as macros so as not  */
   /* to force a dependency on decimal64 and decNumber in decDouble.    */
+  /* decDoubleFromNumber returns a decimal64 * to avoid warnings.      */
   #define decDoubleToNumber(dq, dn) decimal64ToNumber((decimal64 *)(dq), dn)
-  #define decDoubleFromNumber(dq, dn, set) (decDouble *)decimal64FromNumber((decimal64 *)(dq), dn, set)
+  #define decDoubleFromNumber(dq, dn, set) decimal64FromNumber((decimal64 *)(dq), dn, set)
 
 #endif

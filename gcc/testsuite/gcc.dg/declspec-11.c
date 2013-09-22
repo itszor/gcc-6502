@@ -9,11 +9,11 @@ auto void f0 (void) {} /* { dg-error "function definition declared 'auto'" } */
 register void f1 (void) {} /* { dg-error "function definition declared 'register'" } */
 typedef void f2 (void) {} /* { dg-error "function definition declared 'typedef'" } */
 
-void f3 (auto int); /* { dg-error "storage class specified for parameter 'type name'" } */
-void f4 (extern int); /* { dg-error "storage class specified for parameter 'type name'" } */
+void f3 (auto int); /* { dg-error "storage class specified for unnamed parameter" } */
+void f4 (extern int); /* { dg-error "storage class specified for unnamed parameter" } */
 void f5 (register int);
-void f6 (static int); /* { dg-error "storage class specified for parameter 'type name'" } */
-void f7 (typedef int); /* { dg-error "storage class specified for parameter 'type name'" } */
+void f6 (static int); /* { dg-error "storage class specified for unnamed parameter" } */
+void f7 (typedef int); /* { dg-error "storage class specified for unnamed parameter" } */
 
 auto int x; /* { dg-error "file-scope declaration of 'x' specifies 'auto'" } */
 register int y; /* { dg-error "file-scope declaration of 'y' specifies 'register'" } */
@@ -43,3 +43,5 @@ void i (void) { auto void y (void) {} } /* { dg-error "ISO C forbids nested func
 /* { dg-error "function definition declared 'auto'" "nested" { target *-*-* } 42 } */
 
 inline int main (void) { return 0; } /* { dg-error "cannot inline function 'main'" } */
+
+/* { dg-message "error: register name not specified for 'y'" "" { target *-*-* } 19 } */

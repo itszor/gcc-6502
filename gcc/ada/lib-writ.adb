@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,18 +26,21 @@
 with ALI;      use ALI;
 with Atree;    use Atree;
 with Casing;   use Casing;
+with Debug;    use Debug;
 with Einfo;    use Einfo;
 with Errout;   use Errout;
 with Fname;    use Fname;
 with Fname.UF; use Fname.UF;
 with Lib.Util; use Lib.Util;
 with Lib.Xref; use Lib.Xref;
+               use Lib.Xref.Alfa;
 with Nlists;   use Nlists;
 with Gnatvsn;  use Gnatvsn;
 with Opt;      use Opt;
 with Osint;    use Osint;
 with Osint.C;  use Osint.C;
 with Par;
+with Par_SCO;  use Par_SCO;
 with Restrict; use Restrict;
 with Rident;   use Rident;
 with Scn;      use Scn;
@@ -46,6 +49,7 @@ with Sinput;   use Sinput;
 with Snames;   use Snames;
 with Stringt;  use Stringt;
 with Tbuild;   use Tbuild;
+with Ttypes;   use Ttypes;
 with Uname;    use Uname;
 
 with System.Case_Util; use System.Case_Util;
@@ -79,15 +83,18 @@ package body Lib.Writ is
          Dynamic_Elab     => False,
          Fatal_Error      => False,
          Generate_Code    => False,
+         Has_Allocator    => False,
          Has_RACW         => False,
          Is_Compiler_Unit => False,
          Ident_String     => Empty,
          Loading          => False,
          Main_Priority    => -1,
+         Main_CPU         => -1,
          Munit_Index      => 0,
          Serial_Number    => 0,
          Version          => 0,
-         Error_Location   => No_Location);
+         Error_Location   => No_Location,
+         OA_Setting       => 'O');
    end Add_Preprocessing_Dependency;
 
    ------------------------------
@@ -133,15 +140,18 @@ package body Lib.Writ is
         Dynamic_Elab     => False,
         Fatal_Error      => False,
         Generate_Code    => False,
+        Has_Allocator    => False,
         Has_RACW         => False,
         Is_Compiler_Unit => False,
         Ident_String     => Empty,
         Loading          => False,
         Main_Priority    => -1,
+        Main_CPU         => -1,
         Munit_Index      => 0,
         Serial_Number    => 0,
         Version          => 0,
-        Error_Location   => No_Location);
+        Error_Location   => No_Location,
+        OA_Setting       => 'O');
 
       --  Parse system.ads so that the checksum is set right
       --  Style checks are not applied.
@@ -188,12 +198,21 @@ package body Lib.Writ is
       Elab_All_Des_Flags : array (Units.First .. Last_Unit) of Boolean;
       --  Array of flags to show which units have Elaborate_All_Desirable set
 
+      type Yes_No is (Unknown, Yes, No);
+      Implicit_With : array (Units.First .. Last_Unit) of Yes_No;
+      --  Indicates if an implicit with has been given for the unit. Yes if
+      --  certainly present, no if certainly absent, unkonwn if not known.
+
       Sdep_Table : Unit_Ref_Table (1 .. Pos (Last_Unit - Units.First + 2));
       --  Sorted table of source dependencies. One extra entry in case we
       --  have to add a dummy entry for System.
 
       Num_Sdep : Nat := 0;
       --  Number of active entries in Sdep_Table
+
+      flag_compare_debug : Int;
+      pragma Import (C, flag_compare_debug);
+      --  Import from toplev.c
 
       -----------------------
       -- Local Subprograms --
@@ -236,28 +255,41 @@ package body Lib.Writ is
             --  Process with clause
 
             --  Ada 2005 (AI-50217): limited with_clauses do not create
-            --  dependencies
+            --  dependencies, but must be recorded as components of the
+            --  partition, in case there is no regular with_clause for
+            --  the unit anywhere else.
 
-            if Nkind (Item) = N_With_Clause
-              and then not (Limited_Present (Item))
-            then
+            if Nkind (Item) = N_With_Clause then
                Unum := Get_Cunit_Unit_Number (Library_Unit (Item));
                With_Flags (Unum) := True;
 
-               if Elaborate_Present (Item) then
-                  Elab_Flags (Unum) := True;
+               if not Limited_Present (Item) then
+                  if Elaborate_Present (Item) then
+                     Elab_Flags (Unum) := True;
+                  end if;
+
+                  if Elaborate_All_Present (Item) then
+                     Elab_All_Flags (Unum) := True;
+                  end if;
+
+                  if Elaborate_All_Desirable (Item) then
+                     Elab_All_Des_Flags (Unum) := True;
+                  end if;
+
+                  if Elaborate_Desirable (Item) then
+                     Elab_Des_Flags (Unum) := True;
+                  end if;
+
+               else
+                  Set_From_With_Type (Cunit_Entity (Unum));
                end if;
 
-               if Elaborate_All_Present (Item) then
-                  Elab_All_Flags (Unum) := True;
-               end if;
-
-               if Elaborate_All_Desirable (Item) then
-                  Elab_All_Des_Flags (Unum) := True;
-               end if;
-
-               if Elaborate_Desirable (Item) then
-                  Elab_Des_Flags (Unum) := True;
+               if Implicit_With (Unum) /= Yes then
+                  if Implicit_With_From_Instantiation (Item) then
+                     Implicit_With (Unum) := Yes;
+                  else
+                     Implicit_With (Unum) := No;
+                  end if;
                end if;
             end if;
 
@@ -441,6 +473,15 @@ package body Lib.Writ is
             Write_Info_Str (" NE");
          end if;
 
+         Write_Info_Str (" O");
+         Write_Info_Char (OA_Setting (Unit_Num));
+
+         if Ekind_In (Uent, E_Package, E_Package_Body)
+           and then Present (Finalizer (Uent))
+         then
+            Write_Info_Str (" PF");
+         end if;
+
          if Is_Preelaborated (Uent) then
             Write_Info_Str (" PR");
          end if;
@@ -512,7 +553,7 @@ package body Lib.Writ is
             end case;
          end if;
 
-         if Initialize_Scalars then
+         if Initialize_Scalars or else Invalid_Value_Used then
             Write_Info_Str (" IS");
          end if;
 
@@ -526,6 +567,7 @@ package body Lib.Writ is
             Elab_All_Flags     (J) := False;
             Elab_Des_Flags     (J) := False;
             Elab_All_Des_Flags (J) := False;
+            Implicit_With      (J) := Unknown;
          end loop;
 
          Collect_Withs (Unode);
@@ -577,42 +619,90 @@ package body Lib.Writ is
 
          for J in 1 .. Linker_Option_Lines.Last loop
             declare
-               S : constant Linker_Option_Entry :=
-                     Linker_Option_Lines.Table (J);
-               C : Character;
-
+               S : Linker_Option_Entry renames Linker_Option_Lines.Table (J);
             begin
                if S.Unit = Unit_Num then
                   Write_Info_Initiate ('L');
-                  Write_Info_Str (" """);
+                  Write_Info_Char (' ');
+                  Write_Info_Slit (S.Option);
+                  Write_Info_EOL;
+               end if;
+            end;
+         end loop;
 
-                  for J in 1 .. String_Length (S.Option) loop
-                     C := Get_Character (Get_String_Char (S.Option, J));
+         --  Output notes
 
-                     if C in Character'Val (16#20#) .. Character'Val (16#7E#)
-                       and then C /= '{'
-                     then
-                        Write_Info_Char (C);
+         for J in 1 .. Notes.Last loop
+            declare
+               N : constant Node_Id          := Notes.Table (J).Pragma_Node;
+               L : constant Source_Ptr       := Sloc (N);
+               U : constant Unit_Number_Type := Notes.Table (J).Unit;
+               C : Character;
 
-                        if C = '"' then
-                           Write_Info_Char (C);
+            begin
+               if U = Unit_Num then
+                  Write_Info_Initiate ('N');
+                  Write_Info_Char (' ');
+
+                  case Chars (Pragma_Identifier (N)) is
+                     when Name_Annotate =>
+                        C := 'A';
+                     when Name_Comment =>
+                        C := 'C';
+                     when Name_Ident =>
+                        C := 'I';
+                     when Name_Title =>
+                        C := 'T';
+                     when Name_Subtitle =>
+                        C := 'S';
+                     when others =>
+                        raise Program_Error;
+                  end case;
+
+                  Write_Info_Char (C);
+                  Write_Info_Int (Int (Get_Logical_Line_Number (L)));
+                  Write_Info_Char (':');
+                  Write_Info_Int (Int (Get_Column_Number (L)));
+
+                  declare
+                     A : Node_Id;
+
+                  begin
+                     A := First (Pragma_Argument_Associations (N));
+                     while Present (A) loop
+                        Write_Info_Char (' ');
+
+                        if Chars (A) /= No_Name then
+                           Write_Info_Name (Chars (A));
+                           Write_Info_Char (':');
                         end if;
 
-                     else
                         declare
-                           Hex : constant array (0 .. 15) of Character :=
-                                   "0123456789ABCDEF";
+                           Expr : constant Node_Id := Expression (A);
 
                         begin
-                           Write_Info_Char ('{');
-                           Write_Info_Char (Hex (Character'Pos (C) / 16));
-                           Write_Info_Char (Hex (Character'Pos (C) mod 16));
-                           Write_Info_Char ('}');
-                        end;
-                     end if;
-                  end loop;
+                           if Nkind (Expr) = N_Identifier then
+                              Write_Info_Name (Chars (Expr));
 
-                  Write_Info_Char ('"');
+                           elsif Nkind (Expr) = N_Integer_Literal
+                             and then Is_Static_Expression (Expr)
+                           then
+                              Write_Info_Uint (Intval (Expr));
+
+                           elsif Nkind (Expr) = N_String_Literal
+                             and then Is_Static_Expression (Expr)
+                           then
+                              Write_Info_Slit (Strval (Expr));
+
+                           else
+                              Write_Info_Str ("<expr>");
+                           end if;
+                        end;
+
+                        Next (A);
+                     end loop;
+                  end;
+
                   Write_Info_EOL;
                end if;
             end;
@@ -667,7 +757,7 @@ package body Lib.Writ is
          --  Loop to build the with table. A with on the main unit itself
          --  is ignored (AARM 10.2(14a)). Such a with-clause can occur if
          --  the main unit is a subprogram with no spec, and a subunit of
-         --  it unecessarily withs the parent.
+         --  it unnecessarily withs the parent.
 
          for J in Units.First + 1 .. Last_Unit loop
 
@@ -696,7 +786,18 @@ package body Lib.Writ is
             Uname  := Units.Table (Unum).Unit_Name;
             Fname  := Units.Table (Unum).Unit_File_Name;
 
-            Write_Info_Initiate ('W');
+            if Implicit_With (Unum) = Yes then
+               Write_Info_Initiate ('Z');
+
+            elsif Ekind (Cunit_Entity (Unum)) = E_Package
+              and then From_With_Type (Cunit_Entity (Unum))
+            then
+               Write_Info_Initiate ('Y');
+
+            else
+               Write_Info_Initiate ('W');
+            end if;
+
             Write_Info_Char (' ');
             Write_Info_Name (Uname);
 
@@ -715,6 +816,12 @@ package body Lib.Writ is
                       or else
                      Nkind (Unit (Cunit)) in N_Generic_Renaming_Declaration)
                     and then Generic_May_Lack_ALI (Fname))
+
+              --  In Alfa mode, always generate the dependencies on ALI
+              --  files, which are required to compute frame conditions
+              --  of subprograms.
+
+              or else Alfa_Mode
             then
                Write_Info_Tab (25);
 
@@ -750,20 +857,26 @@ package body Lib.Writ is
                   Write_With_File_Names (Fname, Munit_Index (Unum));
                end if;
 
-               if Elab_Flags (Unum) then
-                  Write_Info_Str ("  E");
-               end if;
+               if Ekind (Cunit_Entity (Unum)) = E_Package
+                  and then From_With_Type (Cunit_Entity (Unum))
+               then
+                  null;
+               else
+                  if Elab_Flags (Unum) then
+                     Write_Info_Str ("  E");
+                  end if;
 
-               if Elab_All_Flags (Unum) then
-                  Write_Info_Str ("  EA");
-               end if;
+                  if Elab_All_Flags (Unum) then
+                     Write_Info_Str ("  EA");
+                  end if;
 
-               if Elab_Des_Flags (Unum) then
-                  Write_Info_Str ("  ED");
-               end if;
+                  if Elab_Des_Flags (Unum) then
+                     Write_Info_Str ("  ED");
+                  end if;
 
-               if Elab_All_Des_Flags (Unum) then
-                  Write_Info_Str ("  AD");
+                  if Elab_All_Des_Flags (Unum) then
+                     Write_Info_Str ("  AD");
+                  end if;
                end if;
             end if;
 
@@ -777,12 +890,21 @@ package body Lib.Writ is
       --  We never write an ALI file if the original operating mode was
       --  syntax-only (-gnats switch used in compiler invocation line)
 
-      if Original_Operating_Mode = Check_Syntax then
+      if Original_Operating_Mode = Check_Syntax
+        or flag_compare_debug /= 0
+      then
          return;
       end if;
 
-      --  Build sorted source dependency table. We do this right away,
-      --  because it is referenced by Up_To_Date_ALI_File_Exists.
+      --  Generation of ALI files may be disabled, e.g. for formal verification
+      --  back-end.
+
+      if Disable_ALI_File then
+         return;
+      end if;
+
+      --  Build sorted source dependency table. We do this right away, because
+      --  it is referenced by Up_To_Date_ALI_File_Exists.
 
       for Unum in Units.First .. Last_Unit loop
          if Cunit_Entity (Unum) = Empty
@@ -797,9 +919,9 @@ package body Lib.Writ is
 
       Lib.Sort (Sdep_Table (1 .. Num_Sdep));
 
-      --  If we are not generating code, and there is an up to date
-      --  ali file accessible, read it, and acquire the compilation
-      --  arguments from this file.
+      --  If we are not generating code, and there is an up to date ALI file
+      --  file accessible, read it, and acquire the compilation arguments from
+      --  this file.
 
       if Operating_Mode /= Generate_Code then
          if Up_To_Date_ALI_File_Exists then
@@ -847,6 +969,15 @@ package body Lib.Writ is
                Write_Info_Nat (Opt.Time_Slice_Value);
             end if;
 
+            if Has_Allocator (Main_Unit) then
+               Write_Info_Str (" AB");
+            end if;
+
+            if Main_CPU (Main_Unit) /= Default_Main_CPU then
+               Write_Info_Str (" C=");
+               Write_Info_Nat (Main_CPU (Main_Unit));
+            end if;
+
             Write_Info_Str (" W=");
             Write_Info_Char
               (WC_Encoding_Letters (Wide_Character_Encoding_Method));
@@ -876,7 +1007,17 @@ package body Lib.Writ is
 
             S := Specification (U);
 
-            if No (Parameter_Specifications (S)) then
+            --  A generic subprogram is never a main program
+
+            if Nkind (U) = N_Subprogram_Body
+              and then Present (Corresponding_Spec (U))
+              and then
+                Ekind_In (Corresponding_Spec (U),
+                  E_Generic_Procedure, E_Generic_Function)
+            then
+               null;
+
+            elsif No (Parameter_Specifications (S)) then
                if Nkind (S) = N_Procedure_Specification then
                   Write_Info_Initiate ('M');
                   Write_Info_Str (" P");
@@ -904,7 +1045,7 @@ package body Lib.Writ is
          end if;
       end Output_Main_Program_Line;
 
-      --  Write command argmument ('A') lines
+      --  Write command argument ('A') lines
 
       for A in 1 .. Compilation_Switches.Last loop
          Write_Info_Initiate ('A');
@@ -959,6 +1100,11 @@ package body Lib.Writ is
          end if;
       end if;
 
+      if Partition_Elaboration_Policy /= ' ' then
+         Write_Info_Str  (" E");
+         Write_Info_Char (Partition_Elaboration_Policy);
+      end if;
+
       if not Object then
          Write_Info_Str (" NO");
       end if;
@@ -1001,62 +1147,138 @@ package body Lib.Writ is
          end if;
       end loop;
 
-      --  Output first restrictions line
+      --  Positional case (only if debug flag -gnatd.R is set)
 
-      Write_Info_Initiate ('R');
-      Write_Info_Char (' ');
+      if Debug_Flag_Dot_RR then
 
-      --  First the information for the boolean restrictions
+         --  Output first restrictions line
 
-      for R in All_Boolean_Restrictions loop
-         if Main_Restrictions.Set (R)
-           and then not Restriction_Warnings (R)
-         then
-            Write_Info_Char ('r');
-         elsif Main_Restrictions.Violated (R) then
-            Write_Info_Char ('v');
-         else
-            Write_Info_Char ('n');
-         end if;
-      end loop;
+         Write_Info_Initiate ('R');
+         Write_Info_Char (' ');
 
-      --  And now the information for the parameter restrictions
+         --  First the information for the boolean restrictions
 
-      for RP in All_Parameter_Restrictions loop
-         if Main_Restrictions.Set (RP)
-           and then not Restriction_Warnings (RP)
-         then
-            Write_Info_Char ('r');
-            Write_Info_Nat (Nat (Main_Restrictions.Value (RP)));
-         else
-            Write_Info_Char ('n');
-         end if;
-
-         if not Main_Restrictions.Violated (RP)
-           or else RP not in Checked_Parameter_Restrictions
-         then
-            Write_Info_Char ('n');
-         else
-            Write_Info_Char ('v');
-            Write_Info_Nat (Nat (Main_Restrictions.Count (RP)));
-
-            if Main_Restrictions.Unknown (RP) then
-               Write_Info_Char ('+');
+         for R in All_Boolean_Restrictions loop
+            if Main_Restrictions.Set (R)
+              and then not Restriction_Warnings (R)
+            then
+               Write_Info_Char ('r');
+            elsif Main_Restrictions.Violated (R) then
+               Write_Info_Char ('v');
+            else
+               Write_Info_Char ('n');
             end if;
-         end if;
-      end loop;
+         end loop;
 
-      Write_Info_EOL;
+         --  And now the information for the parameter restrictions
+
+         for RP in All_Parameter_Restrictions loop
+            if Main_Restrictions.Set (RP)
+              and then not Restriction_Warnings (RP)
+            then
+               Write_Info_Char ('r');
+               Write_Info_Nat (Nat (Main_Restrictions.Value (RP)));
+            else
+               Write_Info_Char ('n');
+            end if;
+
+            if not Main_Restrictions.Violated (RP)
+              or else RP not in Checked_Parameter_Restrictions
+            then
+               Write_Info_Char ('n');
+            else
+               Write_Info_Char ('v');
+               Write_Info_Nat (Nat (Main_Restrictions.Count (RP)));
+
+               if Main_Restrictions.Unknown (RP) then
+                  Write_Info_Char ('+');
+               end if;
+            end if;
+         end loop;
+
+         Write_Info_EOL;
+
+      --  Named case (if debug flag -gnatd.R is not set)
+
+      else
+         declare
+            C : Character;
+
+         begin
+            --  Write RN header line with preceding blank line
+
+            Write_Info_EOL;
+            Write_Info_Initiate ('R');
+            Write_Info_Char ('N');
+            Write_Info_EOL;
+
+            --  First the lines for the boolean restrictions
+
+            for R in All_Boolean_Restrictions loop
+               if Main_Restrictions.Set (R)
+                 and then not Restriction_Warnings (R)
+               then
+                  C := 'R';
+               elsif Main_Restrictions.Violated (R) then
+                  C := 'V';
+               else
+                  goto Continue;
+               end if;
+
+               Write_Info_Initiate ('R');
+               Write_Info_Char (C);
+               Write_Info_Char (' ');
+               Write_Info_Str (All_Boolean_Restrictions'Image (R));
+               Write_Info_EOL;
+
+            <<Continue>>
+               null;
+            end loop;
+         end;
+
+         --  And now the lines for the parameter restrictions
+
+         for RP in All_Parameter_Restrictions loop
+            if Main_Restrictions.Set (RP)
+              and then not Restriction_Warnings (RP)
+            then
+               Write_Info_Initiate ('R');
+               Write_Info_Str ("R ");
+               Write_Info_Str (All_Parameter_Restrictions'Image (RP));
+               Write_Info_Char ('=');
+               Write_Info_Nat (Nat (Main_Restrictions.Value (RP)));
+               Write_Info_EOL;
+            end if;
+
+            if not Main_Restrictions.Violated (RP)
+              or else RP not in Checked_Parameter_Restrictions
+            then
+               null;
+            else
+               Write_Info_Initiate ('R');
+               Write_Info_Str ("V ");
+               Write_Info_Str (All_Parameter_Restrictions'Image (RP));
+               Write_Info_Char ('=');
+               Write_Info_Nat (Nat (Main_Restrictions.Count (RP)));
+
+               if Main_Restrictions.Unknown (RP) then
+                  Write_Info_Char ('+');
+               end if;
+
+               Write_Info_EOL;
+            end if;
+         end loop;
+      end if;
 
       --  Output R lines for No_Dependence entries
 
-      for J in No_Dependence.First .. No_Dependence.Last loop
-         if In_Extended_Main_Source_Unit (No_Dependence.Table (J).Unit)
-           and then not No_Dependence.Table (J).Warn
+      for J in No_Dependences.First .. No_Dependences.Last loop
+         if In_Extended_Main_Source_Unit (No_Dependences.Table (J).Unit)
+           and then not No_Dependences.Table (J).Warn
          then
             Write_Info_Initiate ('R');
             Write_Info_Char (' ');
-            Write_Unit_Name (No_Dependence.Table (J).Unit);
+            Write_Unit_Name (No_Dependences.Table (J).Unit);
             Write_Info_EOL;
          end if;
       end loop;
@@ -1200,7 +1422,115 @@ package body Lib.Writ is
          end loop;
       end;
 
-      Output_References;
+      --  Output cross-references
+
+      if Opt.Xref_Active then
+         Output_References;
+      end if;
+
+      --  Output SCO information if present
+
+      if Generate_SCO then
+         SCO_Output;
+      end if;
+
+      --  Output Alfa information if needed
+
+      if Opt.Xref_Active and then Alfa_Mode then
+         Collect_Alfa (Sdep_Table => Sdep_Table, Num_Sdep => Num_Sdep);
+         Output_Alfa;
+      end if;
+
+      --  Output target dependent information if needed
+
+      if Generate_Target_Dependent_Info then
+         Gen_TDI : declare
+            subtype Str4 is String (1 .. 4);
+
+            procedure Gen_TDI_Bool (Code : Str4; Val : Boolean);
+            --  Generate T line for Bool value
+
+            procedure Gen_TDI_Nat (Code : Str4; Val : Int);
+            --  Generate T line for Pos or Nat value
+
+            ------------------
+            -- Gen_TDI_Bool --
+            ------------------
+
+            procedure Gen_TDI_Bool (Code : Str4; Val : Boolean) is
+            begin
+               Write_Info_Initiate ('T');
+               Write_Info_Char (' ');
+               Write_Info_Str (Code);
+
+               if Val then
+                  Write_Info_Str (" TRUE");
+               else
+                  Write_Info_Str (" FALSE");
+               end if;
+
+               Write_Info_EOL;
+            end Gen_TDI_Bool;
+
+            -----------------
+            -- Gen_TDI_Nat --
+            -----------------
+
+            procedure Gen_TDI_Nat (Code : Str4; Val : Int) is
+            begin
+               Write_Info_Initiate ('T');
+               Write_Info_Char (' ');
+               Write_Info_Str (Code);
+               Write_Info_Char (' ');
+               Write_Info_Nat (Val);
+
+               Write_Info_EOL;
+            end Gen_TDI_Nat;
+
+         --  Start of processing for Gen_TDI
+
+         begin
+            Gen_TDI_Nat  ("SINS", Standard_Short_Short_Integer_Size);
+            Gen_TDI_Nat  ("SINW", Standard_Short_Short_Integer_Width);
+            Gen_TDI_Nat  ("SHIS", Standard_Short_Integer_Size);
+            Gen_TDI_Nat  ("SHIW", Standard_Short_Integer_Width);
+            Gen_TDI_Nat  ("INTS", Standard_Integer_Size);
+            Gen_TDI_Nat  ("INTW", Standard_Integer_Width);
+            Gen_TDI_Nat  ("LINS", Standard_Long_Integer_Size);
+            Gen_TDI_Nat  ("LINW", Standard_Long_Integer_Width);
+            Gen_TDI_Nat  ("LLIS", Standard_Long_Long_Integer_Size);
+            Gen_TDI_Nat  ("LLIW", Standard_Long_Long_Integer_Width);
+            Gen_TDI_Nat  ("SFLS", Standard_Short_Float_Size);
+            Gen_TDI_Nat  ("SFLD", Standard_Short_Float_Digits);
+            Gen_TDI_Nat  ("FLTS", Standard_Float_Size);
+            Gen_TDI_Nat  ("FLTD", Standard_Float_Digits);
+            Gen_TDI_Nat  ("LFLS", Standard_Long_Float_Size);
+            Gen_TDI_Nat  ("LFLD", Standard_Long_Float_Digits);
+            Gen_TDI_Nat  ("LLFS", Standard_Long_Long_Float_Size);
+            Gen_TDI_Nat  ("LLFD", Standard_Long_Long_Float_Digits);
+            Gen_TDI_Nat  ("CHAS", Standard_Character_Size);
+            Gen_TDI_Nat  ("WCHS", Standard_Wide_Character_Size);
+            Gen_TDI_Nat  ("WWCS", Standard_Wide_Wide_Character_Size);
+            Gen_TDI_Nat  ("ADRS", System_Address_Size);
+            Gen_TDI_Nat  ("MBMP", System_Max_Binary_Modulus_Power);
+            Gen_TDI_Nat  ("MNMP", System_Max_Nonbinary_Modulus_Power);
+            Gen_TDI_Nat  ("SUNI", System_Storage_Unit);
+            Gen_TDI_Nat  ("WRDS", System_Word_Size);
+            Gen_TDI_Nat  ("TICK", System_Tick_Nanoseconds);
+            Gen_TDI_Nat  ("WCTS", Interfaces_Wchar_T_Size);
+            Gen_TDI_Nat  ("MAXA", Maximum_Alignment);
+            Gen_TDI_Nat  ("ALLA", System_Allocator_Alignment);
+            Gen_TDI_Nat  ("MUNF", Max_Unaligned_Field);
+            Gen_TDI_Bool ("BEND", Bytes_Big_Endian);
+            Gen_TDI_Bool ("STRA", Target_Strict_Alignment);
+            Gen_TDI_Nat  ("DFLA", Target_Double_Float_Alignment);
+            Gen_TDI_Nat  ("DSCA", Target_Double_Scalar_Alignment);
+         end Gen_TDI;
+      end if;
+
+      --  Output final blank line and we are done. This final blank line is
+      --  probably junk, but we don't feel like making an incompatible change!
+
       Write_Info_Terminate;
       Close_Output_Library_Info;
    end Write_ALI;

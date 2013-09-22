@@ -29,7 +29,7 @@ executable, regardless of the license terms of these independent
 modules, and to copy and distribute the resulting executable under
 terms of your choice, provided that you also meet, for each linked
 independent module, the terms and conditions of the license of that
-module.  An independent module is a module which is not derived from
+odule.  An independent module is a module which is not derived from
 or based on this library.  If you modify this library, you may extend
 this exception to your version of the library, but you are not
 obligated to do so.  If you do not wish to do so, delete this
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 
 package gnu.javax.naming.giop;
+
+import gnu.java.lang.CPStringBuilder;
 
 import javax.naming.NameClassPair;
 import javax.naming.NamingEnumeration;
@@ -50,7 +52,7 @@ import org.omg.CosNaming.NamingContext;
 /**
  * Iterates over name class pairs, obtaining values first from the binding list
  * and then from the binding iterator.
- * 
+ *
  * @author Audrius Meskauskas
  */
 public class ListEnumeration extends GiopNamingEnumeration implements
@@ -58,7 +60,7 @@ public class ListEnumeration extends GiopNamingEnumeration implements
 {
   /**
    * Create the new enumeration
-   * 
+   *
    * @param bh
    *          holder, containing the first portion of the bindings
    * @param bih
@@ -67,25 +69,25 @@ public class ListEnumeration extends GiopNamingEnumeration implements
    *          the number of bindings the the iterator will be requested to
    *          return as a single pack
    */
-  public ListEnumeration(BindingListHolder bh, 
+  public ListEnumeration(BindingListHolder bh,
                                  BindingIteratorHolder bih, int batchSize)
   {
     super(bh, bih, batchSize);
   }
-  
+
   /**
    * Convert from the CORBA binding into the {@link NameClassPair} that this
    * enumeration should return. This method converts into NameClassPair,
    * connecting the name components with slashes and setting the class name
    * to either NamingContext or GIOP Object.
-   * 
+   *
    * @param binding
    *          the binding to convert
    * @return the value, that must be returned by the {@link #next()}.
    */
   public Object convert(Binding binding)
   {
-    StringBuffer name = new StringBuffer();
+    CPStringBuilder name = new CPStringBuilder();
 
     for (int i = 0; i < binding.binding_name.length; i++)
       {
@@ -111,6 +113,6 @@ public class ListEnumeration extends GiopNamingEnumeration implements
 
     NameClassPair pair = new NameClassPair(name.toString(), className);
     return pair;
-  }  
-  
+  }
+
 }

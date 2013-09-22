@@ -5,7 +5,7 @@
 ! { dg-options "-pedantic" }
 ! { dg-do run }
 !
-     character*5 c
+     character(5) c
      open (42,status='scratch')
      write (42,'(A,$)') 'abc' ! { dg-warning ".*descriptor" "" }
      write (42,'(A)') 'de'
@@ -14,4 +14,4 @@
      close (42)
      if (c /= 'abcde') call abort ()
      end
-! { dg-warning ".*descriptor" "" 10}
+

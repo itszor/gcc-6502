@@ -1,7 +1,6 @@
 /* XCOFF definitions.  These are needed in dbxout.c, final.c,
    and xcoffout.h.
-   Copyright (C) 1998, 2000, 2002, 2003, 2004, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1998-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -84,7 +83,7 @@ along with GCC; see the file COPYING3.  If not see
 	    fputs (_p+1, asm_out_file);					\
 	  else								\
 	    for (; *_p != '[' && *_p; _p++)				\
-	      putc (*_p, asm_out_file);					\
+	      putc (*_p != '$' ? *_p : '_', asm_out_file);		\
 	}								\
       else								\
 	output_addr_const (asm_out_file, ADDR);				\
@@ -126,6 +125,8 @@ extern const char *xcoff_current_include_file;
 
 extern char *xcoff_bss_section_name;
 extern char *xcoff_private_data_section_name;
+extern char *xcoff_tls_data_section_name;
+extern char *xcoff_tbss_section_name;
 extern char *xcoff_read_only_section_name;
 
 /* Last source file name mentioned in a NOTE insn.  */
@@ -182,4 +183,4 @@ extern void xcoffout_end_function (unsigned int);
 extern void xcoffout_end_block (unsigned, unsigned);
 extern int xcoff_assign_fundamental_type_number (tree);
 extern void xcoffout_declare_function (FILE *, tree, const char *);
-extern void xcoffout_source_line (unsigned int, const char *);
+extern void xcoffout_source_line (unsigned int, const char *, int, bool);

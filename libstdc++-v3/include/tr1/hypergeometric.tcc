@@ -1,12 +1,11 @@
 // Special functions -*- C++ -*-
 
-// Copyright (C) 2006, 2007, 2008
-// Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
-//
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
+
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file tr1/hypergeometric.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{tr1/cmath}
  */
 
 //
@@ -47,16 +41,16 @@
 #ifndef _GLIBCXX_TR1_HYPERGEOMETRIC_TCC
 #define _GLIBCXX_TR1_HYPERGEOMETRIC_TCC 1
 
-namespace std
+namespace std _GLIBCXX_VISIBILITY(default)
 {
 namespace tr1
 {
-
   // [5.2] Special functions
 
   // Implementation-space details.
   namespace __detail
   {
+  _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
     /**
      *   @brief This routine returns the confluent hypergeometric function
@@ -69,9 +63,10 @@ namespace tr1
      *                      \frac{x^n}{n!}
      *   @f]
      * 
-     *   If a and b are integers and a < 0 and either b > 0 or b < a then the
-     *   series is a polynomial with a finite number of terms.  If b is an integer
-     *   and b <= 0 the confluent hypergeometric function is undefined.
+     *   If a and b are integers and a < 0 and either b > 0 or b < a
+     *   then the series is a polynomial with a finite number of
+     *   terms.  If b is an integer and b <= 0 the confluent
+     *   hypergeometric function is undefined.
      *
      *   @param  __a  The "numerator" parameter.
      *   @param  __c  The "denominator" parameter.
@@ -80,7 +75,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __conf_hyperg_series(const _Tp __a, const _Tp __c, const _Tp __x)
+    __conf_hyperg_series(_Tp __a, _Tp __c, _Tp __x)
     {
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
 
@@ -117,7 +112,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __conf_hyperg_luke(const _Tp __a, const _Tp __c, const _Tp __xin)
+    __conf_hyperg_luke(_Tp __a, _Tp __c, _Tp __xin)
     {
       const _Tp __big = std::pow(std::numeric_limits<_Tp>::max(), _Tp(0.16L));
       const int __nmax = 20000;
@@ -217,14 +212,14 @@ namespace tr1
      * 
      *   @todo  Handle b == nonpositive integer blowup - return NaN.
      *
-     *   @param  __a  The "numerator" parameter.
-     *   @param  __c  The "denominator" parameter.
+     *   @param  __a  The @a numerator parameter.
+     *   @param  __c  The @a denominator parameter.
      *   @param  __x  The argument of the confluent hypergeometric function.
      *   @return  The confluent hypergeometric function.
      */
     template<typename _Tp>
-    inline _Tp
-    __conf_hyperg(const _Tp __a, const _Tp __c, const _Tp __x)
+    _Tp
+    __conf_hyperg(_Tp __a, _Tp __c, _Tp __x)
     {
 #if _GLIBCXX_USE_C99_MATH_TR1
       const _Tp __c_nint = std::tr1::nearbyint(__c);
@@ -260,16 +255,15 @@ namespace tr1
      * 
      *   This works and it's pretty fast.
      *
-     *   @param  __a  The first "numerator" parameter.
-     *   @param  __a  The second "numerator" parameter.
-     *   @param  __c  The "denominator" parameter.
+     *   @param  __a  The first @a numerator parameter.
+     *   @param  __a  The second @a numerator parameter.
+     *   @param  __c  The @a denominator parameter.
      *   @param  __x  The argument of the confluent hypergeometric function.
      *   @return  The confluent hypergeometric function.
      */
     template<typename _Tp>
     _Tp
-    __hyperg_series(const _Tp __a, const _Tp __b,
-                    const _Tp __c, const _Tp __x)
+    __hyperg_series(_Tp __a, _Tp __b, _Tp __c, _Tp __x)
     {
       const _Tp __eps = std::numeric_limits<_Tp>::epsilon();
 
@@ -302,8 +296,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __hyperg_luke(const _Tp __a, const _Tp __b, const _Tp __c,
-                  const _Tp __xin)
+    __hyperg_luke(_Tp __a, _Tp __b, _Tp __c, _Tp __xin)
     {
       const _Tp __big = std::pow(std::numeric_limits<_Tp>::max(), _Tp(0.16L));
       const int __nmax = 20000;
@@ -406,10 +399,11 @@ namespace tr1
 
 
     /**
-     *  @brief  Return the hypogeometric function @f$ _2F_1(a,b;c;x) @f$ by the reflection
-     *          formulae in Abramowitz & Stegun formula 15.3.6 for d = c - a - b not integral
-     *          and formula 15.3.11 for d = c - a - b integral.
-     *          This assumes a, b, c != negative integer.
+     *  @brief  Return the hypogeometric function @f$ _2F_1(a,b;c;x) @f$ 
+     *  by the reflection formulae in Abramowitz & Stegun formula
+     *  15.3.6 for d = c - a - b not integral and formula 15.3.11 for
+     *  d = c - a - b integral.  This assumes a, b, c != negative
+     *  integer.
      *
      *   The hypogeometric function is defined by
      *   @f[
@@ -436,8 +430,7 @@ namespace tr1
      */
     template<typename _Tp>
     _Tp
-    __hyperg_reflect(const _Tp __a, const _Tp __b, const _Tp __c,
-                     const _Tp __x)
+    __hyperg_reflect(_Tp __a, _Tp __b, _Tp __c, _Tp __x)
     {
       const _Tp __d = __c - __a - __b;
       const int __intd  = std::floor(__d + _Tp(0.5L));
@@ -477,13 +470,13 @@ namespace tr1
 
               bool __ok_d1 = true;
               _Tp __lng_ad, __lng_ad1, __lng_bd1;
-              try
+              __try
                 {
                   __lng_ad = __log_gamma(__ad);
                   __lng_ad1 = __log_gamma(__a + __d1);
                   __lng_bd1 = __log_gamma(__b + __d1);
                 }
-              catch(...)
+              __catch(...)
                 {
                   __ok_d1 = false;
                 }
@@ -509,8 +502,8 @@ namespace tr1
                     }
 
                   if (__ln_pre1 > __log_max)
-                    std::__throw_runtime_error(__N("Overflow of gamma functions "
-                                                   "in __hyperg_luke."));
+                    std::__throw_runtime_error(__N("Overflow of gamma functions"
+                                                   " in __hyperg_luke."));
                   else
                     __F1 = std::exp(__ln_pre1) * __sum1;
                 }
@@ -525,12 +518,12 @@ namespace tr1
           // Evaluate F2.
           bool __ok_d2 = true;
           _Tp __lng_ad2, __lng_bd2;
-          try
+          __try
             {
               __lng_ad2 = __log_gamma(__a + __d2);
               __lng_bd2 = __log_gamma(__b + __d2);
             }
-          catch(...)
+          __catch(...)
             {
               __ok_d2 = false;
             }
@@ -556,7 +549,8 @@ namespace tr1
               int __j;
               for (__j = 1; __j < __maxiter; ++__j)
                 {
-                  //  Values for psi functions use recurrence; Abramowitz & Stegun 6.3.5
+                  //  Values for psi functions use recurrence;
+                  //  Abramowitz & Stegun 6.3.5
                   const _Tp __term1 = _Tp(1) / _Tp(__j)
                                     + _Tp(1) / (__ad + __j);
                   const _Tp __term2 = _Tp(1) / (__a + __d1 + _Tp(__j - 1))
@@ -600,14 +594,14 @@ namespace tr1
           bool __ok1 = true;
           _Tp __sgn_g1ca = _Tp(0), __ln_g1ca = _Tp(0);
           _Tp __sgn_g1cb = _Tp(0), __ln_g1cb = _Tp(0);
-          try
+          __try
             {
               __sgn_g1ca = __log_gamma_sign(__c - __a);
               __ln_g1ca = __log_gamma(__c - __a);
               __sgn_g1cb = __log_gamma_sign(__c - __b);
               __ln_g1cb = __log_gamma(__c - __b);
             }
-          catch(...)
+          __catch(...)
             {
               __ok1 = false;
             }
@@ -615,14 +609,14 @@ namespace tr1
           bool __ok2 = true;
           _Tp __sgn_g2a = _Tp(0), __ln_g2a = _Tp(0);
           _Tp __sgn_g2b = _Tp(0), __ln_g2b = _Tp(0);
-          try
+          __try
             {
               __sgn_g2a = __log_gamma_sign(__a);
               __ln_g2a = __log_gamma(__a);
               __sgn_g2b = __log_gamma_sign(__b);
               __ln_g2b = __log_gamma(__b);
             }
-          catch(...)
+          __catch(...)
             {
               __ok2 = false;
             }
@@ -718,15 +712,15 @@ namespace tr1
      *                      \frac{x^n}{n!}
      *   @f]
      *
-     *   @param  __a  The first "numerator" parameter.
-     *   @param  __a  The second "numerator" parameter.
-     *   @param  __c  The "denominator" parameter.
+     *   @param  __a  The first @a numerator parameter.
+     *   @param  __a  The second @a numerator parameter.
+     *   @param  __c  The @a denominator parameter.
      *   @param  __x  The argument of the confluent hypergeometric function.
      *   @return  The confluent hypergeometric function.
      */
     template<typename _Tp>
-    inline _Tp
-    __hyperg(const _Tp __a, const _Tp __b, const _Tp __c, const _Tp __x)
+    _Tp
+    __hyperg(_Tp __a, _Tp __b, _Tp __c, _Tp __x)
     {
 #if _GLIBCXX_USE_C99_MATH_TR1
       const _Tp __a_nint = std::tr1::nearbyint(__a);
@@ -753,7 +747,8 @@ namespace tr1
         return __hyperg_series(__a, __b, __c, __x);
       else if (std::abs(__a) < _Tp(10) && std::abs(__b) < _Tp(10))
         {
-          //  For integer a and b the hypergeometric function is a finite polynomial.
+          //  For integer a and b the hypergeometric function is a
+          //  finite polynomial.
           if (__a < _Tp(0)  &&  std::abs(__a - __a_nint) < __toler)
             return __hyperg_series(__a_nint, __b, __c, __x);
           else if (__b < _Tp(0)  &&  std::abs(__b - __b_nint) < __toler)
@@ -772,6 +767,7 @@ namespace tr1
         return __hyperg_luke(__a, __b, __c, __x);
     }
 
+  _GLIBCXX_END_NAMESPACE_VERSION
   } // namespace std::tr1::__detail
 }
 }

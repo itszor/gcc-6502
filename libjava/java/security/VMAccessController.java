@@ -1,5 +1,5 @@
 /* VMAccessController.java -- VM-specific access controller methods.
-   Copyright (C) 2004, 2005, 2006  Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2006, 2010  Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -56,7 +56,7 @@ final class VMAccessController
     Permissions permissions = new Permissions();
     permissions.add(new AllPermission());
     ProtectionDomain[] domain = new ProtectionDomain[] {
-      new ProtectionDomain(source, permissions)
+      new ProtectionDomain(source, permissions, null, null)
     };
     DEFAULT_CONTEXT = new AccessControlContext(domain);
   }
@@ -121,7 +121,7 @@ final class VMAccessController
     LinkedList stack = state.getContexts();
     if (!stack.isEmpty())
       {
-	stack.removeFirst();
+        stack.removeFirst();
       }
     else if (DEBUG)
       {
@@ -178,26 +178,27 @@ final class VMAccessController
     for (int i = 3; i < classes.length; i++)
       {
         Class clazz = classes[i];
+        ClassLoader loader = clazz.getClassLoader();
 
         if (DEBUG)
           {
             debug("checking " + clazz);
             // subject to getClassLoader RuntimePermission
-            debug("loader = " + clazz.getClassLoader());
+            debug("loader = " + loader);
           }
 
         if (privileged && i == classes.length - 2)
           {
             // If there was a call to doPrivileged with a supplied context,
-            // return that context. If using JAAS doAs*, it should be 
-	    // a context with a SubjectDomainCombiner
+            // return that context. If using JAAS doAs*, it should be
+            // a context with a SubjectDomainCombiner
             LinkedList l = state.getContexts();
             if (!l.isEmpty())
               context = (AccessControlContext) l.getFirst();
           }
 
         // subject to getProtectionDomain RuntimePermission
-	ProtectionDomain domain = clazz.getProtectionDomain();
+        ProtectionDomain domain = clazz.getProtectionDomain();
 
         if (domain == null)
           continue;
@@ -208,7 +209,8 @@ final class VMAccessController
         // Create a static snapshot of this domain, which may change over time
         // if the current policy changes.
         domains.add(new ProtectionDomain(domain.getCodeSource(),
-                                         domain.getPermissions()));
+                                         domain.getPermissions(),
+                                         loader, null));
       }
 
     if (DEBUG)

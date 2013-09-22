@@ -8,7 +8,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -53,7 +53,7 @@ import gnu.classpath.SystemProperties;
  * This class prints Java primitive values and object to a stream as
  * text.  None of the methods in this class throw an exception.  However,
  * errors can be detected by calling the <code>checkError()</code> method.
- * Additionally, this stream can be designated as "autoflush" when 
+ * Additionally, this stream can be designated as "autoflush" when
  * created so that any writes are automatically flushed to the underlying
  * output sink when the current line is terminated.
  * <p>
@@ -76,7 +76,7 @@ public class PrintStream extends FilterOutputStream implements Appendable
   /**
    *  Encoding name
    */
-  private String encoding;
+  private final String encoding;
 
   /**
    * This boolean indicates whether or not an error has ever occurred
@@ -85,10 +85,10 @@ public class PrintStream extends FilterOutputStream implements Appendable
   private boolean error_occurred = false;
 
   /**
-   * This is <code>true</code> if auto-flush is enabled, 
+   * This is <code>true</code> if auto-flush is enabled,
    * <code>false</code> otherwise
    */
-  private boolean auto_flush;
+  private final boolean auto_flush;
 
   /**
    * This method initializes a new <code>PrintStream</code> object to write
@@ -173,28 +173,34 @@ public class PrintStream extends FilterOutputStream implements Appendable
    * This method initializes a new <code>PrintStream</code> object to write
    * to the specified output sink.  This constructor also allows "auto-flush"
    * functionality to be specified where the stream will be flushed after
-   * every <code>print</code> or <code>println</code> call, when the 
-   * <code>write</code> methods with array arguments are called, or when a 
+   * every <code>print</code> or <code>println</code> call, when the
+   * <code>write</code> methods with array arguments are called, or when a
    * single new-line character is written.
    * <p>
    *
    * @param out The <code>OutputStream</code> to write to.
-   * @param auto_flush <code>true</code> to flush the stream after every 
+   * @param auto_flush <code>true</code> to flush the stream after every
    * line, <code>false</code> otherwise
+   * @exception NullPointerException If out is null.
    */
   public PrintStream (OutputStream out, boolean auto_flush)
   {
     super (out);
 
+    if (out == null)
+      throw new NullPointerException("out is null");
+
+    String encoding;
     try {
-	this.encoding = SystemProperties.getProperty("file.encoding");
+        encoding = SystemProperties.getProperty("file.encoding");
     } catch (SecurityException e){
-	this.encoding = "ISO8859_1";
+        encoding = "ISO8859_1";
     } catch (IllegalArgumentException e){
-	this.encoding = "ISO8859_1";
+        encoding = "ISO8859_1";
     } catch (NullPointerException e){
-	this.encoding = "ISO8859_1";
+        encoding = "ISO8859_1";
     }
+    this.encoding = encoding;
     this.auto_flush = auto_flush;
   }
 
@@ -202,21 +208,28 @@ public class PrintStream extends FilterOutputStream implements Appendable
    * This method initializes a new <code>PrintStream</code> object to write
    * to the specified output sink.  This constructor also allows "auto-flush"
    * functionality to be specified where the stream will be flushed after
-   * every <code>print</code> or <code>println</code> call, when the 
-   * <code>write</code> methods with array arguments are called, or when a 
+   * every <code>print</code> or <code>println</code> call, when the
+   * <code>write</code> methods with array arguments are called, or when a
    * single new-line character is written.
    * <p>
    *
    * @param out The <code>OutputStream</code> to write to.
-   * @param auto_flush <code>true</code> to flush the stream after every 
+   * @param auto_flush <code>true</code> to flush the stream after every
    * line, <code>false</code> otherwise
    * @param encoding The name of the character encoding to use for this
    * object.
+   * @exception NullPointerException If out or encoding is null.
    */
   public PrintStream (OutputStream out, boolean auto_flush, String encoding)
     throws UnsupportedEncodingException
   {
     super (out);
+
+    if (out == null)
+      throw new NullPointerException("out is null");
+
+    if (encoding == null)
+      throw new NullPointerException("encoding is null");
 
     new String(new byte[]{0}, encoding);    // check if encoding is supported
     this.encoding = encoding;
@@ -229,7 +242,7 @@ public class PrintStream extends FilterOutputStream implements Appendable
    * <code>true</code> forever for this stream.  Before checking for an
    * error condition, this method flushes the stream.
    *
-   * @return <code>true</code> if an error has occurred, 
+   * @return <code>true</code> if an error has occurred,
    * <code>false</code> otherwise
    */
   public boolean checkError ()
@@ -254,16 +267,16 @@ public class PrintStream extends FilterOutputStream implements Appendable
   {
     try
       {
-	flush();
-	out.close();
+        flush();
+        out.close();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread().interrupt();
+        Thread.currentThread().interrupt();
       }
     catch (IOException e)
       {
-	setError ();
+        setError ();
       }
   }
 
@@ -275,15 +288,15 @@ public class PrintStream extends FilterOutputStream implements Appendable
   {
     try
       {
-	out.flush();
+        out.flush();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread().interrupt();
+        Thread.currentThread().interrupt();
       }
     catch (IOException e)
       {
-	setError ();
+        setError ();
       }
   }
 
@@ -292,39 +305,39 @@ public class PrintStream extends FilterOutputStream implements Appendable
     try
       {
         writeChars(str, 0, str.length());
-	if (println)
-	  writeChars(line_separator, 0, line_separator.length);
-	if (auto_flush)
-	  flush();
+        if (println)
+          writeChars(line_separator, 0, line_separator.length);
+        if (auto_flush)
+          flush();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread().interrupt();
+        Thread.currentThread().interrupt();
       }
     catch (IOException e)
       {
-	setError ();
+        setError ();
       }
   }
 
   private synchronized void print (char[] chars, int pos, int len,
-				   boolean println)
+                                   boolean println)
   {
     try
       {
         writeChars(chars, pos, len);
-	if (println)
-	  writeChars(line_separator, 0, line_separator.length);
-	if (auto_flush)
-	  flush();
+        if (println)
+          writeChars(line_separator, 0, line_separator.length);
+        if (auto_flush)
+          flush();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread().interrupt();
+        Thread.currentThread().interrupt();
       }
     catch (IOException e)
       {
-	setError ();
+        setError ();
       }
   }
 
@@ -576,7 +589,7 @@ public class PrintStream extends FilterOutputStream implements Appendable
    * This method writes a byte of data to the stream.  If auto-flush is
    * enabled, printing a newline character will cause the stream to be
    * flushed after the character is written.
-   * 
+   *
    * @param oneByte The byte to be written
    */
   public void write (int oneByte)
@@ -584,13 +597,13 @@ public class PrintStream extends FilterOutputStream implements Appendable
     try
       {
         out.write (oneByte & 0xff);
-        
+
         if (auto_flush && (oneByte == '\n'))
           flush ();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread ().interrupt ();
+        Thread.currentThread ().interrupt ();
       }
     catch (IOException e)
       {
@@ -611,13 +624,13 @@ public class PrintStream extends FilterOutputStream implements Appendable
     try
       {
         out.write (buffer, offset, len);
-        
+
         if (auto_flush)
           flush ();
       }
     catch (InterruptedIOException iioe)
       {
-	Thread.currentThread ().interrupt ();
+        Thread.currentThread ().interrupt ();
       }
     catch (IOException e)
       {

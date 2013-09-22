@@ -1,5 +1,6 @@
 /* -----------------------------------------------------------------------
-   prep_cif.c - Copyright (c) 1996, 1998, 2007  Red Hat, Inc.
+   prep_cif.c - Copyright (c) 2011, 2012  Anthony Green
+                Copyright (c) 1996, 1998, 2007  Red Hat, Inc.
 
    Permission is hereby granted, free of charge, to any person obtaining
    a copy of this software and associated documentation files (the
@@ -12,13 +13,14 @@
    The above copyright notice and this permission notice shall be included
    in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-   IN NO EVENT SHALL CYGNUS SOLUTIONS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-   OTHER DEALINGS IN THE SOFTWARE.
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
    ----------------------------------------------------------------------- */
 
 #include <ffi.h>
@@ -36,17 +38,21 @@ static ffi_status initialize_aggregate(ffi_type *arg)
 {
   ffi_type **ptr;
 
-  FFI_ASSERT(arg != NULL);
+  if (UNLIKELY(arg == NULL || arg->elements == NULL))
+    return FFI_BAD_TYPEDEF;
 
-  FFI_ASSERT(arg->elements != NULL);
-  FFI_ASSERT(arg->size == 0);
-  FFI_ASSERT(arg->alignment == 0);
+  arg->size = 0;
+  arg->alignment = 0;
 
   ptr = &(arg->elements[0]);
 
+  if (UNLIKELY(ptr == 0))
+    return FFI_BAD_TYPEDEF;
+
   while ((*ptr) != NULL)
     {
-      if (((*ptr)->size == 0) && (initialize_aggregate((*ptr)) != FFI_OK))
+      if (UNLIKELY(((*ptr)->size == 0)
+		    && (initialize_aggregate((*ptr)) != FFI_OK)))
 	return FFI_BAD_TYPEDEF;
 
       /* Perform a sanity check on the argument type */
@@ -84,19 +90,38 @@ static ffi_status initialize_aggregate(ffi_type *arg)
 /* Perform machine independent ffi_cif preparation, then call
    machine dependent routine. */
 
-ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
-			ffi_type *rtype, ffi_type **atypes)
+/* For non variadic functions isvariadic should be 0 and
+   nfixedargs==ntotalargs.
+
+   For variadic calls, isvariadic should be 1 and nfixedargs
+   and ntotalargs set as appropriate. nfixedargs must always be >=1 */
+
+
+ffi_status FFI_HIDDEN ffi_prep_cif_core(ffi_cif *cif, ffi_abi abi,
+			     unsigned int isvariadic,
+                             unsigned int nfixedargs,
+                             unsigned int ntotalargs,
+			     ffi_type *rtype, ffi_type **atypes)
 {
   unsigned bytes = 0;
   unsigned int i;
   ffi_type **ptr;
 
   FFI_ASSERT(cif != NULL);
-  FFI_ASSERT((abi > FFI_FIRST_ABI) && (abi <= FFI_DEFAULT_ABI));
+  FFI_ASSERT((!isvariadic) || (nfixedargs >= 1));
+  FFI_ASSERT(nfixedargs <= ntotalargs);
+
+#ifndef X86_WIN32
+  if (! (abi > FFI_FIRST_ABI && abi < FFI_LAST_ABI))
+    return FFI_BAD_ABI;
+#else
+  if (! (abi > FFI_FIRST_ABI && abi < FFI_LAST_ABI || abi == FFI_THISCALL))
+    return FFI_BAD_ABI;
+#endif
 
   cif->abi = abi;
   cif->arg_types = atypes;
-  cif->nargs = nargs;
+  cif->nargs = ntotalargs;
   cif->rtype = rtype;
 
   cif->flags = 0;
@@ -108,15 +133,15 @@ ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
   /* Perform a sanity check on the return type */
   FFI_ASSERT_VALID_TYPE(cif->rtype);
 
-  /* x86-64 and s390 stack space allocation is handled in prep_machdep.  */
-#if !defined M68K && !defined __x86_64__ && !defined S390 && !defined PA
+  /* x86, x86-64 and s390 stack space allocation is handled in prep_machdep. */
+#if !defined M68K && !defined X86_ANY && !defined S390 && !defined PA
   /* Make space for the return structure pointer */
   if (cif->rtype->type == FFI_TYPE_STRUCT
 #ifdef SPARC
       && (cif->abi != FFI_V9 || cif->rtype->size > 32)
 #endif
-#ifdef X86_DARWIN
-      && (cif->rtype->size > 8)
+#ifdef TILE
+      && (cif->rtype->size > 10 * FFI_SIZEOF_ARG)
 #endif
      )
     bytes = STACK_ARG_SIZE(sizeof(void*));
@@ -133,7 +158,7 @@ ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
 	 check after the initialization.  */
       FFI_ASSERT_VALID_TYPE(*ptr);
 
-#if !defined __x86_64__ && !defined S390 && !defined PA
+#if !defined X86_ANY && !defined S390 && !defined PA
 #ifdef SPARC
       if (((*ptr)->type == FFI_TYPE_STRUCT
 	   && ((*ptr)->size > 16 || cif->abi != FFI_V9))
@@ -147,6 +172,16 @@ ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
 	  if (((*ptr)->alignment - 1) & bytes)
 	    bytes = ALIGN(bytes, (*ptr)->alignment);
 
+#ifdef TILE
+	  if (bytes < 10 * FFI_SIZEOF_ARG &&
+	      bytes + STACK_ARG_SIZE((*ptr)->size) > 10 * FFI_SIZEOF_ARG)
+	    {
+	      /* An argument is never split between the 10 parameter
+		 registers and the stack.  */
+	      bytes = 10 * FFI_SIZEOF_ARG;
+	    }
+#endif
+
 	  bytes += STACK_ARG_SIZE((*ptr)->size);
 	}
 #endif
@@ -155,9 +190,30 @@ ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
   cif->bytes = bytes;
 
   /* Perform machine dependent cif processing */
+#ifdef FFI_TARGET_SPECIFIC_VARIADIC
+  if (isvariadic)
+	return ffi_prep_cif_machdep_var(cif, nfixedargs, ntotalargs);
+#endif
+
   return ffi_prep_cif_machdep(cif);
 }
 #endif /* not __CRIS__ */
+
+ffi_status ffi_prep_cif(ffi_cif *cif, ffi_abi abi, unsigned int nargs,
+			     ffi_type *rtype, ffi_type **atypes)
+{
+  return ffi_prep_cif_core(cif, abi, 0, nargs, nargs, rtype, atypes);
+}
+
+ffi_status ffi_prep_cif_var(ffi_cif *cif,
+                            ffi_abi abi,
+                            unsigned int nfixedargs,
+                            unsigned int ntotalargs,
+                            ffi_type *rtype,
+                            ffi_type **atypes)
+{
+  return ffi_prep_cif_core(cif, abi, 1, nfixedargs, ntotalargs, rtype, atypes);
+}
 
 #if FFI_CLOSURES
 

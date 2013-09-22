@@ -1,5 +1,5 @@
 /* Parser.java - parse command line options
- Copyright (C) 2006 Free Software Foundation, Inc.
+ Copyright (C) 2006, 2008 Free Software Foundation, Inc.
 
  This file is part of GNU Classpath.
 
@@ -66,7 +66,9 @@ public class Parser
 
   private boolean longOnly;
 
-  private ArrayList options = new ArrayList();
+  // All of the options.  This is null initially; users must call
+  // requireOptions before access.
+  private ArrayList options;
 
   private ArrayList optionGroups = new ArrayList();
 
@@ -82,7 +84,7 @@ public class Parser
   /**
    * Create a new parser. The program name is used when printing error messages.
    * The version string is printed verbatim in response to "--version".
-   * 
+   *
    * @param programName the name of the program
    * @param versionString the program's version information
    */
@@ -99,7 +101,7 @@ public class Parser
    * <p>
    * The text to print may contain <code>\n</code> characters. This method will
    * force a line-break for each such character.
-   * 
+   *
    * @param out the {@link PrintStream} destination of the formatted text.
    * @param text the text to print.
    * @see Parser#MAX_LINE_LENGTH
@@ -120,7 +122,7 @@ public class Parser
    * <p>
    * The text to print may contain <code>\n</code> characters. This method will
    * force a line-break for each such character.
-   * 
+   *
    * @param out the {@link PrintStream} destination of the formatted text.
    * @param text the text to print.
    * @param aLocale the {@link Locale} instance to use when constructing the
@@ -157,7 +159,7 @@ public class Parser
   /**
    * Create a new parser. The program name is used when printing error messages.
    * The version string is printed verbatim in response to "--version".
-   * 
+   *
    * @param programName the name of the program
    * @param versionString the program's version information
    * @param longOnly true if the parser should work in long-option-only mode
@@ -192,20 +194,20 @@ public class Parser
 
   /**
    * Set the header text that is printed by --help.
-   * 
+   *
    * @param headerText the header text
    */
-  public void setHeader(String headerText)
+  public synchronized void setHeader(String headerText)
   {
     this.headerText = headerText;
   }
 
   /**
    * Set the footer text that is printed by --help.
-   * 
+   *
    * @param footerText the footer text
    */
-  public void setFooter(String footerText)
+  public synchronized void setFooter(String footerText)
   {
     this.footerText = footerText;
   }
@@ -213,12 +215,11 @@ public class Parser
   /**
    * Add an option to this parser. The option is added to the default option
    * group; this affects where it is placed in the help output.
-   * 
+   *
    * @param opt the option
    */
   public synchronized void add(Option opt)
   {
-    options.add(opt);
     defaultGroup.add(opt);
   }
 
@@ -230,19 +231,17 @@ public class Parser
    */
   protected synchronized void addFinal(Option opt)
   {
-    options.add(opt);
     finalGroup.add(opt);
   }
 
   /**
    * Add an option group to this parser. All the options in this group will be
    * recognized by the parser.
-   * 
+   *
    * @param group the option group
    */
   public synchronized void add(OptionGroup group)
   {
-    options.addAll(group.options);
     // This ensures that the final group always appears at the end
     // of the options.
     if (optionGroups.isEmpty())
@@ -251,13 +250,29 @@ public class Parser
       optionGroups.add(optionGroups.size() - 1, group);
   }
 
+  // Make sure the 'options' field is properly initialized.
+  private void requireOptions()
+  {
+    if (options != null)
+      return;
+    options = new ArrayList();
+    Iterator it = optionGroups.iterator();
+    while (it.hasNext())
+      {
+        OptionGroup group = (OptionGroup) it.next();
+        options.addAll(group.options);
+      }
+  }
+
   public void printHelp()
   {
     this.printHelp(System.out);
   }
 
-  void printHelp(PrintStream out)
+  synchronized void printHelp(PrintStream out)
   {
+    requireOptions();
+
     if (headerText != null)
       {
         formatText(out, headerText);
@@ -293,7 +308,7 @@ public class Parser
    * user to the <code>--help</code> option.
    * <p>
    * The base implementation does nothing.
-   * 
+   *
    * @throws OptionException the error encountered
    */
   protected void validate() throws OptionException
@@ -411,12 +426,13 @@ public class Parser
    * Parse a command line. Any files which are found will be passed to the file
    * argument callback. This method will exit on error or when --help or
    * --version is specified.
-   * 
+   *
    * @param inArgs the command-line arguments
    * @param files the file argument callback
    */
   public synchronized void parse(String[] inArgs, FileArgumentCallback files)
   {
+    requireOptions();
     try
       {
         args = inArgs;
@@ -461,7 +477,7 @@ public class Parser
   /**
    * Parse a command line. Any files which are found will be returned. This
    * method will exit on error or when --help or --version is specified.
-   * 
+   *
    * @param inArgs the command-line arguments
    */
   public String[] parse(String[] inArgs)

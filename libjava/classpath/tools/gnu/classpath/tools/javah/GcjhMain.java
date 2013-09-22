@@ -38,17 +38,18 @@
 
 package gnu.classpath.tools.javah;
 
+import gnu.classpath.tools.common.ClasspathToolParser;
+
 import gnu.classpath.tools.getopt.Option;
 import gnu.classpath.tools.getopt.OptionException;
 import gnu.classpath.tools.getopt.OptionGroup;
-import gnu.classpath.tools.getopt.Parser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 
 public class GcjhMain extends Main
 {
-  ArrayList commands = new ArrayList();
+  ArrayList<Text> commands = new ArrayList<Text>();
 
   public GcjhMain()
   {
@@ -60,42 +61,42 @@ public class GcjhMain extends Main
     return "gcjh";
   }
 
-  protected Parser getParser()
+  protected ClasspathToolParser getParser()
   {
-    Parser result = super.getParser();
+    ClasspathToolParser result = super.getParser();
 
     result.setHeader("usage: gcjh [OPTION]... CLASS...");
 
     OptionGroup text = new OptionGroup("CNI text options");
     text.add(new Option("add", "Insert TEXT into class body", "TEXT")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	  commands.add(new Text(Text.ADD, arg));
-	}
+        public void parsed(String arg) throws OptionException
+        {
+          commands.add(new Text(Text.ADD, arg));
+        }
       });
     text.add(new Option("append", "Append TEXT after class declaration",
-			"TEXT")
+                        "TEXT")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	  commands.add(new Text(Text.APPEND, arg));
-	}
+        public void parsed(String arg) throws OptionException
+        {
+          commands.add(new Text(Text.APPEND, arg));
+        }
       });
     text.add(new Option("friend", "Insert TEXT as a 'friend' declaration",
-			"TEXT")
+                        "TEXT")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	  commands.add(new Text(Text.FRIEND, arg));
-	}
+        public void parsed(String arg) throws OptionException
+        {
+          commands.add(new Text(Text.FRIEND, arg));
+        }
       });
     text.add(new Option("prepend", "Insert TEXT before start of class", "TEXT")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	  commands.add(new Text(Text.PREPEND, arg));
-	}
+        public void parsed(String arg) throws OptionException
+        {
+          commands.add(new Text(Text.PREPEND, arg));
+        }
       });
     result.add(text);
 
@@ -104,34 +105,34 @@ public class GcjhMain extends Main
     // didn't add them here since they should really be unused by now.
     compat.add(new Option("td", "Unused compatibility option", "DIRECTORY")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	}
+        public void parsed(String arg) throws OptionException
+        {
+        }
       });
     // I don't believe anyone ever used these options.
     compat.add(new Option("M", "Unused compatibility option")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	}
+        public void parsed(String arg) throws OptionException
+        {
+        }
       });
     compat.add(new Option("MM", "Unused compatibility option")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	}
+        public void parsed(String arg) throws OptionException
+        {
+        }
       });
     compat.add(new Option("MD", "Unused compatibility option")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	}
+        public void parsed(String arg) throws OptionException
+        {
+        }
       });
     compat.add(new Option("MMD", "Unused compatibility option")
       {
-	public void parsed(String arg) throws OptionException
-	{
-	}
+        public void parsed(String arg) throws OptionException
+        {
+        }
       });
 
     result.add(compat);

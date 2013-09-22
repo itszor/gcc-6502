@@ -69,5 +69,3 @@
       call new (a)
       call new (b)
       end
-
-! { dg-final { cleanup-modules "P_class S_Class T_Class D_Class poly_Class" } }

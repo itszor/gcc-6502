@@ -1,46 +1,109 @@
 /* Implementation of the SYSTEM_CLOCK intrinsic.
-   Copyright (C) 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004-2013 Free Software Foundation, Inc.
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 
 #include <limits.h>
 
-#if defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
-#  include <sys/time.h>
-#  define TCK 1000
-#elif defined(HAVE_TIME_H)
-#  include <time.h>
-#  define TCK 1
+#include "time_1.h"
+
+
+/* POSIX states that CLOCK_REALTIME must be present if clock_gettime
+   is available, others are optional.  */
+#if defined(HAVE_CLOCK_GETTIME) || defined(HAVE_CLOCK_GETTIME_LIBRT)
+#ifdef CLOCK_MONOTONIC
+#define GF_CLOCK_MONOTONIC CLOCK_MONOTONIC
 #else
-#define TCK 0
+#define GF_CLOCK_MONOTONIC CLOCK_REALTIME
+#endif
 #endif
 
+/* Weakref trickery for clock_gettime().  On Glibc, clock_gettime()
+   requires us to link in librt, which also pulls in libpthread.  In
+   order to avoid this by default, only call clock_gettime() through a
+   weak reference. 
+
+   Some targets don't support weak undefined references; on these
+   GTHREAD_USE_WEAK is 0. So we need to define it to 1 on other
+   targets.  */
+#ifndef GTHREAD_USE_WEAK
+#define GTHREAD_USE_WEAK 1
+#endif
+
+#if SUPPORTS_WEAK && GTHREAD_USE_WEAK && defined(HAVE_CLOCK_GETTIME_LIBRT)
+static int weak_gettime (clockid_t, struct timespec *) 
+  __attribute__((__weakref__("clock_gettime")));
+#endif
+
+
+/* High resolution monotonic clock, falling back to the realtime clock
+   if the target does not support such a clock.
+
+   Arguments:
+   secs     - OUTPUT, seconds
+   nanosecs - OUTPUT, nanoseconds
+   tk       - OUTPUT, clock resolution [counts/sec]
+
+   If the target supports a monotonic clock, the OUTPUT arguments
+   represent a monotonically incrementing clock starting from some
+   unspecified time in the past.
+
+   If a monotonic clock is not available, falls back to the realtime
+   clock which is not monotonic.
+
+   Return value: 0 for success, -1 for error. In case of error, errno
+   is set.
+*/
+static int
+gf_gettime_mono (time_t * secs, long * nanosecs, long * tck)
+{
+  int err;
+#ifdef HAVE_CLOCK_GETTIME
+  struct timespec ts;
+  *tck = 1000000000;
+  err = clock_gettime (GF_CLOCK_MONOTONIC, &ts);
+  *secs = ts.tv_sec;
+  *nanosecs = ts.tv_nsec;
+  return err;
+#else
+#if defined(HAVE_CLOCK_GETTIME_LIBRT) && SUPPORTS_WEAK && GTHREAD_USE_WEAK
+  if (weak_gettime)
+    {
+      struct timespec ts;
+      *tck = 1000000000;
+      err = weak_gettime (GF_CLOCK_MONOTONIC, &ts);
+      *secs = ts.tv_sec;
+      *nanosecs = ts.tv_nsec;
+      return err;
+    }
+#endif
+  *tck = 1000000;
+  err = gf_gettime (secs, nanosecs);
+  *nanosecs *= 1000;
+  return err;
+#endif
+}
 
 extern void system_clock_4 (GFC_INTEGER_4 *, GFC_INTEGER_4 *, GFC_INTEGER_4 *);
 export_proto(system_clock_4);
@@ -61,17 +124,17 @@ system_clock_4(GFC_INTEGER_4 *count, GFC_INTEGER_4 *count_rate,
   GFC_INTEGER_4 cnt;
   GFC_INTEGER_4 mx;
 
-#if defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
-  struct timeval tp1;
-  struct timezone tzp;
+  time_t secs;
+  long nanosecs, tck;
 
-  if (sizeof (tp1.tv_sec) < sizeof (GFC_INTEGER_4))
-    internal_error (NULL, "tv_sec too small");
+  if (sizeof (secs) < sizeof (GFC_INTEGER_4))
+    internal_error (NULL, "secs too small");
 
-  if (gettimeofday(&tp1, &tzp) == 0)
+  if (gf_gettime_mono (&secs, &nanosecs, &tck) == 0)
     {
-      GFC_UINTEGER_4 ucnt = (GFC_UINTEGER_4) tp1.tv_sec * TCK;
-      ucnt += (tp1.tv_usec + 500000 / TCK) / (1000000 / TCK);
+      tck = tck>1000 ? 1000 : tck;
+      GFC_UINTEGER_4 ucnt = (GFC_UINTEGER_4) secs * tck;
+      ucnt += (nanosecs + 500000000 / tck) / (1000000000 / tck);
       if (ucnt > GFC_INTEGER_4_HUGE)
 	cnt = ucnt - GFC_INTEGER_4_HUGE - 1;
       else
@@ -88,26 +151,11 @@ system_clock_4(GFC_INTEGER_4 *count, GFC_INTEGER_4 *count_rate,
 	*count_max = 0;
       return;
     }
-#elif defined(HAVE_TIME_H)
-  GFC_UINTEGER_4 ucnt;
 
-  if (sizeof (time_t) < sizeof (GFC_INTEGER_4))
-    internal_error (NULL, "time_t too small");
-
-  ucnt = time (NULL);
-  if (ucnt > GFC_INTEGER_4_HUGE)
-    cnt = ucnt - GFC_INTEGER_4_HUGE - 1;
-  else
-    cnt = ucnt;
-  mx = GFC_INTEGER_4_HUGE;
-#else
-  cnt = - GFC_INTEGER_4_HUGE;
-  mx = 0;
-#endif
   if (count != NULL)
     *count = cnt;
   if (count_rate != NULL)
-    *count_rate = TCK;
+    *count_rate = tck;
   if (count_max != NULL)
     *count_max = mx;
 }
@@ -122,35 +170,21 @@ system_clock_8 (GFC_INTEGER_8 *count, GFC_INTEGER_8 *count_rate,
   GFC_INTEGER_8 cnt;
   GFC_INTEGER_8 mx;
 
-#if defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
-  struct timeval tp1;
-  struct timezone tzp;
+  time_t secs;
+  long nanosecs, tck;
 
-  if (sizeof (tp1.tv_sec) < sizeof (GFC_INTEGER_4))
-    internal_error (NULL, "tv_sec too small");
+  if (sizeof (secs) < sizeof (GFC_INTEGER_4))
+    internal_error (NULL, "secs too small");
 
-  if (gettimeofday(&tp1, &tzp) == 0)
+  if (gf_gettime_mono (&secs, &nanosecs, &tck) == 0)
     {
-      if (sizeof (tp1.tv_sec) < sizeof (GFC_INTEGER_8))
-	{
-	  GFC_UINTEGER_4 ucnt = (GFC_UINTEGER_4) tp1.tv_sec * TCK;
-	  ucnt += (tp1.tv_usec + 500000 / TCK) / (1000000 / TCK);
-	  if (ucnt > GFC_INTEGER_4_HUGE)
-	    cnt = ucnt - GFC_INTEGER_4_HUGE - 1;
-	  else
-	    cnt = ucnt;
-	  mx = GFC_INTEGER_4_HUGE;
-	}
+      GFC_UINTEGER_8 ucnt = (GFC_UINTEGER_8) secs * tck;
+      ucnt += (nanosecs + 500000000 / tck) / (1000000000 / tck);
+      if (ucnt > GFC_INTEGER_8_HUGE)
+	cnt = ucnt - GFC_INTEGER_8_HUGE - 1;
       else
-	{
-	  GFC_UINTEGER_8 ucnt = (GFC_UINTEGER_8) tp1.tv_sec * TCK;
-	  ucnt += (tp1.tv_usec + 500000 / TCK) / (1000000 / TCK);
-	  if (ucnt > GFC_INTEGER_8_HUGE)
-	    cnt = ucnt - GFC_INTEGER_8_HUGE - 1;
-	  else
-	    cnt = ucnt;
-	  mx = GFC_INTEGER_8_HUGE;
-	}
+	cnt = ucnt;
+      mx = GFC_INTEGER_8_HUGE;
     }
   else
     {
@@ -163,35 +197,11 @@ system_clock_8 (GFC_INTEGER_8 *count, GFC_INTEGER_8 *count_rate,
 
       return;
     }
-#elif defined(HAVE_TIME_H)
-  if (sizeof (time_t) < sizeof (GFC_INTEGER_4))
-    internal_error (NULL, "time_t too small");
-  else if (sizeof (time_t) == sizeof (GFC_INTEGER_4))
-    {
-      GFC_UINTEGER_4 ucnt = time (NULL);
-      if (ucnt > GFC_INTEGER_4_HUGE)
-	cnt = ucnt - GFC_INTEGER_4_HUGE - 1;
-      else
-	cnt = ucnt;
-      mx = GFC_INTEGER_4_HUGE;
-    }
-  else
-    {
-      GFC_UINTEGER_8 ucnt = time (NULL);
-      if (ucnt > GFC_INTEGER_8_HUGE)
-	cnt = ucnt - GFC_INTEGER_8_HUGE - 1;
-      else
-	cnt = ucnt;
-      mx = GFC_INTEGER_8_HUGE;
-    }
-#else
-  cnt = - GFC_INTEGER_8_HUGE;
-  mx = 0;
-#endif
+
   if (count != NULL)
     *count = cnt;
   if (count_rate != NULL)
-    *count_rate = TCK;
+    *count_rate = tck;
   if (count_max != NULL)
     *count_max = mx;
 }

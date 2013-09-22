@@ -43,7 +43,6 @@ import java.awt.Component;
 import java.awt.Rectangle;
 import java.io.Serializable;
 
-import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JTable;
 import javax.swing.UIManager;
@@ -132,7 +131,7 @@ public class DefaultTableCellRenderer extends JLabel
    * @param hasFocus has the cell the focus?
    * @param row the row to render
    * @param column the cell to render
-   * 
+   *
    * @return this component (the default table cell renderer)
    */
   public Component getTableCellRendererComponent(JTable table, Object value,
@@ -181,8 +180,8 @@ public class DefaultTableCellRenderer extends JLabel
     // can avoid filling the background by setting the renderer opaque.
     Color back = getBackground();
     setOpaque(back != null && back.equals(table.getBackground()));
-    
-    return this;    
+
+    return this;
   }
 
   /**
@@ -255,14 +254,14 @@ public class DefaultTableCellRenderer extends JLabel
    * do something.</p>
    */
   public void firePropertyChange(String propertyName, boolean oldValue,
-		                 boolean newValue)
+                                 boolean newValue)
   {
     // Does nothing.
   }
 
   /**
    * Sets the String for this cell.
-   * 
+   *
    * @param value the string value for this cell; if value is null it
    * sets the text value to an empty string
    */

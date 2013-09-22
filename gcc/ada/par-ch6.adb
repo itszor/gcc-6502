@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,16 +39,19 @@ package body Ch6 is
    function P_Return_Object_Declaration  return Node_Id;
 
    procedure P_Return_Subtype_Indication (Decl_Node : Node_Id);
-   --  Decl_Node is a N_Object_Declaration.
-   --  Set the Null_Exclusion_Present and Object_Definition fields of
-   --  Decl_Node.
+   --  Decl_Node is a N_Object_Declaration. Set the Null_Exclusion_Present and
+   --  Object_Definition fields of Decl_Node.
 
    procedure Check_Junk_Semicolon_Before_Return;
-
    --  Check for common error of junk semicolon before RETURN keyword of
-   --  function specification. If present, skip over it with appropriate
-   --  error message, leaving Scan_Ptr pointing to the RETURN after. This
-   --  routine also deals with a possibly misspelled version of Return.
+   --  function specification. If present, skip over it with appropriate error
+   --  message, leaving Scan_Ptr pointing to the RETURN after. This routine
+   --  also deals with a possibly misspelled version of Return.
+
+   procedure No_Constraint_Maybe_Expr_Func;
+   --  Called after scanning return subtype to check for missing constraint,
+   --  taking into account the possibility of an occurrence of an expression
+   --  function where the IS has been forgotten.
 
    ----------------------------------------
    -- Check_Junk_Semicolon_Before_Return --
@@ -64,9 +67,9 @@ package body Ch6 is
 
          if Token = Tok_Return then
             Restore_Scan_State (Scan_State);
-            Error_Msg_SC ("unexpected semicolon ignored");
+            Error_Msg_SC -- CODEFIX
+              ("|extra "";"" ignored");
             Scan; -- rescan past junk semicolon
-
          else
             Restore_Scan_State (Scan_State);
          end if;
@@ -76,17 +79,67 @@ package body Ch6 is
       end if;
    end Check_Junk_Semicolon_Before_Return;
 
+   -----------------------------------
+   -- No_Constraint_Maybe_Expr_Func --
+   -----------------------------------
+
+   procedure No_Constraint_Maybe_Expr_Func is
+   begin
+      --  If we have a left paren at the start of the line, then assume this is
+      --  the case of an expression function with missing IS. We do not have to
+      --  diagnose the missing IS, that is done elsewhere. We do this game in
+      --  Ada 2012 mode where expression functions are legal.
+
+      if Token = Tok_Left_Paren
+        and Ada_Version >= Ada_2012
+        and Token_Is_At_Start_Of_Line
+      then
+         --  One exception if we have "(token .." then this is a constraint
+
+         declare
+            Scan_State : Saved_Scan_State;
+
+         begin
+            Save_Scan_State (Scan_State);
+            Scan; -- past left paren
+            Scan; -- past following token
+
+            --  If we have "(token .." then restore scan state and treat as
+            --  unexpected constraint.
+
+            if Token = Tok_Dot_Dot then
+               Restore_Scan_State (Scan_State);
+               No_Constraint;
+
+            --  Otherwise we treat this as an expression function
+
+            else
+               Restore_Scan_State (Scan_State);
+            end if;
+         end;
+
+      --  Otherwise use standard routine to check for no constraint present
+
+      else
+         No_Constraint;
+      end if;
+   end No_Constraint_Maybe_Expr_Func;
+
    -----------------------------------------------------
    -- 6.1  Subprogram (Also 6.3, 8.5.4, 10.1.3, 12.3) --
    -----------------------------------------------------
 
    --  This routine scans out a subprogram declaration, subprogram body,
    --  subprogram renaming declaration or subprogram generic instantiation.
+   --  It also handles the new Ada 2012 expression function form
 
-   --  SUBPROGRAM_DECLARATION ::= SUBPROGRAM_SPECIFICATION;
+   --  SUBPROGRAM_DECLARATION ::=
+   --    SUBPROGRAM_SPECIFICATION
+   --     [ASPECT_SPECIFICATIONS];
 
    --  ABSTRACT_SUBPROGRAM_DECLARATION ::=
-   --    SUBPROGRAM_SPECIFICATION is abstract;
+   --    SUBPROGRAM_SPECIFICATION is abstract
+   --      [ASPECT_SPECIFICATIONS];
 
    --  SUBPROGRAM_SPECIFICATION ::=
    --      procedure DEFINING_PROGRAM_UNIT_NAME PARAMETER_PROFILE
@@ -104,7 +157,8 @@ package body Ch6 is
    --    end [DESIGNATOR];
 
    --  SUBPROGRAM_RENAMING_DECLARATION ::=
-   --    SUBPROGRAM_SPECIFICATION renames callable_entity_NAME;
+   --    SUBPROGRAM_SPECIFICATION renames callable_entity_NAME
+   --      [ASPECT_SPECIFICATIONS];
 
    --  SUBPROGRAM_BODY_STUB ::=
    --    SUBPROGRAM_SPECIFICATION is separate;
@@ -122,6 +176,10 @@ package body Ch6 is
    --  is classified as a basic declarative item, but it is parsed here, with
    --  other subprogram constructs.
 
+   --  EXPRESSION_FUNCTION ::=
+   --    FUNCTION SPECIFICATION IS (EXPRESSION)
+   --      [ASPECT_SPECIFICATIONS];
+
    --  The value in Pf_Flags indicates which of these possible declarations
    --  is acceptable to the caller:
 
@@ -130,6 +188,7 @@ package body Ch6 is
    --    Pf_Flags.Pbod                 Set if proper body OK
    --    Pf_Flags.Rnam                 Set if renaming declaration OK
    --    Pf_Flags.Stub                 Set if body stub OK
+   --    Pf_Flags.Pexp                 Set if expression function OK
 
    --  If an inappropriate form is encountered, it is scanned out but an
    --  error message indicating that it is appearing in an inappropriate
@@ -144,6 +203,7 @@ package body Ch6 is
    function P_Subprogram (Pf_Flags : Pf_Rec) return Node_Id is
       Specification_Node : Node_Id;
       Name_Node          : Node_Id;
+      Aspects            : List_Id;
       Fpart_List         : List_Id;
       Fpart_Sloc         : Source_Ptr;
       Result_Not_Null    : Boolean := False;
@@ -176,7 +236,9 @@ package body Ch6 is
       Scope.Table (Scope.Last).Ecol := Start_Column;
       Scope.Table (Scope.Last).Lreq := False;
 
-      --  Ada2005: scan leading NOT OVERRIDING indicator
+      Aspects := Empty_List;
+
+      --  Ada 2005: Scan leading NOT OVERRIDING indicator
 
       if Token = Tok_Not then
          Scan;  -- past NOT
@@ -196,35 +258,44 @@ package body Ch6 is
             Not_Overriding := True;
 
          else
-            Error_Msg_SC ("OVERRIDING expected!");
+            Error_Msg_SC -- CODEFIX
+              ("OVERRIDING expected!");
          end if;
 
       --  Ada 2005: scan leading OVERRIDING indicator
 
       --  Note: in the case of OVERRIDING keyword used in Ada 95 mode, the
       --  declaration circuit already gave an error message and changed the
-      --  tokem to Tok_Overriding.
+      --  token to Tok_Overriding.
 
       elsif Token = Tok_Overriding then
          Scan;  --  past OVERRIDING
          Is_Overriding := True;
       end if;
 
-      if (Is_Overriding or else Not_Overriding) then
+      if Is_Overriding or else Not_Overriding then
 
-         --  Note that if we are not in Ada_05 mode, error messages have
+         --  Note that if we are not in Ada_2005 mode, error messages have
          --  already been given, so no need to give another message here.
 
          --  An overriding indicator is allowed for subprogram declarations,
-         --  bodies, renamings, stubs, and instantiations.
+         --  bodies (including subunits), renamings, stubs, and instantiations.
+         --  The test against Pf_Decl_Pbod is added to account for the case of
+         --  subprograms declared in a protected type, where only subprogram
+         --  declarations and bodies can occur. The Pf_Pbod case is for
+         --  subunits.
 
-         if Pf_Flags /= Pf_Decl_Gins_Pbod_Rnam_Stub then
+         if Pf_Flags /= Pf_Decl_Gins_Pbod_Rnam_Stub_Pexp
+              and then
+            Pf_Flags /= Pf_Decl_Pbod_Pexp
+              and then
+            Pf_Flags /= Pf_Pbod_Pexp
+         then
             Error_Msg_SC ("overriding indicator not allowed here!");
 
-         elsif Token /= Tok_Function
-           and then Token /= Tok_Procedure
-         then
-            Error_Msg_SC ("FUNCTION or PROCEDURE expected!");
+         elsif Token /= Tok_Function and then Token /= Tok_Procedure then
+            Error_Msg_SC -- CODEFIX
+              ("FUNCTION or PROCEDURE expected!");
          end if;
       end if;
 
@@ -265,11 +336,7 @@ package body Ch6 is
       end if;
 
       Scope.Table (Scope.Last).Labl := Name_Node;
-
-      if Token = Tok_Colon then
-         Error_Msg_SC ("redundant colon ignored");
-         Scan; -- past colon
-      end if;
+      Ignore (Tok_Colon);
 
       --  Deal with generic instantiation, the one case in which we do not
       --  have a subprogram specification as part of whatever we are parsing
@@ -280,7 +347,7 @@ package body Ch6 is
 
          if Token = Tok_New then
             if not Pf_Flags.Gins then
-               Error_Msg_SC ("generic instantation not allowed here!");
+               Error_Msg_SC ("generic instantiation not allowed here!");
             end if;
 
             Scan; -- past NEW
@@ -295,7 +362,7 @@ package body Ch6 is
 
             Set_Defining_Unit_Name (Inst_Node, Name_Node);
             Set_Generic_Associations (Inst_Node, P_Generic_Actual_Part_Opt);
-            TF_Semicolon;
+            P_Aspect_Specifications (Inst_Node);
             Pop_Scope_Stack; -- Don't need scope stack entry in this case
 
             if Is_Overriding then
@@ -345,7 +412,8 @@ package body Ch6 is
 
       if Token = Tok_Return then
          if not Func then
-            Error_Msg ("PROCEDURE should be FUNCTION", Fproc_Sloc);
+            Error_Msg -- CODEFIX
+              ("PROCEDURE should be FUNCTION", Fproc_Sloc);
             Func := True;
          end if;
 
@@ -356,7 +424,7 @@ package body Ch6 is
          --  Ada 2005 (AI-318-02)
 
          if Token = Tok_Access then
-            if Ada_Version < Ada_05 then
+            if Ada_Version < Ada_2005 then
                Error_Msg_SC
                  ("anonymous access result type is an Ada 2005 extension");
                Error_Msg_SC ("\unit must be compiled with -gnat05 switch");
@@ -366,13 +434,22 @@ package body Ch6 is
 
          else
             Result_Node := P_Subtype_Mark;
-            No_Constraint;
+            No_Constraint_Maybe_Expr_Func;
          end if;
 
       else
+         --  Skip extra parenthesis at end of formal part
+
+         Ignore (Tok_Right_Paren);
+
+         --  For function, scan result subtype
+
          if Func then
-            Ignore (Tok_Right_Paren);
             TF_Return;
+
+            if Prev_Token = Tok_Return then
+               Result_Node := P_Subtype_Mark;
+            end if;
          end if;
       end if;
 
@@ -411,21 +488,42 @@ package body Ch6 is
          Discard_Junk_Node (P_Expression);
       end if;
 
-      --  Deal with case of semicolon ending a subprogram declaration
+      --  Deal with semicolon followed by IS. We want to treat this as IS
 
       if Token = Tok_Semicolon then
+         Save_Scan_State (Scan_State);
+         Scan; -- past semicolon
+
+         if Token = Tok_Is then
+            Error_Msg_SP -- CODEFIX
+              ("extra "";"" ignored");
+         else
+            Restore_Scan_State (Scan_State);
+         end if;
+      end if;
+
+      --  Subprogram declaration ended by aspect specifications
+
+      if Aspect_Specifications_Present then
+         goto Subprogram_Declaration;
+
+      --  Deal with case of semicolon ending a subprogram declaration
+
+      elsif Token = Tok_Semicolon then
          if not Pf_Flags.Decl then
             T_Is;
          end if;
 
+         Save_Scan_State (Scan_State);
          Scan; -- past semicolon
 
          --  If semicolon is immediately followed by IS, then ignore the
          --  semicolon, and go process the body.
 
          if Token = Tok_Is then
-            Error_Msg_SP ("unexpected semicolon ignored");
-            T_Is; -- ignroe redundant IS's
+            Error_Msg_SP -- CODEFIX
+              ("|extra "";"" ignored");
+            T_Is; -- scan past IS
             goto Subprogram_Body;
 
          --  If BEGIN follows in an appropriate column, we immediately
@@ -436,10 +534,12 @@ package body Ch6 is
          elsif Token = Tok_Begin
             and then Start_Column >= Scope.Table (Scope.Last).Ecol
          then
-            Error_Msg_SP (""";"" should be IS!");
+            Error_Msg_SP -- CODEFIX
+              ("|"";"" should be IS!");
             goto Subprogram_Body;
 
          else
+            Restore_Scan_State (Scan_State);
             goto Subprogram_Declaration;
          end if;
 
@@ -460,6 +560,7 @@ package body Ch6 is
             Scan; -- past RENAMES
             Set_Name (Rename_Node, P_Name);
             Set_Specification (Rename_Node, Specification_Node);
+            P_Aspect_Specifications (Rename_Node);
             TF_Semicolon;
             Pop_Scope_Stack;
             return Rename_Node;
@@ -476,7 +577,8 @@ package body Ch6 is
             --  Deal nicely with (now obsolete) use of <> in place of abstract
 
             if Token = Tok_Box then
-               Error_Msg_SC ("ABSTRACT expected");
+               Error_Msg_SC -- CODEFIX
+                 ("ABSTRACT expected");
                Token := Tok_Abstract;
             end if;
 
@@ -488,13 +590,13 @@ package body Ch6 is
                Set_Specification (Absdec_Node, Specification_Node);
                Pop_Scope_Stack; -- discard unneeded entry
                Scan; -- past ABSTRACT
-               TF_Semicolon;
+               P_Aspect_Specifications (Absdec_Node);
                return Absdec_Node;
 
             --  Ada 2005 (AI-248): Parse a null procedure declaration
 
             elsif Token = Tok_Null then
-               if Ada_Version < Ada_05 then
+               if Ada_Version < Ada_2005 then
                   Error_Msg_SP ("null procedures are an Ada 2005 extension");
                   Error_Msg_SP ("\unit must be compiled with -gnat05 switch");
                end if;
@@ -507,7 +609,6 @@ package body Ch6 is
                   Set_Null_Present (Specification_Node);
                end if;
 
-               TF_Semicolon;
                goto Subprogram_Declaration;
 
             --  Check for IS NEW with Formal_Part present and handle nicely
@@ -535,23 +636,37 @@ package body Ch6 is
                goto Subprogram_Body;
             end if;
 
-         --  Here we have a missing IS or missing semicolon, we always guess
-         --  a missing semicolon, since we are pretty good at fixing up a
-         --  semicolon which should really be an IS
+         --  Aspect specifications present
+
+         elsif Aspect_Specifications_Present then
+            goto Subprogram_Declaration;
+
+         --  Here we have a missing IS or missing semicolon
 
          else
-            Error_Msg_AP ("missing "";""");
-            SIS_Missing_Semicolon_Message := Get_Msg_Id;
-            goto Subprogram_Declaration;
+            --  If the next token is a left paren at the start of a line, then
+            --  this is almost certainly the start of the expression for an
+            --  expression function, so in this case guess a missing IS.
+
+            if Token = Tok_Left_Paren and then Token_Is_At_Start_Of_Line then
+               Error_Msg_AP -- CODEFIX
+                 ("missing IS");
+
+            --  In all other cases, we guess a missing semicolon, since we are
+            --  good at fixing up a semicolon which should really be an IS.
+
+            else
+               Error_Msg_AP -- CODEFIX
+                 ("|missing "";""");
+               SIS_Missing_Semicolon_Message := Get_Msg_Id;
+               goto Subprogram_Declaration;
+            end if;
          end if;
       end if;
 
-      --  Processing for subprogram body
+      --  Processing for stub or subprogram body or expression function
 
       <<Subprogram_Body>>
-         if not Pf_Flags.Pbod then
-            Error_Msg_SP ("subprogram body not allowed here!");
-         end if;
 
          --  Subprogram body stub case
 
@@ -574,29 +689,223 @@ package body Ch6 is
             TF_Semicolon;
             return Stub_Node;
 
-         --  Subprogram body case
+         --  Subprogram body or expression function case
 
          else
-            --  Here is the test for a suspicious IS (i.e. one that looks
-            --  like it might more properly be a semicolon). See separate
-            --  section discussing use of IS instead of semicolon in
-            --  package Parse.
+            Scan_Body_Or_Expression_Function : declare
 
-            if (Token in Token_Class_Declk
-                  or else
-                Token = Tok_Identifier)
-              and then Start_Column <= Scope.Table (Scope.Last).Ecol
-              and then Scope.Last /= 1
-            then
-               Scope.Table (Scope.Last).Etyp := E_Suspicious_Is;
-               Scope.Table (Scope.Last).S_Is := Prev_Token_Ptr;
-            end if;
+               Body_Is_Hidden_In_SPARK : Boolean;
+               Hidden_Region_Start     : Source_Ptr;
 
-            Body_Node :=
-              New_Node (N_Subprogram_Body, Sloc (Specification_Node));
-            Set_Specification (Body_Node, Specification_Node);
-            Parse_Decls_Begin_End (Body_Node);
-            return Body_Node;
+               function Likely_Expression_Function return Boolean;
+               --  Returns True if we have a probable case of an expression
+               --  function omitting the parentheses, if so, returns True
+               --  and emits an appropriate error message, else returns False.
+
+               --------------------------------
+               -- Likely_Expression_Function --
+               --------------------------------
+
+               function Likely_Expression_Function return Boolean is
+               begin
+                  --  If currently pointing to BEGIN or a declaration keyword
+                  --  or a pragma, then we definitely have a subprogram body.
+                  --  This is a common case, so worth testing first.
+
+                  if Token = Tok_Begin
+                    or else Token in Token_Class_Declk
+                    or else Token = Tok_Pragma
+                  then
+                     return False;
+
+                  --  Test for tokens which could only start an expression and
+                  --  thus signal the case of a expression function.
+
+                  elsif Token     in Token_Class_Literal
+                    or else Token in Token_Class_Unary_Addop
+                    or else Token =  Tok_Left_Paren
+                    or else Token =  Tok_Abs
+                    or else Token =  Tok_Null
+                    or else Token =  Tok_New
+                    or else Token =  Tok_Not
+                  then
+                     null;
+
+                  --  Anything other than an identifier must be a body
+
+                  elsif Token /= Tok_Identifier then
+                     return False;
+
+                  --  Here for an identifier
+
+                  else
+                     --  If the identifier is the first token on its line, then
+                     --  let's assume that we have a missing begin and this is
+                     --  intended as a subprogram body. However, if the context
+                     --  is a function and the unit is a package declaration, a
+                     --  body would be illegal, so try for an unparenthesized
+                     --  expression function.
+
+                     if Token_Is_At_Start_Of_Line then
+                        declare
+                           --  The enclosing scope entry is a subprogram spec
+
+                           Spec_Node : constant Node_Id :=
+                                         Parent
+                                           (Scope.Table (Scope.Last).Labl);
+                           Lib_Node : Node_Id := Spec_Node;
+
+                        begin
+                           --  Check whether there is an enclosing scope that
+                           --  is a package declaration.
+
+                           if Scope.Last > 1 then
+                              Lib_Node  :=
+                                Parent (Scope.Table (Scope.Last - 1).Labl);
+                           end if;
+
+                           if Ada_Version >= Ada_2012
+                             and then
+                               Nkind (Lib_Node) = N_Package_Specification
+                             and then
+                               Nkind (Spec_Node) = N_Function_Specification
+                           then
+                              null;
+                           else
+                              return False;
+                           end if;
+                        end;
+
+                     --  Otherwise we have to scan ahead. If the identifier is
+                     --  followed by a colon or a comma, it is a declaration
+                     --  and hence we have a subprogram body. Otherwise assume
+                     --  a expression function.
+
+                     else
+                        declare
+                           Scan_State : Saved_Scan_State;
+                           Tok        : Token_Type;
+
+                        begin
+                           Save_Scan_State (Scan_State);
+                           Scan; -- past identifier
+                           Tok := Token;
+                           Restore_Scan_State (Scan_State);
+
+                           if Tok = Tok_Colon or else Tok = Tok_Comma then
+                              return False;
+                           end if;
+                        end;
+                     end if;
+                  end if;
+
+                  --  Fall through if we have a likely expression function
+
+                  Error_Msg_SC
+                    ("expression function must be enclosed in parentheses");
+                  return True;
+               end Likely_Expression_Function;
+
+            --  Start of processing for Scan_Body_Or_Expression_Function
+
+            begin
+               --  Expression_Function case
+
+               if Token = Tok_Left_Paren
+                 or else Likely_Expression_Function
+               then
+                  --  Check expression function allowed here
+
+                  if not Pf_Flags.Pexp then
+                     Error_Msg_SC ("expression function not allowed here!");
+                  end if;
+
+                  --  Check we are in Ada 2012 mode
+
+                  if Ada_Version < Ada_2012 then
+                     Error_Msg_SC
+                       ("expression function is an Ada 2012 feature!");
+                     Error_Msg_SC
+                       ("\unit must be compiled with -gnat2012 switch!");
+                  end if;
+
+                  --  Parse out expression and build expression function
+
+                  Body_Node :=
+                    New_Node
+                      (N_Expression_Function, Sloc (Specification_Node));
+                  Set_Specification (Body_Node, Specification_Node);
+                  Set_Expression (Body_Node, P_Expression);
+
+                  --  Expression functions can carry pre/postconditions
+
+                  P_Aspect_Specifications (Body_Node);
+                  Pop_Scope_Stack;
+
+               --  Subprogram body case
+
+               else
+                  --  Check body allowed here
+
+                  if not Pf_Flags.Pbod then
+                     Error_Msg_SP ("subprogram body not allowed here!");
+                  end if;
+
+                  --  Here is the test for a suspicious IS (i.e. one that
+                  --  looks like it might more properly be a semicolon).
+                  --  See separate section describing use of IS instead
+                  --  of semicolon in package Parse.
+
+                  if (Token in Token_Class_Declk
+                        or else
+                      Token = Tok_Identifier)
+                    and then Start_Column <= Scope.Table (Scope.Last).Ecol
+                    and then Scope.Last /= 1
+                  then
+                     Scope.Table (Scope.Last).Etyp := E_Suspicious_Is;
+                     Scope.Table (Scope.Last).S_Is := Prev_Token_Ptr;
+                  end if;
+
+                  --  Build and return subprogram body, parsing declarations
+                  --  and statement sequence that belong to the body.
+
+                  Body_Node :=
+                    New_Node (N_Subprogram_Body, Sloc (Specification_Node));
+                  Set_Specification (Body_Node, Specification_Node);
+
+                  --  If aspects are present, the specification is parsed as
+                  --  a subprogram declaration, and we jump here after seeing
+                  --  the keyword IS. Attach asspects previously collected to
+                  --  the body.
+
+                  if Is_Non_Empty_List (Aspects) then
+                     Set_Parent (Aspects, Body_Node);
+                     Set_Aspect_Specifications (Body_Node, Aspects);
+                  end if;
+
+                  --  In SPARK, a HIDE directive can be placed at the beginning
+                  --  of a subprogram implementation, thus hiding the
+                  --  subprogram body from SPARK tool-set. No violation of the
+                  --  SPARK restriction should be issued on nodes in a hidden
+                  --  part, which is obtained by marking such hidden parts.
+
+                  if Token = Tok_SPARK_Hide then
+                     Body_Is_Hidden_In_SPARK := True;
+                     Hidden_Region_Start     := Token_Ptr;
+                     Scan; -- past HIDE directive
+                  else
+                     Body_Is_Hidden_In_SPARK := False;
+                  end if;
+
+                  Parse_Decls_Begin_End (Body_Node);
+
+                  if Body_Is_Hidden_In_SPARK then
+                     Set_Hidden_Part_In_SPARK (Hidden_Region_Start, Token_Ptr);
+                  end if;
+               end if;
+
+               return Body_Node;
+            end Scan_Body_Or_Expression_Function;
          end if;
 
       --  Processing for subprogram declaration
@@ -605,6 +914,24 @@ package body Ch6 is
          Decl_Node :=
            New_Node (N_Subprogram_Declaration, Sloc (Specification_Node));
          Set_Specification (Decl_Node, Specification_Node);
+         Aspects := Get_Aspect_Specifications (Semicolon => False);
+
+         --  Aspects may be present on a subprogram body. The source parsed
+         --  so far is that of its specification, go parse the body and attach
+         --  the collected aspects, if any, to the body.
+
+         if Token = Tok_Is then
+            Scan;
+            goto Subprogram_Body;
+
+         else
+            if Is_Non_Empty_List (Aspects) then
+               Set_Parent (Aspects, Decl_Node);
+               Set_Aspect_Specifications (Decl_Node, Aspects);
+            end if;
+
+            TF_Semicolon;
+         end if;
 
          --  If this is a context in which a subprogram body is permitted,
          --  set active SIS entry in case (see section titled "Handling
@@ -622,7 +949,6 @@ package body Ch6 is
 
          Pop_Scope_Stack;
          return Decl_Node;
-
    end P_Subprogram;
 
    ---------------------------------
@@ -678,7 +1004,7 @@ package body Ch6 is
          --  Ada 2005 (AI-318-02)
 
          if Token = Tok_Access then
-            if Ada_Version < Ada_05 then
+            if Ada_Version < Ada_2005 then
                Error_Msg_SC
                  ("anonymous access result type is an Ada 2005 extension");
                Error_Msg_SC ("\unit must be compiled with -gnat05 switch");
@@ -688,7 +1014,7 @@ package body Ch6 is
 
          else
             Result_Node := P_Subtype_Mark;
-            No_Constraint;
+            No_Constraint_Maybe_Expr_Func;
          end if;
 
          Set_Null_Exclusion_Present (Specification_Node, Result_Not_Null);
@@ -873,6 +1199,7 @@ package body Ch6 is
 
       if Token /= Tok_Dot then
          Change_Identifier_To_Defining_Identifier (Ident_Node);
+         Warn_If_Standard_Redefinition (Ident_Node);
          return Ident_Node;
 
       --  Child library unit name case
@@ -910,6 +1237,7 @@ package body Ch6 is
          Change_Node (Prefix_Node, N_Defining_Program_Unit_Name);
          Set_Name (Prefix_Node, Name_Node);
          Change_Identifier_To_Defining_Identifier (Ident_Node);
+         Warn_If_Standard_Redefinition (Ident_Node);
          Set_Defining_Identifier (Prefix_Node, Ident_Node);
 
          --  All set with unit name parsed
@@ -986,14 +1314,16 @@ package body Ch6 is
    --  FORMAL_PART ::= (PARAMETER_SPECIFICATION {; PARAMETER_SPECIFICATION})
 
    --  PARAMETER_SPECIFICATION ::=
-   --    DEFINING_IDENTIFIER_LIST : MODE [NULL_EXCLUSION] SUBTYPE_MARK
-   --      [:= DEFAULT_EXPRESSION]
+   --    DEFINING_IDENTIFIER_LIST : [ALIASED] MODE [NULL_EXCLUSION]
+   --      SUBTYPE_MARK [:= DEFAULT_EXPRESSION]
    --  | DEFINING_IDENTIFIER_LIST : ACCESS_DEFINITION
    --      [:= DEFAULT_EXPRESSION]
 
    --  This scans the construct Formal_Part. The caller has already checked
    --  that the initial token is a left parenthesis, and skipped past it, so
    --  that on entry Token is the first token following the left parenthesis.
+
+   --  Note: The ALIASED keyword is allowed only in Ada 2012 mode (AI 142)
 
    --  Error recovery: cannot raise Error_Resync
 
@@ -1035,9 +1365,11 @@ package body Ch6 is
 
                if Token /= Tok_Comma then
 
-                  --  Assume colon if IN or OUT keyword found
+                  --  Assume colon if ALIASED, IN or OUT keyword found
 
-                  exit Ident_Loop when Token = Tok_In or else Token = Tok_Out;
+                  exit Ident_Loop when Token = Tok_Aliased or else
+                                       Token = Tok_In      or else
+                                       Token = Tok_Out;
 
                   --  Otherwise scan ahead
 
@@ -1102,6 +1434,18 @@ package body Ch6 is
                Specification_Node :=
                  New_Node (N_Parameter_Specification, Ident_Sloc);
                Set_Defining_Identifier (Specification_Node, Idents (Ident));
+
+               --  Scan possible ALIASED for Ada 2012 (AI-142)
+
+               if Token = Tok_Aliased then
+                  if Ada_Version < Ada_2012 then
+                     Error_Msg_SC ("ALIASED parameter is an Ada 2012 feature");
+                  else
+                     Set_Aliased_Present (Specification_Node);
+                  end if;
+
+                  Scan; -- past ALIASED
+               end if;
 
                --  Scan possible NOT NULL for Ada 2005 (AI-231, AI-447)
 
@@ -1203,7 +1547,8 @@ package body Ch6 is
             --  that semicolon should have been a right parenthesis and exit
 
             if Token = Tok_Is or else Token = Tok_Return then
-               Error_Msg_SP ("expected "")"" in place of "";""");
+               Error_Msg_SP -- CODEFIX
+                 ("|"";"" should be "")""");
                exit Specification_Loop;
             end if;
 
@@ -1211,7 +1556,8 @@ package body Ch6 is
             --  assume we had a missing right parenthesis and terminate list
 
             if Token in Token_Class_Declk then
-               Error_Msg_AP ("missing "")""");
+               Error_Msg_AP -- CODEFIX
+                 ("missing "")""");
                Restore_Scan_State (Scan_State);
                exit Specification_Loop;
             end if;
@@ -1274,10 +1620,16 @@ package body Ch6 is
          Set_In_Present (Node, True);
 
          if Style.Mode_In_Check and then Token /= Tok_Out then
-            Error_Msg_SP ("(style) IN should be omitted");
+            Error_Msg_SP -- CODEFIX
+              ("(style) IN should be omitted");
          end if;
 
-         if Token = Tok_Access then
+         --  Since Ada 2005, formal objects can have an anonymous access type,
+         --  and of course carry a mode indicator.
+
+         if Token = Tok_Access
+           and then Nkind (Node) /= N_Formal_Object_Declaration
+         then
             Error_Msg_SP ("IN not allowed together with ACCESS");
             Scan; -- past ACCESS
          end if;
@@ -1289,7 +1641,7 @@ package body Ch6 is
       end if;
 
       if Token = Tok_In then
-         Error_Msg_SC ("IN must preceed OUT in parameter mode");
+         Error_Msg_SC ("IN must precede OUT in parameter mode");
          Scan; -- past IN
          Set_In_Present (Node, True);
       end if;
@@ -1311,25 +1663,25 @@ package body Ch6 is
    -- 6.4  Function Call --
    ------------------------
 
-   --  Parsed by P_Call_Or_Name (4.1)
+   --  Parsed by P_Name (4.1)
 
    --------------------------------
    -- 6.4  Actual Parameter Part --
    --------------------------------
 
-   --  Parsed by P_Call_Or_Name (4.1)
+   --  Parsed by P_Name (4.1)
 
    --------------------------------
    -- 6.4  Parameter Association --
    --------------------------------
 
-   --  Parsed by P_Call_Or_Name (4.1)
+   --  Parsed by P_Name (4.1)
 
    ------------------------------------
    -- 6.4  Explicit Actual Parameter --
    ------------------------------------
 
-   --  Parsed by P_Call_Or_Name (4.1)
+   --  Parsed by P_Name (4.1)
 
    ---------------------------
    -- 6.5  Return Statement --
@@ -1377,6 +1729,7 @@ package body Ch6 is
    begin
       Return_Obj := Token_Node;
       Change_Identifier_To_Defining_Identifier (Return_Obj);
+      Warn_If_Standard_Redefinition (Return_Obj);
       Decl_Node := New_Node (N_Object_Declaration, Token_Ptr);
       Set_Defining_Identifier (Decl_Node, Return_Obj);
 
@@ -1418,7 +1771,8 @@ package body Ch6 is
          Set_Constant_Present (Decl_Node);
 
          if Token = Tok_Aliased then
-            Error_Msg_SC ("ALIASED should be before CONSTANT");
+            Error_Msg_SC -- CODEFIX
+              ("ALIASED should be before CONSTANT");
             Scan; -- past ALIASED
             Set_Aliased_Present (Decl_Node);
          end if;
@@ -1426,6 +1780,9 @@ package body Ch6 is
       elsif Token = Tok_Aliased then
          Scan; -- past ALIASED
          Set_Aliased_Present (Decl_Node);
+
+         --  The restrictions on the use of aliased in an extended return
+         --  are semantic, not syntactic.
 
          if Token = Tok_Constant then
             Scan; -- past CONSTANT
@@ -1510,7 +1867,7 @@ package body Ch6 is
          --  Extended_return_statement (Ada 2005 only -- AI-318):
 
          else
-            if Ada_Version < Ada_05 then
+            if Ada_Version < Ada_2005 then
                Error_Msg_SP
                  (" extended_return_statement is an Ada 2005 extension");
                Error_Msg_SP ("\unit must be compiled with -gnat05 switch");

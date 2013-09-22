@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1997-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1997-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -85,7 +85,7 @@ package Sem_Elab is
    --  Note on pragma Elaborate. The checking here assumes that a pragma
    --  Elaborate on a with'ed unit guarantees that subprograms within the
    --  unit can be called without causing an ABE. This is not in fact the
-   --  case since pragma Elaborate does not guarantee the transititive
+   --  case since pragma Elaborate does not guarantee the transitive
    --  coverage guaranteed by Elaborate_All. However, we leave this issue
    --  up to the binder, which has generates warnings if there are possible
    --  problems in the use of pragma Elaborate.
@@ -118,12 +118,17 @@ package Sem_Elab is
    --  the resulting code does not contain subprogram specs with no
    --  corresponding bodies.
 
-   procedure Check_Elab_Call (N : Node_Id; Outer_Scope : Entity_Id := Empty);
-   --  Check a call for possible elaboration problems. The node N is either
-   --  an N_Function_Call or N_Procedure_Call_Statement node. The Outer_Scope
+   procedure Check_Elab_Call
+     (N            : Node_Id;
+      Outer_Scope  : Entity_Id := Empty;
+      In_Init_Proc : Boolean   := False);
+   --  Check a call for possible elaboration problems. The node N is either an
+   --  N_Function_Call or N_Procedure_Call_Statement node or an access
+   --  attribute reference whose prefix is a subprogram. The Outer_Scope
    --  argument indicates whether this is an outer level call from Sem_Res
    --  (Outer_Scope set to Empty), or an internal recursive call (Outer_Scope
-   --  set to entity of outermost call, see body).
+   --  set to entity of outermost call, see body). Flag In_Init_Proc should be
+   --  set whenever the current context is a type init proc.
 
    procedure Check_Elab_Calls;
    --  Not all the processing for Check_Elab_Call can be done at the time

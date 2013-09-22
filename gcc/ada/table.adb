@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -84,6 +82,17 @@ package body Table is
       begin
          Set_Item (Table_Index_Type (Last_Val + 1), New_Val);
       end Append;
+
+      ----------------
+      -- Append_All --
+      ----------------
+
+      procedure Append_All (New_Vals : Table_Type) is
+      begin
+         for J in New_Vals'Range loop
+            Append (New_Vals (J));
+         end loop;
+      end Append_All;
 
       --------------------
       -- Decrement_Last --
@@ -163,6 +172,7 @@ package body Table is
 
       procedure Reallocate is
          New_Size   : Memory.size_t;
+         New_Length : Long_Long_Integer;
 
       begin
          if Max < Last_Val then
@@ -177,11 +187,14 @@ package body Table is
             --  the increment value or 10, which ever is larger (the reason
             --  for the use of 10 here is to ensure that the table does really
             --  increase in size (which would not be the case for a table of
-            --  length 10 increased by 3% for instance).
+            --  length 10 increased by 3% for instance). Do the intermediate
+            --  calculation in Long_Long_Integer to avoid overflow.
 
             while Max < Last_Val loop
-               Length := Int'Max (Length * (100 + Table_Increment) / 100,
-                                  Length + 10);
+               New_Length :=
+                 Long_Long_Integer (Length) *
+                    (100 + Long_Long_Integer (Table_Increment)) / 100;
+               Length := Int'Max (Int (New_Length), Length + 10);
                Max := Min + Length - 1;
             end loop;
 
@@ -295,7 +308,7 @@ package body Table is
          --  allocation). Range checks are suppressed because this unit
          --  uses direct calls to System.Memory for allocation, and this can
          --  yield misaligned storage (and we cannot rely on the bootstrap
-         --  compiler supporting specifically disabling alignment cheks, so we
+         --  compiler supporting specifically disabling alignment checks, so we
          --  need to suppress all range checks). It is safe to suppress this
          --  check here because we know that a (possibly misaligned) object
          --  of that type does actually exist at that address.
@@ -307,7 +320,7 @@ package body Table is
          --  involve moving table contents around).
 
       begin
-         --  If we're going to reallocate, check wheter Item references an
+         --  If we're going to reallocate, check whether Item references an
          --  element of the currently allocated table.
 
          if Need_Realloc

@@ -1,32 +1,27 @@
 /* Implementation of the ANY intrinsic
-   Copyright 2002, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
@@ -65,79 +60,78 @@ any_l1 (gfc_array_l1 * const restrict retarray,
 
   src_kind = GFC_DESCRIPTOR_SIZE (array);
 
-  len = array->dim[dim].ubound + 1 - array->dim[dim].lbound;
+  len = GFC_DESCRIPTOR_EXTENT(array,dim);
   if (len < 0)
     len = 0;
 
-  delta = array->dim[dim].stride * src_kind;
+  delta = GFC_DESCRIPTOR_STRIDE_BYTES(array,dim);
 
   for (n = 0; n < dim; n++)
     {
-      sstride[n] = array->dim[n].stride * src_kind;
-      extent[n] = array->dim[n].ubound + 1 - array->dim[n].lbound;
+      sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,n);
+      extent[n] = GFC_DESCRIPTOR_EXTENT(array,n);
 
       if (extent[n] < 0)
 	extent[n] = 0;
     }
   for (n = dim; n < rank; n++)
     {
-      sstride[n] = array->dim[n + 1].stride * src_kind;
-      extent[n] =
-        array->dim[n + 1].ubound + 1 - array->dim[n + 1].lbound;
+      sstride[n] = GFC_DESCRIPTOR_STRIDE_BYTES(array,n + 1);
+      extent[n] = GFC_DESCRIPTOR_EXTENT(array,n + 1);
 
       if (extent[n] < 0)
 	extent[n] = 0;
     }
 
-  if (retarray->data == NULL)
+  if (retarray->base_addr == NULL)
     {
-      size_t alloc_size;
+      size_t alloc_size, str;
 
       for (n = 0; n < rank; n++)
         {
-          retarray->dim[n].lbound = 0;
-          retarray->dim[n].ubound = extent[n]-1;
           if (n == 0)
-            retarray->dim[n].stride = 1;
+            str = 1;
           else
-            retarray->dim[n].stride = retarray->dim[n-1].stride * extent[n-1];
+            str = GFC_DESCRIPTOR_STRIDE(retarray,n-1) * extent[n-1];
+
+	  GFC_DIMENSION_SET(retarray->dim[n], 0, extent[n] - 1, str);
+
         }
 
       retarray->offset = 0;
       retarray->dtype = (array->dtype & ~GFC_DTYPE_RANK_MASK) | rank;
 
-      alloc_size = sizeof (GFC_LOGICAL_1) * retarray->dim[rank-1].stride
+      alloc_size = sizeof (GFC_LOGICAL_1) * GFC_DESCRIPTOR_STRIDE(retarray,rank-1)
     		   * extent[rank-1];
 
       if (alloc_size == 0)
 	{
 	  /* Make sure we have a zero-sized array.  */
-	  retarray->dim[0].lbound = 0;
-	  retarray->dim[0].ubound = -1;
+	  GFC_DIMENSION_SET(retarray->dim[0], 0, -1, 1);
 	  return;
 	}
       else
-	retarray->data = internal_malloc_size (alloc_size);
+	retarray->base_addr = xmalloc (alloc_size);
     }
   else
     {
       if (rank != GFC_DESCRIPTOR_RANK (retarray))
 	runtime_error ("rank of return array incorrect in"
-		       " ANY intrinsic: is %d, should be %d",
-		       GFC_DESCRIPTOR_RANK (retarray), rank);
+		       " ANY intrinsic: is %ld, should be %ld",
+		       (long int) GFC_DESCRIPTOR_RANK (retarray),
+		       (long int) rank);
 
-      if (compile_options.bounds_check)
+      if (unlikely (compile_options.bounds_check))
 	{
 	  for (n=0; n < rank; n++)
 	    {
 	      index_type ret_extent;
 
-	      ret_extent = retarray->dim[n].ubound + 1
-		- retarray->dim[n].lbound;
+	      ret_extent = GFC_DESCRIPTOR_EXTENT(retarray,n);
 	      if (extent[n] != ret_extent)
 		runtime_error ("Incorrect extent in return value of"
 			       " ANY intrinsic in dimension %d:"
-			       " is %ld, should be %ld", n + 1,
+			       " is %ld, should be %ld", (int) n + 1,
 			       (long int) ret_extent, (long int) extent[n]);
 	    }
 	}
@@ -146,12 +140,12 @@ any_l1 (gfc_array_l1 * const restrict retarray,
   for (n = 0; n < rank; n++)
     {
       count[n] = 0;
-      dstride[n] = retarray->dim[n].stride;
+      dstride[n] = GFC_DESCRIPTOR_STRIDE(retarray,n);
       if (extent[n] <= 0)
-        len = 0;
+	return;
     }
 
-  base = array->data;
+  base = array->base_addr;
 
   if (src_kind == 1 || src_kind == 2 || src_kind == 4 || src_kind == 8
 #ifdef HAVE_GFC_LOGICAL_16
@@ -165,7 +159,7 @@ any_l1 (gfc_array_l1 * const restrict retarray,
   else
     internal_error (NULL, "Funny sized logical array in ANY intrinsic");
 
-  dest = retarray->data;
+  dest = retarray->base_addr;
 
   continue_loop = 1;
   while (continue_loop)

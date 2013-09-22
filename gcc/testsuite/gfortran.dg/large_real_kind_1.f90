@@ -56,7 +56,7 @@ program test
   call testoutput (-7.51e-100_k,-7.51e-100_8,15,'(F15.10)')
 
   x = huge(x)
-  call outputstring (2*x,'(F20.15)','           +Infinity')
+  call outputstring (2*x,'(F20.15)','            Infinity')
   call outputstring (-2*x,'(F20.15)','           -Infinity')
 
   write (c1,'(G20.10E5)') x
@@ -75,5 +75,3 @@ program test
   c2(1:1) = ' '
   if (c1 /= c2) call abort
 end program test
-
-! { dg-final { cleanup-modules "testmod" } }

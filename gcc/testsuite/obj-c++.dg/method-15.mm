@@ -3,10 +3,10 @@
 /* { dg-options "-Wstrict-selector-match" } */
 /* { dg-do compile } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.h"
 
 @protocol MyObject
-- (id)initWithData:(Object *)data;
+- (id)initWithData:(TestsuiteObject *)data;
 @end
 
 @protocol SomeOther
@@ -17,9 +17,9 @@
 - (id)initWithData:(id<MyObject, MyCoding>)data;
 @end
 
-@interface NTGridDataObject: Object <MyCoding>
+@interface NTGridDataObject: TestsuiteObject <MyCoding>
 {
-    Object<MyCoding> *_data;
+    TestsuiteObject<MyCoding> *_data;
 }
 + (NTGridDataObject*)dataObject:(id<MyObject, MyCoding>)data;
 @end
@@ -32,9 +32,9 @@
 {
     NTGridDataObject *result = [[NTGridDataObject alloc] initWithData:data];
      /* { dg-warning "multiple methods named .\\-initWithData:. found" "" { target *-*-* } 33 } */
-     /* { dg-warning "using .\\-\\(id\\)initWithData:\\(Object \\*\\)data." "" { target *-*-* } 9 } */
-     /* { dg-warning "also found .\\-\\(id\\)initWithData:\\(id <MyObject, MyCoding>\\)data." "" { target *-*-* } 17 } */
-     /* { dg-warning "also found .\\-\\(id\\)initWithData:\\(int\\)data." "" { target *-*-* } 13 } */
+     /* { dg-message "using .\\-\\(id\\)initWithData:\\(TestsuiteObject \\*\\)data." "" { target *-*-* } 9 } */
+     /* { dg-message "also found .\\-\\(id\\)initWithData:\\(id <MyObject, MyCoding>\\)data." "" { target *-*-* } 17 } */
+     /* { dg-message "also found .\\-\\(id\\)initWithData:\\(int\\)data." "" { target *-*-* } 13 } */
 
      /* The following warning is a consequence of picking the "wrong" method signature.  */
      /* { dg-warning "passing argument 1 of .initWithData:. from distinct Objective\\-C type" "" { target *-*-* } 33 } */

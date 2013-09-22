@@ -1,5 +1,5 @@
 /* KeyWrappingAlgorithmAdapter.java -- Base Adapter for Key Wrapping algorithms
-   Copyright (C) 2006 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -76,7 +76,8 @@ import javax.crypto.spec.SecretKeySpec;
 abstract class KeyWrappingAlgorithmAdapter
     extends CipherSpi
 {
-  private static final Logger log = Logger.getLogger(KeyWrappingAlgorithmAdapter.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+        Logger.getLogger(KeyWrappingAlgorithmAdapter.class.getName()) : null;
   /** JCE canonical name of a null-padder. */
   private static final String NO_PADDING = "nopadding";
   /** Concrete Key Wrapping Algorithm SPI. */
@@ -94,7 +95,7 @@ abstract class KeyWrappingAlgorithmAdapter
 
   /**
    * Creates a new JCE Adapter for the designated Key Wrapping Algorithm name.
-   * 
+   *
    * @param name the canonical name of the key-wrapping algorithm.
    * @param blockSize the block size in bytes of the underlying symmetric-key
    *          block cipher algorithm.
@@ -116,7 +117,7 @@ abstract class KeyWrappingAlgorithmAdapter
 
   /**
    * Wraps the encoded form of a designated {@link Key}.
-   * 
+   *
    * @param key the key-material to wrap.
    * @return the wrapped key.
    * @throws InvalidKeyException If the key cannot be wrapped.
@@ -131,7 +132,7 @@ abstract class KeyWrappingAlgorithmAdapter
 
   /**
    * Unwraps a previously-wrapped key-material.
-   * 
+   *
    * @param wrappedKey the wrapped key-material to unwrap.
    * @param wrappedKeyAlgorithm the canonical name of the algorithm, which the
    *          unwrapped key-material represents. This name is used to
@@ -286,7 +287,7 @@ abstract class KeyWrappingAlgorithmAdapter
       ivBytes = ((BlockCipherParameterSpec) params).getIV();
     else if (params instanceof IvParameterSpec)
       ivBytes = ((IvParameterSpec) params).getIV();
-    
+
     initAlgorithm(opmode, kekBytes, ivBytes, random);
   }
 
@@ -341,7 +342,7 @@ abstract class KeyWrappingAlgorithmAdapter
    * <code>kwaBlockSize</code> --passed to this method through its
    * constructor-- greater than or equal to the designated
    * <code>inputLength</code>.
-   * 
+   *
    * @param inputLength the size of a plain text.
    * @return an estimate of the size, in bytes, of the place holder to receive
    * the resulting bytes of a wrap method.
@@ -360,7 +361,7 @@ abstract class KeyWrappingAlgorithmAdapter
    * <code>paddingBlockSize</code> --passed to this method through its
    * constructor-- greater than or equal to the designated
    * <code>inputLength</code>.
-   * 
+   *
    * @param inputLength the size of a cipher text.
    * @return an estimate of the size, in bytes, of the place holder to receive
    *         the resulting bytes of an uwrap method.
@@ -383,7 +384,7 @@ abstract class KeyWrappingAlgorithmAdapter
 
   /**
    * Returns the key bytes, iff it was in RAW format.
-   * 
+   *
    * @param key the opaque JCE secret key to use as the KEK.
    * @return the bytes of the encoded form of the designated kek, iff it was in
    *         RAW format.

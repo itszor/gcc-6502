@@ -1,12 +1,11 @@
 // Hashtable implementation used by containers -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  * Copyright (c) 1996,1997
@@ -59,8 +53,8 @@
  *  containing extensions from the HP/SGI STL subset).
  */
 
-#ifndef _HASHTABLE_H
-#define _HASHTABLE_H 1
+#ifndef _BACKWARD_HASHTABLE_H
+#define _BACKWARD_HASHTABLE_H 1
 
 // Hashtable class, used to implement the hashed associative containers
 // hash_set, hash_map, hash_multiset, and hash_multimap.
@@ -71,7 +65,9 @@
 #include <bits/stl_function.h>
 #include <backward/hash_fun.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   using std::size_t;
   using std::ptrdiff_t;
@@ -210,23 +206,39 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     };
 
   // Note: assumes long is at least 32 bits.
-  enum { _S_num_primes = 28 };
+  enum { _S_num_primes = 29 };
 
-  static const unsigned long __stl_prime_list[_S_num_primes] =
+  template<typename _PrimeType>
+    struct _Hashtable_prime_list
     {
-      53ul,         97ul,         193ul,       389ul,       769ul,
-      1543ul,       3079ul,       6151ul,      12289ul,     24593ul,
-      49157ul,      98317ul,      196613ul,    393241ul,    786433ul,
-      1572869ul,    3145739ul,    6291469ul,   12582917ul,  25165843ul,
-      50331653ul,   100663319ul,  201326611ul, 402653189ul, 805306457ul,
-      1610612741ul, 3221225473ul, 4294967291ul
+      static const _PrimeType  __stl_prime_list[_S_num_primes];
+
+      static const _PrimeType*
+      _S_get_prime_list();
     };
+
+  template<typename _PrimeType> const _PrimeType
+  _Hashtable_prime_list<_PrimeType>::__stl_prime_list[_S_num_primes] =
+    {
+      5ul,          53ul,         97ul,         193ul,       389ul,
+      769ul,        1543ul,       3079ul,       6151ul,      12289ul,
+      24593ul,      49157ul,      98317ul,      196613ul,    393241ul,
+      786433ul,     1572869ul,    3145739ul,    6291469ul,   12582917ul,
+      25165843ul,   50331653ul,   100663319ul,  201326611ul, 402653189ul,
+      805306457ul,  1610612741ul, 3221225473ul, 4294967291ul
+    };
+
+ template<class _PrimeType> inline const _PrimeType*
+ _Hashtable_prime_list<_PrimeType>::_S_get_prime_list()
+ {
+   return __stl_prime_list;
+ }
 
   inline unsigned long
   __stl_next_prime(unsigned long __n)
   {
-    const unsigned long* __first = __stl_prime_list;
-    const unsigned long* __last = __stl_prime_list + (int)_S_num_primes;
+    const unsigned long* __first = _Hashtable_prime_list<unsigned long>::_S_get_prime_list();
+    const unsigned long* __last = __first + (int)_S_num_primes;
     const unsigned long* pos = std::lower_bound(__first, __last, __n);
     return pos == __last ? *(__last - 1) : *pos;
   }
@@ -420,7 +432,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 
       size_type
       max_bucket_count() const
-      { return __stl_prime_list[(int)_S_num_primes - 1]; }
+      { return _Hashtable_prime_list<unsigned long>::
+               _S_get_prime_list()[(int)_S_num_primes - 1];
+      }
 
       size_type
       elems_in_bucket(size_type __bucket) const
@@ -603,12 +617,12 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       {
 	_Node* __n = _M_get_node();
 	__n->_M_next = 0;
-	try
+	__try
 	  {
 	    this->get_allocator().construct(&__n->_M_val, __obj);
 	    return __n;
 	  }
-	catch(...)
+	__catch(...)
 	  {
 	    _M_put_node(__n);
 	    __throw_exception_again;
@@ -869,8 +883,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     {
       const size_type __n = _M_bkt_num_key(__key);
       _Node* __first = _M_buckets[__n];
+      _Node* __saved_slot = 0;
       size_type __erased = 0;
-      
+
       if (__first)
 	{
 	  _Node* __cur = __first;
@@ -879,11 +894,20 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	    {
 	      if (_M_equals(_M_get_key(__next->_M_val), __key))
 		{
-		  __cur->_M_next = __next->_M_next;
-		  _M_delete_node(__next);
-		  __next = __cur->_M_next;
-		  ++__erased;
-		  --_M_num_elements;
+		  if (&_M_get_key(__next->_M_val) != &__key)
+		    {
+		      __cur->_M_next = __next->_M_next;
+		      _M_delete_node(__next);
+		      __next = __cur->_M_next;
+		      ++__erased;
+		      --_M_num_elements;
+		    }
+		  else
+		    {
+		      __saved_slot = __cur;
+		      __cur = __next;
+		      __next = __cur->_M_next;
+		    }
 		}
 	      else
 		{
@@ -891,7 +915,16 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		  __next = __cur->_M_next;
 		}
 	    }
-	  if (_M_equals(_M_get_key(__first->_M_val), __key))
+	  bool __delete_first = _M_equals(_M_get_key(__first->_M_val), __key);
+	  if (__saved_slot)
+	    {
+	      __next = __saved_slot->_M_next;
+	      __saved_slot->_M_next = __next->_M_next;
+	      _M_delete_node(__next);
+	      ++__erased;
+	      --_M_num_elements;
+	    }
+	  if (__delete_first)
 	    {
 	      _M_buckets[__n] = __first->_M_next;
 	      _M_delete_node(__first);
@@ -995,7 +1028,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	  if (__n > __old_n)
 	    {
 	      _Vector_type __tmp(__n, (_Node*)(0), _M_buckets.get_allocator());
-	      try
+	      __try
 		{
 		  for (size_type __bucket = 0; __bucket < __old_n; ++__bucket)
 		    {
@@ -1012,7 +1045,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		    }
 		  _M_buckets.swap(__tmp);
 		}
-	      catch(...)
+	      __catch(...)
 		{
 		  for (size_type __bucket = 0; __bucket < __tmp.size();
 		       ++__bucket)
@@ -1076,6 +1109,9 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     hashtable<_Val, _Key, _HF, _Ex, _Eq, _All>::
     clear()
     {
+      if (_M_num_elements == 0)
+	return;
+
       for (size_type __i = 0; __i < _M_buckets.size(); ++__i)
 	{
 	  _Node* __cur = _M_buckets[__i];
@@ -1098,7 +1134,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       _M_buckets.clear();
       _M_buckets.reserve(__ht._M_buckets.size());
       _M_buckets.insert(_M_buckets.end(), __ht._M_buckets.size(), (_Node*) 0);
-      try
+      __try
 	{
 	  for (size_type __i = 0; __i < __ht._M_buckets.size(); ++__i) {
 	    const _Node* __cur = __ht._M_buckets[__i];
@@ -1118,13 +1154,14 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	  }
 	  _M_num_elements = __ht._M_num_elements;
 	}
-      catch(...)
+      __catch(...)
 	{
 	  clear();
 	  __throw_exception_again;
 	}
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

@@ -1,4 +1,5 @@
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
 /* This tests that exceptions work.  It used to fail because
    objc_msgSend was marked with DECL_NOTHROW. 
@@ -8,17 +9,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
-
-@interface Object {
-  Class isa;  
-}
-+ alloc;
-- init;
-@end
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 
 // ObjectiveC class header
-@interface ObjCclass : Object {
+@interface ObjCclass : TestsuiteObject {
 }
 -(void)method1;
 -(void)method2;
@@ -69,3 +63,4 @@ void CPPclass::function1()
 	/* Shouldn't be here because we threw.  */
 	abort ();
 }
+

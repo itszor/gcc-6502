@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,6 +31,10 @@ package Osint.C is
    procedure Set_Output_Object_File_Name (Name : String);
    --  Called by the subprogram processing the command line when an
    --  output object file name is found.
+
+   function Get_Output_Object_File_Name return String;
+   --  Returns the name of the output object file as saved by a call to
+   --  Set_Output_Object_File_Name. Only valid to call if name has been set.
 
    function More_Source_Files return Boolean;
    --  Indicates whether more source file remain to be processed. Returns
@@ -112,6 +116,12 @@ package Osint.C is
    --  information file for the main source file being compiled. See section
    --  above for a discussion of how library information files are stored.
 
+   procedure Set_Library_Info_Name;
+   --  Sets a default ALI file name from the main compiler source name. Used by
+   --  Create_Output_Library_Info, and by the version of Read_Library_Info that
+   --  takes a default file name. The name is in Name_Buffer (with length in
+   --  Name_Len) on return from the call.
+
    procedure Create_Output_Library_Info;
    --  Creates the output library information file for the source file which
    --  is currently being compiled (i.e. the file which was most recently
@@ -128,7 +138,7 @@ package Osint.C is
 
    procedure Close_Output_Library_Info;
    --  Closes the file created by Create_Output_Library_Info, flushing any
-   --  buffers etc from writes by Write_Library_Info.
+   --  buffers etc. from writes by Write_Library_Info.
 
    procedure Read_Library_Info
      (Name : out File_Name_Type;

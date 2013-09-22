@@ -1,5 +1,5 @@
 (* Auto-generate ARM Neon intrinsics header file.
-   Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2006-2013 Free Software Foundation, Inc.
    Contributed by CodeSourcery.
 
    This file is part of GCC.
@@ -91,14 +91,13 @@ let print_function arity fnname body =
   end;
   open_braceblock ffmt;
   let rec print_lines = function
-    [] -> ()
+    []       -> ()
+  | "" :: lines -> print_lines lines
   | [line] -> Format.printf "%s" line
-  | line::lines -> Format.printf "%s@," line; print_lines lines in
+  | line::lines -> Format.printf "%s@," line ; print_lines lines in
   print_lines body;
   close_braceblock ffmt;
   end_function ffmt
-
-let return_by_ptr features = List.mem ReturnPtr features
 
 let union_string num elts base =
   let itype = inttype_for_array num elts in
@@ -122,6 +121,7 @@ let rec signed_ctype = function
   | T_uint16 | T_int16 -> T_intHI
   | T_uint32 | T_int32 -> T_intSI
   | T_uint64 | T_int64 -> T_intDI
+  | T_float32 -> T_floatSF
   | T_poly8 -> T_intQI
   | T_poly16 -> T_intHI
   | T_arrayof (n, elt) -> T_arrayof (n, signed_ctype elt)
@@ -140,29 +140,76 @@ let cast_for_return to_ty = "(" ^ (string_of_vectype to_ty) ^ ")"
 
 (* Return a tuple of a list of declarations to go at the start of the function,
    and a list of statements needed to return THING.  *)
-let return arity return_by_ptr thing =
+let return arity thing =
   match arity with
     Arity0 (ret) | Arity1 (ret, _) | Arity2 (ret, _, _) | Arity3 (ret, _, _, _)
   | Arity4 (ret, _, _, _, _) ->
-    match ret with
-      T_arrayof (num, vec) ->
-        if return_by_ptr then
-          let sname = string_of_vectype ret in
-          [Printf.sprintf "%s __rv;" sname],
-          [thing ^ ";"; "return __rv;"]
-        else
+      begin match ret with
+	T_arrayof (num, vec) ->
           let uname = union_string num vec "__rv" in
           [uname ^ ";"], ["__rv.__o = " ^ thing ^ ";"; "return __rv.__i;"]
-    | T_void -> [], [thing ^ ";"]
-    | _ ->
-        [], ["return " ^ (cast_for_return ret) ^ thing ^ ";"]
+      | T_void ->
+	  [], [thing ^ ";"]
+      | _ ->
+	  [], ["return " ^ (cast_for_return ret) ^ thing ^ ";"]
+      end
+
+let mask_shape_for_shuffle = function
+    All (num, reg) -> All (num, reg)
+  | Pair_result reg -> All (2, reg)
+  | _ -> failwith "mask_for_shuffle"
+
+let mask_elems shuffle shape elttype part =
+  let elem_size = elt_width elttype in
+  let num_elems =
+    match regmap shape 0 with
+      Dreg -> 64 / elem_size
+    | Qreg -> 128 / elem_size
+    | _ -> failwith "mask_elems" in
+  shuffle elem_size num_elems part
+
+(* Return a tuple of a list of declarations 0and a list of statements needed
+   to implement an intrinsic using __builtin_shuffle.  SHUFFLE is a function
+   which returns a list of elements suitable for using as a mask.  *)
+
+let shuffle_fn shuffle shape arity elttype =
+  let mshape = mask_shape_for_shuffle shape in
+  let masktype = type_for_elt mshape (unsigned_of_elt elttype) 0 in
+  let masktype_str = string_of_vectype masktype in
+  let shuffle_res = type_for_elt mshape elttype 0 in
+  let shuffle_res_str = string_of_vectype shuffle_res in
+  match arity with
+    Arity0 (ret) | Arity1 (ret, _) | Arity2 (ret, _, _) | Arity3 (ret, _, _, _)
+  | Arity4 (ret, _, _, _, _) ->
+      begin match ret with
+        T_arrayof (num, vec) ->
+	  let elems1 = mask_elems shuffle mshape elttype `lo
+	  and elems2 = mask_elems shuffle mshape elttype `hi in
+	  let mask1 = (String.concat ", " (List.map string_of_int elems1))
+	  and mask2 = (String.concat ", " (List.map string_of_int elems2)) in
+	  let shuf1 = Printf.sprintf
+	    "__rv.val[0] = (%s) __builtin_shuffle (__a, __b, (%s) { %s });"
+	    shuffle_res_str masktype_str mask1
+	  and shuf2 = Printf.sprintf
+	    "__rv.val[1] = (%s) __builtin_shuffle (__a, __b, (%s) { %s });"
+	    shuffle_res_str masktype_str mask2 in
+	  [Printf.sprintf "%s __rv;" (string_of_vectype ret);],
+	  [shuf1; shuf2; "return __rv;"]
+      | _ ->
+          let elems = mask_elems shuffle mshape elttype `lo in
+          let mask =  (String.concat ", " (List.map string_of_int elems)) in
+	  let shuf = Printf.sprintf
+	    "return (%s) __builtin_shuffle (__a, (%s) { %s });" shuffle_res_str masktype_str mask in
+	  [""],
+	  [shuf]
+      end
 
 let rec element_type ctype =
   match ctype with
     T_arrayof (_, v) -> element_type v
   | _ -> ctype
 
-let params return_by_ptr ps =
+let params ps =
   let pdecls = ref [] in
   let ptype t p =
     match t with
@@ -179,13 +226,7 @@ let params return_by_ptr ps =
   | Arity3 (_, t1, t2, t3) -> [ptype t1 "__a"; ptype t2 "__b"; ptype t3 "__c"]
   | Arity4 (_, t1, t2, t3, t4) ->
       [ptype t1 "__a"; ptype t2 "__b"; ptype t3 "__c"; ptype t4 "__d"] in
-  match ps with
-    Arity0 ret | Arity1 (ret, _) | Arity2 (ret, _, _) | Arity3 (ret, _, _, _)
-  | Arity4 (ret, _, _, _, _) ->
-      if return_by_ptr then
-        !pdecls, add_cast (T_ptrto (element_type ret)) "&__rv.val[0]" :: plist
-      else
-        !pdecls, plist
+  !pdecls, plist
 
 let modify_params features plist =
   let is_flipped =
@@ -238,20 +279,56 @@ let rec mode_suffix elttype shape =
     and srcmode = mode_of_elt src shape in
     string_of_mode dstmode ^ string_of_mode srcmode
 
+let get_shuffle features =
+  try
+    match List.find (function Use_shuffle _ -> true | _ -> false) features with
+      Use_shuffle fn -> Some fn
+    | _ -> None
+  with Not_found -> None
+
+let print_feature_test_start features =
+  try
+    match List.find (fun feature ->
+                       match feature with Requires_feature _ -> true
+                                        | Requires_arch _ -> true
+                                        | _ -> false)
+                     features with
+      Requires_feature feature -> 
+        Format.printf "#ifdef __ARM_FEATURE_%s@\n" feature
+    | Requires_arch arch ->
+        Format.printf "#if __ARM_ARCH >= %d@\n" arch
+    | _ -> assert false
+  with Not_found -> assert true
+
+let print_feature_test_end features =
+  let feature =
+    List.exists (function Requires_feature x -> true
+                          | Requires_arch x -> true
+                          |  _ -> false) features in
+  if feature then Format.printf "#endif@\n"
+
+
 let print_variant opcode features shape name (ctype, asmtype, elttype) =
   let bits = infoword_value elttype features in
   let modesuf = mode_suffix elttype shape in
-  let return_by_ptr = return_by_ptr features in
-  let pdecls, paramlist = params return_by_ptr ctype in
-  let paramlist' = modify_params features paramlist in
-  let paramlist'' = extra_word shape features paramlist' bits in
-  let parstr = String.concat ", " paramlist'' in
-  let builtin = Printf.sprintf "__builtin_neon_%s%s (%s)"
-                  (builtin_name features name) modesuf parstr in
-  let rdecls, stmts = return ctype return_by_ptr builtin in
+  let pdecls, paramlist = params ctype in
+  let rdecls, stmts =
+    match get_shuffle features with
+      Some shuffle -> shuffle_fn shuffle shape ctype elttype
+    | None ->
+	let paramlist' = modify_params features paramlist in
+	let paramlist'' = extra_word shape features paramlist' bits in
+	let parstr = String.concat ", " paramlist'' in
+	let builtin = Printf.sprintf "__builtin_neon_%s%s (%s)"
+                	(builtin_name features name) modesuf parstr in
+	return ctype builtin in
   let body = pdecls @ rdecls @ stmts
   and fnname = (intrinsic_name name) ^ "_" ^ (string_of_elt elttype) in
-  print_function ctype fnname body
+  begin
+    print_feature_test_start features;
+    print_function ctype fnname body;
+    print_feature_test_end features;
+  end
 
 (* When this function processes the element types in the ops table, it rewrites
    them in a list of tuples (a,b,c):
@@ -320,7 +397,7 @@ let deftypes () =
     typeinfo;
   Format.print_newline ();
   (* Extra types not in <stdint.h>.  *)
-  Format.printf "typedef __builtin_neon_sf float32_t;\n";
+  Format.printf "typedef float float32_t;\n";
   Format.printf "typedef __builtin_neon_poly8 poly8_t;\n";
   Format.printf "typedef __builtin_neon_poly16 poly16_t;\n"
 
@@ -364,14 +441,14 @@ let _ =
 "/* ARM NEON intrinsics include file. This file is generated automatically";
 "   using neon-gen.ml.  Please do not edit manually.";
 "";
-"   Copyright (C) 2006, 2007 Free Software Foundation, Inc.";
+"   Copyright (C) 2006-2013 Free Software Foundation, Inc.";
 "   Contributed by CodeSourcery.";
 "";
 "   This file is part of GCC.";
 "";
 "   GCC is free software; you can redistribute it and/or modify it";
 "   under the terms of the GNU General Public License as published";
-"   by the Free Software Foundation; either version 2, or (at your";
+"   by the Free Software Foundation; either version 3, or (at your";
 "   option) any later version.";
 "";
 "   GCC is distributed in the hope that it will be useful, but WITHOUT";
@@ -379,17 +456,14 @@ let _ =
 "   or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public";
 "   License for more details.";
 "";
-"   You should have received a copy of the GNU General Public License";
-"   along with GCC; see the file COPYING.  If not, write to the";
-"   Free Software Foundation, 51 Franklin Street, Fifth Floor, Boston,";
-"   MA 02110-1301, USA.  */";
+"   Under Section 7 of GPL version 3, you are granted additional";
+"   permissions described in the GCC Runtime Library Exception, version";
+"   3.1, as published by the Free Software Foundation.";
 "";
-"/* As a special exception, if you include this header file into source";
-"   files compiled by GCC, this header file does not by itself cause";
-"   the resulting executable to be covered by the GNU General Public";
-"   License.  This exception does not however invalidate any other";
-"   reasons why the executable file might be covered by the GNU General";
-"   Public License.  */";
+"   You should have received a copy of the GNU General Public License and";
+"   a copy of the GCC Runtime Library Exception along with this program;";
+"   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see";
+"   <http://www.gnu.org/licenses/>.  */";
 "";
 "#ifndef _GCC_ARM_NEON_H";
 "#define _GCC_ARM_NEON_H 1";

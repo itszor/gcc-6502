@@ -1,6 +1,6 @@
 /* PR preprocessor/19475 */
 /* { dg-do preprocess } */
-/* { dg-options "-std=iso9899:1999 -pedantic-errors -fno-show-column" } */
+/* { dg-options "-std=iso9899:1999 -pedantic-errors" } */
 
 #define a!		/* { dg-error "requires whitespace" } */
 #define b"		/* { dg-error "requires whitespace" } */
@@ -59,5 +59,5 @@
 #define ag"abc"		/* { dg-error "requires whitespace" } */
 
 int dummy;
-/* { dg-error "missing terminating" "" { target *-*-* } 6 } */
-/* { dg-error "missing terminating" "" { target *-*-* } 10 } */
+/* { dg-error "missing terminating" "missing-terminating" { target *-*-* } 6 } */
+/* { dg-error "missing terminating" "missing-terminating" { target *-*-* } 10 } */

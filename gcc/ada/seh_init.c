@@ -6,24 +6,23 @@
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *             Copyright (C) 2005, Free Software Foundation, Inc.           *
+ *           Copyright (C) 2005-2013, Free Software Foundation, Inc.        *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -37,7 +36,7 @@
 #include "tconfig.h"
 #include "tsystem.h"
 
-/* We don't have libiberty, so us malloc.  */
+/* We don't have libiberty, so use malloc.  */
 #define xmalloc(S) malloc (S)
 
 #else
@@ -46,6 +45,10 @@
 #endif
 
 #include "raise.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Addresses of exception data blocks for predefined exceptions. */
 extern struct Exception_Data constraint_error;
@@ -57,28 +60,30 @@ extern struct Exception_Data _abort_signal;
 
 #define Raise_From_Signal_Handler \
                       ada__exceptions__raise_from_signal_handler
-extern void Raise_From_Signal_Handler (struct Exception_Data *, const char *);
+extern void Raise_From_Signal_Handler (struct Exception_Data *, const char *)
+  ATTRIBUTE_NORETURN;
 
 
-#ifdef _WIN32
+#if defined (_WIN32)
 
 #include <windows.h>
 #include <excpt.h>
 
+/* Prototypes.  */
 extern void _global_unwind2 (void *);
 
 EXCEPTION_DISPOSITION __gnat_SEH_error_handler
-(struct _EXCEPTION_RECORD*, void*, struct _CONTEXT*, void*);
+(struct _EXCEPTION_RECORD*, void*, struct _CONTEXT*, void*) ATTRIBUTE_NORETURN;
 
-EXCEPTION_DISPOSITION
-__gnat_SEH_error_handler (struct _EXCEPTION_RECORD* ExceptionRecord,
-			  void *EstablisherFrame,
-			  struct _CONTEXT* ContextRecord ATTRIBUTE_UNUSED,
-			  void *DispatcherContext ATTRIBUTE_UNUSED)
+struct Exception_Data *
+__gnat_map_SEH (EXCEPTION_RECORD* ExceptionRecord, const char **msg);
+
+/* Convert an SEH exception to an Ada one.  Return the exception ID
+   and set MSG with the corresponding message.  */
+
+struct Exception_Data *
+__gnat_map_SEH (EXCEPTION_RECORD* ExceptionRecord, const char **msg)
 {
-  struct Exception_Data *exception;
-  const char *msg;
-
   switch (ExceptionRecord->ExceptionCode)
     {
     case EXCEPTION_ACCESS_VIOLATION:
@@ -87,110 +92,170 @@ __gnat_SEH_error_handler (struct _EXCEPTION_RECORD* ExceptionRecord,
       */
       if ((ExceptionRecord->ExceptionInformation[1] & 3) != 0
 	  || IsBadCodePtr
-	  ((void *)(ExceptionRecord->ExceptionInformation[1] + 4096)))
+	  ((FARPROC)(ExceptionRecord->ExceptionInformation[1] + 4096)))
 	{
-	  exception = &program_error;
-	  msg = "EXCEPTION_ACCESS_VIOLATION";
+	  *msg = "EXCEPTION_ACCESS_VIOLATION";
+	  return &program_error;
 	}
       else
 	{
 	  /* otherwise it is a stack overflow  */
-	  exception = &storage_error;
-	  msg = "stack overflow (or erroneous memory access)";
+	  *msg = "stack overflow or erroneous memory access";
+	  return &storage_error;
 	}
-      break;
 
     case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
-      exception = &constraint_error;
-      msg = "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
-      break;
+      *msg = "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
+      return &constraint_error;
 
     case EXCEPTION_DATATYPE_MISALIGNMENT:
-      exception = &constraint_error;
-      msg = "EXCEPTION_DATATYPE_MISALIGNMENT";
-      break;
+      *msg = "EXCEPTION_DATATYPE_MISALIGNMENT";
+      return &constraint_error;
 
     case EXCEPTION_FLT_DENORMAL_OPERAND:
-      exception = &constraint_error;
-      msg = "EXCEPTION_FLT_DENORMAL_OPERAND";
-      break;
+      *msg = "EXCEPTION_FLT_DENORMAL_OPERAND";
+      return &constraint_error;
 
     case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-      exception = &constraint_error;
-      msg = "EXCEPTION_FLT_DENORMAL_OPERAND";
-      break;
+      *msg = "EXCEPTION_FLT_DENORMAL_OPERAND";
+      return &constraint_error;
 
     case EXCEPTION_FLT_INVALID_OPERATION:
-      exception = &constraint_error;
-      msg = "EXCEPTION_FLT_INVALID_OPERATION";
-      break;
+      *msg = "EXCEPTION_FLT_INVALID_OPERATION";
+      return &constraint_error;
 
     case EXCEPTION_FLT_OVERFLOW:
-      exception = &constraint_error;
-      msg = "EXCEPTION_FLT_OVERFLOW";
-      break;
+      *msg = "EXCEPTION_FLT_OVERFLOW";
+      return &constraint_error;
 
     case EXCEPTION_FLT_STACK_CHECK:
-      exception = &program_error;
-      msg = "EXCEPTION_FLT_STACK_CHECK";
-      break;
+      *msg = "EXCEPTION_FLT_STACK_CHECK";
+      return &program_error;
 
     case EXCEPTION_FLT_UNDERFLOW:
-      exception = &constraint_error;
-      msg = "EXCEPTION_FLT_UNDERFLOW";
-      break;
+      *msg = "EXCEPTION_FLT_UNDERFLOW";
+      return &constraint_error;
 
     case EXCEPTION_INT_DIVIDE_BY_ZERO:
-      exception = &constraint_error;
-      msg = "EXCEPTION_INT_DIVIDE_BY_ZERO";
-      break;
+      *msg = "EXCEPTION_INT_DIVIDE_BY_ZERO";
+      return &constraint_error;
 
     case EXCEPTION_INT_OVERFLOW:
-      exception = &constraint_error;
-      msg = "EXCEPTION_INT_OVERFLOW";
-      break;
+      *msg = "EXCEPTION_INT_OVERFLOW";
+      return &constraint_error;
 
     case EXCEPTION_INVALID_DISPOSITION:
-      exception = &program_error;
-      msg = "EXCEPTION_INVALID_DISPOSITION";
-      break;
+      *msg = "EXCEPTION_INVALID_DISPOSITION";
+      return &program_error;
 
     case EXCEPTION_NONCONTINUABLE_EXCEPTION:
-      exception = &program_error;
-      msg = "EXCEPTION_NONCONTINUABLE_EXCEPTION";
-      break;
+      *msg = "EXCEPTION_NONCONTINUABLE_EXCEPTION";
+      return &program_error;
 
     case EXCEPTION_PRIV_INSTRUCTION:
-      exception = &program_error;
-      msg = "EXCEPTION_PRIV_INSTRUCTION";
-      break;
+      *msg = "EXCEPTION_PRIV_INSTRUCTION";
+      return &program_error;
 
     case EXCEPTION_SINGLE_STEP:
-      exception = &program_error;
-      msg = "EXCEPTION_SINGLE_STEP";
-      break;
+      *msg = "EXCEPTION_SINGLE_STEP";
+      return &program_error;
 
     case EXCEPTION_STACK_OVERFLOW:
-      exception = &storage_error;
-      msg = "EXCEPTION_STACK_OVERFLOW";
-      break;
+      *msg = "EXCEPTION_STACK_OVERFLOW";
+      return &storage_error;
 
-   default:
+    default:
+      *msg = NULL;
+      return NULL;
+    }
+}
+
+#if !(defined (_WIN64) && defined (__SEH__))
+
+EXCEPTION_DISPOSITION
+__gnat_SEH_error_handler (struct _EXCEPTION_RECORD* ExceptionRecord,
+			  void *EstablisherFrame ATTRIBUTE_UNUSED,
+			  struct _CONTEXT* ContextRecord ATTRIBUTE_UNUSED,
+			  void *DispatcherContext ATTRIBUTE_UNUSED)
+{
+  struct Exception_Data *exception;
+  const char *msg;
+
+  exception = __gnat_map_SEH (ExceptionRecord, &msg);
+
+  if (exception == NULL)
+    {
       exception = &program_error;
       msg = "unhandled signal";
     }
 
+#if ! defined (_WIN64)
   /* This call is important as it avoids locking the second time we catch a
      signal. Note that this routine is documented as internal to Windows and
      should not be used.  */
 
   _global_unwind2 (EstablisherFrame);
   /* Call equivalent to RtlUnwind (EstablisherFrame, NULL, NULL, 0); */
+#endif
 
   Raise_From_Signal_Handler (exception, msg);
-  return 0; /* This is never reached, avoid compiler warning  */
+}
+#endif /* !(defined (_WIN64) && defined (__SEH__)) */
+
+#if defined (_WIN64)
+/*  On x86_64 windows exception mechanism is no more based on a chained list
+    of handlers addresses on the stack. Instead unwinding information is used
+    to retrieve the exception handler (similar to ZCX GCC mechanism). So in
+    order to register an exception handler we need to put in the final
+    executable some unwinding information. This information might be present
+    statically in the image file inside the .pdata section or registered
+    through RtlAddFunctionTable API. Currently the GCC toolchain does not
+    generate the .pdata information for each function. As we don't need to
+    handle SEH exceptions except for signal handling we are registering a
+    "fake" unwinding data that associate a SEH exception handler to the
+    complete .text section. As we never return from the handler, the system
+    does not try to do the final unwinding using the pdata information. The
+    unwinding is handled by the runtime using either the GNAT SJLJ mechanism
+    or the ZCX GCC mechanism.
+
+    Solutions based on SetUnhandledExceptionFilter have been discarded as this
+    function is mostly disabled on last Windows versions.
+    Using AddVectoredExceptionHandler should also be discarded as it overrides
+    all SEH exception handlers that might be present in the program itself and
+    the loaded DLL (for example it results in unexpected behaviors in the
+    Win32 subsystem.  */
+
+#ifndef __SEH__
+  /* Don't use this trick when SEH are emitted by gcc, as it will conflict with
+     them.  */
+asm
+(
+ " .section .rdata, \"dr\"\n"
+ " .align 4\n"
+ "unwind_info:\n"
+ " .byte 9\n" /* UNW_FLAG_EHANDLER | UNW_VERSION */
+ " .byte 0\n" /* Prologue size.  */
+ " .byte 0\n" /* Count of unwind code.  */
+ " .byte 0\n" /* Frame register and offset.  */
+ " .rva __gnat_SEH_error_handler\n"
+ "\n"
+ " .section .pdata, \"dr\"\n"
+ " .align 4\n"
+ " .long 0\n" /* ImageBase */
+ " .rva etext\n"
+ " .rva unwind_info\n"
+ "\n"
+ " .text\n"
+);
+#endif /* __SEH__ */
+
+void __gnat_install_SEH_handler (void *eh ATTRIBUTE_UNUSED)
+{
+  /* Nothing to do, the handler is statically installed by the asm statement
+     just above.  */
 }
 
+#else /* defined (_WIN64) */
 /*  Install the Win32 SEH exception handler. Note that the caller must have
     allocated 8 bytes on the stack and pass the pointer to this stack
     space. This is needed as the SEH exception handler must be on the stack of
@@ -212,22 +277,24 @@ __gnat_install_SEH_handler (void *ER)
 
   /* put current handler in ptr */
 
-  asm ("mov %%fs:(0),%%ecx" : : : "%ecx");
-  asm ("mov %%ecx,%0" : "=m" (ptr));
+  asm ("mov %%fs:(0),%0" : "=r" (ptr));
 
   ((int *)ER)[0] = (int)ptr;                       /* previous handler */
   ((int *)ER)[1] = (int)__gnat_SEH_error_handler;  /* new handler */
 
-  /* ptr is the new handler, set fs:(0) with this value */
+  /* ER is the new handler, set fs:(0) with this value */
 
-  ptr = (int *)ER;
-  asm ("mov %0,%%ecx" : : "m" (ptr) : "%ecx");
-  asm ("mov %ecx,%fs:(0)");
+  asm volatile ("mov %0,%%fs:(0)": : "r" (ER));
 }
+#endif
 
-#else /* _WIN32 */
+#else /* defined (_WIN32) */
 /* For all non Windows targets we provide a dummy SEH install handler.  */
 void __gnat_install_SEH_handler (void *eh ATTRIBUTE_UNUSED)
 {
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif

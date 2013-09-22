@@ -1,10 +1,476 @@
-2008-06-06  Release Manager
+2013-05-31  Release Manager
 
-	* GCC 4.3.1 released.
+	* GCC 4.8.1 released.
 
-2008-03-05  Release Manager
+2013-03-22  Jakub Jelinek  <jakub@redhat.com>
 
-	* GCC 4.3.0 released.
+	PR other/43620
+	* Makefile.am (AUTOMAKE_OPTIONS): Add no-dist.
+	* include/Makefile.am (AUTOMAKE_OPTIONS): Add no-dist.
+	* testsuite/Makefile.am (AUTOMAKE_OPTIONS): Add no-dist.
+	* Makefile.in: Regenerated.
+	* include/Makefile.in: Regenerated.
+	* testsuite/Makefile.in: Regenerated.
+
+2013-03-22  Release Manager
+
+	* GCC 4.8.0 released.
+
+2013-03-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* os_dep.c [SOLARIS_STACKBOTTOM] (GC_solaris_stack_base): New
+	function.
+	[!BEOS && !AMIGA && !MSWIN32 && !MSWINCE && !OS2 && !NOSYS &&
+	!ECOS] (GC_get_stack_base): Use it.
+	* include/private/gcconfig.h [SPARC && SUNOS5]
+	(SOLARIS_STACKBOTTOM): Define.
+	(STACKBOTTOM, HEURISTIC2): Remove.
+	[I386 && SUNOS5]
+	(SOLARIS_STACKBOTTOM): Define.
+	(STACKBOTTOM): Remove.
+
+2012-11-04  Samuel Thibault  <samuel.thibault@gnu.org>
+
+	* configure.ac: Add stanza for *-*-gnu* threads configuration.
+	* configure: Regenerate.
+	* include/gc_config.h.in: Likewise.
+	* dyn_load.c (_GNU_SOURCE): Define for __GNU__.
+	* include/gc_config_macros.h (_REENTRANT, GC_PTHREADS): Define for
+	GC_GNU_THREADS.
+	* include/private/gcconfig.h (DATASTART): Don't define for I386 &&
+	HURD.
+	(SIG_SUSPEND, SIG_THR_RESTART, SEARCH_FOR_DATA_START): Define for
+	I386 && HURD.
+	(UNIX_LIKE, REGISTER_LIBRARIES_EARLY): Define for HURD.
+	* os_dep.c (GC_init_linux_data_start): Handle for HURD.
+	* pthread_support.c (GC_thr_init): Add case for GC_GNU_THREADS.
+	* specific.c: Use for GC_GNU_THREADS.
+	* threadlibs.c: Add case for GC_GNU_THREADS.
+
+2012-09-14  David Edelsohn  <dje.gcc@gmail.com>
+
+	* configure: Regenerated.
+
+2012-05-16  H.J. Lu  <hongjiu.lu@intel.com>
+
+	* configure: Regenerated.
+
+2012-05-11  H.J. Lu  <hongjiu.lu@intel.com>
+
+	Merge upstream changes
+	* include/private/gcconfig.h: (ALIGNMENT): Set to 4 for x32.
+	(CPP_WORDSZ): Set to 32 for x32.
+
+2012-02-27  Jack Howarth  <howarth@bromo.med.uc.edu>
+	    Patrick Marlier  <patrick.marlier@gmail.com>
+
+	PR boehm-gc/48299
+	* testsuite/boehm-gc.c/thread_leak_test.c: Merge upstream changes.
+
+2012-02-23  Patrick Marlier  <patrick.marlier@gmail.com>
+	    Jack Howarth  <howarth@bromo.med.uc.edu>
+
+	PR boehm-gc/52179
+	* include/gc_config.h.in: Undefine HAVE_PTHREAD_GET_STACKADDR_NP.
+	* include/private/gcconfig.h (DARWIN): Define STACKBOTTOM with
+	pthread_get_stackaddr_np when available.
+	* configure.ac (THREADS): Check availability of pthread_get_stackaddr_np.
+	* configure: Regenerate.
+
+2012-02-10  Kai Tietz  <ktietz@redhat.com>
+
+	PR boehm-gc/48514
+	* include/gc_config_macros.h (GC_DLL): Define it for mingw-targets
+	only, if we are actual in boehm-gc's build and DLL_EXPORT
+	is defined.
+
+2011-11-21  Andreas Tobler  <andreast@fgznet.ch>
+
+	* configure: Regenerate.
+
+2011-08-08  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (THREADS): Remove posix95.
+	* configure: Regenerate.
+
+2011-07-07  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR target/39150
+	* configure.ac (i?86-*-solaris2.[89]): Also accept
+	x86_64-*-solaris2.1?.
+	* configure: Regenerate.
+
+2011-06-29  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR libgcj/49451
+	* include/private/gcconfig.h [IRIX5 && _MIPS_SZPTR == 64]
+	(ELF_CLASS): Define.
+	* dyn_load.c [IRIX5]: Include <elf.h>.
+	Include <obj.h> for O32, <objlist.h> for N32, N64.
+	[SUNOS5DL && USE_PROC_FOR_LIBRARIES] (obj_offset): Define.
+	[SUNOS4 && USE_PROC_FOR_LIBRARIES] (obj_offset): Define.
+	[IRIX5 && !USE_PROC_FOR_LIBRARIES] (struct link_map): Define.
+	(__rld_obj_head): Declare.
+	(l_next, l_addr, obj_offset): Define.
+	(GC_FirstDLOpenedLinkMap): New function.
+	[SUNOS4 || SUNOS5DL] (GC_register_dynamic_libraries): Also use on
+	IRIX5.
+	Use obj_offset.
+	[IRIX5 || (USE_PROC_FOR_LIBRARIES && !LINUX]
+	(GC_register_dynamic_libraries): Don't use /proc version on IRIX5.
+
+2011-04-19  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (THREADS): Remove decosf1, irix, mach, os2.
+	* configure: Regenerate
+
+2011-04-06  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR testsuite/48480
+	* testsuite/lib/boehm-gc.exp (boehm-gc-dg-prune): Allow for path
+	to ranlib.
+
+2011-03-25  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	PR boehm-gc/11412
+	* configure.ac (THREADCFLAGS): New variable.
+	Use it instead of INCLUDES, AM_CPPFLAGS.
+	<*-*-kfreebsd*-gnu> (THREADDLLIBS): Rename to THREADLIBS.
+	Remove DG/UX support.
+	(AC_CONFIG_FILES): Add testsuite/Makefile.
+	* Makefile.am (AUTOMAKE_OPTIONS): Use foreign instead of cygnus.
+	(SUBDIRS): Add testsuite.
+	(libgcjgc_la_LIBADD): Remove $(UNWINDLIBS).
+	(AM_CXXFLAGS): Add $(THREADCFLAGS).
+	(AM_CFLAGS): Likewise.
+	Remove TESTS related variables.
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* testsuite/Makefile.am: New file.
+	* testsuite/Makefile.in: New file.
+	* testsuite/lib/boehm-gc.exp: New file.
+	* testsuite/config/default.exp: New file.
+	* testsuite/boehm-gc.c/c.exp: New file.
+	* testsuite/boehm-gc.lib/lib.exp: New file.
+	* tests/test.c: Move ...
+	* testsuite/boehm-gc.c/gctest.c: ... here.
+	* tests/leak_test.c, tests/middle.c, tests/thread_leak_test.c,
+	tests/trace_test.c: Move ...
+	* testsuite/boehm-gc.c: ... here.
+	* testsuite/boehm-gc.c/trace_test.c: Skip everywhere.
+	* tests/staticrootslib.c, tests/staticrootstest.c: Move ...
+	* testsuite/boehm-gc.lib: ... here.
+	* testsuite/boehm-gc.lib/staticrootstest.c: Use dg-add-shlib
+	staticrootslib.c.
+	* tests/test_cpp.cc: Move ...
+	* testsuite/boehm-gc.c++: ... here.
+
+2011-03-21  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (THREADS): Remove solaris.
+	* configure: Regenerate.
+
+2011-02-13  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2011-02-02  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac: Don't use libdl on mips-sgi-irix6*.
+	* configure: Regenerate.
+
+2011-01-31  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (*-*-solaris2*): Add -lrt to THREADLIBS.
+	* configure: Regenerate.
+
+2010-12-10  Iain Sandoe  <iains@gcc.gnu.org>
+
+	* powerpc_darwin_mach_dep.s:  Update for m64.  Add eh frames.
+	Do not build or use the picsymbol stub for Darwin >= 9.
+	* tests/test.c (reverse_test):  Modify count for ppc64-darwin.
+	* pthread_support.c (GC_get_thread_stack_base): Correct a debug
+	statement.
+
+2010-11-29  Iain Sandoe  <iains@gcc.gnu.org>
+	    Mike Stump  <mrs@gcc.gnu.org>
+
+	PR target/26427
+	PR target/33120
+	PR testsuite/35710
+	* dyn_load.c (GC_register_dynamic_libraries/DARWIN):  Add new writable
+	data section names.
+	(GC_dyld_name_for_hdr): Adjust layout.
+	(GC_dyld_image_add): Adjust layout, add new Darwin sections, adjust
+	debug to name the sections.
+	(GC_dyld_image_remove): Adjust layout, remove new Darwin sections,
+	adjust debug to name the sections.
+	(GC_register_dynamic_libraries): Adjust layout.
+	(GC_init_dyld): Likewise.
+	(GC_register_main_static_data): Likewise.
+
+2010-10-29  Paolo Bonzini  <bonzini@gnu.org>
+
+	* configure: Regenerate.
+
+2010-10-28  Paolo Bonzini  <bonzini@gnu.org>
+
+	* configure.ac: Rewrite DGUX check to use GC_CFLAGS, and -O0 check
+	to remove the need for MY_CFLAGS.
+	* Makefile.am: Do not use @...@ substitutions.  Use AM_CXXFLAGS,
+	AM_CFLAGS and AM_LDFLAGS instead of redefining LTCOMPILE and LINK.
+	Use "override" to disable -O2 when required.
+	* configure: Regenerate.
+	* Makefile.in: Regenerate.
+	* include/Makefile.in: Regenerate.
+
+2010-10-11  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* dyn_load.c: Fix typo.
+	* pthread_support.c (GC_get_thread_stack_base) [DEBUG_THREADS]:
+	Use GC_printf0.
+
+2010-06-15  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+
+	* configure.ac (*-*-solaris2.8*): Only usr alternate thread
+	library on Solaris 8.
+	(*-*-solaris2*): Use regular thread library otherwise.
+	* configure: Regenerate.
+
+2010-05-13  Uros Bizjak  <ubizjak@gmail.com>
+
+	* tests/leak_test.c (main): Declare as int.  Return 0.
+	* tests/thread_leak_test.c (main): Ditto.
+	* tests/trace_test.c (main): Ditto.
+
+2010-05-06  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR target/42811
+	* tests/staticrootstest.c: New test source file.
+	* tests/staticrootslib.c: New test library source file.
+	* Makefile.am (test_ldadd): New variable.
+	(gctest_LDADD): Use it.
+	(TESTS): Add leaktest, middletest and staticrootstest.
+	(check_PROGRAMS): Likewise.
+	(leaktest_SOURCES): New libtool variable definition.
+	(leaktest_LDADD): Likewise.
+	(leaktest_LDFLAGS): Likewise.
+	(leaktest_LINK): Likewise.
+	(middletest_SOURCES): Likewise.
+	(middletest_LDADD): Likewise.
+	(middletest_LDFLAGS): Likewise.
+	(middletest_LINK): Likewise.
+	(staticrootstest_SOURCES): Likewise.
+	(staticrootstest_LDADD): Likewise.
+	(staticrootstest_LDFLAGS): Likewise.
+	(staticrootstest_LINK): Likewise.
+	(check_LTLIBRARIES): Likewise.
+	(libstaticrootslib_la_SOURCES): Likewise.
+	(libstaticrootslib_la_LIBADD): Likewise.
+	(libstaticrootslib_la_LDFLAGS): Likewise.
+	(libstaticrootslib_la_DEPENDENCIES): Likewise.
+	* Makefile.in: Regenerate.
+
+2010-04-02  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* include/Makefile.in: Regenerate.
+
+2010-03-21  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	PR target/42811 (prerequisite)
+	* include/private/gc_priv.h (struct roots) [CYGWIN32]: Don't
+	declare r_next member on Cygwin as on other windows hosts.
+	(LOG_RT_SIZE) [CYGWIN32]: Don't define likewise.
+	(RT_SIZE) [CYGWIN32]: Likewise.
+	(struct _GC_arrays) [CYGWIN32]: Do declare _heap_bases[] member
+	likewise.
+	(GC_heap_bases) [CYGWIN32]: Do define likewise.
+	(struct _SYSTEM_INFO) [CYGWIN32]: Do forward-declare likewise.
+	(GC_sysinfo) [CYGWIN32]: Do declare extern likewise.
+	(GC_n_heap_bases) [CYGWIN32]: Likewise.
+	(GC_is_tmp_root) [CYGWIN32]: Do prototype likewise.
+	* include/private/gcconfig.h (GC_win32_get_mem) [CYGWIN32]: Likewise.
+	(GET_MEM) [CYGWIN32]: Do define likewise.
+	* boehm-gc/ptr_chck.c (GC_is_visible) [CYGWIN32]: Do handle dynamic
+	registration likewise.
+	* boehm-gc/os_dep.c (GC_setpagesize) [CYGWIN32]: Do define likewise.
+	(GC_no_win32_dlls) [CYGWIN32]: Define as constant false, unlike
+	other windows hosts.
+	(GC_sysinfo) [CYGWIN32]: Define as on other windows hosts.
+	(GC_n_heap_bases) [CYGWIN32]: Likewise.
+	(GLOBAL_ALLOC_TEST) [CYGWIN32]: Likewise.
+	(GC_win32_get_mem) [CYGWIN32]: Likewise, but wrapping GC_unix_get_mem
+	rather than GlobalAlloc/VirtualAlloc.
+	(GC_win32_free_heap) [CYGWIN32]: Likewise, but wrapping free instead
+	of GlobalFree (even though the function body is optimised away).
+	* boehm-gc/mark_rts.c (add_roots_to_index) [CYGWIN32]: Define as on
+	other windows hosts.
+	(GC_add_roots_inner) [CYGWIN32]: Avoid overlapping or adjacent
+	intervals likewise.
+	(GC_clear_roots) [CYGWIN32]: Clear GC_root_index[] likewise.
+	(GC_rebuild_root_index) [CYGWIN32]: Define as on other windows hosts.
+	(GC_remove_tmp_roots) [CYGWIN32]: Call it likewise.
+	(GC_remove_roots) [CYGWIN32]: Don't define, as on other windows hosts.
+	(GC_is_tmp_root) [CYGWIN32]: Define, as on other windows hosts.
+	(GC_cond_register_dynamic_libraries) [CYGWIN32]: Handle temporary
+	roots and dynamic registration likewise.
+	* boehm-gc/dyn_load.c (GC_has_static_roots) [CYGWIN32]: Define as on
+	other windows hosts.
+	(GC_register_has_static_roots_callback) [CYGWIN32]: Likewise.
+	(GC_cond_add_roots) [CYGWIN32]: Likewise.
+	(GC_register_main_static_data) [CYGWIN32]: Define to always return
+	false, as on MSWINCE
+	(HAVE_REGISTER_MAIN_STATIC_DATA) [CYGWIN32]: Define as on other
+	windows hosts.
+	(GC_warn_fb) [CYGWIN32]: Likewise.
+	(GC_disallow_ignore_fb) [CYGWIN32]: Likewise.
+	(GC_ignore_fb_mb) [CYGWIN32]: Likewise.
+	(GC_ignore_fb) [CYGWIN32]: Likewise.
+	(is_frame_buffer) [CYGWIN32]: Likewise.
+	(GC_dump_meminfo) [CYGWIN32]: Likewise.
+	(GC_wnt) [CYGWIN32]: Define to constant true.
+	(GC_register_dynamic_libraries) [CYGWIN32]: Define as on other
+	windows hosts.
+
+2009-12-09  Matthias Klose  <doko@ubuntu.com> 
+
+	* include/private/gc_locks.h: For __ARM_EABI__ define
+	GC_test_and_set  GC_clear to use the atomic builtins.
+
+2009-12-05  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* include/Makefile.in: Regenerate.
+
+2009-11-30  Ben Elliston  <bje@au.ibm.com>
+
+	* mark_rts.c (GC_approx_sp): Use __builtin_frame_address when
+	compiling with GCC rather than taking the address of a local
+	variable.
+
+2009-11-30  Ben Elliston  <bje@au.ibm.com>
+
+	* os_dep.c: Use the POSIX signal API in preference to the BSD API.
+	Generate a compilation error if neither the POSIX nor BSD APIs can
+	be detected.
+
+2009-09-11  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.am (libgcjgc_la_LINK, gctest_LINK): New.
+	(gctest_LDADD): Depend on libgcjgc.la instead of ./libgcjgc.la,
+	so that library dependency resolution works with portable make.
+	* Makefile.in: Regenerate.
+
+2009-09-08  Alexandre Oliva  <aoliva@redhat.com>
+
+	* configure: Rebuilt with modified libtool.m4.
+
+2009-09-03  Loren J. Rittle  <ljrittle@acm.org>
+
+	* dyn_load.c (HAVE_DL_ITERATE_PHDR): Break definition from use.
+	Define for FreeBSD 7.0+.
+
+2009-08-24  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac (AC_PREREQ): Bump to 2.64.
+
+2009-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.am (install-html, install-pdf): Remove.
+	* Makefile.in: Regenerate.
+
+	* Makefile.in: Regenerate.
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* include/gc_config.h.in: Regenerate.
+
+2009-08-22  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.am (LTCOMPILE, LTLINK): Add $(AM_LIBTOOLFLAGS)
+	and $(LIBTOOLFLAGS).
+	* Makefile.in: Regenerate.
+
+2009-07-30  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure.ac (_AC_ARG_VAR_PRECIOUS): Use m4_rename_force.
+
+2009-07-17  Michael Meissner  <meissner@linux.vnet.ibm.com>
+
+	PR boehm-gc/40785
+	* include/private/gc_locks.h (GC_test_and_set): If GCC 4.4, use
+	the __sync_lock_test_and _set and __sync_lock_release builtins on
+	the powerpc.  If not GCC 4.4, fix up the constraints so that it
+	builds without error.
+	(GC_clear): Ditto.
+
+2009-07-17  Kai Tietz  <kai.tietz@onevision.com>
+
+	* configure.ac: Add rule for mingw targets to add -DGC_BUILD=1 to
+	cflags.
+	* configure: Regenerated.
+
+2009-05-17  Dave Korn  <dave.korn.cygwin@gmail.com>
+
+	* win32_threads.c (GC_get_thread_stack_base):  Implement for Cygwin.
+
+2009-03-01  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2009-02-09  Mark Mitchell  <mark@codesourcery.com>
+
+	* Makefile.am (LTLDFLAGS): New variable.
+	(LINK): Use it.
+	* Makefile.in: Regenerated.
+
+2008-12-18  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* configure: Regenerate.
+
+2008-09-26  Peter O'Gorman  <pogma@thewrittenword.com>
+            Steve Ellcey  <sje@cup.hp.com>
+
+	* configure: Regenerate for new libtool.
+	* Makefile.in: Ditto.
+	* include/Makefile.in: Ditto.
+	* aclocal.m4: Ditto.
+
+2008-07-18  Matthias Klose  <doko@ubuntu.com> 
+ 
+	* configure.ac (AC_CONFIG_FILES): Add threads.mk. 
+	* threads.mk.in: New. 
+	* Makefile.in, configure: Regenerate. 
+
+2008-06-17  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* Makefile.in: Regenerate.
+	* configure: Regenerate.
+	* include/Makefile.in: Regenerate.
+	* include/gc_config.h.in: Regenerate.
+
+2008-04-18  Paolo Bonzini  <bonzini@gnu.org>
+
+	PR bootstrap/35457
+	* aclocal.m4: Regenerate.
+	* configure: Regenerate.
+
+2008-03-16  Ralf Wildenhues  <Ralf.Wildenhues@gmx.de>
+
+	* aclocal.m4: Regenerate.
+	* configure: Likewise.
+	* Makefile.in: Likewise.
+	* include/Makefile.in: Likewise.
+
+2007-02-19  Andreas Tobler  <a.tobler@schweiz.org>
+
+	* dyn_load.c (GC_dyld_image_add): Remove ifdef clause and use the macro
+	GC_GETSECTBYNAME instead.
+	* include/private/gc_priv.h: Define GC_GETSECTBYNAME according to the
+	architecture (Darwin).
 
 2008-01-26  Richard Sandiford  <rsandifo@nildram.co.uk>
 

@@ -1,4 +1,4 @@
-#   Copyright (C) 2001, 2004, 2005, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,8 +62,6 @@ if ![info exists PROFOPT_OPTIONS] {
 	{ -O3 -g } \
 	{ -Os } ]
 }
-
-set prof_option_list $PROFOPT_OPTIONS
 
 #
 # profopt-cleanup -- remove profiling or performance results files.
@@ -177,6 +175,10 @@ proc profopt-get-options { src } {
     # dg-require-* sets dg-do-what.
     upvar dg-do-what dg-do-what 
 
+    # current_compiler_flags reads tool_flags from the same stack frame
+    # as dg-extra-tool-flags
+    set tool_flags ""
+
     set tmp [dg-get-options $src]
     foreach op $tmp {
 	set cmd [lindex $op 0]
@@ -184,16 +186,17 @@ proc profopt-get-options { src } {
 	     || ![string compare "dg-skip-if" $cmd] \
 	     || ![string compare "dg-final-generate" $cmd] \
 	     || ![string compare "dg-final-use" $cmd] \
+             || ![string compare "dg-additional-sources" $cmd] \
 	     || [string match "dg-require-*" $cmd]  } {
 	    set status [catch "$op" errmsg]
 	    if { $status != 0 } {
-		perror "src: $errmsg for \"$op\"\n"
+		perror "$src: $errmsg for \"$op\"\n"
 		unresolved "$src: $errmsg for \"$op\""
 		return
 	    }
 	} else {
 	    # Ignore unrecognized dg- commands, but warn about them.
-	    warning "compat.exp does not support $cmd"
+	    warning "profopt.exp does not support $cmd"
 	}
     }
 
@@ -209,10 +212,11 @@ proc profopt-get-options { src } {
 #
 proc profopt-execute { src } {
     global srcdir tmpdir
-    global prof_option_list
+    global PROFOPT_OPTIONS
     global tool profile_option feedback_option prof_ext perf_ext perf_delta
     global generate_final_code use_final_code
     global verbose
+    global testname_with_flags
 
     if ![info exists profile_option] {
         error "No profile option specified for first compile."
@@ -220,6 +224,12 @@ proc profopt-execute { src } {
     if ![info exists feedback_option] {
         error "No feedback option specified for second compile."
     }
+
+    # Use the default option list or one defined for a set of tests.
+    if ![info exists PROFOPT_OPTIONS] {
+         error "PROFOPT_OPTIONS is not defined"
+    }
+    set prof_option_list $PROFOPT_OPTIONS
 
     regsub "(?q)$srcdir/" $src "" testcase
     # If we couldn't rip $srcdir out of `src' then just do the best we can.
@@ -229,6 +239,12 @@ proc profopt-execute { src } {
     if [string match "/*" $testcase] {
 	set testcase "[file tail [file dirname $src]]/[file tail $src]"
     }
+
+    # Several procedures access the name of the test with torture flags,
+    # normally defined in dg-test.  Profile optimization tests don't
+    # use dg-test, so define it here to make it accessible via
+    # testname-for-summary.
+    set testname_with_flags $testcase
 
     set executable $tmpdir/[file tail [file rootname $src].x]
     set basename [file tail $testcase]
@@ -262,13 +278,22 @@ proc profopt-execute { src } {
 	set extra_flags [profopt-get-options $src]
 	if { [lindex ${dg-do-what} 1 ] == "N" } {
 	    unsupported "$src"
+	    unset testname_with_flags
 	    verbose "$src not supported on this target, skipping it" 3
 	    return
 	}
 
+        set extra_options [dg-additional-files-options "" "$src"]
+
+	# Tree profiling requires TLS runtime support, which may need
+	# additional flags.
+	if { [string first "-fprofile-generate" $profile_option] >= 0 } {
+	    set extra_flags [add_options_for_tls $extra_flags]
+	}
+
 	# Compile for profiling.
 
-	set options ""
+	set options "$extra_options"
 	lappend options "additional_flags=$option $extra_flags $profile_option"
 	set optstr "$option $profile_option"
 	set comp_output [${tool}_target_compile "$src" "$execname1" executable $options]
@@ -317,10 +342,14 @@ proc profopt-execute { src } {
 
 	# Compile with feedback-directed optimizations.
 
-	set options ""
+	set options "$extra_options"
 	lappend options "additional_flags=$option $extra_flags $feedback_option"
 	set optstr "$option $feedback_option"
 	set comp_output [${tool}_target_compile "$src" "$execname2" "executable" $options]
+
+	# Prune warnings we know are unwanted.
+	set comp_output [prune_warnings $comp_output]
+
 	if ![${tool}_check_compile "$testcase compilation" $optstr $execname2 $comp_output] {
  	    unresolved "$testcase execution,   $optstr"
 	    continue
@@ -364,7 +393,7 @@ proc profopt-execute { src } {
 
 	# Compile with normal optimizations.
 
-	set options ""
+	set options "$extra_options"
 	lappend options "additional_flags=$option"
 	set optstr "$option"
 	set comp_output [${tool}_target_compile "$src" "$execname3" "executable" $options]
@@ -415,4 +444,5 @@ proc profopt-execute { src } {
 	    remote_file build delete $execname3
 	}
     }
+    unset testname_with_flags
 }

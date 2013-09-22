@@ -196,15 +196,15 @@ public class DatagramSocket
     else
       try
         {
-	  impl =
-	    (DatagramSocketImpl) Class.forName("java.net." + propVal
-	                                       + "DatagramSocketImpl")
-	                              .newInstance();
+          impl =
+            (DatagramSocketImpl) Class.forName("java.net." + propVal
+                                               + "DatagramSocketImpl")
+                                      .newInstance();
         }
       catch (Exception e)
         {
-	  System.err.println("Could not instantiate class: java.net."
-	                     + propVal + "DatagramSocketImpl");
+          System.err.println("Could not instantiate class: java.net."
+                             + propVal + "DatagramSocketImpl");
           try
             {
               impl = new PlainDatagramSocketImpl();
@@ -226,19 +226,19 @@ public class DatagramSocket
   {
     try
       {
-	if (! implCreated)
-	  {
-	    impl.create();
-	    implCreated = true;
-	  }
+        if (! implCreated)
+          {
+            impl.create();
+            implCreated = true;
+          }
 
-	return impl;
+        return impl;
       }
     catch (IOException e)
       {
-	SocketException se = new SocketException();
-	se.initCause(e);
-	throw se;
+        SocketException se = new SocketException();
+        se.initCause(e);
+        throw se;
       }
   }
 
@@ -252,27 +252,27 @@ public class DatagramSocket
 
     try
       {
-	getImpl().close();
+        getImpl().close();
       }
     catch (SocketException e)
       {
-	// Ignore this case, just close the socket in finally clause.
+        // Ignore this case, just close the socket in finally clause.
       }
     finally
       {
-	remoteAddress = null;
-	remotePort = -1;
-	impl = null;
+        remoteAddress = null;
+        remotePort = -1;
+        impl = null;
       }
 
     try
       {
-	if (getChannel() != null)
-	  getChannel().close();
+        if (getChannel() != null)
+          getChannel().close();
       }
     catch (IOException e)
       {
-	// Do nothing.
+        // Do nothing.
       }
   }
 
@@ -320,21 +320,21 @@ public class DatagramSocket
 
     try
       {
-	localAddr =
-	  (InetAddress) getImpl().getOption(SocketOptions.SO_BINDADDR);
+        localAddr =
+          (InetAddress) getImpl().getOption(SocketOptions.SO_BINDADDR);
 
-	SecurityManager s = System.getSecurityManager();
-	if (s != null)
-	  s.checkConnect(localAddr.getHostAddress(), -1);
+        SecurityManager s = System.getSecurityManager();
+        if (s != null)
+          s.checkConnect(localAddr.getHostAddress(), -1);
       }
     catch (SecurityException e)
       {
-	localAddr = InetAddress.ANY_IF;
+        localAddr = InetAddress.ANY_IF;
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are bound.
-	return null;
+        // This cannot happen as we are bound.
+        return null;
       }
 
     return localAddr;
@@ -352,12 +352,12 @@ public class DatagramSocket
 
     try
       {
-	return getImpl().getLocalPort();
+        return getImpl().getLocalPort();
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are bound.
-	return 0;
+        // This cannot happen as we are bound.
+        return 0;
       }
   }
 
@@ -403,7 +403,7 @@ public class DatagramSocket
     if (timeout < 0)
       throw new IllegalArgumentException("Invalid timeout: " + timeout);
 
-    getImpl().setOption(SocketOptions.SO_TIMEOUT, new Integer(timeout));
+    getImpl().setOption(SocketOptions.SO_TIMEOUT, Integer.valueOf(timeout));
   }
 
   /**
@@ -450,7 +450,7 @@ public class DatagramSocket
     if (size < 0)
       throw new IllegalArgumentException("Buffer size is less than 0");
 
-    getImpl().setOption(SocketOptions.SO_SNDBUF, new Integer(size));
+    getImpl().setOption(SocketOptions.SO_SNDBUF, Integer.valueOf(size));
   }
 
   /**
@@ -497,7 +497,7 @@ public class DatagramSocket
     if (size < 0)
       throw new IllegalArgumentException("Buffer size is less than 0");
 
-    getImpl().setOption(SocketOptions.SO_RCVBUF, new Integer(size));
+    getImpl().setOption(SocketOptions.SO_RCVBUF, Integer.valueOf(size));
   }
 
   /**
@@ -525,17 +525,37 @@ public class DatagramSocket
 
     SecurityManager sm = System.getSecurityManager();
     if (sm != null)
-      sm.checkConnect(address.getHostAddress(), port);
+      {
+        if (address.isMulticastAddress())
+          sm.checkMulticast(address);
+        else
+          {
+            sm.checkConnect(address.getHostAddress(), port);
+            sm.checkAccept(address.getHostAddress(), port);
+          }
+      }
+
+    if (!isBound())
+      {
+        try
+          {
+            bind(new InetSocketAddress(0));
+          }
+        catch (SocketException e)
+          {
+            throw new Error("Binding socket failed.", e);
+          }
+      }
 
     try
       {
-	getImpl().connect(address, port);
-	remoteAddress = address;
-	remotePort = port;
+        getImpl().connect(address, port);
+        remoteAddress = address;
+        remotePort = port;
       }
     catch (SocketException e)
       {
-	// This means simply not connected or connect not implemented.
+        // This means simply not connected or connect not implemented.
       }
   }
 
@@ -553,16 +573,16 @@ public class DatagramSocket
 
     try
       {
-	getImpl().disconnect();
+        getImpl().disconnect();
       }
     catch (SocketException e)
       {
-	// This cannot happen as we are connected.
+        // This cannot happen as we are connected.
       }
     finally
       {
-	remoteAddress = null;
-	remotePort = -1;
+        remoteAddress = null;
+        remotePort = -1;
       }
   }
 
@@ -592,7 +612,7 @@ public class DatagramSocket
 
     if (remoteAddress != null && remoteAddress.isMulticastAddress())
       throw new IOException
-	("Socket connected to a multicast address my not receive");
+        ("Socket connected to a multicast address my not receive");
 
     if (getChannel() != null && ! getChannel().isBlocking()
         && ! ((DatagramChannelImpl) getChannel()).isInChannelOperation())
@@ -635,19 +655,19 @@ public class DatagramSocket
     SecurityManager s = System.getSecurityManager();
     if (s != null && ! isConnected())
       {
-	InetAddress addr = p.getAddress();
-	if (addr.isMulticastAddress())
-	  s.checkMulticast(addr);
-	else
-	  s.checkConnect(addr.getHostAddress(), p.getPort());
+        InetAddress addr = p.getAddress();
+        if (addr.isMulticastAddress())
+          s.checkMulticast(addr);
+        else
+          s.checkConnect(addr.getHostAddress(), p.getPort());
       }
 
     if (isConnected())
       {
-	if (p.getAddress() != null
-	    && (remoteAddress != p.getAddress() || remotePort != p.getPort()))
-	  throw new IllegalArgumentException
-	    ("DatagramPacket address does not match remote address");
+        if (p.getAddress() != null
+            && (remoteAddress != p.getAddress() || remotePort != p.getPort()))
+          throw new IllegalArgumentException
+            ("DatagramPacket address does not match remote address");
       }
 
     // FIXME: if this is a subclass of MulticastSocket,
@@ -675,7 +695,7 @@ public class DatagramSocket
   {
     if (isClosed())
       throw new SocketException("socket is closed");
-    
+
     if (address == null)
       address = new InetSocketAddress(InetAddress.ANY_IF, 0);
 
@@ -697,23 +717,23 @@ public class DatagramSocket
 
     try
       {
-	getImpl().bind(port, addr);
-	bound = true;
+        getImpl().bind(port, addr);
+        bound = true;
       }
     catch (SocketException exception)
       {
-	getImpl().close();
-	throw exception;
+        getImpl().close();
+        throw exception;
       }
     catch (RuntimeException exception)
       {
-	getImpl().close();
-	throw exception;
+        getImpl().close();
+        throw exception;
       }
     catch (Error error)
       {
-	getImpl().close();
-	throw error;
+        getImpl().close();
+        throw error;
       }
   }
 
@@ -916,7 +936,7 @@ public class DatagramSocket
     if (tc < 0 || tc > 255)
       throw new IllegalArgumentException();
 
-    getImpl().setOption(SocketOptions.IP_TOS, new Integer(tc));
+    getImpl().setOption(SocketOptions.IP_TOS, Integer.valueOf(tc));
   }
 
   /**

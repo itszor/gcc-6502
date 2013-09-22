@@ -1,14 +1,12 @@
 // The -*- C++ -*- dynamic memory management header.
 
-// Copyright (C) 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-// 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation
+// Copyright (C) 1994-2013 Free Software Foundation, Inc.
 
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 // 
 // GCC is distributed in the hope that it will be useful,
@@ -16,19 +14,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 // 
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file new
  *  This is a Standard C++ Library header.
@@ -41,7 +34,9 @@
 #ifndef _NEW
 #define _NEW
 
-#include <cstddef>
+#pragma GCC system_header
+
+#include <bits/c++config.h>
 #include <exception>
 
 #pragma GCC visibility push(default)
@@ -52,6 +47,7 @@ namespace std
 {
   /**
    *  @brief  Exception possibly thrown by @c new.
+   *  @ingroup exceptions
    *
    *  @c bad_alloc (or classes derived from it) is used to report allocation
    *  errors from the throwing forms of @c new.  */
@@ -92,22 +88,32 @@ namespace std
  *  Placement new and delete signatures (take a memory address argument,
  *  does nothing) may not be replaced by a user's program.
 */
-void* operator new(std::size_t) throw (std::bad_alloc);
-void* operator new[](std::size_t) throw (std::bad_alloc);
-void operator delete(void*) throw();
-void operator delete[](void*) throw();
-void* operator new(std::size_t, const std::nothrow_t&) throw();
-void* operator new[](std::size_t, const std::nothrow_t&) throw();
-void operator delete(void*, const std::nothrow_t&) throw();
-void operator delete[](void*, const std::nothrow_t&) throw();
+void* operator new(std::size_t) _GLIBCXX_THROW (std::bad_alloc)
+  __attribute__((__externally_visible__));
+void* operator new[](std::size_t) _GLIBCXX_THROW (std::bad_alloc)
+  __attribute__((__externally_visible__));
+void operator delete(void*) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
+void operator delete[](void*) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
+void* operator new(std::size_t, const std::nothrow_t&) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
+void* operator new[](std::size_t, const std::nothrow_t&) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
+void operator delete(void*, const std::nothrow_t&) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
+void operator delete[](void*, const std::nothrow_t&) _GLIBCXX_USE_NOEXCEPT
+  __attribute__((__externally_visible__));
 
 // Default placement versions of operator new.
-inline void* operator new(std::size_t, void* __p) throw() { return __p; }
-inline void* operator new[](std::size_t, void* __p) throw() { return __p; }
+inline void* operator new(std::size_t, void* __p) _GLIBCXX_USE_NOEXCEPT
+{ return __p; }
+inline void* operator new[](std::size_t, void* __p) _GLIBCXX_USE_NOEXCEPT
+{ return __p; }
 
 // Default placement versions of operator delete.
-inline void  operator delete  (void*, void*) throw() { }
-inline void  operator delete[](void*, void*) throw() { }
+inline void operator delete  (void*, void*) _GLIBCXX_USE_NOEXCEPT { }
+inline void operator delete[](void*, void*) _GLIBCXX_USE_NOEXCEPT { }
 //@}
 } // extern "C++"
 

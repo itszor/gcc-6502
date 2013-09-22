@@ -2,30 +2,27 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---                      A D A . C O N T A I N E R S .                       --
---             H A S H _ T A B L E S . G E N E R I C _ K E Y S              --
+--                 ADA.CONTAINERS.HASH_TABLES.GENERIC_KEYS                  --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -60,7 +57,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
       if Equivalent_Keys (Key, X) then
          if HT.Busy > 0 then
             raise Program_Error with
-              "attempt to tamper with elements (container is busy)";
+              "attempt to tamper with cursors (container is busy)";
          end if;
          HT.Buckets (Indx) := Next (X);
          HT.Length := HT.Length - 1;
@@ -78,7 +75,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
          if Equivalent_Keys (Key, X) then
             if HT.Busy > 0 then
                raise Program_Error with
-                 "attempt to tamper with elements (container is busy)";
+                 "attempt to tamper with cursors (container is busy)";
             end if;
             Set_Next (Node => Prev, Next => Next (X));
             HT.Length := HT.Length - 1;
@@ -133,7 +130,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
       if B = null then
          if HT.Busy > 0 then
             raise Program_Error with
-              "attempt to tamper with elements (container is busy)";
+              "attempt to tamper with cursors (container is busy)";
          end if;
 
          if HT.Length = Count_Type'Last then
@@ -163,7 +160,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
 
       if HT.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (container is busy)";
+           "attempt to tamper with cursors (container is busy)";
       end if;
 
       if HT.Length = Count_Type'Last then
@@ -215,7 +212,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
 
          if HT.Lock > 0 then
             raise Program_Error with
-              "attempt to tamper with cursors (container is locked)";
+              "attempt to tamper with elements (container is locked)";
          end if;
 
          --  We can change a node's key to Key (that's what Assign is for), but
@@ -247,7 +244,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
       end loop;
 
       --  We have determined that Key is not already in the hash table, so
-      --  the change is tenatively allowed. We now perform the standard
+      --  the change is tentatively allowed. We now perform the standard
       --  checks to determine whether the hash table is locked (because you
       --  cannot change an element while it's in use by Query_Element or
       --  Update_Element), or if the container is busy (because moving a
@@ -259,7 +256,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
 
          if HT.Lock > 0 then
             raise Program_Error with
-              "attempt to tamper with cursors (container is locked)";
+              "attempt to tamper with elements (container is locked)";
          end if;
 
          Assign (Node, Key);
@@ -272,7 +269,7 @@ package body Ada.Containers.Hash_Tables.Generic_Keys is
 
       if HT.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (container is busy)";
+           "attempt to tamper with cursors (container is busy)";
       end if;
 
       --  Do the assignment first, before moving the node, so that if Assign

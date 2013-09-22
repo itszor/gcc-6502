@@ -1,4 +1,4 @@
-/* DoubleBufferImpl.java -- 
+/* DoubleBufferImpl.java --
    Copyright (C) 2002, 2003, 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -43,41 +43,43 @@ package java.nio;
  */
 final class DoubleBufferImpl extends DoubleBuffer
 {
-  private boolean readOnly;
+  private final boolean readOnly;
 
   DoubleBufferImpl (int capacity)
   {
     this (new double [capacity], 0, capacity, capacity, 0, -1, false);
   }
-  
-  DoubleBufferImpl (double[] buffer, int offset, int capacity, int limit, int position, int mark, boolean readOnly)
+
+  DoubleBufferImpl (double[] buffer, int offset, int capacity, int limit,
+                    int position, int mark, boolean readOnly)
   {
-    super (capacity, limit, position, mark);
-    this.backing_buffer = buffer;
-    this.array_offset = offset;
+    super (capacity, limit, position, mark, null, buffer, offset);
     this.readOnly = readOnly;
   }
-  
+
   public boolean isReadOnly ()
   {
     return readOnly;
   }
-  
+
   public DoubleBuffer slice ()
   {
-    return new DoubleBufferImpl (backing_buffer, array_offset + position (), remaining (), remaining (), 0, -1, isReadOnly ());
+    return new DoubleBufferImpl (backing_buffer, array_offset + position (),
+                                 remaining (), remaining (), 0, -1, isReadOnly ());
   }
-  
+
   public DoubleBuffer duplicate ()
   {
-    return new DoubleBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, isReadOnly ());
+    return new DoubleBufferImpl (backing_buffer, array_offset, capacity (),
+                                 limit (), position (), mark, isReadOnly ());
   }
-  
+
   public DoubleBuffer asReadOnlyBuffer ()
   {
-    return new DoubleBufferImpl (backing_buffer, array_offset, capacity (), limit (), position (), mark, true);
+    return new DoubleBufferImpl (backing_buffer, array_offset, capacity (),
+                                 limit (), position (), mark, true);
   }
-  
+
   public DoubleBuffer compact ()
   {
     checkIfReadOnly();
@@ -93,7 +95,7 @@ final class DoubleBufferImpl extends DoubleBuffer
     limit(capacity());
     return this;
   }
-  
+
   public boolean isDirect ()
   {
     return false;
@@ -114,12 +116,12 @@ final class DoubleBufferImpl extends DoubleBuffer
     position (position () + 1);
     return result;
   }
-  
+
   /**
    * Relative put method. Writes <code>value</code> to the next position
    * in the buffer.
    *
-   * @exception BufferOverflowException If there no remaining 
+   * @exception BufferOverflowException If there no remaining
    * space in this buffer.
    * @exception ReadOnlyBufferException If this buffer is read-only.
    */
@@ -127,12 +129,12 @@ final class DoubleBufferImpl extends DoubleBuffer
   {
     checkIfReadOnly();
     checkForOverflow();
-	  	    
+
     backing_buffer [position ()] = value;
     position (position () + 1);
     return this;
   }
-  
+
   /**
    * Absolute get method. Reads the <code>double</code> at position
    * <code>index</code>.
@@ -146,7 +148,7 @@ final class DoubleBufferImpl extends DoubleBuffer
 
     return backing_buffer [index];
   }
-  
+
   /**
    * Absolute put method. Writes <code>value</code> to position
    * <code>index</code> in the buffer.
@@ -163,7 +165,7 @@ final class DoubleBufferImpl extends DoubleBuffer
     backing_buffer [index] = value;
     return this;
   }
-  
+
   public ByteOrder order ()
   {
     return ByteOrder.nativeOrder ();

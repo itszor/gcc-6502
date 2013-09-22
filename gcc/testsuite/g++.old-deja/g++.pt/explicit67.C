@@ -9,13 +9,15 @@ void g(int);
 void g(double);
 
 template <int* IP>
-void foo();
+void foo();			// { dg-message "note" }
 template <long l>
-void foo();
+void foo();			// { dg-message "note" }
 
 void bar()
 {
   foo<S::f>(); // { dg-error "" } no matching function
+  // { dg-message "candidate" "candidate note" { target *-*-* } 18 }
   foo<g>();    // { dg-error "" } no matching function
+  // { dg-message "candidate" "candidate note" { target *-*-* } 20 }
   
 }

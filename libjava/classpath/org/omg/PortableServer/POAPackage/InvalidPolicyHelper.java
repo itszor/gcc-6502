@@ -112,7 +112,7 @@ public abstract class InvalidPolicyHelper
     catch (ClassCastException cex)
       {
         BAD_OPERATION bad = new BAD_OPERATION("InvalidPolicy expected");
-        bad.minor = Minor.Any;        
+        bad.minor = Minor.Any;
         bad.initCause(cex);
         throw bad;
       }
@@ -136,7 +136,7 @@ public abstract class InvalidPolicyHelper
   public static InvalidPolicy read(InputStream input)
   {
     // Read the exception repository id.
-    String id = input.read_string();
+    input.read_string();
     InvalidPolicy value = new InvalidPolicy();
 
     value.index = input.read_short();

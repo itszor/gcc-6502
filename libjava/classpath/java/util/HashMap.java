@@ -100,11 +100,10 @@ public class HashMap<K, V> extends AbstractMap<K, V>
   implements Map<K, V>, Cloneable, Serializable
 {
   /**
-   * Default number of buckets. This is the value the JDK 1.3 uses. Some
-   * early documentation specified this value as 101. That is incorrect.
+   * Default number of buckets; this is currently set to 16.
    * Package visible for use by HashSet.
    */
-  static final int DEFAULT_CAPACITY = 11;
+  static final int DEFAULT_CAPACITY = 16;
 
   /**
    * The default load factor; this is explicitly specified by the spec.
@@ -344,12 +343,15 @@ public class HashMap<K, V> extends AbstractMap<K, V>
     int idx = hash(key);
     HashEntry<K, V> e = buckets[idx];
 
+    int hash1 = key == null ? 0 : key.hashCode();
     while (e != null)
       {
-        if (equals(key, e.key))
+        int hash2 = e.key == null ? 0 : e.key.hashCode();
+
+        if ((hash1 == hash2) && equals(key, e.key))
           {
             e.access(); // Must call this for bookkeeping in LinkedHashMap.
-	    V r = e.value;
+            V r = e.value;
             e.value = value;
             return r;
           }
@@ -384,12 +386,12 @@ public class HashMap<K, V> extends AbstractMap<K, V>
     final Iterator<Map.Entry<K,V>> it = addMap.entrySet().iterator();
     while (it.hasNext())
       {
-	final Map.Entry<K,V> e = it.next();
+        final Map.Entry<K,V> e = it.next();
         // Optimize in case the Entry is one of our own.
         if (e instanceof AbstractMap.SimpleEntry)
           {
             AbstractMap.SimpleEntry<? extends K, ? extends V> entry
-	      = (AbstractMap.SimpleEntry<? extends K, ? extends V>) e;
+              = (AbstractMap.SimpleEntry<? extends K, ? extends V>) e;
             put(entry.key, entry.value);
           }
         else
@@ -702,8 +704,8 @@ public class HashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * A simplified, more efficient internal implementation of putAll(). clone() 
-   * should not call putAll or put, in order to be compatible with the JDK 
+   * A simplified, more efficient internal implementation of putAll(). clone()
+   * should not call putAll or put, in order to be compatible with the JDK
    * implementation with respect to subclasses.
    *
    * @param m the map to initialize this from
@@ -715,11 +717,11 @@ public class HashMap<K, V> extends AbstractMap<K, V>
     size = 0;
     while (it.hasNext())
       {
-	final Map.Entry<K,V> e = it.next();
+        final Map.Entry<K,V> e = it.next();
         size++;
-	K key = e.getKey();
-	int idx = hash(key);
-	addEntry(key, e.getValue(), idx, false);
+        K key = e.getKey();
+        int idx = hash(key);
+        addEntry(key, e.getValue(), idx, false);
       }
   }
 

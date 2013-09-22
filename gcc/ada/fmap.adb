@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -29,7 +29,10 @@ with Output; use Output;
 with Table;
 with Types;  use Types;
 
+pragma Warnings (Off);
+--  This package is used also by gnatcoll
 with System.OS_Lib; use System.OS_Lib;
+pragma Warnings (On);
 
 with Unchecked_Conversion;
 
@@ -37,8 +40,10 @@ with GNAT.HTable;
 
 package body Fmap is
 
-   subtype Big_String is String (Positive);
-   type Big_String_Ptr is access all Big_String;
+   No_Mapping_File : Boolean := False;
+   --  Set to True when the specified mapping file cannot be read in
+   --  procedure Initialize, so that no attempt is made to open the mapping
+   --  file in procedure Update_Mapping_File.
 
    function To_Big_String_Ptr is new Unchecked_Conversion
      (Source_Buffer_Ptr, Big_String_Ptr);
@@ -189,16 +194,17 @@ package body Fmap is
       --  Remove all entries in case of incorrect mapping file
 
       function Find_File_Name return File_Name_Type;
-      --  Return Error_File_Name for "/", otherwise call Name_Find
-      --  What is this about, explanation required ???
+      --  Return Error_File_Name if the name buffer contains "/", otherwise
+      --  call Name_Find. "/" is the path name in the mapping file to indicate
+      --  that a source has been suppressed, and thus should not be found by
+      --  the compiler.
 
       function Find_Unit_Name return Unit_Name_Type;
-      --  Return Error_Unit_Name for "/", otherwise call Name_Find
-      --  Even more mysterious??? function appeared when Find_Name was split
-      --  for the two types, but this routine is definitely called!
+      --  Return the unit name in the name buffer. Return Error_Unit_Name if
+      --  the name buffer contains "/".
 
       procedure Get_Line;
-      --  Get a line from the mapping file
+      --  Get a line from the mapping file, where a line is SP (First .. Last)
 
       procedure Report_Truncated;
       --  Report a warning when the mapping file is truncated
@@ -221,12 +227,16 @@ package body Fmap is
       -- Find_File_Name --
       --------------------
 
-      --  Why is only / illegal, why not \ on windows ???
-
       function Find_File_Name return File_Name_Type is
       begin
          if Name_Buffer (1 .. Name_Len) = "/" then
+
+            --  A path name of "/" is the indication that the source has been
+            --  "suppressed". Return Error_File_Name so that the compiler does
+            --  not find the source, even if it is in the include path.
+
             return Error_File_Name;
+
          else
             return Name_Find;
          end if;
@@ -239,7 +249,6 @@ package body Fmap is
       function Find_Unit_Name return Unit_Name_Type is
       begin
          return Unit_Name_Type (Find_File_Name);
-         --  very odd ???
       end Find_Unit_Name;
 
       --------------
@@ -301,6 +310,7 @@ package body Fmap is
          Write_Str ("warning: could not read mapping file """);
          Write_Str (File_Name);
          Write_Line ("""");
+         No_Mapping_File := True;
 
       else
          BS := To_Big_String_Ptr (Src);
@@ -318,9 +328,10 @@ package body Fmap is
             if (Last < First + 2) or else (SP (Last - 1) /= '%')
               or else (SP (Last) /= 's' and then SP (Last) /= 'b')
             then
-               Write_Str ("warning: mapping file """);
-               Write_Str (File_Name);
-               Write_Line (""" is incorrectly formatted");
+               Write_Line
+                 ("warning: mapping file """ & File_Name &
+                  """ is incorrectly formatted");
+               Write_Line ("Line = """ & SP (First .. Last) & '"');
                Empty_Tables;
                return;
             end if;
@@ -409,15 +420,6 @@ package body Fmap is
       end if;
    end Mapped_Path_Name;
 
-   --------------------------------
-   -- Remove_Forbidden_File_Name --
-   --------------------------------
-
-   procedure Remove_Forbidden_File_Name (Name : File_Name_Type) is
-   begin
-      Forbidden_Names.Set (Name, False);
-   end Remove_Forbidden_File_Name;
-
    ------------------
    -- Reset_Tables --
    ------------------
@@ -479,27 +481,17 @@ package body Fmap is
    --  Start of Update_Mapping_File
 
    begin
+      --  If the mapping file could not be read, then it will not be possible
+      --  to update it.
 
+      if No_Mapping_File then
+         return;
+      end if;
       --  Only Update if there are new entries in the mappings
 
       if Last_In_Table < File_Mapping.Last then
 
-         --  If the tables have been emptied, recreate the file.
-         --  Otherwise, append to it.
-
-         if Last_In_Table = 0 then
-            declare
-               Discard : Boolean;
-               pragma Warnings (Off, Discard);
-            begin
-               Delete_File (File_Name, Discard);
-            end;
-
-            File := Create_File (File_Name, Binary);
-
-         else
-            File := Open_Read_Write (Name => File_Name, Fmode => Binary);
-         end if;
+         File := Open_Read_Write (Name => File_Name, Fmode => Binary);
 
          if File /= Invalid_FD then
             if Last_In_Table > 0 then

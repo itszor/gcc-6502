@@ -3,17 +3,18 @@
 
 namespace foo
 {
-  void x (bool);     // { dg-error "" } candidates
-  void x (char);     // { dg-error "" } candidates
-  void x (int);      // { dg-error "" } candidates
-  void x (double);   // { dg-error "" } candidates
+  void x (bool);     // { dg-message "note" }
+  void x (char);     // { dg-message "note" } candidates
+  void x (int);      // { dg-message "note" } candidates
+  void x (double);   // { dg-message "note" } candidates
 }
 
-namespace baz { void x (int); }  // { dg-error "" } candidates
+namespace baz { void x (int); }  // { dg-message "note" }  candidates
 
 void fn (int i)
 {
   using foo::x;
   using baz::x;
-  x(i); 	 // { dg-error "" } ambiguous
+  x(i); 	 // { dg-error "ambiguous" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 18 }
 }

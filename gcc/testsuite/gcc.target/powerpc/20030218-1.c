@@ -1,5 +1,6 @@
-/* { dg-do compile { target powerpc-*-eabi* } } */
-/* { dg-options "-mspe=yes" } */
+/* { dg-do compile } */
+/* { dg-options "-mcpu=8540 -mspe -mabi=spe -mfloat-gprs=single" } */
+/* { dg-skip-if "not an SPE target" { ! powerpc_spe_nocache } { "*" } { "" } } */
 
 /* Test vectors that can interconvert without a cast.  */
 
@@ -15,10 +16,11 @@ main (void)
 
   opp = vfloat;
   vshort = opp;
-  vfloat = vshort; /* { dg-error "incompatible types in assignment" } */
+  vfloat = vshort; /* { dg-error "incompatible types when assigning" } */
 
   /* Just because this is a V2SI, it doesn't make it an opaque.  */
-  vint = vshort; /* { dg-error "incompatible types in assignment" } */
+  vint = vshort; /* { dg-message "note: use -flax-vector-conversions to permit conversions between vectors with differing element types or numbers of subparts" } */
+  /* { dg-error "incompatible types when assigning" "" { target *-*-* } 22 } */
 
   return 0;
 }

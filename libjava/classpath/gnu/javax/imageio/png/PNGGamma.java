@@ -37,17 +37,13 @@ exception statement from your version. */
 
 package gnu.javax.imageio.png;
 
-import java.awt.color.ICC_ProfileGray;
-import java.awt.color.ICC_ProfileRGB;
-import java.awt.color.ICC_Profile;
-import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ColorSpace;
 
 /**
  * A PNG gAMA (gamma) chunk.
  */
-public class PNGGamma extends PNGChunk 
-{ 
+public class PNGGamma extends PNGChunk
+{
   private double gamma;
 
   protected PNGGamma( int type, byte[] data, int crc ) throws PNGException
@@ -55,10 +51,10 @@ public class PNGGamma extends PNGChunk
     super( type, data, crc );
     if( data.length < 4 )
       throw new PNGException("Unexpectedly short time chunk. ("+data.length+" bytes)");
-    long g = ((data[0] & 0xFF) << 24) | ( (data[1] & 0xFF) << 16 ) | 
+    long g = ((data[0] & 0xFF) << 24) | ( (data[1] & 0xFF) << 16 ) |
       ((data[2] & 0xFF) << 8) | (data[3] & 0xFF);
     gamma = (double)g;
-    gamma = 100000.0/gamma; 
+    gamma = 100000.0/gamma;
   }
 
   public PNGGamma( double g )

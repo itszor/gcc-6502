@@ -1,4 +1,4 @@
-/* GnomeXPathResult.java - 
+/* GnomeXPathResult.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Node;
 import org.w3c.dom.xpath.XPathException;
@@ -67,7 +69,7 @@ implements XPathResult
   }
 
   private native void free (Object obj);
-  
+
   public native short getResultType ();
 
   public native double getNumberValue ()
@@ -101,7 +103,7 @@ implements XPathResult
       case STRING_TYPE:
         return getStringValue ();
       case NUMBER_TYPE:
-        return new Double (getNumberValue ()).toString ();
+        return Double.toString (getNumberValue ());
       case BOOLEAN_TYPE:
         return Boolean.valueOf (getBooleanValue ()).toString ();
       case UNORDERED_NODE_SNAPSHOT_TYPE:
@@ -112,7 +114,7 @@ implements XPathResult
         case 1:
           return getSingleNodeValue ().toString ();
         default:
-          StringBuffer buffer = new StringBuffer ();
+          CPStringBuilder buffer = new CPStringBuilder ();
           for (int i = 0; i < len; i++)
             {
               if (i > 0)
@@ -128,5 +130,5 @@ implements XPathResult
           getSnapshotLength () + ']';
       }
   }
-  
+
 }

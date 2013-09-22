@@ -1,4 +1,4 @@
-/* GnuRSAKey.java -- 
+/* GnuRSAKey.java --
    Copyright 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.java.security.key.rsa;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Registry;
 import gnu.java.security.action.GetPropertyAction;
 import gnu.java.security.util.FormatUtil;
@@ -70,7 +72,7 @@ public abstract class GnuRSAKey
 
   /**
    * Trivial protected constructor.
-   * 
+   *
    * @param defaultFormat the identifier of the encoding format to use by
    *          default when externalizing the key.
    * @param n the public modulus <code>n</code>.
@@ -109,7 +111,7 @@ public abstract class GnuRSAKey
 
   /**
    * Returns the modulus <code>n</code>.
-   * 
+   *
    * @return the modulus <code>n</code>.
    */
   public BigInteger getN()
@@ -119,7 +121,7 @@ public abstract class GnuRSAKey
 
   /**
    * Returns the public exponent <code>e</code>.
-   * 
+   *
    * @return the public exponent <code>e</code>.
    */
   public BigInteger getPublicExponent()
@@ -129,7 +131,7 @@ public abstract class GnuRSAKey
 
   /**
    * Same as {@link #getPublicExponent()}.
-   * 
+   *
    * @return the public exponent <code>e</code>.
    */
   public BigInteger getE()
@@ -140,7 +142,7 @@ public abstract class GnuRSAKey
   /**
    * Returns <code>true</code> if the designated object is an instance of
    * {@link RSAKey} and has the same RSA parameter values as this one.
-   * 
+   *
    * @param obj the other non-null RSA key to compare to.
    * @return <code>true</code> if the designated object is of the same type
    *         and value as this one.
@@ -163,7 +165,7 @@ public abstract class GnuRSAKey
       {
         String ls = (String) AccessController.doPrivileged
             (new GetPropertyAction("line.separator"));
-        str = new StringBuilder(ls)
+        str = new CPStringBuilder(ls)
             .append("defaultFormat=").append(defaultFormat).append(",").append(ls)
             .append("n=0x").append(n.toString(16)).append(",").append(ls)
             .append("e=0x").append(e.toString(16))

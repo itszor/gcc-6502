@@ -6,26 +6,24 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---             Copyright (C) 1991-1994, Florida State University            --
---                     Copyright (C) 1995-2006, AdaCore                     --
+--            Copyright (C) 1991-1994, Florida State University             --
+--                     Copyright (C) 1995-2011, AdaCore                     --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -37,19 +35,9 @@ pragma Polling (Off);
 --  tasking operations. It causes infinite loops and other problems.
 
 with System.Task_Primitives.Operations;
---  used for Write_Lock
---           Unlock
---           Self
---           Set_Ceiling
-
 with System.Parameters;
---  used for Runtime_Traces
-
 with System.Traces;
---  used for Send_Trace_Info
-
 with System.Soft_Links.Tasking;
---  Used for Init_Tasking_Soft_Links
 
 package body System.Tasking.Protected_Objects is
 
@@ -111,7 +99,7 @@ package body System.Tasking.Protected_Objects is
       Ceiling_Violation : Boolean;
 
    begin
-      --  The lock is made without defering abort
+      --  The lock is made without deferring abort
 
       --  Therefore the abort has to be deferred before calling this routine.
       --  This means that the compiler has to generate a Defer_Abort call
@@ -181,7 +169,7 @@ package body System.Tasking.Protected_Objects is
       --  read ownership of the protected object, so that this method of
       --  storing the (single) protected object's owner does not work reliably
       --  for read locks. However, this is the approach taken for two major
-      --  reasosn: first, this function is not currently being used (it is
+      --  reasons: first, this function is not currently being used (it is
       --  provided for possible future use), and second, it largely simplifies
       --  the implementation.
 

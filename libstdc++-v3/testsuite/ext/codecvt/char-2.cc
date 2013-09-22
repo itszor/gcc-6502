@@ -3,13 +3,12 @@
 
 // 2000-08-22 Benjamin Kosnik <bkoz@cygnus.com>
 
-// Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation
+// Copyright (C) 2000-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -18,9 +17,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.2.1.5 - Template class codecvt [lib.locale.codecvt]
 #include <locale>
@@ -70,10 +68,14 @@ void test02()
 
   char  i_lit_base[50] __attribute__((aligned(__alignof__(int_type)))) = 
   { 
-    0x62, 0x00, 0x6c, 0x00, 0x61, 0x00, 0x63, 0x00, 0x6b, 0x00, 0x20, 0x00,
-    0x70, 0x00, 0x65, 0x00, 0x61, 0x00, 0x72, 0x00, 0x6c, 0x00, 0x20, 0x00,
-    0x6a, 0x00, 0x61, 0x00, 0x73, 0x00, 0x6d, 0x00, 0x69, 0x00, 0x6e, 0x00,
-    0x65, 0x00, 0x20, 0x00, 0x74, 0x00, 0x65, 0x00, 0x61, 0x00, 0xa0, 0x00
+    char(0x62), char(0x00), char(0x6c), char(0x00), char(0x61), char(0x00),
+    char(0x63), char(0x00), char(0x6b), char(0x00), char(0x20), char(0x00),
+    char(0x70), char(0x00), char(0x65), char(0x00), char(0x61), char(0x00),
+    char(0x72), char(0x00), char(0x6c), char(0x00), char(0x20), char(0x00),
+    char(0x6a), char(0x00), char(0x61), char(0x00), char(0x73), char(0x00),
+    char(0x6d), char(0x00), char(0x69), char(0x00), char(0x6e), char(0x00),
+    char(0x65), char(0x00), char(0x20), char(0x00), char(0x74), char(0x00),
+    char(0x65), char(0x00), char(0x61), char(0x00), char(0xa0), char(0x00)
   };
   const int_type* 	i_lit = reinterpret_cast<int_type*>(i_lit_base);
 

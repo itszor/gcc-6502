@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2003-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -44,100 +42,107 @@ package body Ada.Strings.Superbounded is
      (Left  : Super_String;
       Right : Super_String) return Super_String
    is
-      Result : Super_String (Left.Max_Length);
-      Llen   : constant Natural := Left.Current_Length;
-      Rlen   : constant Natural := Right.Current_Length;
-      Nlen   : constant Natural := Llen + Rlen;
-
    begin
-      if Nlen > Left.Max_Length then
-         raise Ada.Strings.Length_Error;
-      else
-         Result.Current_Length := Nlen;
-         Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
-         Result.Data (Llen + 1 .. Nlen) := Right.Data (1 .. Rlen);
-      end if;
+      return Result : Super_String (Left.Max_Length) do
+         declare
+            Llen : constant Natural := Left.Current_Length;
+            Rlen : constant Natural := Right.Current_Length;
+            Nlen : constant Natural := Llen + Rlen;
+         begin
+            if Nlen > Left.Max_Length then
+               raise Ada.Strings.Length_Error;
+            end if;
 
-      return Result;
+            Result.Current_Length := Nlen;
+            Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
+            Result.Data (Llen + 1 .. Nlen) := Right.Data (1 .. Rlen);
+         end;
+      end return;
    end Concat;
 
    function Concat
      (Left  : Super_String;
       Right : String) return Super_String
    is
-      Result : Super_String (Left.Max_Length);
-      Llen   : constant Natural := Left.Current_Length;
-
-      Nlen   : constant Natural := Llen + Right'Length;
-
    begin
-      if Nlen > Left.Max_Length then
-         raise Ada.Strings.Length_Error;
-      else
-         Result.Current_Length := Nlen;
-         Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
-         Result.Data (Llen + 1 .. Nlen) := Right;
-      end if;
-      return Result;
+      return Result : Super_String (Left.Max_Length) do
+         declare
+            Llen   : constant Natural := Left.Current_Length;
+            Nlen   : constant Natural := Llen + Right'Length;
+         begin
+            if Nlen > Left.Max_Length then
+               raise Ada.Strings.Length_Error;
+            end if;
+
+            Result.Current_Length := Nlen;
+            Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
+            Result.Data (Llen + 1 .. Nlen) := Right;
+         end;
+      end return;
    end Concat;
 
    function Concat
      (Left  : String;
       Right : Super_String) return Super_String
    is
-      Result : Super_String (Right.Max_Length);
-      Llen   : constant Natural := Left'Length;
-      Rlen   : constant Natural := Right.Current_Length;
-      Nlen   : constant Natural := Llen + Rlen;
 
    begin
-      if Nlen > Right.Max_Length then
-         raise Ada.Strings.Length_Error;
-      else
-         Result.Current_Length := Nlen;
-         Result.Data (1 .. Llen) := Left;
-         Result.Data (Llen + 1 .. Nlen) := Right.Data (1 .. Rlen);
-      end if;
+      return Result : Super_String (Right.Max_Length) do
+         declare
+            Llen : constant Natural := Left'Length;
+            Rlen : constant Natural := Right.Current_Length;
+            Nlen : constant Natural := Llen + Rlen;
+         begin
+            if Nlen > Right.Max_Length then
+               raise Ada.Strings.Length_Error;
+            end if;
 
-      return Result;
+            Result.Current_Length := Nlen;
+            Result.Data (1 .. Llen) := Left;
+            Result.Data (Llen + 1 .. Nlen) := Right.Data (1 .. Rlen);
+         end;
+      end return;
    end Concat;
 
    function Concat
      (Left  : Super_String;
       Right : Character) return Super_String
    is
-      Result : Super_String (Left.Max_Length);
-      Llen   : constant Natural := Left.Current_Length;
-
    begin
-      if Llen = Left.Max_Length then
-         raise Ada.Strings.Length_Error;
-      else
-         Result.Current_Length := Llen + 1;
-         Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
-         Result.Data (Result.Current_Length) := Right;
-      end if;
+      return Result : Super_String (Left.Max_Length) do
+         declare
+            Llen : constant Natural := Left.Current_Length;
+         begin
+            if Llen = Left.Max_Length then
+               raise Ada.Strings.Length_Error;
+            end if;
 
-      return Result;
+            Result.Current_Length := Llen + 1;
+            Result.Data (1 .. Llen) := Left.Data (1 .. Llen);
+            Result.Data (Result.Current_Length) := Right;
+         end;
+      end return;
    end Concat;
 
    function Concat
      (Left  : Character;
       Right : Super_String) return Super_String
    is
-      Result : Super_String (Right.Max_Length);
-      Rlen   : constant Natural := Right.Current_Length;
-
    begin
-      if Rlen = Right.Max_Length then
-         raise Ada.Strings.Length_Error;
-      else
-         Result.Current_Length := Rlen + 1;
-         Result.Data (1) := Left;
-         Result.Data (2 .. Result.Current_Length) := Right.Data (1 .. Rlen);
-      end if;
+      return Result : Super_String (Right.Max_Length) do
+         declare
+            Rlen : constant Natural := Right.Current_Length;
+         begin
+            if Rlen = Right.Max_Length then
+               raise Ada.Strings.Length_Error;
+            end if;
 
-      return Result;
+            Result.Current_Length := Rlen + 1;
+            Result.Data (1) := Left;
+            Result.Data (2 .. Result.Current_Length) :=
+              Right.Data (1 .. Rlen);
+         end;
+      end return;
    end Concat;
 
    -----------
@@ -797,6 +802,19 @@ package body Ada.Strings.Superbounded is
    procedure Super_Find_Token
      (Source : Super_String;
       Set    : Maps.Character_Set;
+      From   : Positive;
+      Test   : Strings.Membership;
+      First  : out Positive;
+      Last   : out Natural)
+   is
+   begin
+      Search.Find_Token
+        (Source.Data (From .. Source.Current_Length), Set, Test, First, Last);
+   end Super_Find_Token;
+
+   procedure Super_Find_Token
+     (Source : Super_String;
+      Set    : Maps.Character_Set;
       Test   : Strings.Membership;
       First  : out Positive;
       Last   : out Natural)
@@ -1448,13 +1466,15 @@ package body Ada.Strings.Superbounded is
    begin
       --  Note: test of High > Length is in accordance with AI95-00128
 
-      if Low > Source.Current_Length + 1
-        or else High > Source.Current_Length
-      then
-         raise Index_Error;
-      else
-         return Source.Data (Low .. High);
-      end if;
+      return R : String (Low .. High) do
+         if Low > Source.Current_Length + 1
+           or else High > Source.Current_Length
+         then
+            raise Index_Error;
+         end if;
+
+         R := Source.Data (Low .. High);
+      end return;
    end Super_Slice;
 
    function Super_Slice
@@ -1462,19 +1482,17 @@ package body Ada.Strings.Superbounded is
       Low    : Positive;
       High   : Natural) return Super_String
    is
-      Result : Super_String (Source.Max_Length);
-
    begin
-      if Low > Source.Current_Length + 1
-        or else High > Source.Current_Length
-      then
-         raise Index_Error;
-      else
+      return Result : Super_String (Source.Max_Length) do
+         if Low > Source.Current_Length + 1
+           or else High > Source.Current_Length
+         then
+            raise Index_Error;
+         end if;
+
          Result.Current_Length := High - Low + 1;
          Result.Data (1 .. Result.Current_Length) := Source.Data (Low .. High);
-      end if;
-
-      return Result;
+      end return;
    end Super_Slice;
 
    procedure Super_Slice
@@ -1604,7 +1622,9 @@ package body Ada.Strings.Superbounded is
 
    function Super_To_String (Source : Super_String) return String is
    begin
-      return Source.Data (1 .. Source.Current_Length);
+      return R : String (1 .. Source.Current_Length) do
+         R := Source.Data (1 .. Source.Current_Length);
+      end return;
    end Super_To_String;
 
    ---------------------

@@ -1,23 +1,10 @@
 ## Input file for automake to generate the Makefile.in used by configure
-GLIBJ_CLASSPATH='$(top_builddir)/lib':'$(top_builddir)/lib/glibj.zip':'$(top_builddir)/tools/tools.zip'
+GLIBJ_CLASSPATH='$(top_builddir)/lib/glibj.zip:$(top_builddir)/lib'
 
-# Setup the compiler to use the GNU Classpath library we just build
-#if FOUND_GCJ
-#JCOMPILER = $(GCJ) --bootclasspath '$(top_builddir)/lib' --classpath . -C
-#else
-#if FOUND_JIKES
-#JCOMPILER = $(JIKES) -bootclasspath '' -extdirs '' -sourcepath '' --classpath $(top_builddir)/lib:.
-#else
-if FOUND_ECJ
-JCOMPILER = $(ECJ) -1.5 -encoding UTF-8 -warn:-deprecation,serial,typeHiding,unchecked,unused,varargsCast -bootclasspath $(GLIBJ_CLASSPATH) -classpath .
+if GCJ_JAVAC
+JCOMPILER = $(JAVAC) $(JAVACFLAGS) -fsource=1.5 -ftarget=1.5 --encoding=UTF-8 --bootclasspath=$(GLIBJ_CLASSPATH) --classpath='$(top_builddir)/tools/tools.zip'
 else
-if FOUND_JAVAC
-JCOMPILER = $(JAVAC) -encoding UTF-8 -bootclasspath $(GLIBJ_CLASSPATH) -classpath .
-else
-error dunno how to setup the JCOMPILER and compile
-#endif
-#endif
-endif
+JCOMPILER = $(JAVAC) $(JAVACFLAGS) -source 1.5 -target 1.5 -encoding UTF-8 -bootclasspath $(GLIBJ_CLASSPATH) -classpath '$(top_builddir)/tools/tools.zip'
 endif
 
 # All our example java source files
@@ -101,15 +88,21 @@ dist-hook:
 # To generate the example zip just depend on the sources and ignore the
 # class files. Always regenerate all .class files and remove them immediatly.
 # And copy the png icons we use to the classes dir so they get also included.
+
+if WITH_JAR
+CREATE_EXAMPLE_ZIP=$(JAR) cf ../$(EXAMPLE_ZIP) .
+else
+CREATE_EXAMPLE_ZIP=$(ZIP) -r ../$(EXAMPLE_ZIP) .
+endif
+
 $(EXAMPLE_ZIP): $(EXAMPLE_JAVA_FILES)
-	mkdir -p classes/gnu/classpath/examples/icons
+	@mkdir_p@ classes/gnu/classpath/examples/icons
 	cp $(EXAMPLE_ICONS) classes/gnu/classpath/examples/icons
-	mkdir -p classes/gnu/classpath/examples/swing
+	@mkdir_p@ classes/gnu/classpath/examples/swing
 	cp $(EXAMPLE_HTML) classes/gnu/classpath/examples/swing
 	$(JCOMPILER) -d classes $(EXAMPLE_JAVA_FILES) 
 	(cd classes; \
-	if test "$(ZIP)" != ""; then $(ZIP) -r ../$(EXAMPLE_ZIP) .; fi; \
-	if test "$(FASTJAR)" != ""; then $(FASTJAR) cf ../$(EXAMPLE_ZIP) .; fi; \
+	$(CREATE_EXAMPLE_ZIP); \
 	cd ..)
 	rm -rf classes
 

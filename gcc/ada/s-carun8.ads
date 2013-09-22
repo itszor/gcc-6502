@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2002-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2002-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -34,9 +32,7 @@
 --  This package contains functions for runtime comparisons on arrays whose
 --  elements are 8-bit discrete type values to be treated as unsigned.
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 package System.Compare_Array_Unsigned_8 is
 
@@ -49,20 +45,20 @@ package System.Compare_Array_Unsigned_8 is
       Right     : System.Address;
       Left_Len  : Natural;
       Right_Len : Natural) return Integer;
-   --  Compare the array starting at address Left of length Left_Len
-   --  with the array starting at address Right of length Right_Len.
-   --  The comparison is in the normal Ada semantic sense of array
-   --  comparison. The result is -1,0,+1 for Left<Right, Left=Right,
-   --  Left>Right respectively. This function works with 4 byte words
-   --  if the operands are aligned on 4-byte boundaries and long enough.
+   --  Compare the array starting at address Left of length Left_Len with the
+   --  array starting at address Right of length Right_Len. The comparison is
+   --  in the normal Ada semantic sense of array comparison. The result is -1,
+   --  0, +1 for Left < Right, Left = Right, Left > Right respectively. This
+   --  function works with 4 byte words if the operands are aligned on 4-byte
+   --  boundaries and long enough.
 
    function Compare_Array_U8_Unaligned
      (Left      : System.Address;
       Right     : System.Address;
       Left_Len  : Natural;
       Right_Len : Natural) return Integer;
-   --  Same functionality as Compare_Array_U8 but always proceeds by
-   --  bytes. Used when the caller knows that the operands are unaligned,
-   --  or short enough that it makes no sense to go by words.
+   --  Same functionality as Compare_Array_U8 but always proceeds by bytes.
+   --  Used when the caller knows that the operands are unaligned, or short
+   --  enough that it makes no sense to go by words.
 
 end System.Compare_Array_Unsigned_8;

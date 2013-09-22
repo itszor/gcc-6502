@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -39,6 +39,7 @@ with Rtsfind;  use Rtsfind;
 with Sem;      use Sem;
 with Sem_Ch5;  use Sem_Ch5;
 with Sem_Ch8;  use Sem_Ch8;
+with Sem_Ch13; use Sem_Ch13;
 with Sem_Res;  use Sem_Res;
 with Sem_Util; use Sem_Util;
 with Sem_Warn; use Sem_Warn;
@@ -63,6 +64,10 @@ package body Sem_Ch11 is
       Set_Etype                   (Id, Standard_Exception_Type);
       Set_Is_Statically_Allocated (Id);
       Set_Is_Pure                 (Id, PF);
+
+      if Has_Aspects (N) then
+         Analyze_Aspect_Specifications (N, Id);
+      end if;
    end Analyze_Exception_Declaration;
 
    --------------------------------
@@ -156,7 +161,7 @@ package body Sem_Ch11 is
          return False;
       end Others_Present;
 
-   --  Start processing for Analyze_Exception_Handlers
+   --  Start of processing for Analyze_Exception_Handlers
 
    begin
       Handler := First (L);
@@ -185,8 +190,7 @@ package body Sem_Ch11 is
             --  scope for visibility purposes. We create an entity to denote
             --  the whole exception part, and use it as the scope of all the
             --  choices, which may even have the same name without conflict.
-            --  This scope plays no other role in expansion or or code
-            --  generation.
+            --  This scope plays no other role in expansion or code generation.
 
             Choice := Choice_Parameter (Handler);
 
@@ -205,15 +209,6 @@ package body Sem_Ch11 is
 
                Push_Scope (H_Scope);
                Set_Etype (H_Scope, Standard_Void_Type);
-
-               --  Set the Finalization Chain entity to Error means that it
-               --  should not be used at that level but the parent one should
-               --  be used instead.
-
-               --  ??? this usage needs documenting in Einfo/Exp_Ch7 ???
-               --  ??? using Error for this non-error condition is nasty ???
-
-               Set_Finalization_Chain_Entity (H_Scope, Error);
 
                Enter_Name (Choice);
                Set_Ekind (Choice, E_Variable);
@@ -271,7 +266,7 @@ package body Sem_Ch11 is
                        and then Scope (Entity (Id)) = Current_Scope
                      then
                         Error_Msg_NE
-                          ("?exception & is never raised", Entity (Id), Id);
+                          ("exception & is never raised?r?", Entity (Id), Id);
                      end if;
 
                      if Present (Renamed_Entity (Entity (Id))) then
@@ -281,9 +276,9 @@ package body Sem_Ch11 is
                            if Warn_On_Obsolescent_Feature then
                               Error_Msg_N
                                 ("Numeric_Error is an " &
-                                 "obsolescent feature (RM J.6(1))?", Id);
+                                 "obsolescent feature (RM J.6(1))?j?", Id);
                               Error_Msg_N
-                                ("\use Constraint_Error instead?", Id);
+                                ("\use Constraint_Error instead?j?", Id);
                            end if;
                         end if;
                      end if;
@@ -350,7 +345,7 @@ package body Sem_Ch11 is
                                               N_Others_Choice)
             then
                Error_Msg_N
-                 ("useless handler contains only a reraise statement?",
+                 ("useless handler contains only a reraise statement?r?",
                   Handler);
             end if;
 
@@ -437,9 +432,10 @@ package body Sem_Ch11 is
       Exception_Id   : constant Node_Id := Name (N);
       Exception_Name : Entity_Id        := Empty;
       P              : Node_Id;
-      Nkind_P        : Node_Kind;
+      Par            : Node_Id;
 
    begin
+      Check_SPARK_Restriction ("raise statement is not allowed", N);
       Check_Unreachable_Code (N);
 
       --  Check exception restrictions on the original source
@@ -448,9 +444,8 @@ package body Sem_Ch11 is
          Check_Restriction (No_Exceptions, N);
       end if;
 
-      --  Check for useless assignment to OUT or IN OUT scalar immediately
-      --  preceding the raise. Right now we only look at assignment statements,
-      --  we could do more.
+      --  Check for useless assignment to OUT or IN OUT scalar preceding the
+      --  raise. Right now only look at assignment statements, could do more???
 
       if Is_List_Member (N) then
          declare
@@ -460,21 +455,52 @@ package body Sem_Ch11 is
          begin
             P := Prev (N);
 
+            --  Skip past null statements and pragmas
+
+            while Present (P)
+              and then Nkind_In (P, N_Null_Statement, N_Pragma)
+            loop
+               P := Prev (P);
+            end loop;
+
+            --  See if preceding statement is an assignment
+
             if Present (P)
               and then Nkind (P) = N_Assignment_Statement
             then
                L := Name (P);
 
+               --  Give warning for assignment to scalar formal
+
                if Is_Scalar_Type (Etype (L))
                  and then Is_Entity_Name (L)
                  and then Is_Formal (Entity (L))
                then
-                  Error_Msg_N
-                    ("?assignment to pass-by-copy formal may have no effect",
-                      P);
-                  Error_Msg_N
-                    ("\?RAISE statement may result in abnormal return" &
-                     " (RM 6.4.1(17))", P);
+                  --  Don't give warning if we are covered by an exception
+                  --  handler, since this may result in false positives, since
+                  --  the handler may handle the exception and return normally.
+
+                  --  First find the enclosing handled sequence of statements
+                  --  (note, we could also look for a handler in an outer block
+                  --  but currently we don't, and in that case we'll emit the
+                  --  warning).
+
+                  Par := N;
+                  loop
+                     Par := Parent (Par);
+                     exit when Nkind (Par) = N_Handled_Sequence_Of_Statements;
+                  end loop;
+
+                  --  See if there is a handler, give message if not
+
+                  if No (Exception_Handlers (Par)) then
+                     Error_Msg_N
+                       ("assignment to pass-by-copy formal " &
+                        "may have no effect??", P);
+                     Error_Msg_N
+                       ("\RAISE statement may result in abnormal return" &
+                        " (RM 6.4.1(17))??", P);
+                  end if;
                end if;
             end if;
          end;
@@ -484,16 +510,13 @@ package body Sem_Ch11 is
 
       if No (Exception_Id) then
          P := Parent (N);
-         Nkind_P := Nkind (P);
-
-         while Nkind_P /= N_Exception_Handler
-           and then Nkind_P /= N_Subprogram_Body
-           and then Nkind_P /= N_Package_Body
-           and then Nkind_P /= N_Task_Body
-           and then Nkind_P /= N_Entry_Body
+         while not Nkind_In (P, N_Exception_Handler,
+                                N_Subprogram_Body,
+                                N_Package_Body,
+                                N_Task_Body,
+                                N_Entry_Body)
          loop
             P := Parent (P);
-            Nkind_P := Nkind (P);
          end loop;
 
          if Nkind (P) /= N_Exception_Handler then
@@ -506,7 +529,15 @@ package body Sem_Ch11 is
 
          else
             Set_Local_Raise_Not_OK (P);
-            Check_Restriction (No_Exception_Propagation, N);
+
+            --  Do not check the restriction if the reraise statement is part
+            --  of the code generated for an AT-END handler. That's because
+            --  if the restriction is actually active, we never generate this
+            --  raise anyway, so the apparent violation is bogus.
+
+            if not From_At_End (N) then
+               Check_Restriction (No_Exception_Propagation, N);
+            end if;
          end if;
 
       --  Normal case with exception id present
@@ -535,6 +566,14 @@ package body Sem_Ch11 is
          end if;
       end if;
 
+      --  Check obsolescent use of Numeric_Error
+
+      if Exception_Name = Standard_Numeric_Error then
+         Check_Restriction (No_Obsolescent_Features, Exception_Id);
+      end if;
+
+      --  Kill last assignment indication
+
       Kill_Current_Values (Last_Assignment_Only => True);
    end Analyze_Raise_Statement;
 
@@ -552,7 +591,50 @@ package body Sem_Ch11 is
    --  field if one is present.
 
    procedure Analyze_Raise_xxx_Error (N : Node_Id) is
+
+      function Same_Expression (C1, C2 : Node_Id) return Boolean;
+      --  It often occurs that two identical raise statements are generated in
+      --  succession (for example when dynamic elaboration checks take place on
+      --  separate expressions in a call). If the two statements are identical
+      --  according to the simple criterion that follows, the raise is
+      --  converted into a null statement.
+
+      ---------------------
+      -- Same_Expression --
+      ---------------------
+
+      function Same_Expression (C1, C2 : Node_Id) return Boolean is
+      begin
+         if No (C1) and then No (C2) then
+            return True;
+
+         elsif Is_Entity_Name (C1) and then Is_Entity_Name (C2) then
+            return Entity (C1) = Entity (C2);
+
+         elsif Nkind (C1) /= Nkind (C2) then
+            return False;
+
+         elsif Nkind (C1) in N_Unary_Op then
+            return Same_Expression (Right_Opnd (C1), Right_Opnd (C2));
+
+         elsif Nkind (C1) in N_Binary_Op then
+            return Same_Expression (Left_Opnd (C1),  Left_Opnd (C2))
+                     and then
+                   Same_Expression (Right_Opnd (C1), Right_Opnd (C2));
+
+         elsif Nkind (C1) = N_Null then
+            return True;
+
+         else
+            return False;
+         end if;
+      end Same_Expression;
+
+   --  Start of processing for Analyze_Raise_xxx_Error
+
    begin
+      Check_SPARK_Restriction ("raise statement is not allowed", N);
+
       if No (Etype (N)) then
          Set_Etype (N, Standard_Void_Type);
       end if;
@@ -570,6 +652,20 @@ package body Sem_Ch11 is
          elsif Entity (Condition (N)) = Standard_False then
             Rewrite (N, Make_Null_Statement (Sloc (N)));
          end if;
+      end if;
+
+      --  Remove duplicate raise statements. Note that the previous one may
+      --  already have been removed as well.
+
+      if not Comes_From_Source (N)
+        and then Nkind (N) /= N_Null_Statement
+        and then Is_List_Member (N)
+        and then Present (Prev (N))
+        and then Nkind (N) = Nkind (Original_Node (Prev (N)))
+        and then Same_Expression
+                   (Condition (N), Condition (Original_Node (Prev (N))))
+      then
+         Rewrite (N, Make_Null_Statement (Sloc (N)));
       end if;
    end Analyze_Raise_xxx_Error;
 

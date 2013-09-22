@@ -43,8 +43,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
 
 /*
  * This class is a reference version, mainly for compiling a class library
@@ -60,7 +58,7 @@ import java.lang.reflect.TypeVariable;
  * @author Tom Tromey (tromey@cygnus.com)
  * @author Andrew John Hughes (gnu_andrew@member.fsf.org)
  */
-final class VMClass 
+final class VMClass
 {
 
   // Only static methods. Cannot be instantiated.
@@ -289,21 +287,37 @@ final class VMClass
    * <code>getName()</code> which follows the last ".".  Anonymous
    * classes have no name, and so the result of calling this method is
    * "".  The simple name of an array consists of the simple name of
-   * its component type, followed by "[]".  Thus, an array with the 
+   * its component type, followed by "[]".  Thus, an array with the
    * component type of an anonymous class has a simple name of simply
    * "[]".
    *
-   * @param klass the class whose simple name should be returned. 
+   * @param klass the class whose simple name should be returned.
    * @return the simple name for this class.
    */
   static String getSimpleName(Class klass)
   {
+    if (isAnonymousClass(klass))
+      return "";
     if (isArray(klass))
       {
-	return getComponentType(klass).getSimpleName() + "[]";
+        return getComponentType(klass).getSimpleName() + "[]";
       }
     String fullName = getName(klass);
-    return fullName.substring(fullName.lastIndexOf(".") + 1);
+    Class enclosingClass = getEnclosingClass(klass);
+    if (enclosingClass == null)
+      // It's a top level class.
+      return fullName.substring(fullName.lastIndexOf(".") + 1);
+
+    fullName = fullName.substring(enclosingClass.getName().length());
+
+    // We've carved off the enclosing class name; now we must have '$'
+    // followed optionally by digits, followed by the class name.
+    int pos = 1;
+    while (Character.isDigit(fullName.charAt(pos)))
+      ++pos;
+    fullName = fullName.substring(pos);
+
+    return fullName;
   }
 
   /**
@@ -333,7 +347,7 @@ final class VMClass
    * The canonical name for top-level classes, top-level interfaces and
    * primitive types is always the same as the fully-qualified name.
    * For array types, the canonical name is the canonical name of its
-   * component type with `[]' appended.  
+   * component type with `[]' appended.
    * </p>
    * <p>
    * The canonical name of a member class always refers to the place where
@@ -357,20 +371,22 @@ final class VMClass
    */
   static String getCanonicalName(Class klass)
   {
+    if (isLocalClass(klass) || isAnonymousClass(klass))
+      return null;
     if (isArray(klass))
       {
-	String componentName = getComponentType(klass).getCanonicalName();
-	if (componentName != null)
-	  return componentName + "[]";
+        String componentName = getComponentType(klass).getCanonicalName();
+        if (componentName != null)
+          return componentName + "[]";
       }
     if (isMemberClass(klass))
       {
-	String memberName = getDeclaringClass(klass).getCanonicalName();
-	if (memberName != null)
-	  return memberName + "." + getSimpleName(klass);
+        String memberName = getDeclaringClass(klass).getCanonicalName();
+        if (memberName != null)
+          return memberName + "." + getSimpleName(klass);
+        else
+          return memberName;
       }
-    if (isLocalClass(klass) || isAnonymousClass(klass))
-      return null;
     return getName(klass);
   }
 
@@ -387,7 +403,7 @@ final class VMClass
 
   /**
    * Returns the constructor which immediately encloses the specified class.
-   * If the class is a top-level class, or a local or anonymous class 
+   * If the class is a top-level class, or a local or anonymous class
    * immediately enclosed by a type definition, instance initializer
    * or static initializer, then <code>null</code> is returned.
    *
@@ -401,7 +417,7 @@ final class VMClass
 
   /**
    * Returns the method which immediately encloses the specified class.  If
-   * the class is a top-level class, or a local or anonymous class 
+   * the class is a top-level class, or a local or anonymous class
    * immediately enclosed by a type definition, instance initializer
    * or static initializer, then <code>null</code> is returned.
    *
@@ -445,7 +461,7 @@ final class VMClass
   /**
    * Returns true if the specified class represents an member class.
    *
-   * @param klass the klass to test. 
+   * @param klass the klass to test.
    * @return true if the specified class represents an member class.
    * @since 1.5
    */

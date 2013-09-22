@@ -38,7 +38,6 @@ details.  */
 #endif
 
 #ifndef DISABLE_GETENV_PROPERTIES
-#include <ctype.h>
 #include <java-props.h>
 #define PROCESS_GCJ_PROPERTIES process_gcj_properties()
 #else
@@ -460,7 +459,7 @@ _Jv_makeUtf8Const (jstring string)
 
 
 
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
 void
 _Jv_Abort (const char *function, const char *file, int line,
 	   const char *message)
@@ -469,7 +468,7 @@ void
 _Jv_Abort (const char *, const char *, int, const char *message)
 #endif
 {
-#ifdef DEBUG
+#ifdef __GCJ_DEBUG
   fprintf (stderr,
 	   "libgcj failure: %s\n   in function %s, file %s, line %d\n",
 	   message, function, file, line);
@@ -985,6 +984,8 @@ static java::lang::Thread *main_thread;
 
 #ifndef DISABLE_GETENV_PROPERTIES
 
+#define c_isspace(c) (memchr (" \t\n\r\v\f", c, 6) != NULL)
+
 static char *
 next_property_key (char *s, size_t *length)
 {
@@ -993,7 +994,7 @@ next_property_key (char *s, size_t *length)
   JvAssert (s);
 
   // Skip over whitespace
-  while (isspace (*s))
+  while (c_isspace (*s))
     s++;
 
   // If we've reached the end, return NULL.  Also return NULL if for
@@ -1005,7 +1006,7 @@ next_property_key (char *s, size_t *length)
 
   // Determine the length of the property key.
   while (s[l] != 0
-	 && ! isspace (s[l])
+	 && ! c_isspace (s[l])
 	 && s[l] != ':'
 	 && s[l] != '=')
     {
@@ -1027,19 +1028,19 @@ next_property_value (char *s, size_t *length)
 
   JvAssert (s);
 
-  while (isspace (*s))
+  while (c_isspace (*s))
     s++;
 
   if (*s == ':'
       || *s == '=')
     s++;
 
-  while (isspace (*s))
+  while (c_isspace (*s))
     s++;
 
   // Determine the length of the property value.
   while (s[l] != 0
-	 && ! isspace (s[l])
+	 && ! c_isspace (s[l])
 	 && s[l] != ':'
 	 && s[l] != '=')
     {

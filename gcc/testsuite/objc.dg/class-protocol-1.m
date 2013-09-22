@@ -3,7 +3,7 @@
 /* { dg-do compile } */
 
 #include <objc/objc.h>
-#include <objc/objc-api.h>
+#include "../objc-obj-c++-shared/runtime.h"
 
 @protocol MyProto1
 +(void)doItClass1;
@@ -175,7 +175,7 @@ testCategoryInherited(void)
 
 @protocol FwProto;
 
-@interface MyClass1 (Forward) <FwProto>
+@interface MyClass1 (Forward) <FwProto> /* { dg-warning "definition of protocol .FwProto. not found" } */
 @end
 
 Class <FwProto> clsP7 = 0;

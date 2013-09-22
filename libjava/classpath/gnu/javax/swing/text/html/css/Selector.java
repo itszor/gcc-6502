@@ -38,12 +38,15 @@ exception statement from your version. */
 
 package gnu.javax.swing.text.html.css;
 
+import gnu.java.lang.CPStringBuilder;
+
+import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 
 /**
  * A CSS selector. This provides methods to interpret a selector and
- * query matches with an actual HTML element tree. 
+ * query matches with an actual HTML element tree.
  */
 public class Selector
 {
@@ -93,20 +96,18 @@ public class Selector
    * instance, the html tag).
    *
    * @param tags
-   * @param classes
-   * @param ids
    *
    * @return <code>true</code> when this selector matches the element path,
    *         <code>false</code> otherwise
    */
-  public boolean matches(String[] tags, Map[] attributes)
+  public boolean matches(String[] tags, List<Map<String,String>> attributes)
   {
     // TODO: This implements class, id and descendent matching. These are
     // the most commonly used selector matchers in CSS together with HTML.
     // However, the CSS spec defines a couple of more sophisticated matches
     // which should be implemented.
     // http://www.w3.org/TR/CSS21/selector.html
-    
+
     // All parts of the selector must match at some point.
     boolean match = false;
     int numTags = tags.length;
@@ -120,11 +121,11 @@ public class Selector
             boolean tagMatch = false;
             for (; tagIndex < numTags && tagMatch == false; tagIndex++)
               {
-                Object pathClass = attributes[tagIndex].get("class");
+                Object pathClass = attributes.get(tagIndex).get("class");
                 // Try pseudo class too.
-                Object pseudoClass = attributes[tagIndex].get("_pseudo");
-                Object dynClass = attributes[tagIndex].get("_dynamic");
-                Object pathId = attributes[tagIndex].get("id");
+                Object pseudoClass = attributes.get(tagIndex).get("_pseudo");
+                Object dynClass = attributes.get(tagIndex).get("_dynamic");
+                Object pathId = attributes.get(tagIndex).get("id");
                 String tag = elements[j];
                 String clazz = classes[j];
                 String id = ids[j];
@@ -169,7 +170,7 @@ public class Selector
    */
   public String toString()
   {
-    StringBuilder b = new StringBuilder();
+    CPStringBuilder b = new CPStringBuilder();
     for (int i = selector.length - 1; i >= 0; i--)
       {
         b.append(selector[i]);

@@ -1,9 +1,10 @@
 // PR c++/18368
 // Origin: Chris Lattner <sabre@nondot.org>
 // { dg-do compile }
+// { dg-options "-fshow-column" }
 
 struct A
 {
-  struct B { int i; }
-  void foo();   // { dg-error "two or more|return type" }
-};              // { dg-error "semicolon is missing" "" { target *-*-* } 8 }
+  struct B { int i; } // { dg-error "after struct definition" }
+  void foo();
+};

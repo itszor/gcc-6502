@@ -1,4 +1,4 @@
-/* MessageNode.java -- 
+/* MessageNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.logging.Logger;
 import javax.xml.namespace.QName;
@@ -95,7 +97,7 @@ final class MessageNode
 
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("message");
+    CPStringBuilder buf = new CPStringBuilder("message");
     if (terminate)
       {
         buf.append('[');
@@ -104,5 +106,5 @@ final class MessageNode
       }
     return buf.toString();
   }
-  
+
 }

@@ -1,12 +1,12 @@
 // -*- C++ -*-
 // Testing performance utilities for the C++ library testsuite.
 //
-// Copyright (C) 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2003-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -15,18 +15,9 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 //
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 #ifndef _GLIBCXX_PERFORMANCE_H
 #define _GLIBCXX_PERFORMANCE_H
@@ -38,6 +29,11 @@
 #include <string>
 #include <fstream>
 #include <iomanip>
+#include <typeinfo>
+#include <stdexcept>
+#include <sstream>
+#include <cxxabi.h>
+#include <testsuite_common_types.h>
 
 #ifdef __linux__
 #include <malloc.h>
@@ -53,7 +49,7 @@ extern "C"
   struct mallinfo
   mallinfo(void)
   {
-    struct mallinfo m = { (((size_t) sbrk (0) + 1023) / 1024), 0 };
+    struct mallinfo m = { (((std::size_t) sbrk (0) + 1023) / 1024), 0 };
     return m;
   }
 }
@@ -117,15 +113,15 @@ namespace __gnu_test
 	std::__throw_runtime_error("time_counter::stop");
     }
 
-    size_t
+    std::size_t
     real_time() const
     { return elapsed_end - elapsed_begin; }
 
-    size_t
+    std::size_t
     user_time() const
     { return tms_end.tms_utime - tms_begin.tms_utime; }
 
-    size_t
+    std::size_t
     system_time() const
     { return tms_end.tms_stime - tms_begin.tms_stime; }
   };
@@ -259,6 +255,230 @@ namespace __gnu_test
     out.close();
   }
 } // namespace __gnu_test
+
+
+// Ah, we wish it wasn't so...
+bool first_container = false;
+extern const char* filename;
+
+typedef std::string::size_type (*callback_type) (std::string&);
+
+template<typename Container, int Iter, bool Thread>
+  void
+  write_viz_container(callback_type find_container, const char* filename)
+  {
+    typedef std::string string;
+
+    // Create title.
+    {
+      const char ws(' ');
+      std::ostringstream title;
+	
+      std::string titlename(filename);
+      std::string::size_type n = titlename.find('.');
+      if (n != string::npos)
+	titlename = std::string(titlename.begin(), titlename.begin() + n);
+
+      title << titlename;
+      title << ws;
+      title << Iter;
+      title << ws;
+#if 0
+      title << "thread<";
+      std::boolalpha(title);
+      title << Thread;
+      title << '>';
+#endif
+      
+      titlename += ".title";
+      std::ofstream titlefile(titlename.c_str());
+      if (!titlefile.good())
+	throw std::runtime_error("write_viz_data cannot open titlename");
+      titlefile << title.str() << std::endl;
+    }
+
+    // Create compressed type name.
+    Container obj;
+    int status;
+    std::string type(abi::__cxa_demangle(typeid(obj).name(), 0, 0, &status));
+    
+    // Extract fully-qualified typename.
+    // Assumes "set" or "map" are uniquely determinate.
+    string::iterator beg = type.begin();
+    string::iterator end;
+    string::size_type n = (*find_container)(type);
+
+    // Find start of fully-qualified name.
+    // Assume map, find end.
+    string::size_type nend = type.find('<', n);
+    if (nend != string::npos)
+      end = type.begin() + nend;
+    
+    string compressed_type;
+    compressed_type += '"';
+    compressed_type += string(beg, end);
+    compressed_type += '<';
+#if 0
+    typename Container::key_type v;
+    compressed_type += typeid(v).name();
+#else
+    compressed_type += "int";
+#endif
+    compressed_type += ", A>";
+
+    // XXX
+    if (Thread == true)
+      compressed_type += " thread";
+    compressed_type += '"';
+
+    std::ofstream file(filename, std::ios_base::app);
+    if (!file.good())
+      throw std::runtime_error("write_viz_data cannot open filename");
+    
+    file << compressed_type;
+    first_container = false;
+  }
+
+
+void
+write_viz_data(__gnu_test::time_counter& time, const char* filename)
+{
+  std::ofstream file(filename, std::ios_base::app);  
+  if (!file.good())
+    throw std::runtime_error("write_viz_data cannot open filename");
+  
+  // Print out score in appropriate column.
+  const char tab('\t');
+  int score = time.real_time();
+  file << tab << score;
+}
+
+void
+write_viz_endl(const char* filename)
+{
+  std::ofstream file(filename, std::ios_base::app);
+  if (!file.good())
+    throw std::runtime_error("write_viz_endl cannot open filename");
+  file << std::endl;
+}
+
+
+// Function template, function objects for the tests.
+template<typename TestType>
+  struct value_type : public std::pair<const TestType, TestType>
+  {
+    inline value_type& operator++() 
+    { 
+      ++this->second;
+      return *this; 
+    }
+    
+    inline operator TestType() const { return this->second; }
+  };
+
+template<typename Container, int Iter>
+  void
+  do_loop();
+
+template<typename Container, int Iter>
+  void*
+  do_thread(void* p = 0)
+  {
+    do_loop<Container, Iter>();
+    return p;
+  }
+
+template<typename Container, int Iter, bool Thread>
+  void
+  test_container(const char* filename)
+  {
+    using namespace __gnu_test;
+    time_counter time;
+    resource_counter resource;
+    {
+      start_counters(time, resource);
+      if (!Thread)
+	{
+	  // No threads, so run 4x.
+	  do_loop<Container, Iter * 4>();
+	}
+      else
+	{
+#if defined (_GLIBCXX_GCC_GTHR_POSIX_H) && !defined (NOTHREAD)
+	  pthread_t  t1, t2, t3, t4;
+	  pthread_create(&t1, 0, &do_thread<Container, Iter>, 0);
+	  pthread_create(&t2, 0, &do_thread<Container, Iter>, 0);
+	  pthread_create(&t3, 0, &do_thread<Container, Iter>, 0);
+	  pthread_create(&t4, 0, &do_thread<Container, Iter>, 0);
+	  
+	  pthread_join(t1, 0);
+	  pthread_join(t2, 0);
+	  pthread_join(t3, 0);
+	  pthread_join(t4, 0);
+#endif
+	}
+      stop_counters(time, resource);
+
+      // Detailed text data.
+      Container obj;
+      int status;
+      std::ostringstream comment;
+      comment << "type: " << abi::__cxa_demangle(typeid(obj).name(),
+                                                 0, 0, &status);
+      report_header(filename, comment.str());
+      report_performance("", "", time, resource);
+
+      // Detailed data for visualization.
+      std::string vizfilename(filename);
+      vizfilename += ".dat";
+      write_viz_data(time, vizfilename.c_str());
+    }
+  }
+
+template<bool Thread>
+  struct test_sequence
+  {
+    test_sequence(const char* filename) : _M_filename(filename) { }
+
+    template<class Container>
+      void
+      operator()(Container)
+      {
+	const int i = 20000;
+	test_container<Container, i, Thread>(_M_filename); 
+      }
+
+  private:
+    const char* _M_filename;
+  };
+
+
+inline std::string::size_type
+sequence_find_container(std::string& type)
+{
+  const std::string::size_type npos = std::string::npos;
+  std::string::size_type n1 = type.find("vector");
+  std::string::size_type n2 = type.find("list");
+  std::string::size_type n3 = type.find("deque");
+  std::string::size_type n4 = type.find("string");
+  
+  if (n1 != npos || n2 != npos || n3 != npos || n4 != npos)
+    return std::min(std::min(n1, n2), std::min(n3, n4));
+  else
+    throw std::runtime_error("sequence_find_container not found");
+}
+
+inline std::string::size_type
+associative_find_container(std::string& type)
+{
+  using std::string;
+  string::size_type n1 = type.find("map");
+  string::size_type n2 = type.find("set");
+  if (n1 != string::npos || n2 != string::npos)
+    return std::min(n1, n2);
+  else
+    throw std::runtime_error("associative_find_container not found");
+}
 
 #endif // _GLIBCXX_PERFORMANCE_H
 

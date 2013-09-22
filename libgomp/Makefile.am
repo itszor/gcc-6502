@@ -22,22 +22,56 @@ toolexeclib_LTLIBRARIES = libgomp.la
 nodist_toolexeclib_HEADERS = libgomp.spec
 
 if LIBGOMP_BUILD_VERSIONED_SHLIB
-libgomp_version_script = -Wl,--version-script,$(top_srcdir)/libgomp.map
+# -Wc is only a libtool option.
+comma = ,
+PREPROCESS = $(subst -Wc$(comma), , $(COMPILE)) -E
+
+libgomp.ver: $(top_srcdir)/libgomp.map
+	$(EGREP) -v '#(#| |$$)' $< | \
+	  $(PREPROCESS) -P -include config.h - > $@ || (rm -f $@ ; exit 1)
+
+if LIBGOMP_BUILD_VERSIONED_SHLIB_GNU
+libgomp_version_script = -Wl,--version-script,libgomp.ver
+libgomp_version_dep = libgomp.ver
+endif
+if LIBGOMP_BUILD_VERSIONED_SHLIB_SUN
+libgomp_version_script = -Wl,-M,libgomp.ver-sun
+libgomp_version_dep = libgomp.ver-sun
+libgomp.ver-sun : libgomp.ver \
+		$(top_srcdir)/../contrib/make_sunver.pl \
+		$(libgomp_la_OBJECTS) $(libgomp_la_LIBADD)
+	perl $(top_srcdir)/../contrib/make_sunver.pl \
+	  libgomp.ver \
+	  $(libgomp_la_OBJECTS:%.lo=.libs/%.o) \
+	 `echo $(libgomp_la_LIBADD) | \
+	    sed 's,/\([^/.]*\)\.la,/.libs/\1.a,g'` \
+	 > $@ || (rm -f $@ ; exit 1)
+endif
 else
 libgomp_version_script =
+libgomp_version_dep =
 endif
 libgomp_version_info = -version-info $(libtool_VERSION)
-libgomp_la_LDFLAGS = $(libgomp_version_info) $(libgomp_version_script)
+libgomp_la_LDFLAGS = $(libgomp_version_info) $(libgomp_version_script) \
+        $(lt_host_flags)
+libgomp_la_DEPENDENCIES = $(libgomp_version_dep)
+libgomp_la_LINK = $(LINK) $(libgomp_la_LDFLAGS)
 
 libgomp_la_SOURCES = alloc.c barrier.c critical.c env.c error.c iter.c \
-	loop.c ordered.c parallel.c sections.c single.c team.c work.c \
-	lock.c mutex.c proc.c sem.c bar.c time.c fortran.c affinity.c
+	iter_ull.c loop.c loop_ull.c ordered.c parallel.c sections.c single.c \
+	task.c team.c work.c lock.c mutex.c proc.c sem.c bar.c ptrlock.c \
+	time.c fortran.c affinity.c
 
 nodist_noinst_HEADERS = libgomp_f.h
 nodist_libsubinclude_HEADERS = omp.h
 if USE_FORTRAN
 nodist_finclude_HEADERS = omp_lib.h omp_lib.f90 omp_lib.mod omp_lib_kinds.mod
 endif
+
+LTLDFLAGS = $(shell $(SHELL) $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+
+LINK = $(LIBTOOL) --tag CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link \
+	$(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LTLDFLAGS) -o $@
 
 omp_lib_kinds.mod: omp_lib.mod
 	:
@@ -48,20 +82,6 @@ fortran.o: libgomp_f.h
 env.lo: libgomp_f.h
 env.o: libgomp_f.h
 
-
-# No install-html or install-pdf support in automake yet
-.PHONY: install-html install-pdf
-install-html:
-
-install-pdf: $(PDFS)
-	@$(NORMAL_INSTALL)
-	test -z "$(pdfdir)" || $(mkinstalldirs) "$(DESTDIR)$(pdfdir)"
-	@list='$(PDFS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(INSTALL_DATA) '$$d$$p' '$(DESTDIR)$(pdfdir)/$$f'"; \
-	  $(INSTALL_DATA) "$$d$$p" "$(DESTDIR)$(pdfdir)/$$f"; \
-	done
 
 # Automake Documentation:
 # If your package has Texinfo files in many directories, you can use the

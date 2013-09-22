@@ -1,7 +1,8 @@
 /* Test for handling of function pointer ivars */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 
 extern int strcmp(const char *, const char *);
 extern void abort(void);
@@ -9,7 +10,7 @@ extern void abort(void);
 
 typedef float (*floatfunc)(float, float);
 
-@interface MyObject : Object
+@interface MyObject : TestsuiteObject
 {
 @public
   int (*ivar)(int, int, int);

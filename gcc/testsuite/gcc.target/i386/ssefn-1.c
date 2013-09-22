@@ -2,12 +2,13 @@
    Written by Paolo Bonzini, 25 January 2005 */
 
 /* { dg-do compile } */
-/* { dg-require-effective-target ilp32 } */
+/* { dg-require-effective-target ia32 } */
 /* { dg-final { scan-assembler "movss" } } */
 /* { dg-final { scan-assembler "mulss" } } */
 /* { dg-final { scan-assembler-not "movsd" } } */
 /* { dg-final { scan-assembler-not "mulsd" } } */
-/* { dg-options "-O2 -march=i386 -msse -mfpmath=sse -fno-inline" } */
+/* { dg-skip-if "" { i?86-*-* x86_64-*-* } { "-march=*" } { "-march=i386" } } */
+/* { dg-options "-O2 -march=i386 -msse -mno-sse2 -mfpmath=sse -fno-inline" } */
 
 static float xs (void)
 {

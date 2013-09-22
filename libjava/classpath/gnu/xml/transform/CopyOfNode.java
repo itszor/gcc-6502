@@ -1,4 +1,4 @@
-/* CopyOfNode.java -- 
+/* CopyOfNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -151,22 +153,22 @@ final class CopyOfNode
                  context, pos, len,
                  parent, nextSibling);
   }
-  
+
   public boolean references(QName var)
   {
     if (select != null && select.references(var))
       return true;
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("copy-of");
+    CPStringBuilder buf = new CPStringBuilder("copy-of");
     buf.append('[');
     buf.append("select=");
     buf.append(select);
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

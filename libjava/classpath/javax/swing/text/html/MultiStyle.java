@@ -48,10 +48,10 @@ import javax.swing.text.Style;
 /**
  * A Style implementation that is able to multiplex between several other
  * Styles. This is used for CSS style resolving.
- * 
+ *
  * @author Roman Kennke (kennke@aicas.com)
  */
-public class MultiStyle
+class MultiStyle
   extends MultiAttributeSet
   implements Style
 {
@@ -118,7 +118,7 @@ public class MultiStyle
     attributes.removeAttribute(name);
   }
 
-  public void removeAttributes(Enumeration names)
+  public void removeAttributes(Enumeration<?> names)
   {
     attributes.removeAttribute(names);
   }

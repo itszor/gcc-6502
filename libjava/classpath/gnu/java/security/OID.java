@@ -38,6 +38,8 @@ exception statement from your version. */
 
 package gnu.java.security;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.der.DEREncodingException;
 
 import java.io.ByteArrayOutputStream;
@@ -73,7 +75,7 @@ public class OID implements Cloneable, Comparable, java.io.Serializable
 
   /* Serial version id for serialization. */
   static final long serialVersionUID = 5722492029044597779L;
-  
+
   /**
    * The numeric ID structure.
    */
@@ -359,7 +361,7 @@ public class OID implements Cloneable, Comparable, java.io.Serializable
       return strRep;
     else
       {
-        StringBuffer buf = new StringBuffer();
+        CPStringBuilder buf = new CPStringBuilder();
         for (int i = 0; i < components.length; i++)
           {
             buf.append((long) components[i] & 0xFFFFFFFFL);

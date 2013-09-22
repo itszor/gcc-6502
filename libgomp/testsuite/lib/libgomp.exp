@@ -21,6 +21,10 @@ load_gcc_lib prune.exp
 load_gcc_lib target-libpath.exp
 load_gcc_lib wrapper.exp
 load_gcc_lib gcc-defs.exp
+load_gcc_lib torture-options.exp
+load_gcc_lib timeout.exp
+load_gcc_lib timeout-dg.exp
+load_gcc_lib fortran-modules.exp
 load_gcc_lib gcc-dg.exp
 load_gcc_lib gfortran-dg.exp
 
@@ -63,6 +67,13 @@ proc libgomp_init { args } {
     setenv LC_ALL C
     setenv LANG C
 
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
+
     if ![info exists GCC_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {
 	    set GCC_UNDER_TEST $TOOL_EXECUTABLE
@@ -95,6 +106,10 @@ proc libgomp_init { args } {
 
     # Compute what needs to be added to the existing LD_LIBRARY_PATH.
     if {$gccdir != ""} {
+	# Add AIX pthread directory first.
+	if { [llength [glob -nocomplain ${gccdir}/pthread/libgcc_s*.a]] >= 1 } {
+	    append always_ld_library_path ":${gccdir}/pthread"
+	}
 	append always_ld_library_path ":${gccdir}"
 	set compiler [lindex $GCC_UNDER_TEST 0]
 
@@ -114,14 +129,19 @@ proc libgomp_init { args } {
     }
 
     set ALWAYS_CFLAGS ""
-    lappend ALWAYS_CFLAGS "additional_flags=-B${blddir}/"
-    lappend ALWAYS_CFLAGS "additional_flags=-I${blddir}"
+    if { $blddir != "" } {
+        lappend ALWAYS_CFLAGS "additional_flags=-B${blddir}/"
+        # targets that use libgomp.a%s in their specs need a -B option
+        # for uninstalled testing.
+        lappend ALWAYS_CFLAGS "additional_flags=-B${blddir}/.libs"
+        lappend ALWAYS_CFLAGS "additional_flags=-I${blddir}"
+        lappend ALWAYS_CFLAGS "ldflags=-L${blddir}/.libs"
+    }
     lappend ALWAYS_CFLAGS "additional_flags=-I${srcdir}/.."
-    lappend ALWAYS_CFLAGS "ldflags=-L${blddir}/.libs -lgomp"
 
     # We use atomic operations in the testcases to validate results.
     if { ([istarget i?86-*-*] || [istarget x86_64-*-*])
-	 && [check_effective_target_ilp32] } {
+	 && [check_effective_target_ia32] } {
 	lappend ALWAYS_CFLAGS "additional_flags=-march=i486"
     }
 
@@ -141,6 +161,9 @@ proc libgomp_init { args } {
     # error-message parsing machinery.
     lappend ALWAYS_CFLAGS "additional_flags=-fmessage-length=0"
 
+    # Disable caret
+    lappend ALWAYS_CFLAGS "additional_flags=-fno-diagnostics-show-caret"
+
     # And, gee, turn on OpenMP.
     lappend ALWAYS_CFLAGS "additional_flags=-fopenmp"
 }
@@ -159,8 +182,14 @@ proc libgomp_target_compile { source dest type options } {
     global lang_library_path
     global lang_link_flags
 
-    if { [info exists lang_test_file] && [file exists "${blddir}/"] } {
-	lappend options "ldflags=-L${blddir}/${lang_library_path} ${lang_link_flags}"
+    if { [info exists lang_test_file] } {
+        if { $blddir != "" } {
+            # Some targets use libgfortran.a%s in their specs, so they need
+            # a -B option for uninstalled testing.
+            lappend options "additional_flags=-B${blddir}/${lang_library_path}"
+            lappend options "ldflags=-L${blddir}/${lang_library_path}"
+        }
+        lappend options "ldflags=${lang_link_flags}"
     }
 
     if { [target_info needs_status_wrapper] != "" && [info exists gluefile] } {
@@ -169,6 +198,7 @@ proc libgomp_target_compile { source dest type options } {
     }
 
     lappend options "additional_flags=[libio_include_flags]"
+    lappend options "timeout=[timeout_value]"
     lappend options "compiler=$GCC_UNDER_TEST"
 
     set options [concat $libgomp_compile_options $options]

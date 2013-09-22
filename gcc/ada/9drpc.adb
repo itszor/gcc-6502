@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2006 Free Software Foundation, Inc.          --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -81,7 +79,7 @@ package body System.RPC is
    --  or when a write procedure is executed on a full stream
 
    Partition_RPC_Receiver : RPC_Receiver;
-   --  Cache the RPC_Recevier passed by Establish_RPC_Receiver
+   --  Cache the RPC_Receiver passed by Establish_RPC_Receiver
 
    type Anonymous_Task_Node;
 
@@ -155,7 +153,7 @@ package body System.RPC is
       entry Wake_Up
         (Request : Request_Id_Type;
          Length  : Ada.Streams.Stream_Element_Count);
-      --  To wake up the calling stub when the environnement task has
+      --  To wake up the calling stub when the environment task has
       --  received a reply for this request
 
    end Dispatcher;
@@ -544,7 +542,7 @@ package body System.RPC is
             New_Result : aliased Params_Stream_Type (R_Length);
          begin
             --  Adjust the Result stream size right now to be able to load
-            --  the stream in one receive call. Create a temporary resutl
+            --  the stream in one receive call. Create a temporary result
             --  that will be substituted to Do_RPC one
 
             Streams.Allocate (New_Result);
@@ -728,7 +726,7 @@ package body System.RPC is
                Request := Last_Request;
 
                --  << TODO >>
-               --  ??? Avaibility check
+               --  ??? Availability check
 
                if Last_Request = Request_Id_Type'Last then
                   Last_Request := Request_Id_Type'First;
@@ -867,7 +865,7 @@ package body System.RPC is
                  (Header'Access,
                   Streams.Get_Stream_Size (Result'Access));
 
-               --  Get a protocol method to comunicate with the remote
+               --  Get a protocol method to communicate with the remote
                --  partition and give the message size
 
                D (D_Communication,
@@ -1010,7 +1008,7 @@ package body System.RPC is
             Garbage_Collector.Allocate (Anonymous);
 
             --  We subtracted the size of the header from the size of the
-            --  global message in order to provide immediatly Params size
+            --  global message in order to provide immediately Params size
 
             Anonymous.Element.Start
               (Message_Id,

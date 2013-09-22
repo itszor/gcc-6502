@@ -37,16 +37,9 @@ exception statement from your version. */
 
 package gnu.javax.imageio.jpeg;
 
-import java.io.EOFException;
 import java.io.IOException;
-import javax.imageio.*;
-import javax.imageio.spi.*;
-import javax.imageio.metadata.*;
 import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageInputStreamImpl;
-
-import java.util.Iterator;
-import java.awt.image.BufferedImage;
 
 public class JPEGImageInputStream
   extends ImageInputStreamImpl
@@ -54,7 +47,7 @@ public class JPEGImageInputStream
   private ImageInputStream in;
 
   byte marker;
-  
+
   public JPEGImageInputStream(ImageInputStream in)
   {
     super();
@@ -75,7 +68,7 @@ public class JPEGImageInputStream
     setBitOffset(0);
     return in.read(data, offset, len);
   }
-  
+
   /**
    * Pull a byte from the stream, this checks to see if the byte is 0xff
    * and if the next byte isn't 0x00 (stuffed byte) it errors out. If it's
@@ -124,7 +117,7 @@ public class JPEGImageInputStream
    * @return the amount of bits specified by l as an integer
    *
    * @throws IOException TODO
-   * @throws JPEGMarkerFoundException 
+   * @throws JPEGMarkerFoundException
    * @throws BitStreamException TODO
    */
   public int readBit()
@@ -136,7 +129,7 @@ public class JPEGImageInputStream
   int newOffset = (bitOffset + 1) & 0x7;
 
   byte data = pullByte();
-  
+
   if (bitOffset != 0)
     {
         seek(getStreamPosition() - 1);

@@ -1,5 +1,6 @@
 /* Yet another mysterious gimplifier crasher.  */
 /* { dg-do compile } */
+/* { dg-prune-output ".*internal compiler error.*" } */
 /* { dg-options "-O3" } */
 
 @class NSString;

@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler.
    NEC VR Series Processors
-   Copyright (c) 2002, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
 This file is part of GCC.
@@ -20,12 +20,13 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #define DEFAULT_VR_ARCH "mfix-vr4130"
-#define MIPS_ABI_DEFAULT ABI_EABI
+#undef MULTILIB_DEFAULTS
 #define MULTILIB_DEFAULTS \
 	{ MULTILIB_ENDIAN_DEFAULT,		\
 	  MULTILIB_ABI_DEFAULT,			\
 	  DEFAULT_VR_ARCH }
 
+#undef DRIVER_SELF_SPECS
 #define DRIVER_SELF_SPECS \
 	/* Enforce the default architecture.  This is mostly for	\
 	   the assembler's benefit.  */					\
@@ -51,4 +52,7 @@ along with GCC; see the file COPYING3.  If not see
 	"%{mabi=eabi:%{!mlong*:%{!mgp32:-mlong64}}}",			\
 									\
 	/* Remove -mgp32 if it is redundant.  */			\
-	"%{mabi=32:%<mgp32}"
+	"%{mabi=32:%<mgp32}",						\
+									\
+	/* Configuration-independent MIPS rules.  */			\
+	BASE_DRIVER_SELF_SPECS

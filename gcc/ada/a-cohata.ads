@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -33,7 +31,8 @@
 --  containers.
 
 package Ada.Containers.Hash_Tables is
-   pragma Pure;  --  so this can be imported by Remote_Types packages
+   pragma Pure;
+   --  Declare Pure so this can be imported by Remote_Types packages
 
    generic
       type Node_Type (<>) is limited private;
@@ -44,14 +43,34 @@ package Ada.Containers.Hash_Tables is
       type Buckets_Type is array (Hash_Type range <>) of Node_Access;
 
       type Buckets_Access is access all Buckets_Type;
-      for Buckets_Access'Storage_Size use 0;  --  so this package can be Pure
+      for Buckets_Access'Storage_Size use 0;
+      --  Storage_Size of zero so this package can be Pure
 
       type Hash_Table_Type is tagged record
          Buckets : Buckets_Access;
          Length  : Count_Type := 0;
-         Busy    : Natural := 0;
-         Lock    : Natural := 0;
+         Busy    : Natural    := 0;
+         Lock    : Natural    := 0;
       end record;
    end Generic_Hash_Table_Types;
+
+   generic
+      type Node_Type is private;
+   package Generic_Bounded_Hash_Table_Types is
+      type Nodes_Type is array (Count_Type range <>) of Node_Type;
+      type Buckets_Type is array (Hash_Type range <>) of Count_Type;
+
+      type Hash_Table_Type
+        (Capacity : Count_Type;
+         Modulus  : Hash_Type) is
+      tagged record
+         Length  : Count_Type                  := 0;
+         Busy    : Natural                     := 0;
+         Lock    : Natural                     := 0;
+         Free    : Count_Type'Base             := -1;
+         Nodes   : Nodes_Type (1 .. Capacity)  := (others => <>);
+         Buckets : Buckets_Type (1 .. Modulus) := (others => 0);
+      end record;
+   end Generic_Bounded_Hash_Table_Types;
 
 end Ada.Containers.Hash_Tables;

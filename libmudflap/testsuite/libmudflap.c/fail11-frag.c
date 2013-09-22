@@ -1,15 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+char *y;
 int main ()
 {
 int i = 10;
 char *x = (char *) malloc (i * sizeof (char));
-
+y = x;
 while (i--)
 {
   ++x;
-  *x = 0;
+  *x = i;
 }
 return 0;
 }

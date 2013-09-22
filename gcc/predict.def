@@ -1,5 +1,5 @@
 /* Definitions for the branch prediction routines in the GNU compiler.
-   Copyright (C) 2001, 2003, 2004, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -32,7 +32,7 @@ along with GCC; see the file COPYING3.  If not see
    HITRATE is the probability that edge predicted by predictor as taken
    will be really taken (so it should be always above
    REG_BR_PROB_BASE / 2).  */
-   
+
 
 /* A value used as final outcome of all heuristics.  */
 DEF_PREDICTOR (PRED_COMBINED, "combined", PROB_ALWAYS, 0)
@@ -66,14 +66,14 @@ DEF_PREDICTOR (PRED_LOOP_ITERATIONS_GUESSED, "guessed loop iterations",
 	       PROB_ALWAYS, PRED_FLAG_FIRST_MATCH)
 
 /* Branch containing goto is probably not taken.  */
-DEF_PREDICTOR (PRED_CONTINUE, "continue", HITRATE (56), 0)
+DEF_PREDICTOR (PRED_CONTINUE, "continue", HITRATE (50), 0)
 
 /* Branch to basic block containing call marked by noreturn attribute.  */
-DEF_PREDICTOR (PRED_NORETURN, "noreturn call", HITRATE (99),
+DEF_PREDICTOR (PRED_NORETURN, "noreturn call", PROB_VERY_LIKELY,
 	       PRED_FLAG_FIRST_MATCH)
 
 /* Branch to basic block containing call marked by cold function attribute.  */
-DEF_PREDICTOR (PRED_COLD_FUNCTION, "cold function call", HITRATE (99),
+DEF_PREDICTOR (PRED_COLD_FUNCTION, "cold function call", PROB_VERY_LIKELY,
 	       PRED_FLAG_FIRST_MATCH)
 
 /* Loopback edge is taken.  */
@@ -92,15 +92,15 @@ DEF_PREDICTOR (PRED_TREE_POINTER, "pointer (on trees)", HITRATE (85), 0)
 DEF_PREDICTOR (PRED_OPCODE_POSITIVE, "opcode values positive", HITRATE (79), 0)
 DEF_PREDICTOR (PRED_OPCODE_NONEQUAL, "opcode values nonequal", HITRATE (71), 0)
 DEF_PREDICTOR (PRED_FPOPCODE, "fp_opcode", HITRATE (90), 0)
-DEF_PREDICTOR (PRED_TREE_OPCODE_POSITIVE, "opcode values positive (on trees)", HITRATE (70), 0)
-DEF_PREDICTOR (PRED_TREE_OPCODE_NONEQUAL, "opcode values nonequal (on trees)", HITRATE (69), 0)
+DEF_PREDICTOR (PRED_TREE_OPCODE_POSITIVE, "opcode values positive (on trees)", HITRATE (73), 0)
+DEF_PREDICTOR (PRED_TREE_OPCODE_NONEQUAL, "opcode values nonequal (on trees)", HITRATE (72), 0)
 DEF_PREDICTOR (PRED_TREE_FPOPCODE, "fp_opcode (on trees)", HITRATE (90), 0)
 
 /* Branch guarding call is probably taken.  */
-DEF_PREDICTOR (PRED_CALL, "call", HITRATE (69), 0)
+DEF_PREDICTOR (PRED_CALL, "call", HITRATE (71), 0)
 
 /* Branch causing function to terminate is probably not taken.  */
-DEF_PREDICTOR (PRED_TREE_EARLY_RETURN, "early return (on trees)", HITRATE (54), 0)
+DEF_PREDICTOR (PRED_TREE_EARLY_RETURN, "early return (on trees)", HITRATE (61), 0)
 
 /* Branch containing goto is probably not taken.  */
 DEF_PREDICTOR (PRED_GOTO, "goto", HITRATE (70), 0)
@@ -112,7 +112,24 @@ DEF_PREDICTOR (PRED_CONST_RETURN, "const return", HITRATE (67), 0)
 DEF_PREDICTOR (PRED_NEGATIVE_RETURN, "negative return", HITRATE (96), 0)
 
 /* Branch ending with return; is probably not taken */
-DEF_PREDICTOR (PRED_NULL_RETURN, "null return", HITRATE (96), 0)
+DEF_PREDICTOR (PRED_NULL_RETURN, "null return", HITRATE (90), 0)
 
 /* Branches to a mudflap bounds check are extremely unlikely.  */
 DEF_PREDICTOR (PRED_MUDFLAP, "mudflap check", PROB_VERY_LIKELY, 0)
+
+/* Branches to compare induction variable to a loop bound is
+   extremely likely.  */
+DEF_PREDICTOR (PRED_LOOP_IV_COMPARE_GUESS, "guess loop iv compare",
+	       PROB_VERY_LIKELY, 0)
+
+/* Use number of loop iterations determined by # of iterations analysis
+   to set probability of branches that compares IV to loop bound variable.  */
+DEF_PREDICTOR (PRED_LOOP_IV_COMPARE, "loop iv compare", PROB_VERY_LIKELY,
+	       PRED_FLAG_FIRST_MATCH)
+
+/* Branches to hot labels are likely.  */
+DEF_PREDICTOR (PRED_HOT_LABEL, "hot label", HITRATE (85), 0)
+
+/* Branches to cold labels are extremely unlikely.  */
+DEF_PREDICTOR (PRED_COLD_LABEL, "cold label", PROB_VERY_LIKELY,
+	       PRED_FLAG_FIRST_MATCH)

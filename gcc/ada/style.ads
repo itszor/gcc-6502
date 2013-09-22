@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,38 +23,53 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package collects all the routines used for style checking, as
---  activated by the relevant command line option. These are gathered in a
---  separate package so that they can more easily be customized. Calls to
---  these subprograms are only made if Opt.Style_Check is set True.
+--  This package collects all the routines used for style checking in the
+--  compiler, as activated by the relevant command line option. These are
+--  gathered in a separate package so that they can more easily be customized.
+--  Calls to these subprograms are only made if Opt.Style_Check is set True.
 
 with Errout;
 with Styleg;
-with Styleg.C;
 with Types;    use Types;
 
 package Style is
+
+   procedure Body_With_No_Spec (N : Node_Id);
+   --  Called where N is a subprogram body node for a subprogram body
+   --  for which no spec was given, i.e. a body acting as its own spec.
+
+   procedure Check_Array_Attribute_Index
+     (N  : Node_Id;
+      E1 : Node_Id;
+      D  : Int);
+   --  Called for an array attribute specifying an index number. N is the
+   --  node for the attribute, and E1 is the index expression (Empty if none
+   --  present). If E1 is present, it is known to be a static integer. D is
+   --  the number of dimensions of the array.
+
+   procedure Check_Identifier
+     (Ref : Node_Or_Entity_Id;
+      Def : Node_Or_Entity_Id);
+   --  Check style of identifier occurrence. Ref is an N_Identifier node whose
+   --  spelling is to be checked against the Chars spelling in identifier node
+   --  Def (which may be either an N_Identifier, or N_Defining_Identifier node)
+
+   procedure Missing_Overriding (N : Node_Id; E : Entity_Id);
+   --  Called where N is the declaration or body of an overriding operation,
+   --  and the node does not have an overriding_indicator.
+
+   procedure Subprogram_Not_In_Alpha_Order (Name : Node_Id);
+   --  Called if Name is the name of a subprogram body in a package body
+   --  that is not in alphabetical order.
+
+   --  Remaining style routines come from instantiation of Styleg
 
    package Style_Inst is new Styleg
      (Errout.Error_Msg,
       Errout.Error_Msg_S,
       Errout.Error_Msg_SC,
       Errout.Error_Msg_SP);
-   --  Instantiation of Styleg for all subprograms that do not depend directly
-   --  depend on the GNAT tree.
-
-   package Style_C_Inst is new Style_Inst.C
-     (Errout.Error_Msg_N);
-   --  Instantiation of Styleg.C for the subprograms that depend directly
-   --  on the GNAT tree.
-
-   --  All subroutines below are renames of subroutines in the two
-   --  instantiations above.
-
-   procedure Body_With_No_Spec (N : Node_Id)
-     renames Style_C_Inst.Body_With_No_Spec;
-   --  Called where N is a subprogram body node for a subprogram body
-   --  for which no spec was given, i.e. a body acting as its own spec.
+   --  Instantiation of Styleg for compiler use
 
    procedure Check_Abs_Not
      renames Style_Inst.Check_Abs_Not;
@@ -63,16 +78,6 @@ package Style is
    procedure Check_Apostrophe
      renames Style_Inst.Check_Apostrophe;
    --  Called after scanning an apostrophe to check spacing
-
-   procedure Check_Array_Attribute_Index
-     (N  : Node_Id;
-      E1 : Node_Id;
-      D  : Int)
-     renames Style_C_Inst.Check_Array_Attribute_Index;
-   --  Called for an array attribute specifying an index number. N is the
-   --  node for the attribute, and E1 is the index expression (Empty if none
-   --  present). If E1 is present, it is known to be a static integer. D is
-   --  the number of dimensions of the array.
 
    procedure Check_Arrow
      renames Style_Inst.Check_Arrow;
@@ -84,6 +89,10 @@ package Style is
    --  capitalized in an appropriate manner. Reserved is set if the attribute
    --  designator is a reserved word (access, digits, delta or range) to allow
    --  differing rules for the two cases.
+
+   procedure Check_Boolean_Operator (Node : Node_Id)
+     renames Style_Inst.Check_Boolean_Operator;
+   --  Called after resolving AND or OR node to check short circuit rules
 
    procedure Check_Box
      renames Style_Inst.Check_Box;
@@ -128,14 +137,6 @@ package Style is
      renames Style_Inst.Check_HT;
    --  Called with Scan_Ptr pointing to a horizontal tab character
 
-   procedure Check_Identifier
-     (Ref : Node_Or_Entity_Id;
-      Def : Node_Or_Entity_Id)
-     renames Style_C_Inst.Check_Identifier;
-   --  Check style of identifier occurrence. Ref is an N_Identifier node whose
-   --  spelling is to be checked against the Chars spelling in identifier node
-   --  Def (which may be either an N_Identifier, or N_Defining_Identifier node)
-
    procedure Check_Indentation
      renames Style_Inst.Check_Indentation;
    --  Called at the start of a new statement or declaration, with Token_Ptr
@@ -153,6 +154,11 @@ package Style is
    --  the current line, used to check for appropriate line terminator and to
    --  check the line length (Len is the length of the current line). Note that
    --  the terminator may be the EOF character.
+
+   procedure Check_Not_In
+     renames Style_Inst.Check_Not_In;
+   --  Called with Scan_Ptr pointing to an IN token, and Prev_Token_Ptr
+   --  pointing to a NOT token. Used to check proper layout of NOT IN.
 
    procedure Check_Pragma_Name
      renames Style_Inst.Check_Pragma_Name;
@@ -184,8 +190,8 @@ package Style is
 
    procedure Check_Xtra_Parens (Loc : Source_Ptr)
      renames Style_Inst.Check_Xtra_Parens;
-   --  Called after scanning a conditional expression that has at least one
-   --  level of parentheses around the entire expression.
+   --  Called after scanning an if, case or quantified expression that has at
+   --  least one level of parentheses around the entire expression.
 
    function Mode_In_Check return Boolean
      renames Style_Inst.Mode_In_Check;
@@ -213,15 +219,4 @@ package Style is
    --  lower case letters. On entry Token_Ptr points to the keyword token.
    --  This is not used for keywords appearing as attribute designators,
    --  where instead Check_Attribute_Name (True) is called.
-
-   function RM_Column_Check return Boolean
-     renames Style_Inst.RM_Column_Check;
-   --  Determines whether style checking is active and the RM column check
-   --  mode is set requiring checking of RM format layout.
-
-   procedure Subprogram_Not_In_Alpha_Order (Name : Node_Id)
-     renames Style_C_Inst.Subprogram_Not_In_Alpha_Order;
-   --  Called if Name is the name of a subprogram body in a package body
-   --  that is not in alphabetical order.
-
 end Style;

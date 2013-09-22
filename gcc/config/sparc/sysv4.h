@@ -1,6 +1,5 @@
 /* Target definitions for GNU compiler for SPARC running System V.4
-   Copyright (C) 1991, 1992, 1995, 1996, 1997, 1998, 2000, 2002, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1991-2013 Free Software Foundation, Inc.
    Contributed by Ron Guilmette (rfg@monkeys.com).
 
 This file is part of GCC.
@@ -19,29 +18,20 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-#ifndef TARGET_VERSION
-#define TARGET_VERSION fprintf (stderr, " (sparc ELF)"); 
-#endif
-
-/* ??? Put back the SIZE_TYPE/PTRDIFF_TYPE definitions set by sparc.h.
-   Why, exactly, is svr4.h messing with this?  Seems like the chip 
-   would know best.  */
-
 #undef SIZE_TYPE
 #define SIZE_TYPE (TARGET_ARCH64 ? "long unsigned int" : "unsigned int")
 
 #undef PTRDIFF_TYPE
 #define PTRDIFF_TYPE (TARGET_ARCH64 ? "long int" : "int")
 
-/* Undefined some symbols which are defined in "svr4.h" but which are
-   appropriate only for typical svr4 systems, but not for the specific
-   case of svr4 running on a SPARC.  */
+/* Undefined some symbols which are appropriate only for typical svr4
+   systems, but not for the specific case of svr4 running on a
+   SPARC.  */
 
 #undef INIT_SECTION_ASM_OP
 #undef FINI_SECTION_ASM_OP
 #undef READONLY_DATA_SECTION_ASM_OP
 #undef TYPE_OPERAND_FMT
-#undef PUSHSECTION_FORMAT
 #undef STRING_ASM_OP
 #undef COMMON_ASM_OP
 #undef SKIP_ASM_OP
@@ -50,7 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 /* Pass -K to the assembler when PIC.  */
 #undef ASM_SPEC
 #define ASM_SPEC \
-  "%{v:-V} %{Qy:} %{!Qn:-Qy} %{n} %{T} %{Ym,*} %{Yd,*} %{Wa,*:%*} \
+  "%{v:-V} %{Qy:} %{!Qn:-Qy} %{Ym,*} \
    %{fpic|fPIC|fpie|fPIE:-K PIC} %(asm_cpu)"
 
 /* Define the names of various pseudo-op used by the SPARC/svr4 assembler.
@@ -62,18 +52,11 @@ along with GCC; see the file COPYING3.  If not see
 #define STRING_ASM_OP		"\t.asciz\t"
 #define COMMON_ASM_OP		"\t.common\t"
 #define SKIP_ASM_OP		"\t.skip\t"
-#define PUSHSECTION_ASM_OP	"\t.pushsection\t"
-#define POPSECTION_ASM_OP	"\t.popsection"
 
 /* This is the format used to print the second operand of a .type pseudo-op
    for the SPARC/svr4 assembler.  */
 
 #define TYPE_OPERAND_FMT      "#%s"
-
-/* This is the format used to print a .pushsection pseudo-op (and its operand)
-   for the SPARC/svr4 assembler.  */
-
-#define PUSHSECTION_FORMAT	"%s\"%s\"\n"
 
 #undef ASM_OUTPUT_CASE_LABEL
 #define ASM_OUTPUT_CASE_LABEL(FILE, PREFIX, NUM, JUMPTABLE)		\
@@ -92,22 +75,6 @@ do { ASM_OUTPUT_ALIGN ((FILE), Pmode == SImode ? 2 : 3);		\
 	assemble_name (FILE, LABEL2);					\
 	fprintf (FILE, "\n");						\
   } while (0)
-
-/* Define how the SPARC registers should be numbered for Dwarf output.
-   The numbering provided here should be compatible with the native
-   svr4 SDB debugger in the SPARC/svr4 reference port.  The numbering
-   is as follows:
-
-   Assembly name	gcc internal regno	Dwarf regno
-   ----------------------------------------------------------
-   g0-g7		0-7			0-7
-   o0-o7		8-15			8-15
-   l0-l7		16-23			16-23
-   i0-i7		24-31			24-31
-   f0-f31		32-63			40-71
-*/
-
-#define DBX_REGISTER_NUMBER(REGNO) ((REGNO) < 32 ? (REGNO) : (REGNO) + 8)
 
 /* A set of symbol definitions for assembly pseudo-ops which will
    get us switched to various sections of interest.  These are used
@@ -141,10 +108,6 @@ do { ASM_OUTPUT_ALIGN ((FILE), Pmode == SImode ? 2 : 3);		\
 #define CTORS_SECTION_ASM_OP    "\t.section\t\".ctors\",#alloc,#write"
 #undef DTORS_SECTION_ASM_OP
 #define DTORS_SECTION_ASM_OP    "\t.section\t\".dtors\",#alloc,#write"
-
-/* Switch into a generic section.  */
-#undef TARGET_ASM_NAMED_SECTION
-#define TARGET_ASM_NAMED_SECTION  sparc_elf_asm_named_section
 
 #undef ASM_OUTPUT_ALIGNED_BSS
 #define ASM_OUTPUT_ALIGNED_BSS(FILE, DECL, NAME, SIZE, ALIGN) \

@@ -1,16 +1,15 @@
 /* Check @defs() in Objective-C++ */
 /* Contributed by Devang Patel  <dpatel@apple.com>  */
-
-/* { dg-options "-lobjc" } */
+/* { dg-options "" } */
 /* { dg-do run } */
-
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdlib.h>
 #include <objc/objc.h>
-#include <objc/Object.h>
 
-extern void abort(void);
+extern "C" void abort(void);
 
-@interface A : Object
+@interface A : TestsuiteObject
 {
   @public
     int a;
@@ -41,3 +40,4 @@ int main()
   
   return 0;
 }
+

@@ -24,7 +24,7 @@ contains
     real :: z(2, 2)
 
 ! However, this gives a warning because it is an initialization expression.
-    integer :: l1 = len (ch1)     ! { dg-warning "Assumed character length variable" }
+    integer :: l1 = len (ch1)     ! { dg-error "Assumed or deferred character length variable" }
 
 ! These are warnings because they are gfortran extensions.
     integer :: m3 = size (x, 1)   ! { dg-error "Assumed size array" }
@@ -35,5 +35,3 @@ contains
 
   end subroutine foo  
 end module const
-
-! { dg-final { cleanup-modules "const" } }

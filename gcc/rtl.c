@@ -1,6 +1,5 @@
 /* RTL utility routines.
-   Copyright (C) 1987, 1988, 1991, 1994, 1997, 1998, 1999, 2000, 2001, 2002,
-   2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1987-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,12 +29,11 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "rtl.h"
-#include "real.h"
 #include "ggc.h"
 #ifdef GENERATOR_FILE
 # include "errors.h"
 #else
-# include "toplev.h"
+# include "diagnostic-core.h"
 #endif
 
 
@@ -110,7 +108,8 @@ const enum rtx_class rtx_class[NUM_RTX_CODE] = {
 
 const unsigned char rtx_code_size[NUM_RTX_CODE] = {
 #define DEF_RTL_EXPR(ENUM, NAME, FORMAT, CLASS)				\
-  ((ENUM) == CONST_INT || (ENUM) == CONST_DOUBLE || (ENUM) == CONST_FIXED\
+  (((ENUM) == CONST_INT || (ENUM) == CONST_DOUBLE			\
+    || (ENUM) == CONST_FIXED)						\
    ? RTX_HDR_SIZE + (sizeof FORMAT - 1) * sizeof (HOST_WIDE_INT)	\
    : RTX_HDR_SIZE + (sizeof FORMAT - 1) * sizeof (rtunion)),
 
@@ -134,12 +133,10 @@ const char * const reg_note_name[REG_NOTE_MAX] =
 #undef DEF_REG_NOTE
 };
 
-#ifdef GATHER_STATISTICS
 static int rtx_alloc_counts[(int) LAST_AND_UNUSED_RTX_CODE];
 static int rtx_alloc_sizes[(int) LAST_AND_UNUSED_RTX_CODE];
 static int rtvec_alloc_counts;
 static int rtvec_alloc_sizes;
-#endif
 
 
 /* Allocate an rtx vector of N elements.
@@ -150,18 +147,33 @@ rtvec_alloc (int n)
 {
   rtvec rt;
 
-  rt = ggc_alloc_rtvec (n);
+  rt = ggc_alloc_rtvec_sized (n);
   /* Clear out the vector.  */
   memset (&rt->elem[0], 0, n * sizeof (rtx));
 
   PUT_NUM_ELEM (rt, n);
 
-#ifdef GATHER_STATISTICS
-  rtvec_alloc_counts++;
-  rtvec_alloc_sizes += n * sizeof (rtx);
-#endif
+  if (GATHER_STATISTICS)
+    {
+      rtvec_alloc_counts++;
+      rtvec_alloc_sizes += n * sizeof (rtx);
+    }
 
   return rt;
+}
+
+/* Create a bitwise copy of VEC.  */
+
+rtvec
+shallow_copy_rtvec (rtvec vec)
+{
+  rtvec newvec;
+  int n;
+
+  n = GET_NUM_ELEM (vec);
+  newvec = rtvec_alloc (n);
+  memcpy (&newvec->elem[0], &vec->elem[0], sizeof (rtx) * n);
+  return newvec;
 }
 
 /* Return the number of bytes occupied by rtx value X.  */
@@ -180,9 +192,7 @@ rtx_size (const_rtx x)
 rtx
 rtx_alloc_stat (RTX_CODE code MEM_STAT_DECL)
 {
-  rtx rt;
-
-  rt = (rtx) ggc_alloc_zone_pass_stat (RTX_CODE_SIZE (code), &rtl_zone);
+  rtx rt = ggc_alloc_rtx_def_stat (RTX_CODE_SIZE (code) PASS_MEM_STAT);
 
   /* We want to clear everything up to the FLD array.  Normally, this
      is one int, but we don't want to assume that and it isn't very
@@ -191,10 +201,11 @@ rtx_alloc_stat (RTX_CODE code MEM_STAT_DECL)
   memset (rt, 0, RTX_HDR_SIZE);
   PUT_CODE (rt, code);
 
-#ifdef GATHER_STATISTICS
-  rtx_alloc_counts[code]++;
-  rtx_alloc_sizes[code] += RTX_CODE_SIZE (code);
-#endif
+  if (GATHER_STATISTICS)
+    {
+      rtx_alloc_counts[code]++;
+      rtx_alloc_sizes[code] += RTX_CODE_SIZE (code);
+    }
 
   return rt;
 }
@@ -206,12 +217,12 @@ bool
 shared_const_p (const_rtx orig)
 {
   gcc_assert (GET_CODE (orig) == CONST);
-  
+
   /* CONST can be shared if it contains a SYMBOL_REF.  If it contains
      a LABEL_REF, it isn't sharable.  */
   return (GET_CODE (XEXP (orig, 0)) == PLUS
 	  && GET_CODE (XEXP (XEXP (orig, 0), 0)) == SYMBOL_REF
-	  && GET_CODE (XEXP (XEXP (orig, 0), 1)) == CONST_INT);
+	  && CONST_INT_P(XEXP (XEXP (orig, 0), 1)));
 }
 
 
@@ -232,19 +243,24 @@ copy_rtx (rtx orig)
   switch (code)
     {
     case REG:
-    case CONST_INT:
-    case CONST_DOUBLE:
-    case CONST_FIXED:
-    case CONST_VECTOR:
+    case DEBUG_EXPR:
+    case VALUE:
+    CASE_CONST_ANY:
     case SYMBOL_REF:
     case CODE_LABEL:
     case PC:
     case CC0:
+    case RETURN:
+    case SIMPLE_RETURN:
     case SCRATCH:
       /* SCRATCH must be shared because they represent distinct values.  */
       return orig;
     case CLOBBER:
-      if (REG_P (XEXP (orig, 0)) && REGNO (XEXP (orig, 0)) < FIRST_PSEUDO_REGISTER)
+      /* Share clobbers of hard registers (like cc0), but do not share pseudo reg
+         clobbers or clobbers of hard registers that originated as pseudos.
+         This is needed to allow safe register renaming.  */
+      if (REG_P (XEXP (orig, 0)) && REGNO (XEXP (orig, 0)) < FIRST_PSEUDO_REGISTER
+	  && ORIGINAL_REGNO (XEXP (orig, 0)) == REGNO (XEXP (orig, 0)))
 	return orig;
       break;
 
@@ -271,12 +287,6 @@ copy_rtx (rtx orig)
   /* We do not copy the USED flag, which is used as a mark bit during
      walks over the RTL.  */
   RTX_FLAG (copy, used) = 0;
-
-  /* We do not copy FRAME_RELATED for INSNs.  */
-  if (INSN_P (orig))
-    RTX_FLAG (copy, frame_related) = 0;
-  RTX_FLAG (copy, jump) = RTX_FLAG (orig, jump);
-  RTX_FLAG (copy, call) = RTX_FLAG (orig, call);
 
   format_ptr = GET_RTX_FORMAT (GET_CODE (copy));
 
@@ -322,8 +332,8 @@ rtx
 shallow_copy_rtx_stat (const_rtx orig MEM_STAT_DECL)
 {
   const unsigned int size = rtx_size (orig);
-  rtx const copy = (rtx) ggc_alloc_zone_pass_stat (size, &rtl_zone);
-  return memcpy (copy, orig, size);
+  rtx const copy = ggc_alloc_rtx_def_stat (size PASS_MEM_STAT);
+  return (rtx) memcpy (copy, orig, size);
 }
 
 /* Nonzero when we are generating CONCATs.  */
@@ -333,8 +343,154 @@ int generating_concat_p;
 int currently_expanding_to_rtl;
 
 
+
+/* Same as rtx_equal_p, but call CB on each pair of rtx if CB is not NULL.
+   When the callback returns true, we continue with the new pair.
+   Whenever changing this function check if rtx_equal_p below doesn't need
+   changing as well.  */
+
+int
+rtx_equal_p_cb (const_rtx x, const_rtx y, rtx_equal_p_callback_function cb)
+{
+  int i;
+  int j;
+  enum rtx_code code;
+  const char *fmt;
+  rtx nx, ny;
+
+  if (x == y)
+    return 1;
+  if (x == 0 || y == 0)
+    return 0;
+
+  /* Invoke the callback first.  */
+  if (cb != NULL
+      && ((*cb) (&x, &y, &nx, &ny)))
+    return rtx_equal_p_cb (nx, ny, cb);
+
+  code = GET_CODE (x);
+  /* Rtx's of different codes cannot be equal.  */
+  if (code != GET_CODE (y))
+    return 0;
+
+  /* (MULT:SI x y) and (MULT:HI x y) are NOT equivalent.
+     (REG:SI x) and (REG:HI x) are NOT equivalent.  */
+
+  if (GET_MODE (x) != GET_MODE (y))
+    return 0;
+
+  /* MEMs referring to different address space are not equivalent.  */
+  if (code == MEM && MEM_ADDR_SPACE (x) != MEM_ADDR_SPACE (y))
+    return 0;
+
+  /* Some RTL can be compared nonrecursively.  */
+  switch (code)
+    {
+    case REG:
+      return (REGNO (x) == REGNO (y));
+
+    case LABEL_REF:
+      return XEXP (x, 0) == XEXP (y, 0);
+
+    case SYMBOL_REF:
+      return XSTR (x, 0) == XSTR (y, 0);
+
+    case DEBUG_EXPR:
+    case VALUE:
+    case SCRATCH:
+    CASE_CONST_UNIQUE:
+      return 0;
+
+    case DEBUG_IMPLICIT_PTR:
+      return DEBUG_IMPLICIT_PTR_DECL (x)
+	     == DEBUG_IMPLICIT_PTR_DECL (y);
+
+    case DEBUG_PARAMETER_REF:
+      return DEBUG_PARAMETER_REF_DECL (x)
+	     == DEBUG_PARAMETER_REF_DECL (x);
+
+    case ENTRY_VALUE:
+      return rtx_equal_p_cb (ENTRY_VALUE_EXP (x), ENTRY_VALUE_EXP (y), cb);
+
+    default:
+      break;
+    }
+
+  /* Compare the elements.  If any pair of corresponding elements
+     fail to match, return 0 for the whole thing.  */
+
+  fmt = GET_RTX_FORMAT (code);
+  for (i = GET_RTX_LENGTH (code) - 1; i >= 0; i--)
+    {
+      switch (fmt[i])
+	{
+	case 'w':
+	  if (XWINT (x, i) != XWINT (y, i))
+	    return 0;
+	  break;
+
+	case 'n':
+	case 'i':
+	  if (XINT (x, i) != XINT (y, i))
+	    {
+#ifndef GENERATOR_FILE
+	      if (((code == ASM_OPERANDS && i == 6)
+		   || (code == ASM_INPUT && i == 1))
+		  && XINT (x, i) == XINT (y, i))
+		break;
+#endif
+	      return 0;
+	    }
+	  break;
+
+	case 'V':
+	case 'E':
+	  /* Two vectors must have the same length.  */
+	  if (XVECLEN (x, i) != XVECLEN (y, i))
+	    return 0;
+
+	  /* And the corresponding elements must match.  */
+	  for (j = 0; j < XVECLEN (x, i); j++)
+	    if (rtx_equal_p_cb (XVECEXP (x, i, j),
+                                XVECEXP (y, i, j), cb) == 0)
+	      return 0;
+	  break;
+
+	case 'e':
+	  if (rtx_equal_p_cb (XEXP (x, i), XEXP (y, i), cb) == 0)
+	    return 0;
+	  break;
+
+	case 'S':
+	case 's':
+	  if ((XSTR (x, i) || XSTR (y, i))
+	      && (! XSTR (x, i) || ! XSTR (y, i)
+		  || strcmp (XSTR (x, i), XSTR (y, i))))
+	    return 0;
+	  break;
+
+	case 'u':
+	  /* These are just backpointers, so they don't matter.  */
+	  break;
+
+	case '0':
+	case 't':
+	  break;
+
+	  /* It is believed that rtx's at this level will never
+	     contain anything but integers and other rtx's,
+	     except for within LABEL_REFs and SYMBOL_REFs.  */
+	default:
+	  gcc_unreachable ();
+	}
+    }
+  return 1;
+}
+
 /* Return 1 if X and Y are identical-looking rtx's.
-   This is the Lisp function EQUAL for rtx arguments.  */
+   This is the Lisp function EQUAL for rtx arguments.
+   Whenever changing this function check if rtx_equal_p_cb above doesn't need
+   changing as well.  */
 
 int
 rtx_equal_p (const_rtx x, const_rtx y)
@@ -360,6 +516,10 @@ rtx_equal_p (const_rtx x, const_rtx y)
   if (GET_MODE (x) != GET_MODE (y))
     return 0;
 
+  /* MEMs referring to different address space are not equivalent.  */
+  if (code == MEM && MEM_ADDR_SPACE (x) != MEM_ADDR_SPACE (y))
+    return 0;
+
   /* Some RTL can be compared nonrecursively.  */
   switch (code)
     {
@@ -372,11 +532,22 @@ rtx_equal_p (const_rtx x, const_rtx y)
     case SYMBOL_REF:
       return XSTR (x, 0) == XSTR (y, 0);
 
+    case DEBUG_EXPR:
+    case VALUE:
     case SCRATCH:
-    case CONST_DOUBLE:
-    case CONST_INT:
-    case CONST_FIXED:
+    CASE_CONST_UNIQUE:
       return 0;
+
+    case DEBUG_IMPLICIT_PTR:
+      return DEBUG_IMPLICIT_PTR_DECL (x)
+	     == DEBUG_IMPLICIT_PTR_DECL (y);
+
+    case DEBUG_PARAMETER_REF:
+      return DEBUG_PARAMETER_REF_DECL (x)
+	     == DEBUG_PARAMETER_REF_DECL (y);
+
+    case ENTRY_VALUE:
+      return rtx_equal_p (ENTRY_VALUE_EXP (x), ENTRY_VALUE_EXP (y));
 
     default:
       break;
@@ -398,7 +569,15 @@ rtx_equal_p (const_rtx x, const_rtx y)
 	case 'n':
 	case 'i':
 	  if (XINT (x, i) != XINT (y, i))
-	    return 0;
+	    {
+#ifndef GENERATOR_FILE
+	      if (((code == ASM_OPERANDS && i == 6)
+		   || (code == ASM_INPUT && i == 1))
+		  && XINT (x, i) == XINT (y, i))
+		break;
+#endif
+	      return 0;
+	    }
 	  break;
 
 	case 'V':
@@ -409,7 +588,7 @@ rtx_equal_p (const_rtx x, const_rtx y)
 
 	  /* And the corresponding elements must match.  */
 	  for (j = 0; j < XVECLEN (x, i); j++)
-	    if (rtx_equal_p (XVECEXP (x, i, j), XVECEXP (y, i, j)) == 0)
+	    if (rtx_equal_p (XVECEXP (x, i, j),  XVECEXP (y, i, j)) == 0)
 	      return 0;
 	  break;
 
@@ -444,13 +623,93 @@ rtx_equal_p (const_rtx x, const_rtx y)
   return 1;
 }
 
+/* Iteratively hash rtx X.  */
+
+hashval_t
+iterative_hash_rtx (const_rtx x, hashval_t hash)
+{
+  enum rtx_code code;
+  enum machine_mode mode;
+  int i, j;
+  const char *fmt;
+
+  if (x == NULL_RTX)
+    return hash;
+  code = GET_CODE (x);
+  hash = iterative_hash_object (code, hash);
+  mode = GET_MODE (x);
+  hash = iterative_hash_object (mode, hash);
+  switch (code)
+    {
+    case REG:
+      i = REGNO (x);
+      return iterative_hash_object (i, hash);
+    case CONST_INT:
+      return iterative_hash_object (INTVAL (x), hash);
+    case SYMBOL_REF:
+      if (XSTR (x, 0))
+	return iterative_hash (XSTR (x, 0), strlen (XSTR (x, 0)) + 1,
+			       hash);
+      return hash;
+    case LABEL_REF:
+    case DEBUG_EXPR:
+    case VALUE:
+    case SCRATCH:
+    case CONST_DOUBLE:
+    case CONST_FIXED:
+    case DEBUG_IMPLICIT_PTR:
+    case DEBUG_PARAMETER_REF:
+      return hash;
+    default:
+      break;
+    }
+
+  fmt = GET_RTX_FORMAT (code);
+  for (i = GET_RTX_LENGTH (code) - 1; i >= 0; i--)
+    switch (fmt[i])
+      {
+      case 'w':
+	hash = iterative_hash_object (XWINT (x, i), hash);
+	break;
+      case 'n':
+      case 'i':
+	hash = iterative_hash_object (XINT (x, i), hash);
+	break;
+      case 'V':
+      case 'E':
+	j = XVECLEN (x, i);
+	hash = iterative_hash_object (j, hash);
+	for (j = 0; j < XVECLEN (x, i); j++)
+	  hash = iterative_hash_rtx (XVECEXP (x, i, j), hash);
+	break;
+      case 'e':
+	hash = iterative_hash_rtx (XEXP (x, i), hash);
+	break;
+      case 'S':
+      case 's':
+	if (XSTR (x, i))
+	  hash = iterative_hash (XSTR (x, 0), strlen (XSTR (x, 0)) + 1,
+				 hash);
+	break;
+      default:
+	break;
+      }
+  return hash;
+}
+
 void
 dump_rtx_statistics (void)
 {
-#ifdef GATHER_STATISTICS
   int i;
   int total_counts = 0;
   int total_sizes = 0;
+
+  if (! GATHER_STATISTICS)
+    {
+      fprintf (stderr, "No RTX statistics\n");
+      return;
+    }
+
   fprintf (stderr, "\nRTX Kind               Count      Bytes\n");
   fprintf (stderr, "---------------------------------------\n");
   for (i = 0; i < LAST_AND_UNUSED_RTX_CODE; i++)
@@ -472,7 +731,6 @@ dump_rtx_statistics (void)
   fprintf (stderr, "%-20s %7d %10d\n",
            "Total", total_counts, total_sizes);
   fprintf (stderr, "---------------------------------------\n");
-#endif  
 }
 
 #if defined ENABLE_RTL_CHECKING && (GCC_VERSION >= 2007)

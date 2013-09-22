@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -26,7 +26,10 @@
 with Einfo;   use Einfo;
 with Nlists;  use Nlists;
 with Nmake;   use Nmake;
+with Opt;     use Opt;
 with Rtsfind; use Rtsfind;
+with Sinfo;   use Sinfo;
+with Snames;  use Snames;
 with Stand;   use Stand;
 with Tbuild;  use Tbuild;
 
@@ -54,26 +57,42 @@ package body Exp_Sel is
               Statements =>
                 New_List (
                   Make_Implicit_Label_Declaration (Loc,
-                    Defining_Identifier =>
-                      Cln_Blk_Ent,
-                    Label_Construct =>
-                      Blk),
+                    Defining_Identifier => Cln_Blk_Ent,
+                    Label_Construct     => Blk),
                   Blk),
 
               Exception_Handlers =>
-                New_List (
-                  Make_Implicit_Exception_Handler (Loc,
-                    Exception_Choices =>
-                      New_List (
-                        New_Reference_To (Stand.Abort_Signal, Loc)),
-                    Statements =>
-                      New_List (
-                        Make_Procedure_Call_Statement (Loc,
-                          Name =>
-                            New_Reference_To (RTE (
-                              RE_Abort_Undefer), Loc),
-                          Parameter_Associations => No_List))))));
+                New_List (Build_Abort_Block_Handler (Loc))));
    end Build_Abort_Block;
+
+   -------------------------------
+   -- Build_Abort_Block_Handler --
+   -------------------------------
+
+   function Build_Abort_Block_Handler (Loc : Source_Ptr) return Node_Id is
+      Stmt : Node_Id;
+
+   begin
+      if Exception_Mechanism = Back_End_Exceptions then
+
+         --  With ZCX, aborts are not defered in handlers
+
+         Stmt := Make_Null_Statement (Loc);
+      else
+         --  With FE SJLJ, aborts are defered at the beginning of Abort_Signal
+         --  handlers.
+
+         Stmt :=
+           Make_Procedure_Call_Statement (Loc,
+             Name => New_Reference_To (RTE (RE_Abort_Undefer), Loc),
+             Parameter_Associations => No_List);
+      end if;
+
+      return Make_Implicit_Exception_Handler (Loc,
+        Exception_Choices =>
+          New_List (New_Reference_To (Stand.Abort_Signal, Loc)),
+        Statements        => New_List (Stmt));
+   end Build_Abort_Block_Handler;
 
    -------------
    -- Build_B --
@@ -83,19 +102,13 @@ package body Exp_Sel is
      (Loc   : Source_Ptr;
       Decls : List_Id) return Entity_Id
    is
-      B : constant Entity_Id := Make_Defining_Identifier (Loc,
-                                  Chars => New_Internal_Name ('B'));
-
+      B : constant Entity_Id := Make_Temporary (Loc, 'B');
    begin
       Append_To (Decls,
         Make_Object_Declaration (Loc,
-          Defining_Identifier =>
-            B,
-          Object_Definition =>
-            New_Reference_To (Standard_Boolean, Loc),
-          Expression =>
-            New_Reference_To (Standard_False, Loc)));
-
+          Defining_Identifier => B,
+          Object_Definition   => New_Reference_To (Standard_Boolean, Loc),
+          Expression          => New_Reference_To (Standard_False, Loc)));
       return B;
    end Build_B;
 
@@ -107,17 +120,12 @@ package body Exp_Sel is
      (Loc   : Source_Ptr;
       Decls : List_Id) return Entity_Id
    is
-      C : constant Entity_Id := Make_Defining_Identifier (Loc,
-                                  Chars => New_Internal_Name ('C'));
-
+      C : constant Entity_Id := Make_Temporary (Loc, 'C');
    begin
       Append_To (Decls,
         Make_Object_Declaration (Loc,
-          Defining_Identifier =>
-            C,
-          Object_Definition =>
-            New_Reference_To (RTE (RE_Prim_Op_Kind), Loc)));
-
+          Defining_Identifier => C,
+          Object_Definition => New_Reference_To (RTE (RE_Prim_Op_Kind), Loc)));
       return C;
    end Build_C;
 
@@ -133,8 +141,9 @@ package body Exp_Sel is
    is
       Cleanup_Block : constant Node_Id :=
                         Make_Block_Statement (Loc,
-                          Identifier   => New_Reference_To (Blk_Ent, Loc),
-                          Declarations => No_List,
+                          Identifier                 =>
+                            New_Reference_To (Blk_Ent, Loc),
+                          Declarations               => No_List,
                           Handled_Statement_Sequence =>
                             Make_Handled_Sequence_Of_Statements (Loc,
                               Statements => Stmts),
@@ -155,10 +164,19 @@ package body Exp_Sel is
       Decls : List_Id;
       Obj   : Entity_Id) return Entity_Id
    is
-      K : constant Entity_Id := Make_Defining_Identifier (Loc,
-                                  Chars => New_Internal_Name ('K'));
+      K        : constant Entity_Id := Make_Temporary (Loc, 'K');
+      Tag_Node : Node_Id;
 
    begin
+      if Tagged_Type_Expansion then
+         Tag_Node := Unchecked_Convert_To (RTE (RE_Tag), Obj);
+      else
+         Tag_Node :=
+           Make_Attribute_Reference (Loc,
+             Prefix         => Obj,
+             Attribute_Name => Name_Tag);
+      end if;
+
       Append_To (Decls,
         Make_Object_Declaration (Loc,
           Defining_Identifier => K,
@@ -167,9 +185,7 @@ package body Exp_Sel is
           Expression          =>
             Make_Function_Call (Loc,
               Name => New_Reference_To (RTE (RE_Get_Tagged_Kind), Loc),
-              Parameter_Associations => New_List (
-                Unchecked_Convert_To (RTE (RE_Tag), Obj)))));
-
+              Parameter_Associations => New_List (Tag_Node))));
       return K;
    end Build_K;
 
@@ -181,16 +197,12 @@ package body Exp_Sel is
      (Loc   : Source_Ptr;
       Decls : List_Id) return Entity_Id
    is
-      S : constant Entity_Id := Make_Defining_Identifier (Loc,
-                                  Chars => New_Internal_Name ('S'));
-
+      S : constant Entity_Id := Make_Temporary (Loc, 'S');
    begin
       Append_To (Decls,
         Make_Object_Declaration (Loc,
           Defining_Identifier => S,
-          Object_Definition   =>
-            New_Reference_To (Standard_Integer, Loc)));
-
+          Object_Definition   => New_Reference_To (Standard_Integer, Loc)));
       return S;
    end Build_S;
 
@@ -204,16 +216,48 @@ package body Exp_Sel is
       Obj      : Entity_Id;
       Call_Ent : Entity_Id) return Node_Id
    is
+      Typ : constant Entity_Id := Etype (Obj);
+
    begin
-      return
-        Make_Assignment_Statement (Loc,
-          Name => New_Reference_To (S, Loc),
-          Expression =>
-            Make_Function_Call (Loc,
-              Name => New_Reference_To (RTE (RE_Get_Offset_Index), Loc),
-              Parameter_Associations => New_List (
-                Unchecked_Convert_To (RTE (RE_Tag), Obj),
-                Make_Integer_Literal (Loc, DT_Position (Call_Ent)))));
+      if Tagged_Type_Expansion then
+         return
+           Make_Assignment_Statement (Loc,
+             Name       => New_Reference_To (S, Loc),
+             Expression =>
+               Make_Function_Call (Loc,
+                 Name => New_Reference_To (RTE (RE_Get_Offset_Index), Loc),
+                 Parameter_Associations => New_List (
+                   Unchecked_Convert_To (RTE (RE_Tag), Obj),
+                   Make_Integer_Literal (Loc, DT_Position (Call_Ent)))));
+
+      --  VM targets
+
+      else
+         return
+           Make_Assignment_Statement (Loc,
+             Name       => New_Reference_To (S, Loc),
+             Expression =>
+               Make_Function_Call (Loc,
+                 Name => New_Reference_To (RTE (RE_Get_Offset_Index), Loc),
+
+                 Parameter_Associations => New_List (
+
+                     --  Obj_Typ
+
+                   Make_Attribute_Reference (Loc,
+                     Prefix => Obj,
+                     Attribute_Name => Name_Tag),
+
+                     --  Iface_Typ
+
+                   Make_Attribute_Reference (Loc,
+                     Prefix => New_Reference_To (Typ, Loc),
+                     Attribute_Name => Name_Tag),
+
+                     --  Position
+
+                   Make_Integer_Literal (Loc, DT_Position (Call_Ent)))));
+      end if;
    end Build_S_Assignment;
 
 end Exp_Sel;

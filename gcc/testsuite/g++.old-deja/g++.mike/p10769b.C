@@ -1,5 +1,5 @@
 // { dg-do assemble  }
-// { dg-options "" }
+// { dg-options "-ftrack-macro-expansion=0" }
 // prms-id: 10769
 
 #define PMF2PF(PMF) ((void (*)())(PMF))
@@ -17,10 +17,11 @@ public:
 
 void A::main() {
   void (B::*mPtrB)(B*);
-  (*(void (*)(A*))PMF2PF(mPtrB))(&b);	// { dg-error "" } 
+  (*(void (*)(A*))PMF2PF(mPtrB))(&b);	// { dg-error "argument passing" } 
+  // { dg-warning "convert" "warn" { target *-*-* } 20 }
 }
 
 int main() {
   void (A::*mPtr)() = &A::f1a;
-  (*(void (*)(A*))PMF2PF(mPtr))(&a);	// { dg-error "" } 
+  (*(void (*)(A*))PMF2PF(mPtr))(&a);	// { dg-warning "convert" } 
 }

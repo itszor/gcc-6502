@@ -1,7 +1,6 @@
 /* Definitions of target machine for GNU compiler.
    For ARM with ELF obj format.
-   Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
    Contributed by Philip Blundell <philb@gnu.org> and
    Catherine Moore <clm@cygnus.com>
    
@@ -36,7 +35,8 @@
 #ifndef SUBTARGET_EXTRA_SPECS
 #define SUBTARGET_EXTRA_SPECS \
   { "subtarget_extra_asm_spec",	SUBTARGET_EXTRA_ASM_SPEC }, \
-  { "subtarget_asm_float_spec", SUBTARGET_ASM_FLOAT_SPEC },
+  { "subtarget_asm_float_spec", SUBTARGET_ASM_FLOAT_SPEC }, \
+  SUBSUBTARGET_EXTRA_SPECS
 #endif
 
 #ifndef SUBTARGET_EXTRA_ASM_SPEC
@@ -48,16 +48,17 @@
 %{mapcs-float:-mfloat}"
 #endif
 
+#undef SUBSUBTARGET_EXTRA_SPECS
+#define SUBSUBTARGET_EXTRA_SPECS
+
 #ifndef ASM_SPEC
 #define ASM_SPEC "\
 %{mbig-endian:-EB} \
 %{mlittle-endian:-EL} \
-%{mcpu=*:-mcpu=%*} \
-%{march=*:-march=%*} \
+%(asm_cpu_spec) \
 %{mapcs-*:-mapcs-%*} \
 %(subtarget_asm_float_spec) \
 %{mthumb-interwork:-mthumb-interwork} \
-%{msoft-float:-mfloat-abi=soft} %{mhard-float:-mfloat-abi=hard} \
 %{mfloat-abi=*} %{mfpu=*} \
 %(subtarget_extra_asm_spec)"
 #endif
@@ -96,25 +97,22 @@
    Otherwise, the readonly data section is used.  */
 /* We put ARM and Thumb-2 jump tables in the text section, because it makes
    the code more efficient, but for Thumb-1 it's better to put them out of
-   band.  */
-#define JUMP_TABLES_IN_TEXT_SECTION (TARGET_32BIT)
+   band unless we are generating compressed tables.  */
+#define JUMP_TABLES_IN_TEXT_SECTION					\
+   (TARGET_32BIT || (TARGET_THUMB && (optimize_size || flag_pic)))
 
 #ifndef LINK_SPEC
 #define LINK_SPEC "%{mbig-endian:-EB} %{mlittle-endian:-EL} -X"
 #endif
   
 /* Run-time Target Specification.  */
-#ifndef TARGET_VERSION
-#define TARGET_VERSION fputs (" (ARM/elf)", stderr)
-#endif
-
 #ifndef TARGET_DEFAULT
 #define TARGET_DEFAULT (MASK_APCS_FRAME)
 #endif
 
 #ifndef MULTILIB_DEFAULTS
 #define MULTILIB_DEFAULTS \
-  { "marm", "mlittle-endian", "msoft-float", "mno-thumb-interwork", "fno-leading-underscore" }
+  { "marm", "mlittle-endian", "mfloat-abi=soft", "mno-thumb-interwork", "fno-leading-underscore" }
 #endif
 
 #define TARGET_ASM_FILE_START_APP_OFF true
@@ -144,4 +142,18 @@
 	fprintf (STREAM, "\t.align\t%d\n", POWER);	\
     }							\
   while (0)
+
+/* Horrible hack: We want to prevent some libgcc routines being included
+   for some multilibs.  */
+#ifndef __ARM_ARCH_6M__
+#undef L_fixdfsi
+#undef L_fixunsdfsi
+#undef L_truncdfsf2
+#undef L_fixsfsi
+#undef L_fixunssfsi
+#undef L_floatdidf
+#undef L_floatdisf
+#undef L_floatundidf
+#undef L_floatundisf
+#endif
 

@@ -1,4 +1,4 @@
-/* XMLEventReader.java -- 
+/* XMLEventReader.java --
    Copyright (C) 2005,2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -43,6 +43,7 @@ import javax.xml.stream.events.XMLEvent;
 /**
  * An XML parser.
  */
+@SuppressWarnings("rawtypes")
 public interface XMLEventReader
   extends Iterator
 {
@@ -57,7 +58,7 @@ public interface XMLEventReader
    * Indicates whether there are more XML events to be read.
    */
   boolean hasNext();
-  
+
   /**
    * Looks at the next XML event without advancing the cursor in the stream.
    * Returns <code>null</code> if there are no more events to read.
@@ -99,4 +100,3 @@ public interface XMLEventReader
     throws XMLStreamException;
 
 }
-

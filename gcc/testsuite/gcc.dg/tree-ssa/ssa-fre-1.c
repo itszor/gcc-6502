@@ -1,5 +1,5 @@
 /* { dg-do compile } */
-/* { dg-options "-O -fdump-tree-fre-details" } */
+/* { dg-options "-O -fdump-tree-fre1-details" } */
 
 /* From PR27090.  */
 
@@ -11,6 +11,5 @@ int f(int *a)
   return *c + t;
 }
 
-/* { dg-final { scan-tree-dump "Replaced \\\(int \\\*\\\) b_.*with a_" "fre" } } */
-/* { dg-final { scan-tree-dump "Replaced \\\*c_.*with t_" "fre" } } */
-/* { dg-final { cleanup-tree-dump "fre" } } */
+/* { dg-final { scan-tree-dump "Replaced \\\*\[ac\]_\[^\n\].*with t_" "fre1" } } */
+/* { dg-final { cleanup-tree-dump "fre1" } } */

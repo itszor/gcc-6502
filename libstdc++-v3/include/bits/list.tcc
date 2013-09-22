@@ -1,12 +1,11 @@
 // List implementation (out of line) -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /*
  *
@@ -54,15 +48,17 @@
  * purpose.  It is provided "as is" without express or implied warranty.
  */
 
-/** @file list.tcc
+/** @file bits/list.tcc
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{list}
  */
 
 #ifndef _LIST_TCC
 #define _LIST_TCC 1
 
-_GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_CONTAINER
 
   template<typename _Tp, typename _Alloc>
     void
@@ -70,17 +66,21 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     _M_clear()
     {
       typedef _List_node<_Tp>  _Node;
-      _Node* __cur = static_cast<_Node*>(this->_M_impl._M_node._M_next);
-      while (__cur != &this->_M_impl._M_node)
+      _Node* __cur = static_cast<_Node*>(_M_impl._M_node._M_next);
+      while (__cur != &_M_impl._M_node)
 	{
 	  _Node* __tmp = __cur;
 	  __cur = static_cast<_Node*>(__cur->_M_next);
-	  _M_get_Tp_allocator().destroy(&__tmp->_M_data);
+#if __cplusplus >= 201103L
+	  _M_get_Node_allocator().destroy(__tmp);
+#else
+	  _M_get_Tp_allocator().destroy(std::__addressof(__tmp->_M_data));
+#endif
 	  _M_put_node(__tmp);
 	}
     }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
   template<typename _Tp, typename _Alloc>
     template<typename... _Args>
       typename list<_Tp, _Alloc>::iterator
@@ -88,7 +88,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       emplace(iterator __position, _Args&&... __args)
       {
 	_Node* __tmp = _M_create_node(std::forward<_Args>(__args)...);
-	__tmp->hook(__position._M_node);
+	__tmp->_M_hook(__position._M_node);
 	return iterator(__tmp);
       }
 #endif
@@ -99,7 +99,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     insert(iterator __position, const value_type& __x)
     {
       _Node* __tmp = _M_create_node(__x);
-      __tmp->hook(__position._M_node);
+      __tmp->_M_hook(__position._M_node);
       return iterator(__tmp);
     }
 
@@ -113,6 +113,56 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       return __ret;
     }
 
+#if __cplusplus >= 201103L
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    _M_default_append(size_type __n)
+    {
+      size_type __i = 0;
+      __try
+	{
+	  for (; __i < __n; ++__i)
+	    emplace_back();
+	}
+      __catch(...)
+	{
+	  for (; __i; --__i)
+	    pop_back();
+	  __throw_exception_again;
+	}
+    }
+
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    resize(size_type __new_size)
+    {
+      iterator __i = begin();
+      size_type __len = 0;
+      for (; __i != end() && __len < __new_size; ++__i, ++__len)
+        ;
+      if (__len == __new_size)
+        erase(__i, end());
+      else                          // __i == end()
+	_M_default_append(__new_size - __len);
+    }
+
+  template<typename _Tp, typename _Alloc>
+    void
+    list<_Tp, _Alloc>::
+    resize(size_type __new_size, const value_type& __x)
+    {
+      iterator __i = begin();
+      size_type __len = 0;
+      for (; __i != end() && __len < __new_size; ++__i, ++__len)
+        ;
+      if (__len == __new_size)
+        erase(__i, end());
+      else                          // __i == end()
+        insert(end(), __new_size - __len, __x);
+    }
+#else
   template<typename _Tp, typename _Alloc>
     void
     list<_Tp, _Alloc>::
@@ -127,6 +177,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
       else                          // __i == end()
         insert(end(), __new_size - __len, __x);
     }
+#endif
 
   template<typename _Tp, typename _Alloc>
     list<_Tp, _Alloc>&
@@ -199,7 +250,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	      // _GLIBCXX_RESOLVE_LIB_DEFECTS
 	      // 526. Is it undefined if a function in the standard changes
 	      // in parameters?
-	      if (&*__first != &__value)
+	      if (std::__addressof(*__first) != std::__addressof(__value))
 		_M_erase(__first);
 	      else
 		__extra = __first;
@@ -233,7 +284,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
   template<typename _Tp, typename _Alloc>
     void
     list<_Tp, _Alloc>::
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
     merge(list&& __x)
 #else
     merge(list& __x)
@@ -267,7 +318,7 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
     template <typename _StrictWeakOrdering>
       void
       list<_Tp, _Alloc>::
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#if __cplusplus >= 201103L
       merge(list&& __x, _StrictWeakOrdering __comp)
 #else
       merge(list& __x, _StrictWeakOrdering __comp)
@@ -411,7 +462,8 @@ _GLIBCXX_BEGIN_NESTED_NAMESPACE(std, _GLIBCXX_STD_D)
 	  }
       }
 
-_GLIBCXX_END_NESTED_NAMESPACE
+_GLIBCXX_END_NAMESPACE_CONTAINER
+} // namespace std
 
 #endif /* _LIST_TCC */
 

@@ -1,11 +1,11 @@
 // 2004-11-29  Paolo Carlini  <pcarlini@suse.de>
 
-// Copyright (C) 2004 Free Software Foundation
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,11 +14,16 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 21.3.3 string capacity
+
+// { dg-options "-DMAX_SIZE=16" { target simulator } }
+
+#ifndef MAX_SIZE
+#define MAX_SIZE 20
+#endif
 
 #include <string>
 #include <testsuite_hooks.h>
@@ -35,7 +40,7 @@ void test01()
   // and shrink-to-fit (in the future, maybe this will change
   // for short strings).
   const size_type minsize = 2 << 0;
-  const size_type maxsize = 2 << 20;
+  const size_type maxsize = 2 << MAX_SIZE;
   for (size_type i = minsize; i <= maxsize; i *= 2)
     {
       wstring str(i, L'x');

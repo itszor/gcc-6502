@@ -1,4 +1,5 @@
-/* { dg-options "-O" } */
+/* { dg-options "-O -Wno-psabi" } */
+
 
 #ifdef __x86_64__
 #include "struct-complex-1.h"

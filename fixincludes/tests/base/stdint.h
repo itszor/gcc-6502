@@ -9,8 +9,8 @@
 
 
 
-#if defined( IRIX_STDINT_C99_CHECK )
-#if 0
-#error This header file is to be used only for c99 mode compilations
-#else
-#endif  /* IRIX_STDINT_C99_CHECK */
+#if defined( GLIBC_STDINT_CHECK )
+/* This file is part of the GNU C Library.  */
+# define UINT8_C(c)	c
+# define UINT16_C(c)	c
+#endif  /* GLIBC_STDINT_CHECK */

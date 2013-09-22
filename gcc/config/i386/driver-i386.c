@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2006-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -21,134 +21,330 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
-#include <stdlib.h>
 
 const char *host_detect_local_cpu (int argc, const char **argv);
 
 #ifdef __GNUC__
 #include "cpuid.h"
 
-/* Returns parameters that describe L1_ASSOC associative cache of size
-   L1_SIZEKB with lines of size L1_LINE.  */
+struct cache_desc
+{
+  unsigned sizekb;
+  unsigned assoc;
+  unsigned line;
+};
+
+/* Returns command line parameters that describe size and
+   cache line size of the processor caches.  */
 
 static char *
-describe_cache (unsigned l1_sizekb, unsigned l1_line,
-		unsigned l1_assoc ATTRIBUTE_UNUSED)
+describe_cache (struct cache_desc level1, struct cache_desc level2)
 {
-  char size[100], line[100];
+  char size[100], line[100], size2[100];
 
-  /* At the moment, gcc middle-end does not use the information about the
-     associativity of the cache.  */
+  /* At the moment, gcc does not use the information
+     about the associativity of the cache.  */
 
-  sprintf (size, "--param l1-cache-size=%u", l1_sizekb);
-  sprintf (line, "--param l1-cache-line-size=%u", l1_line);
+  snprintf (size, sizeof (size),
+	    "--param l1-cache-size=%u ", level1.sizekb);
+  snprintf (line, sizeof (line),
+	    "--param l1-cache-line-size=%u ", level1.line);
 
-  return concat (size, " ", line, " ", NULL);
+  snprintf (size2, sizeof (size2),
+	    "--param l2-cache-size=%u ", level2.sizekb);
+
+  return concat (size, line, size2, NULL);
+}
+
+/* Detect L2 cache parameters using CPUID extended function 0x80000006.  */
+
+static void
+detect_l2_cache (struct cache_desc *level2)
+{
+  unsigned eax, ebx, ecx, edx;
+  unsigned assoc;
+
+  __cpuid (0x80000006, eax, ebx, ecx, edx);
+
+  level2->sizekb = (ecx >> 16) & 0xffff;
+  level2->line = ecx & 0xff;
+
+  assoc = (ecx >> 12) & 0xf;
+  if (assoc == 6)
+    assoc = 8;
+  else if (assoc == 8)
+    assoc = 16;
+  else if (assoc >= 0xa && assoc <= 0xc)
+    assoc = 32 + (assoc - 0xa) * 16;
+  else if (assoc >= 0xd && assoc <= 0xe)
+    assoc = 96 + (assoc - 0xd) * 32;
+
+  level2->assoc = assoc;
 }
 
 /* Returns the description of caches for an AMD processor.  */
 
-static char *
+static const char *
 detect_caches_amd (unsigned max_ext_level)
 {
   unsigned eax, ebx, ecx, edx;
-  unsigned l1_sizekb, l1_line, l1_assoc;
+
+  struct cache_desc level1, level2 = {0, 0, 0};
 
   if (max_ext_level < 0x80000005)
-    return (char *) "";
+    return "";
 
   __cpuid (0x80000005, eax, ebx, ecx, edx);
 
-  l1_line = ecx & 0xff;
-  l1_sizekb = (ecx >> 24) & 0xff;
-  l1_assoc = (ecx >> 16) & 0xff;
+  level1.sizekb = (ecx >> 24) & 0xff;
+  level1.assoc = (ecx >> 16) & 0xff;
+  level1.line = ecx & 0xff;
 
-  return describe_cache (l1_sizekb, l1_line, l1_assoc);
+  if (max_ext_level >= 0x80000006)
+    detect_l2_cache (&level2);
+
+  return describe_cache (level1, level2);
 }
 
-/* Stores the size of the L1 cache and cache line, and the associativity
-   of the cache according to REG to L1_SIZEKB, L1_LINE and L1_ASSOC.  */
+/* Decodes the size, the associativity and the cache line size of
+   L1/L2 caches of an Intel processor.  Values are based on
+   "Intel Processor Identification and the CPUID Instruction"
+   [Application Note 485], revision -032, December 2007.  */
 
 static void
-decode_caches_intel (unsigned reg, unsigned *l1_sizekb, unsigned *l1_line,
-		     unsigned *l1_assoc)
+decode_caches_intel (unsigned reg, bool xeon_mp,
+		     struct cache_desc *level1, struct cache_desc *level2)
 {
-  unsigned i, val;
+  int i;
 
-  if (((reg >> 31) & 1) != 0)
-    return;
+  for (i = 24; i >= 0; i -= 8)
+    switch ((reg >> i) & 0xff)
+      {
+      case 0x0a:
+	level1->sizekb = 8; level1->assoc = 2; level1->line = 32;
+	break;
+      case 0x0c:
+	level1->sizekb = 16; level1->assoc = 4; level1->line = 32;
+	break;
+      case 0x2c:
+	level1->sizekb = 32; level1->assoc = 8; level1->line = 64;
+	break;
+      case 0x39:
+	level2->sizekb = 128; level2->assoc = 4; level2->line = 64;
+	break;
+      case 0x3a:
+	level2->sizekb = 192; level2->assoc = 6; level2->line = 64;
+	break;
+      case 0x3b:
+	level2->sizekb = 128; level2->assoc = 2; level2->line = 64;
+	break;
+      case 0x3c:
+	level2->sizekb = 256; level2->assoc = 4; level2->line = 64;
+	break;
+      case 0x3d:
+	level2->sizekb = 384; level2->assoc = 6; level2->line = 64;
+	break;
+      case 0x3e:
+	level2->sizekb = 512; level2->assoc = 4; level2->line = 64;
+	break;
+      case 0x41:
+	level2->sizekb = 128; level2->assoc = 4; level2->line = 32;
+	break;
+      case 0x42:
+	level2->sizekb = 256; level2->assoc = 4; level2->line = 32;
+	break;
+      case 0x43:
+	level2->sizekb = 512; level2->assoc = 4; level2->line = 32;
+	break;
+      case 0x44:
+	level2->sizekb = 1024; level2->assoc = 4; level2->line = 32;
+	break;
+      case 0x45:
+	level2->sizekb = 2048; level2->assoc = 4; level2->line = 32;
+	break;
+      case 0x49:
+	if (xeon_mp)
+	  break;
+	level2->sizekb = 4096; level2->assoc = 16; level2->line = 64;
+	break;
+      case 0x4e:
+	level2->sizekb = 6144; level2->assoc = 24; level2->line = 64;
+	break;
+      case 0x60:
+	level1->sizekb = 16; level1->assoc = 8; level1->line = 64;
+	break;
+      case 0x66:
+	level1->sizekb = 8; level1->assoc = 4; level1->line = 64;
+	break;
+      case 0x67:
+	level1->sizekb = 16; level1->assoc = 4; level1->line = 64;
+	break;
+      case 0x68:
+	level1->sizekb = 32; level1->assoc = 4; level1->line = 64;
+	break;
+      case 0x78:
+	level2->sizekb = 1024; level2->assoc = 4; level2->line = 64;
+	break;
+      case 0x79:
+	level2->sizekb = 128; level2->assoc = 8; level2->line = 64;
+	break;
+      case 0x7a:
+	level2->sizekb = 256; level2->assoc = 8; level2->line = 64;
+	break;
+      case 0x7b:
+	level2->sizekb = 512; level2->assoc = 8; level2->line = 64;
+	break;
+      case 0x7c:
+	level2->sizekb = 1024; level2->assoc = 8; level2->line = 64;
+	break;
+      case 0x7d:
+	level2->sizekb = 2048; level2->assoc = 8; level2->line = 64;
+	break;
+      case 0x7f:
+	level2->sizekb = 512; level2->assoc = 2; level2->line = 64;
+	break;
+      case 0x82:
+	level2->sizekb = 256; level2->assoc = 8; level2->line = 32;
+	break;
+      case 0x83:
+	level2->sizekb = 512; level2->assoc = 8; level2->line = 32;
+	break;
+      case 0x84:
+	level2->sizekb = 1024; level2->assoc = 8; level2->line = 32;
+	break;
+      case 0x85:
+	level2->sizekb = 2048; level2->assoc = 8; level2->line = 32;
+	break;
+      case 0x86:
+	level2->sizekb = 512; level2->assoc = 4; level2->line = 64;
+	break;
+      case 0x87:
+	level2->sizekb = 1024; level2->assoc = 8; level2->line = 64;
 
-  for (i = 0; i < 4; i++)
+      default:
+	break;
+      }
+}
+
+/* Detect cache parameters using CPUID function 2.  */
+
+static void
+detect_caches_cpuid2 (bool xeon_mp, 
+		      struct cache_desc *level1, struct cache_desc *level2)
+{
+  unsigned regs[4];
+  int nreps, i;
+
+  __cpuid (2, regs[0], regs[1], regs[2], regs[3]);
+
+  nreps = regs[0] & 0x0f;
+  regs[0] &= ~0x0f;
+
+  while (--nreps >= 0)
     {
-      val = reg & 0xff;
-      reg >>= 8;
+      for (i = 0; i < 4; i++)
+	if (regs[i] && !((regs[i] >> 31) & 1))
+	  decode_caches_intel (regs[i], xeon_mp, level1, level2);
 
-      switch (val)
+      if (nreps)
+	__cpuid (2, regs[0], regs[1], regs[2], regs[3]);
+    }
+}
+
+/* Detect cache parameters using CPUID function 4. This
+   method doesn't require hardcoded tables.  */
+
+enum cache_type
+{
+  CACHE_END = 0,
+  CACHE_DATA = 1,
+  CACHE_INST = 2,
+  CACHE_UNIFIED = 3
+};
+
+static void
+detect_caches_cpuid4 (struct cache_desc *level1, struct cache_desc *level2,
+		      struct cache_desc *level3)
+{
+  struct cache_desc *cache;
+
+  unsigned eax, ebx, ecx, edx;
+  int count;
+
+  for (count = 0;; count++)
+    { 
+      __cpuid_count(4, count, eax, ebx, ecx, edx);
+      switch (eax & 0x1f)
 	{
-	case 0xa:
-	  *l1_sizekb = 8;
-	  *l1_line = 32;
-	  *l1_assoc = 2;
-	  break;
-	case 0xc:
-	  *l1_sizekb = 16;
-	  *l1_line = 32;
-	  *l1_assoc = 4;
-	  break;
-	case 0x2c:
-	  *l1_sizekb = 32;
-	  *l1_line = 64;
-	  *l1_assoc = 8;
-	  break;
-	case 0x60:
-	  *l1_sizekb = 16;
-	  *l1_line = 64;
-	  *l1_assoc = 8;
-	  break;
-	case 0x66:
-	  *l1_sizekb = 8;
-	  *l1_line = 64;
-	  *l1_assoc = 4;
-	  break;
-	case 0x67:
-	  *l1_sizekb = 16;
-	  *l1_line = 64;
-	  *l1_assoc = 4;
-	  break;
-	case 0x68:
-	  *l1_sizekb = 32;
-	  *l1_line = 64;
-	  *l1_assoc = 4;
-	  break;
+	case CACHE_END:
+	  return;
+	case CACHE_DATA:
+	case CACHE_UNIFIED:
+	  {
+	    switch ((eax >> 5) & 0x07)
+	      {
+	      case 1:
+		cache = level1;
+		break;
+	      case 2:
+		cache = level2;
+		break;
+	      case 3:
+		cache = level3;
+		break;
+	      default:
+		cache = NULL;
+	      }
 
+	    if (cache)
+	      {
+		unsigned sets = ecx + 1;
+		unsigned part = ((ebx >> 12) & 0x03ff) + 1;
+
+		cache->assoc = ((ebx >> 22) & 0x03ff) + 1;
+		cache->line = (ebx & 0x0fff) + 1;
+
+		cache->sizekb = (cache->assoc * part
+				 * cache->line * sets) / 1024;
+	      }
+	  }
 	default:
 	  break;
 	}
     }
 }
 
-/* Returns the description of caches for an intel processor.  */
+/* Returns the description of caches for an Intel processor.  */
 
-static char *
-detect_caches_intel (unsigned max_level)
+static const char *
+detect_caches_intel (bool xeon_mp, unsigned max_level,
+		     unsigned max_ext_level, unsigned *l2sizekb)
 {
-  unsigned eax, ebx, ecx, edx;
-  unsigned l1_sizekb = 0, l1_line = 0, assoc = 0;
+  struct cache_desc level1 = {0, 0, 0}, level2 = {0, 0, 0}, level3 = {0, 0, 0};
 
-  if (max_level < 2)
-    return (char *) "";
+  if (max_level >= 4)
+    detect_caches_cpuid4 (&level1, &level2, &level3);
+  else if (max_level >= 2)
+    detect_caches_cpuid2 (xeon_mp, &level1, &level2);
+  else
+    return "";
 
-  __cpuid (2, eax, ebx, ecx, edx);
+  if (level1.sizekb == 0)
+    return "";
 
-  decode_caches_intel (eax, &l1_sizekb, &l1_line, &assoc);
-  decode_caches_intel (ebx, &l1_sizekb, &l1_line, &assoc);
-  decode_caches_intel (ecx, &l1_sizekb, &l1_line, &assoc);
-  decode_caches_intel (edx, &l1_sizekb, &l1_line, &assoc);
+  /* Let the L3 replace the L2. This assumes inclusive caches
+     and single threaded program for now. */
+  if (level3.sizekb)
+    level2 = level3;
 
-  if (!l1_sizekb)
-    return (char *) "";
+  /* Intel CPUs are equipped with AMD style L2 cache info.  Try this
+     method if other methods fail to provide L2 cache parameters.  */
+  if (level2.sizekb == 0 && max_ext_level >= 0x80000006)
+    detect_l2_cache (&level2);
 
-  return describe_cache (l1_sizekb, l1_line, assoc);
+  *l2sizekb = level2.sizekb;
+
+  return describe_cache (level1, level2);
 }
 
 /* This will be called by the spec parser in gcc.c when it sees
@@ -172,11 +368,12 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   const char *cache = "";
   const char *options = "";
 
- unsigned int eax, ebx, ecx, edx;
+  unsigned int eax, ebx, ecx, edx;
 
   unsigned int max_level, ext_level;
+
   unsigned int vendor;
-  unsigned int family;
+  unsigned int model, family;
 
   unsigned int has_sse3, has_ssse3, has_cmpxchg16b;
   unsigned int has_cmpxchg8b, has_cmov, has_mmx, has_sse, has_sse2;
@@ -184,8 +381,19 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   /* Extended features */
   unsigned int has_lahf_lm = 0, has_sse4a = 0;
   unsigned int has_longmode = 0, has_3dnowp = 0, has_3dnow = 0;
+  unsigned int has_movbe = 0, has_sse4_1 = 0, has_sse4_2 = 0;
+  unsigned int has_popcnt = 0, has_aes = 0, has_avx = 0, has_avx2 = 0;
+  unsigned int has_pclmul = 0, has_abm = 0, has_lwp = 0;
+  unsigned int has_fma = 0, has_fma4 = 0, has_xop = 0;
+  unsigned int has_bmi = 0, has_bmi2 = 0, has_tbm = 0, has_lzcnt = 0;
+  unsigned int has_hle = 0, has_rtm = 0;
+  unsigned int has_rdrnd = 0, has_f16c = 0, has_fsgsbase = 0;
+  unsigned int has_rdseed = 0, has_prfchw = 0, has_adx = 0;
+  unsigned int has_osxsave = 0, has_fxsr = 0, has_xsave = 0, has_xsaveopt = 0;
 
   bool arch;
+
+  unsigned int l2sizekb = 0;
 
   if (argc < 1)
     return NULL;
@@ -201,18 +409,89 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   __cpuid (1, eax, ebx, ecx, edx);
 
-  /* We don't care for extended family.  */
+  model = (eax >> 4) & 0x0f;
   family = (eax >> 8) & 0x0f;
+  if (vendor == signature_INTEL_ebx)
+    {
+      unsigned int extended_model, extended_family;
+
+      extended_model = (eax >> 12) & 0xf0;
+      extended_family = (eax >> 20) & 0xff;
+      if (family == 0x0f)
+	{
+	  family += extended_family;
+	  model += extended_model;
+	}
+      else if (family == 0x06)
+	model += extended_model;
+    }
 
   has_sse3 = ecx & bit_SSE3;
   has_ssse3 = ecx & bit_SSSE3;
+  has_sse4_1 = ecx & bit_SSE4_1;
+  has_sse4_2 = ecx & bit_SSE4_2;
+  has_avx = ecx & bit_AVX;
+  has_osxsave = ecx & bit_OSXSAVE;
   has_cmpxchg16b = ecx & bit_CMPXCHG16B;
+  has_movbe = ecx & bit_MOVBE;
+  has_popcnt = ecx & bit_POPCNT;
+  has_aes = ecx & bit_AES;
+  has_pclmul = ecx & bit_PCLMUL;
+  has_fma = ecx & bit_FMA;
+  has_f16c = ecx & bit_F16C;
+  has_rdrnd = ecx & bit_RDRND;
+  has_xsave = ecx & bit_XSAVE;
 
   has_cmpxchg8b = edx & bit_CMPXCHG8B;
   has_cmov = edx & bit_CMOV;
   has_mmx = edx & bit_MMX;
+  has_fxsr = edx & bit_FXSAVE;
   has_sse = edx & bit_SSE;
   has_sse2 = edx & bit_SSE2;
+
+  if (max_level >= 7)
+    {
+      __cpuid_count (7, 0, eax, ebx, ecx, edx);
+
+      has_bmi = ebx & bit_BMI;
+      has_hle = ebx & bit_HLE;
+      has_rtm = ebx & bit_RTM;
+      has_avx2 = ebx & bit_AVX2;
+      has_bmi2 = ebx & bit_BMI2;
+      has_fsgsbase = ebx & bit_FSGSBASE;
+      has_rdseed = ebx & bit_RDSEED;
+      has_adx = ebx & bit_ADX;
+    }
+
+  if (max_level >= 13)
+    {
+      __cpuid_count (13, 1, eax, ebx, ecx, edx);
+
+      has_xsaveopt = eax & bit_XSAVEOPT;
+    }
+
+  /* Get XCR_XFEATURE_ENABLED_MASK register with xgetbv.  */
+#define XCR_XFEATURE_ENABLED_MASK	0x0
+#define XSTATE_FP			0x1
+#define XSTATE_SSE			0x2
+#define XSTATE_YMM			0x4
+  if (has_osxsave)
+    asm (".byte 0x0f; .byte 0x01; .byte 0xd0"
+	 : "=a" (eax), "=d" (edx)
+	 : "c" (XCR_XFEATURE_ENABLED_MASK));
+
+  /* Check if SSE and YMM states are supported.  */
+  if (!has_osxsave
+      || (eax & (XSTATE_SSE | XSTATE_YMM)) != (XSTATE_SSE | XSTATE_YMM))
+    {
+      has_avx = 0;
+      has_avx2 = 0;
+      has_fma = 0;
+      has_fma4 = 0;
+      has_xop = 0;
+      has_xsave = 0;
+      has_xsaveopt = 0;
+    }
 
   /* Check cpuid level of extended features.  */
   __cpuid (0x80000000, ext_level, ebx, ecx, edx);
@@ -223,6 +502,13 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
       has_lahf_lm = ecx & bit_LAHF_LM;
       has_sse4a = ecx & bit_SSE4a;
+      has_abm = ecx & bit_ABM;
+      has_lwp = ecx & bit_LWP;
+      has_fma4 = ecx & bit_FMA4;
+      has_xop = ecx & bit_XOP;
+      has_tbm = ecx & bit_TBM;
+      has_lzcnt = ecx & bit_LZCNT;
+      has_prfchw = ecx & bit_PRFCHW;
 
       has_longmode = edx & bit_LM;
       has_3dnowp = edx & bit_3DNOWP;
@@ -231,27 +517,84 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   if (!arch)
     {
-      if (vendor == *(unsigned int*) "Auth")
+      if (vendor == signature_AMD_ebx
+	  || vendor == signature_CENTAUR_ebx
+	  || vendor == signature_CYRIX_ebx
+	  || vendor == signature_NSC_ebx
+	  || vendor == signature_TM2_ebx)
 	cache = detect_caches_amd (ext_level);
-      else if (vendor == *(unsigned int*) "Genu")
-	cache = detect_caches_intel (max_level);
+      else if (vendor == signature_INTEL_ebx)
+	{
+	  bool xeon_mp = (family == 15 && model == 6);
+	  cache = detect_caches_intel (xeon_mp, max_level,
+				       ext_level, &l2sizekb);
+	}
     }
 
-  if (vendor == *(unsigned int*) "Auth")
+  if (vendor == signature_AMD_ebx)
     {
-      processor = PROCESSOR_PENTIUM;
+      unsigned int name;
 
-      if (has_mmx)
-	processor = PROCESSOR_K6;
-      if (has_3dnowp)
-	processor = PROCESSOR_ATHLON;
-      if (has_sse2 || has_longmode)
-	processor = PROCESSOR_K8;
-      if (has_sse4a)
+      /* Detect geode processor by its processor signature.  */
+      if (ext_level > 0x80000001)
+	__cpuid (0x80000002, name, ebx, ecx, edx);
+      else
+	name = 0;
+
+      if (name == signature_NSC_ebx)
+	processor = PROCESSOR_GEODE;
+      else if (has_movbe)
+	processor = PROCESSOR_BTVER2;
+      else if (has_xsaveopt)
+        processor = PROCESSOR_BDVER3;
+      else if (has_bmi)
+        processor = PROCESSOR_BDVER2;
+      else if (has_xop)
+	processor = PROCESSOR_BDVER1;
+      else if (has_sse4a && has_ssse3)
+        processor = PROCESSOR_BTVER1;
+      else if (has_sse4a)
 	processor = PROCESSOR_AMDFAM10;
+      else if (has_sse2 || has_longmode)
+	processor = PROCESSOR_K8;
+      else if (has_3dnowp && family == 6)
+	processor = PROCESSOR_ATHLON;
+      else if (has_mmx)
+	processor = PROCESSOR_K6;
+      else
+	processor = PROCESSOR_PENTIUM;
     }
-  else if (vendor == *(unsigned int*) "Geod")
-    processor = PROCESSOR_GEODE;
+  else if (vendor == signature_CENTAUR_ebx)
+    {
+      if (arch)
+	{
+	  switch (family)
+	    {
+	    case 6:
+	      if (model > 9)
+		/* Use the default detection procedure.  */
+		processor = PROCESSOR_GENERIC32;
+	      else if (model == 9)
+		cpu = "c3-2";
+	      else if (model >= 6)
+		cpu = "c3";
+	      else
+		processor = PROCESSOR_GENERIC32;
+	      break;
+	    case 5:
+	      if (has_3dnow)
+		cpu = "winchip2";
+	      else if (has_mmx)
+		cpu = "winchip2-c6";
+	      else
+		processor = PROCESSOR_GENERIC32;
+	      break;
+	    default:
+	      /* We have no idea.  */
+	      processor = PROCESSOR_GENERIC32;
+	    }
+	}
+    }
   else
     {
       switch (family)
@@ -289,30 +632,80 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	cpu = "pentium";
       break;
     case PROCESSOR_PENTIUMPRO:
-      if (has_longmode)
-	/* It is Core 2 Duo.  */
-	cpu = "core2";
-      else if (arch)
+      switch (model)
 	{
-	  if (has_sse3)
-	    /* It is Core Duo.  */
-	    cpu = "prescott";
-	  else if (has_sse2)
-	    /* It is Pentium M.  */
-	    cpu = "pentium-m";
-	  else if (has_sse)
-	    /* It is Pentium III.  */
-	    cpu = "pentium3";
-	  else if (has_mmx)
-	    /* It is Pentium II.  */
-	    cpu = "pentium2";
+	case 0x1c:
+	case 0x26:
+	  /* Atom.  */
+	  cpu = "atom";
+	  break;
+	case 0x1a:
+	case 0x1e:
+	case 0x1f:
+	case 0x2e:
+	  /* Nehalem.  */
+	  cpu = "corei7";
+	  break;
+	case 0x25:
+	case 0x2c:
+	case 0x2f:
+	  /* Westmere.  */
+	  cpu = "corei7";
+	  break;
+	case 0x2a:
+	case 0x2d:
+	  /* Sandy Bridge.  */
+	  cpu = "corei7-avx";
+	  break;
+	case 0x17:
+	case 0x1d:
+	  /* Penryn.  */
+	  cpu = "core2";
+	  break;
+	case 0x0f:
+	  /* Merom.  */
+	  cpu = "core2";
+	  break;
+	default:
+	  if (arch)
+	    {
+	      /* This is unknown family 0x6 CPU.  */
+	      if (has_avx)
+		/* Assume Sandy Bridge.  */
+		cpu = "corei7-avx";
+	      else if (has_sse4_2)
+		/* Assume Core i7.  */
+		cpu = "corei7";
+	      else if (has_ssse3)
+		{
+		  if (has_movbe)
+		    /* Assume Atom.  */
+		    cpu = "atom";
+		  else
+		    /* Assume Core 2.  */
+		    cpu = "core2";
+		}
+	      else if (has_sse3)
+		/* It is Core Duo.  */
+		cpu = "pentium-m";
+	      else if (has_sse2)
+		/* It is Pentium M.  */
+		cpu = "pentium-m";
+	      else if (has_sse)
+		/* It is Pentium III.  */
+		cpu = "pentium3";
+	      else if (has_mmx)
+		/* It is Pentium II.  */
+		cpu = "pentium2";
+	      else
+		/* Default to Pentium Pro.  */
+		cpu = "pentiumpro";
+	    }
 	  else
-	    /* Default to Pentium Pro.  */
-	    cpu = "pentiumpro";
+	    /* For -mtune, we default to -mtune=generic.  */
+	    cpu = "generic";
+	  break;
 	}
-      else
-	/* For -mtune, we default to -mtune=generic.  */
-	cpu = "generic";
       break;
     case PROCESSOR_PENTIUM4:
       if (has_sse3)
@@ -349,6 +742,21 @@ const char *host_detect_local_cpu (int argc, const char **argv)
     case PROCESSOR_AMDFAM10:
       cpu = "amdfam10";
       break;
+    case PROCESSOR_BDVER1:
+      cpu = "bdver1";
+      break;
+    case PROCESSOR_BDVER2:
+      cpu = "bdver2";
+      break;
+    case PROCESSOR_BDVER3:
+      cpu = "bdver3";
+      break;
+    case PROCESSOR_BTVER1:
+      cpu = "btver1";
+      break;
+    case PROCESSOR_BTVER2:
+      cpu = "btver2";
+      break;
 
     default:
       /* Use something reasonable.  */
@@ -378,42 +786,56 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   if (arch)
     {
-      if (has_cmpxchg16b)
-	options = concat (options, "-mcx16 ", NULL);
-      if (has_lahf_lm)
-	options = concat (options, "-msahf ", NULL);
+      const char *cx16 = has_cmpxchg16b ? " -mcx16" : " -mno-cx16";
+      const char *sahf = has_lahf_lm ? " -msahf" : " -mno-sahf";
+      const char *movbe = has_movbe ? " -mmovbe" : " -mno-movbe";
+      const char *ase = has_aes ? " -maes" : " -mno-aes";
+      const char *pclmul = has_pclmul ? " -mpclmul" : " -mno-pclmul";
+      const char *popcnt = has_popcnt ? " -mpopcnt" : " -mno-popcnt";
+      const char *abm = has_abm ? " -mabm" : " -mno-abm";
+      const char *lwp = has_lwp ? " -mlwp" : " -mno-lwp";
+      const char *fma = has_fma ? " -mfma" : " -mno-fma";
+      const char *fma4 = has_fma4 ? " -mfma4" : " -mno-fma4";
+      const char *xop = has_xop ? " -mxop" : " -mno-xop";
+      const char *bmi = has_bmi ? " -mbmi" : " -mno-bmi";
+      const char *bmi2 = has_bmi2 ? " -mbmi2" : " -mno-bmi2";
+      const char *tbm = has_tbm ? " -mtbm" : " -mno-tbm";
+      const char *avx = has_avx ? " -mavx" : " -mno-avx";
+      const char *avx2 = has_avx2 ? " -mavx2" : " -mno-avx2";
+      const char *sse4_2 = has_sse4_2 ? " -msse4.2" : " -mno-sse4.2";
+      const char *sse4_1 = has_sse4_1 ? " -msse4.1" : " -mno-sse4.1";
+      const char *lzcnt = has_lzcnt ? " -mlzcnt" : " -mno-lzcnt";
+      const char *hle = has_hle ? " -mhle" : " -mno-hle";
+      const char *rtm = has_rtm ? " -mrtm" : " -mno-rtm";
+      const char *rdrnd = has_rdrnd ? " -mrdrnd" : " -mno-rdrnd";
+      const char *f16c = has_f16c ? " -mf16c" : " -mno-f16c";
+      const char *fsgsbase = has_fsgsbase ? " -mfsgsbase" : " -mno-fsgsbase";
+      const char *rdseed = has_rdseed ? " -mrdseed" : " -mno-rdseed";
+      const char *prfchw = has_prfchw ? " -mprfchw" : " -mno-prfchw";
+      const char *adx = has_adx ? " -madx" : " -mno-adx";
+      const char *fxsr = has_fxsr ? " -mfxsr" : " -mno-fxsr";
+      const char *xsave = has_xsave ? " -mxsave" : " -mno-xsave";
+      const char *xsaveopt = has_xsaveopt ? " -mxsaveopt" : " -mno-xsaveopt";
+
+      options = concat (options, cx16, sahf, movbe, ase, pclmul,
+			popcnt, abm, lwp, fma, fma4, xop, bmi, bmi2,
+			tbm, avx, avx2, sse4_2, sse4_1, lzcnt, rtm,
+			hle, rdrnd, f16c, fsgsbase, rdseed, prfchw, adx,
+			fxsr, xsave, xsaveopt, NULL);
     }
 
 done:
-  return concat (cache, "-m", argv[0], "=", cpu, " ", options, NULL);
+  return concat (cache, "-m", argv[0], "=", cpu, options, NULL);
 }
 #else
 
-/* If we aren't compiling with GCC we just provide a minimal
-   default value.  */
+/* If we aren't compiling with GCC then the driver will just ignore
+   -march and -mtune "native" target and will leave to the newly
+   built compiler to generate code for its default target.  */
 
-const char *host_detect_local_cpu (int argc, const char **argv)
+const char *host_detect_local_cpu (int argc ATTRIBUTE_UNUSED,
+				   const char **argv ATTRIBUTE_UNUSED)
 {
-  const char *cpu;
-  bool arch;
-
-  if (argc < 1)
-    return NULL;
-
-  arch = !strcmp (argv[0], "arch");
-
-  if (!arch && strcmp (argv[0], "tune"))
-    return NULL;
-  
-  if (arch)
-    {
-      /* FIXME: i386 is wrong for 64bit compiler.  How can we tell if
-	 we are generating 64bit or 32bit code?  */
-      cpu = "i386";
-    }
-  else
-    cpu = "generic";
-
-  return concat ("-m", argv[0], "=", cpu, NULL);
+  return NULL;
 }
 #endif /* __GNUC__ */

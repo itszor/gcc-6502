@@ -50,21 +50,18 @@ B_gn(ffi_cif* cif __UNUSED__, void* resp, void** args,
 int main (void)
 {
   ffi_cif cif;
-#ifndef USING_MMAP
-  static ffi_closure cl;
-#endif
-  ffi_closure *pcl;
+  void *code;
+  ffi_closure *pcl = ffi_closure_alloc(sizeof(ffi_closure), &code);
   void* args_dbl[3];
   ffi_type* cls_struct_fields[3];
   ffi_type* cls_struct_fields1[3];
   ffi_type cls_struct_type, cls_struct_type1;
   ffi_type* dbl_arg_types[3];
 
-#ifdef USING_MMAP
-  pcl = allocate_mmap (sizeof(ffi_closure));
-#else
-  pcl = &cl;
-#endif
+  struct A e_dbl = { 1.0, 7};
+  struct B f_dbl = {{12.0 , 127}, 99};
+
+  struct B res_dbl;
 
   cls_struct_type.size = 0;
   cls_struct_type.alignment = 0;
@@ -75,11 +72,6 @@ int main (void)
   cls_struct_type1.alignment = 0;
   cls_struct_type1.type = FFI_TYPE_STRUCT;
   cls_struct_type1.elements = cls_struct_fields1;
-
-  struct A e_dbl = { 1.0, 7};
-  struct B f_dbl = {{12.0 , 127}, 99};
-
-  struct B res_dbl;
 
   cls_struct_fields[0] = &ffi_type_double;
   cls_struct_fields[1] = &ffi_type_uchar;
@@ -107,9 +99,9 @@ int main (void)
   CHECK( res_dbl.x.b == (e_dbl.b + f_dbl.x.b + f_dbl.y));
   CHECK( res_dbl.y == (e_dbl.b + f_dbl.x.b));
 
-  CHECK(ffi_prep_closure(pcl, &cif, B_gn, NULL) == FFI_OK);
+  CHECK(ffi_prep_closure_loc(pcl, &cif, B_gn, NULL, code) == FFI_OK);
 
-  res_dbl = ((B(*)(A, B))(pcl))(e_dbl, f_dbl);
+  res_dbl = ((B(*)(A, B))(code))(e_dbl, f_dbl);
   /* { dg-output "\n1 7 12 127 99: 13 233 134" } */
   CHECK( res_dbl.x.a == (e_dbl.a + f_dbl.x.a));
   CHECK( res_dbl.x.b == (e_dbl.b + f_dbl.x.b + f_dbl.y));

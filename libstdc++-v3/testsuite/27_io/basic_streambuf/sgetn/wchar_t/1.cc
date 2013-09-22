@@ -1,12 +1,11 @@
 // 1999-10-11 bkoz
 
-// Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005
-// Free Software Foundation, Inc.
+// Copyright (C) 1999-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,18 +14,9 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 // 27.5.2 template class basic_streambuf
 
@@ -49,12 +39,12 @@ public:
   check_pointers()
   { 
     bool test __attribute__((unused)) = true;
-    VERIFY( this->eback() == NULL );
-    VERIFY( this->gptr() == NULL );
-    VERIFY( this->egptr() == NULL );
-    VERIFY( this->pbase() == NULL );
-    VERIFY( this->pptr() == NULL );
-    VERIFY( this->epptr() == NULL );
+    VERIFY( !this->eback() );
+    VERIFY( !this->gptr() );
+    VERIFY( !this->egptr() );
+    VERIFY( !this->pbase() );
+    VERIFY( !this->pptr() );
+    VERIFY( !this->epptr() );
     return test;
   }
 

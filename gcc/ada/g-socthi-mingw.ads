@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 2001-2007, AdaCore                     --
+--                     Copyright (C) 2001-2012, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -37,22 +35,20 @@
 
 --  This version is for NT
 
-with Interfaces.C.Pointers;
 with Interfaces.C.Strings;
 
-with GNAT.Sockets.Constants;
+with GNAT.Sockets.Thin_Common;
 
 with System;
+with System.CRTL;
 
 package GNAT.Sockets.Thin is
 
+   use Thin_Common;
+
    package C renames Interfaces.C;
 
-   use type C.int;
-   --  So that we can declare the Failure constant below
-
-   Success : constant C.int :=  0;
-   Failure : constant C.int := -1;
+   use type System.CRTL.ssize_t;
 
    function Socket_Errno return Integer;
    --  Returns last socket error number
@@ -76,158 +72,6 @@ package GNAT.Sockets.Thin is
       --  If H_Errno is not known, returns "Unknown system error".
 
    end Host_Error_Messages;
-
-   subtype Fd_Set_Access is System.Address;
-   No_Fd_Set : constant Fd_Set_Access := System.Null_Address;
-
-   type time_t is
-     range -2 ** (8 * Constants.SIZEOF_tv_sec - 1)
-         .. 2 ** (8 * Constants.SIZEOF_tv_sec - 1) - 1;
-   for time_t'Size use 8 * Constants.SIZEOF_tv_sec;
-   pragma Convention (C, time_t);
-
-   type suseconds_t is
-     range -2 ** (8 * Constants.SIZEOF_tv_usec - 1)
-         .. 2 ** (8 * Constants.SIZEOF_tv_usec - 1) - 1;
-   for suseconds_t'Size use 8 * Constants.SIZEOF_tv_usec;
-   pragma Convention (C, suseconds_t);
-
-   type Timeval is record
-      Tv_Sec  : time_t;
-      Tv_Usec : suseconds_t;
-   end record;
-   pragma Convention (C, Timeval);
-
-   type Timeval_Access is access all Timeval;
-   pragma Convention (C, Timeval_Access);
-
-   Immediat : constant Timeval := (0, 0);
-
-   type Int_Access is access all C.int;
-   pragma Convention (C, Int_Access);
-   --  Access to C integers
-
-   type Chars_Ptr_Array is array (C.size_t range <>) of
-     aliased C.Strings.chars_ptr;
-
-   package Chars_Ptr_Pointers is
-      new C.Pointers (C.size_t, C.Strings.chars_ptr, Chars_Ptr_Array,
-                      C.Strings.Null_Ptr);
-   --  Arrays of C (char *)
-
-   type In_Addr is record
-      S_B1, S_B2, S_B3, S_B4 : C.unsigned_char;
-   end record;
-   for In_Addr'Alignment use C.int'Alignment;
-   pragma Convention (C, In_Addr);
-   --  IPv4 address, represented as a network-order C.int. Note that the
-   --  underlying operating system may assume that values of this type have
-   --  C.int alignment, so we need to provide a suitable alignment clause here.
-
-   type In_Addr_Access is access all In_Addr;
-   pragma Convention (C, In_Addr_Access);
-   --  Access to internet address
-
-   Inaddr_Any : aliased constant In_Addr := (others => 0);
-   --  Any internet address (all the interfaces)
-
-   type In_Addr_Access_Array is array (C.size_t range <>)
-     of aliased In_Addr_Access;
-   pragma Convention (C, In_Addr_Access_Array);
-
-   package In_Addr_Access_Pointers is
-     new C.Pointers (C.size_t, In_Addr_Access, In_Addr_Access_Array, null);
-   --  Array of internet addresses
-
-   type Sockaddr is record
-      Sa_Family : C.unsigned_short;
-      Sa_Data   : C.char_array (1 .. 14);
-   end record;
-   pragma Convention (C, Sockaddr);
-   --  Socket address
-
-   type Sockaddr_Access is access all Sockaddr;
-   pragma Convention (C, Sockaddr_Access);
-   --  Access to socket address
-
-   type Sockaddr_In is record
-      Sin_Family : C.unsigned_short      := Constants.AF_INET;
-      Sin_Port   : C.unsigned_short      := 0;
-      Sin_Addr   : In_Addr               := Inaddr_Any;
-      Sin_Zero   : C.char_array (1 .. 8) := (others => C.char'Val (0));
-   end record;
-   pragma Convention (C, Sockaddr_In);
-   --  Internet socket address
-
-   type Sockaddr_In_Access is access all Sockaddr_In;
-   pragma Convention (C, Sockaddr_In_Access);
-   --  Access to internet socket address
-
-   procedure Set_Length
-     (Sin : Sockaddr_In_Access;
-      Len : C.int);
-   pragma Inline (Set_Length);
-   --  Set Sin.Sin_Length to Len.
-   --  On this platform, nothing is done as there is no such field.
-
-   procedure Set_Family
-     (Sin    : Sockaddr_In_Access;
-      Family : C.int);
-   pragma Inline (Set_Family);
-   --  Set Sin.Sin_Family to Family
-
-   procedure Set_Port
-     (Sin  : Sockaddr_In_Access;
-      Port : C.unsigned_short);
-   pragma Inline (Set_Port);
-   --  Set Sin.Sin_Port to Port
-
-   procedure Set_Address
-     (Sin     : Sockaddr_In_Access;
-      Address : In_Addr);
-   pragma Inline (Set_Address);
-   --  Set Sin.Sin_Addr to Address
-
-   type Hostent is record
-      H_Name      : C.Strings.chars_ptr;
-      H_Aliases   : Chars_Ptr_Pointers.Pointer;
-      H_Addrtype  : C.short;
-      H_Length    : C.short;
-      H_Addr_List : In_Addr_Access_Pointers.Pointer;
-   end record;
-   pragma Convention (C, Hostent);
-   --  Host entry
-
-   type Hostent_Access is access all Hostent;
-   pragma Convention (C, Hostent_Access);
-   --  Access to host entry
-
-   type Servent is record
-      S_Name    : C.Strings.chars_ptr;
-      S_Aliases : Chars_Ptr_Pointers.Pointer;
-      S_Port    : C.int;
-      S_Proto   : C.Strings.chars_ptr;
-   end record;
-   pragma Convention (C, Servent);
-   --  Service entry
-
-   type Servent_Access is access all Servent;
-   pragma Convention (C, Servent_Access);
-   --  Access to service entry
-
-   type Two_Ints is array (0 .. 1) of C.int;
-   pragma Convention (C, Two_Ints);
-   --  Container for two int values
-
-   subtype Fd_Pair is Two_Ints;
-   --  Two_Ints as used for Create_Signalling_Fds: a pair of connected file
-   --  descriptors, one of which (the "read end" of the connection) being used
-   --  for reading, the other one (the "write end") being used for writing.
-
-   Read_End  : constant := 0;
-   Write_End : constant := 1;
-   --  Indices into an Fd_Pair value providing access to each of the connected
-   --  file descriptors.
 
    --------------------------------
    -- Standard library functions --
@@ -272,22 +116,14 @@ package GNAT.Sockets.Thin is
       Optval  : System.Address;
       Optlen  : not null access C.int) return C.int;
 
-   function C_Inet_Addr
-     (Cp : C.Strings.chars_ptr) return C.int;
-
-   function C_Ioctl
-     (S    : C.int;
-      Req  : C.int;
-      Arg  : Int_Access) return C.int;
+   function Socket_Ioctl
+     (S   : C.int;
+      Req : SOSC.IOCTL_Req_T;
+      Arg : access C.int) return C.int;
 
    function C_Listen
      (S       : C.int;
       Backlog : C.int) return C.int;
-
-   function C_Readv
-     (Fd     : C.int;
-      Iov    : System.Address;
-      Iovcnt : C.int) return C.int;
 
    function C_Recv
      (S     : C.int;
@@ -300,28 +136,32 @@ package GNAT.Sockets.Thin is
       Msg     : System.Address;
       Len     : C.int;
       Flags   : C.int;
-      From    : Sockaddr_In_Access;
+      From    : System.Address;
       Fromlen : not null access C.int) return C.int;
+
+   function C_Recvmsg
+     (S     : C.int;
+      Msg   : System.Address;
+      Flags : C.int) return System.CRTL.ssize_t;
 
    function C_Select
      (Nfds      : C.int;
-      Readfds   : Fd_Set_Access;
-      Writefds  : Fd_Set_Access;
-      Exceptfds : Fd_Set_Access;
+      Readfds   : access Fd_Set;
+      Writefds  : access Fd_Set;
+      Exceptfds : access Fd_Set;
       Timeout   : Timeval_Access) return C.int;
 
-   function C_Send
+   function C_Sendmsg
      (S     : C.int;
       Msg   : System.Address;
-      Len   : C.int;
-      Flags : C.int) return C.int;
+      Flags : C.int) return System.CRTL.ssize_t;
 
    function C_Sendto
      (S     : C.int;
       Msg   : System.Address;
       Len   : C.int;
       Flags : C.int;
-      To    : Sockaddr_In_Access;
+      To    : System.Address;
       Tolen : C.int) return C.int;
 
    function C_Setsockopt
@@ -340,19 +180,11 @@ package GNAT.Sockets.Thin is
       Typ      : C.int;
       Protocol : C.int) return C.int;
 
-   function C_Strerror
-     (Errnum : C.int) return C.Strings.chars_ptr;
-
    function C_System
      (Command : System.Address) return C.int;
 
-   function C_Writev
-     (Fd     : C.int;
-      Iov    : System.Address;
-      Iovcnt : C.int) return C.int;
-
    function WSAStartup
-     (WS_Version     : Interfaces.C.int;
+     (WS_Version     : Interfaces.C.unsigned_short;
       WSADataAddress : System.Address) return Interfaces.C.int;
 
    -------------------------------------------------------
@@ -382,55 +214,6 @@ package GNAT.Sockets.Thin is
 
    end Signalling_Fds;
 
-   ----------------------------
-   -- Socket sets management --
-   ----------------------------
-
-   procedure Free_Socket_Set
-     (Set : Fd_Set_Access);
-   --  Free system-dependent socket set
-
-   procedure Get_Socket_From_Set
-     (Set    : Fd_Set_Access;
-      Socket : Int_Access;
-      Last   : Int_Access);
-   --  Get last socket in Socket and remove it from the socket set. The
-   --  parameter Last is a maximum value of the largest socket. This hint is
-   --  used to avoid scanning very large socket sets. After a call to
-   --  Get_Socket_From_Set, Last is set back to the real largest socket in the
-   --  socket set.
-
-   procedure Insert_Socket_In_Set
-     (Set    : Fd_Set_Access;
-      Socket : C.int);
-   --  Insert socket in the socket set
-
-   function  Is_Socket_In_Set
-     (Set    : Fd_Set_Access;
-      Socket : C.int) return C.int;
-   --  Check whether Socket is in the socket set, return a non-zero
-   --  value if it is, zero if it is not.
-
-   procedure Last_Socket_In_Set
-     (Set    : Fd_Set_Access;
-      Last   : Int_Access);
-   --  Find the largest socket in the socket set. This is needed for select().
-   --  When Last_Socket_In_Set is called, parameter Last is a maximum value of
-   --  the largest socket. This hint is used to avoid scanning very large
-   --  socket sets. After the call, Last is set back to the real largest socket
-   --  in the socket set.
-
-   function  New_Socket_Set
-     (Set : Fd_Set_Access) return Fd_Set_Access;
-   --  Allocate a new socket set which is a system-dependent structure and
-   --  initialize by copying Set if it is non-null, by making it empty
-   --  otherwise.
-
-   procedure Remove_Socket_From_Set
-     (Set    : Fd_Set_Access;
-      Socket : C.int);
-   --  Remove socket from the socket set
-
    procedure WSACleanup;
 
    procedure Initialize;
@@ -444,29 +227,17 @@ private
    pragma Import (Stdcall, C_Getpeername, "getpeername");
    pragma Import (Stdcall, C_Getsockname, "getsockname");
    pragma Import (Stdcall, C_Getsockopt, "getsockopt");
-   pragma Import (Stdcall, C_Inet_Addr, "inet_addr");
-   pragma Import (Stdcall, C_Ioctl, "ioctlsocket");
    pragma Import (Stdcall, C_Listen, "listen");
    pragma Import (Stdcall, C_Recv, "recv");
    pragma Import (Stdcall, C_Recvfrom, "recvfrom");
-   pragma Import (Stdcall, C_Send, "send");
    pragma Import (Stdcall, C_Sendto, "sendto");
    pragma Import (Stdcall, C_Setsockopt, "setsockopt");
    pragma Import (Stdcall, C_Shutdown, "shutdown");
    pragma Import (Stdcall, C_Socket, "socket");
-   pragma Import (C, C_Strerror, "strerror");
    pragma Import (C, C_System, "_system");
    pragma Import (Stdcall, Socket_Errno, "WSAGetLastError");
    pragma Import (Stdcall, Set_Socket_Errno, "WSASetLastError");
    pragma Import (Stdcall, WSAStartup, "WSAStartup");
    pragma Import (Stdcall, WSACleanup, "WSACleanup");
-
-   pragma Import (C, Free_Socket_Set, "__gnat_free_socket_set");
-   pragma Import (C, Get_Socket_From_Set, "__gnat_get_socket_from_set");
-   pragma Import (C, Is_Socket_In_Set, "__gnat_is_socket_in_set");
-   pragma Import (C, Last_Socket_In_Set, "__gnat_last_socket_in_set");
-   pragma Import (C, New_Socket_Set, "__gnat_new_socket_set");
-   pragma Import (C, Insert_Socket_In_Set, "__gnat_insert_socket_in_set");
-   pragma Import (C, Remove_Socket_From_Set, "__gnat_remove_socket_from_set");
 
 end GNAT.Sockets.Thin;

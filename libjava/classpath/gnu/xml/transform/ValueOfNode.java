@@ -1,4 +1,4 @@
-/* ValueOfNode.java -- 
+/* ValueOfNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -75,6 +77,7 @@ final class ValueOfNode
     return ret;
   }
 
+  @Override
   void doApply(Stylesheet stylesheet, QName mode,
                Node context, int pos, int len,
                Node parent, Node nextSibling)
@@ -84,10 +87,9 @@ final class ValueOfNode
     String value;
     if (ret instanceof Collection)
       {
-        StringBuffer buf = new StringBuffer();
-        for (Iterator i = ((Collection) ret).iterator(); i.hasNext(); )
+        CPStringBuilder buf = new CPStringBuilder();
+        for (Node node : ((Collection<Node>) ret))
           {
-            Node node = (Node) i.next();
             buf.append(Expr.stringValue(node));
           }
         value = buf.toString();
@@ -123,10 +125,10 @@ final class ValueOfNode
       return true;
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("value-of");
+    CPStringBuilder buf = new CPStringBuilder("value-of");
     buf.append('[');
     buf.append("select=");
     buf.append(select);
@@ -135,5 +137,5 @@ final class ValueOfNode
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

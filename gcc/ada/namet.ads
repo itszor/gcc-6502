@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -49,11 +47,11 @@ package Namet is
 
 --  The forms of the entries are as follows:
 
---    Identifiers Stored with upper case letters folded to lower case. Upper
---                       half (16#80# bit set) and wide characters are stored
---                       in an encoded form (Uhh for upper half char, Whhhh
---                       for wide characters, WWhhhhhhhh as provided by the
---                       routine Store_Encoded_Character, where hh are hex
+--    Identifiers        Stored with upper case letters folded to lower case.
+--                       Upper half (16#80# bit set) and wide characters are
+--                       stored in an encoded form (Uhh for upper half char,
+--                       Whhhh for wide characters, WWhhhhhhhh as provided by
+--                       the routine Store_Encoded_Character, where hh are hex
 --                       digits for the character code using lower case a-f).
 --                       Normally the use of U or W in other internal names is
 --                       avoided, but these letters may be used in internal
@@ -72,7 +70,7 @@ package Namet is
 --                       followed by an upper case letter or an underscore.
 
 --    Character literals Character literals have names that are used only for
---                       debugging and error message purposes. The form is a
+--                       debugging and error message purposes. The form is an
 --                       upper case Q followed by a single lower case letter,
 --                       or by a Uxx/Wxxxx/WWxxxxxxx encoding as described for
 --                       identifiers. The Set_Character_Literal_Name procedure
@@ -141,8 +139,8 @@ package Namet is
    -----------------------------
 
    --  Name_Id values are used to identify entries in the names table. Except
-   --  for the special values No_Name, and Error_Name, they are subscript
-   --  values for the Names table defined in package Namet.
+   --  for the special values No_Name and Error_Name, they are subscript values
+   --  for the Names table defined in this package.
 
    --  Note that with only a few exceptions, which are clearly documented, the
    --  type Name_Id should be regarded as a private type. In particular it is
@@ -241,13 +239,19 @@ package Namet is
    --  is, it starts with an upper case O).
 
    procedure Initialize;
-   --  Initializes the names table, including initializing the first 26
-   --  entries in the table (for the 1-character lower case names a-z) Note
-   --  that Initialize must not be called if Tree_Read is used.
+   --  This is a dummy procedure. It is retained for easy compatibility with
+   --  clients who used to call Initialize when this call was required. Now
+   --  initialization is performed automatically during package elaboration.
+   --  Note that this change fixes problems which existed prior to the change
+   --  of Initialize being called more than once. See also Reinitialize which
+   --  allows reinitialization of the tables.
 
    procedure Lock;
    --  Lock name tables before calling back end. We reserve some extra space
    --  before locking to avoid unnecessary inefficiencies when we unlock.
+
+   procedure Reinitialize;
+   --  Clears the name tables and removes all existing entries from the table.
 
    procedure Unlock;
    --  Unlocks the name table to allow use of the extra space reserved by the
@@ -345,6 +349,11 @@ package Namet is
    procedure Add_Str_To_Name_Buffer (S : String);
    --  Add characters of string S to the end of the string currently stored
    --  in the Name_Buffer, incrementing Name_Len by the length of the string.
+
+   procedure Insert_Str_In_Name_Buffer (S : String; Index : Positive);
+   --  Inserts given string in name buffer, starting at Index. Any existing
+   --  characters at or past this location get moved beyond the inserted string
+   --  and Name_Len is incremented by the length of the string.
 
    procedure Set_Character_Literal_Name (C : Char_Code);
    --  This procedure sets the proper encoded name for the character literal

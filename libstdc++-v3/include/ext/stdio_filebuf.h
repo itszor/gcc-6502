@@ -1,11 +1,11 @@
 // File descriptor layer for filebuf -*- C++ -*-
 
-// Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+// Copyright (C) 2002-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -13,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file ext/stdio_filebuf.h
  *  This file is a GNU extension to the Standard C++ Library.
@@ -38,10 +33,13 @@
 
 #include <fstream>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   /**
    *  @brief Provides a layer of compatibility for C/POSIX.
+   *  @ingroup io
    *
    *  This GNU extension provides extensions for working with standard C
    *  FILE*'s and POSIX file descriptors.  It must be instantiated by the
@@ -67,9 +65,10 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
       stdio_filebuf() : std::basic_filebuf<_CharT, _Traits>() {}
 
       /**
-       *  @param  fd  An open file descriptor.
-       *  @param  mode  Same meaning as in a standard filebuf.
-       *  @param  size  Optimal or preferred size of internal buffer, in chars.
+       *  @param  __fd  An open file descriptor.
+       *  @param  __mode  Same meaning as in a standard filebuf.
+       *  @param  __size Optimal or preferred size of internal buffer,
+       *                 in chars.
        *
        *  This constructor associates a file stream buffer with an open
        *  POSIX file descriptor. The file descriptor will be automatically
@@ -79,10 +78,10 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		    size_t __size = static_cast<size_t>(BUFSIZ));
 
       /**
-       *  @param  f  An open @c FILE*.
-       *  @param  mode  Same meaning as in a standard filebuf.
-       *  @param  size  Optimal or preferred size of internal buffer, in chars.
-       *                Defaults to system's @c BUFSIZ.
+       *  @param  __f  An open @c FILE*.
+       *  @param  __mode  Same meaning as in a standard filebuf.
+       *  @param  __size Optimal or preferred size of internal buffer,
+       *                 in chars.  Defaults to system's @c BUFSIZ.
        *
        *  This constructor associates a file stream buffer with an open
        *  C @c FILE*.  The @c FILE* will not be automatically closed when the
@@ -157,6 +156,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	}
     }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif

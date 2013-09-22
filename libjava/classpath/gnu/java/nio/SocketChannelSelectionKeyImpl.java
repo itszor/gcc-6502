@@ -49,7 +49,7 @@ public class SocketChannelSelectionKeyImpl extends SelectionKeyImpl
 {
 
   SocketChannelImpl ch;
-  
+
   /**
    * @param ch
    * @param impl
@@ -57,7 +57,7 @@ public class SocketChannelSelectionKeyImpl extends SelectionKeyImpl
   public SocketChannelSelectionKeyImpl(SocketChannelImpl ch, SelectorImpl impl)
   {
     super(ch, impl);
-    this.ch = (SocketChannelImpl) ch;
+    this.ch = ch;
   }
 
   /**

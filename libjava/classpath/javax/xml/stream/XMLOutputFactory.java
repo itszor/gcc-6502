@@ -1,5 +1,5 @@
-/* XMLOutputFactory.java -- 
-   Copyright (C) 2005,2006  Free Software Foundation, Inc.
+/* XMLOutputFactory.java --
+   Copyright (C) 2005,2006,2009  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -77,11 +77,21 @@ public abstract class XMLOutputFactory
    * If true, the writer will create a namespace declaration for any
    * attribute that doesn't have a namespace declaration in scope.
    */
-  public static final java.lang.String IS_REPAIRING_NAMESPACES = 
+  public static final java.lang.String IS_REPAIRING_NAMESPACES =
     "javax.xml.stream.isRepairingNamespaces";
 
   protected XMLOutputFactory()
   {
+  }
+
+  /**
+   * Creates a new <b>output</b> factory.
+   * @see #newInstance(String,ClassLoader)
+   */
+  public static XMLOutputFactory newInstance()
+    throws FactoryConfigurationError
+  {
+    return newInstance(null, null);
   }
 
   /**
@@ -98,25 +108,35 @@ public abstract class XMLOutputFactory
    * system resource</li>
    * <li>the default factory class</li>
    * </ol>
+   * @param factoryId the name of the factory, same as the property
+   * @param classLoader the class loader to use
+   * @return a new factory instance
+   * @exception FactoryConfigurationError if an instance of this factory
+   * could not be loaded
    */
-  public static XMLOutputFactory newInstance()
+  public static XMLOutputFactory newInstance(String factoryId,
+                                             ClassLoader classLoader)
     throws FactoryConfigurationError
   {
-    ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    if (loader == null)
+    if (classLoader == null)
       {
-        loader = XMLOutputFactory.class.getClassLoader();
+        classLoader = Thread.currentThread().getContextClassLoader();
+      }
+    if (classLoader == null)
+      {
+        classLoader = XMLOutputFactory.class.getClassLoader();
       }
     String className = null;
     int count = 0;
     do
       {
-        className = getFactoryClassName(loader, count++);
+        className = getFactoryClassName(classLoader, count++);
         if (className != null)
           {
             try
               {
-                Class t = (loader != null) ? loader.loadClass(className) :
+                Class<?> t = (classLoader != null) ?
+                  classLoader.loadClass(className) :
                   Class.forName(className);
                 return (XMLOutputFactory) t.newInstance();
               }
@@ -184,18 +204,6 @@ public abstract class XMLOutputFactory
   }
 
   /**
-   * Creates a new <b>input</b> factory.
-   * This appears to be an API design bug.
-   * @see javax.xml.stream.XMLInputFactory.newInstance(String,ClassLoader)
-   */
-  public static XMLInputFactory newInstance(String factoryId,
-                                            ClassLoader classLoader)
-    throws FactoryConfigurationError
-  {
-    return XMLInputFactory.newInstance(factoryId, classLoader);
-  }
-
-  /**
    * Creates a new stream writer.
    */
   public abstract XMLStreamWriter createXMLStreamWriter(Writer stream)
@@ -221,7 +229,7 @@ public abstract class XMLOutputFactory
    */
   public abstract XMLStreamWriter createXMLStreamWriter(Result result)
     throws XMLStreamException;
-  
+
   /**
    * Creates a new event writer.
    * @exception UnsupportedOperationException if this method is not
@@ -269,4 +277,3 @@ public abstract class XMLOutputFactory
   public abstract boolean isPropertySupported(String name);
 
 }
-

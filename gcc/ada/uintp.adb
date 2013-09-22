@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -72,7 +70,7 @@ package body Uintp is
    Udigits_Min : Int;
    --  These values are used to make sure that the mark/release mechanism does
    --  not destroy values saved in the U_Power tables or in the hash table used
-   --  by UI_From_Int. Whenever an entry is made in either of these tabls,
+   --  by UI_From_Int. Whenever an entry is made in either of these tables,
    --  Uints_Min and Udigits_Min are updated to protect the entry, and Release
    --  never cuts back beyond these minimum values.
 
@@ -131,7 +129,7 @@ package body Uintp is
    --  This procedure puts the value of UI into the vector in canonical
    --  multiple precision format. The parameter should be of the correct size
    --  as determined by a previous call to N_Digits (UI). The first digit of
-   --  Vec contains the sign, all other digits are always non- negative. Note
+   --  Vec contains the sign, all other digits are always non-negative. Note
    --  that the input may be directly represented, and in this case Vec will
    --  contain the corresponding one or two digit value. The low bound of Vec
    --  is always 1.
@@ -142,7 +140,7 @@ package body Uintp is
    --  is less than 2**15, the value returned is the input value, in this case
    --  the result may be negative. It is expected that any use will mask off
    --  unnecessary bits. This is used for finding Arg mod B where B is a power
-   --  of two. Hence the actual base is irrelevent as long as it is a power of
+   --  of two. Hence the actual base is irrelevant as long as it is a power of
    --  two.
 
    procedure Most_Sig_2_Digits
@@ -159,24 +157,19 @@ package body Uintp is
    pragma Inline (N_Digits);
    --  Returns number of "digits" in a Uint
 
-   function Sum_Digits (Left : Uint; Sign : Int) return Int;
-   --  If Sign = 1 return the sum of the "digits" of Abs (Left). If the total
-   --  has more then one digit then return Sum_Digits of total.
-
-   function Sum_Double_Digits (Left : Uint; Sign : Int) return Int;
-   --  Same as above but work in New_Base = Base * Base
-
    procedure UI_Div_Rem
      (Left, Right       : Uint;
       Quotient          : out Uint;
       Remainder         : out Uint;
-      Discard_Quotient  : Boolean;
-      Discard_Remainder : Boolean);
-   --  Compute euclidian division of Left by Right, and return Quotient and
-   --  signed Remainder (Left rem Right).
+      Discard_Quotient  : Boolean := False;
+      Discard_Remainder : Boolean := False);
+   --  Compute Euclidean division of Left by Right. If Discard_Quotient is
+   --  False then the quotient is returned in Quotient (otherwise Quotient is
+   --  set to No_Uint). If Discard_Remainder is False, then the remainder is
+   --  returned in Remainder (otherwise Remainder is set to No_Uint).
    --
-   --    If Discard_Quotient is True, Quotient is left unchanged.
-   --    If Discard_Remainder is True, Remainder is left unchanged.
+   --  If Discard_Quotient is True, Quotient is set to No_Uint
+   --  If Discard_Remainder is True, Remainder is set to No_Uint
 
    function Vector_To_Uint
      (In_Vec   : UI_Vector;
@@ -241,7 +234,7 @@ package body Uintp is
 
    function Hash_Num (F : Int) return Hnum is
    begin
-      return Standard."mod" (F, Hnum'Range_Length);
+      return Types."mod" (F, Hnum'Range_Length);
    end Hash_Num;
 
    ---------------
@@ -370,9 +363,12 @@ package body Uintp is
          H : constant array (Int range 0 .. 15) of Character :=
                "0123456789ABCDEF";
 
+         Q, R : Uint;
       begin
-         if U >= Base then
-            Image_Uint (U / Base);
+         UI_Div_Rem (U, Base, Q, R);
+
+         if Q > Uint_0 then
+            Image_Uint (Q);
          end if;
 
          if Digs_Output = 4 and then Base = Uint_16 then
@@ -380,7 +376,7 @@ package body Uintp is
             Digs_Output := 0;
          end if;
 
-         Image_Char (H (UI_To_Int (U rem Base)));
+         Image_Char (H (UI_To_Int (R)));
 
          Digs_Output := Digs_Output + 1;
       end Image_Uint;
@@ -683,14 +679,11 @@ package body Uintp is
          begin
             Release (M);
 
-            Uints.Increment_Last;
+            Uints.Append ((Length => UE_Len, Loc => Udigits.Last + 1));
             UI := Uints.Last;
 
-            Uints.Table (UI) := (UE_Len, Udigits.Last + 1);
-
             for J in 1 .. UE_Len loop
-               Udigits.Increment_Last;
-               Udigits.Table (Udigits.Last) := UD (J);
+               Udigits.Append (UD (J));
             end loop;
          end;
       end if;
@@ -721,256 +714,22 @@ package body Uintp is
          begin
             Release (M);
 
-            Uints.Increment_Last;
+            Uints.Append ((Length => UE1_Len, Loc => Udigits.Last + 1));
             UI1 := Uints.Last;
 
-            Uints.Table (UI1) := (UE1_Len, Udigits.Last + 1);
-
             for J in 1 .. UE1_Len loop
-               Udigits.Increment_Last;
-               Udigits.Table (Udigits.Last) := UD1 (J);
+               Udigits.Append (UD1 (J));
             end loop;
 
-            Uints.Increment_Last;
+            Uints.Append ((Length => UE2_Len, Loc => Udigits.Last + 1));
             UI2 := Uints.Last;
 
-            Uints.Table (UI2) := (UE2_Len, Udigits.Last + 1);
-
             for J in 1 .. UE2_Len loop
-               Udigits.Increment_Last;
-               Udigits.Table (Udigits.Last) := UD2 (J);
+               Udigits.Append (UD2 (J));
             end loop;
          end;
       end if;
    end Release_And_Save;
-
-   ----------------
-   -- Sum_Digits --
-   ----------------
-
-   --  This is done in one pass
-
-   --  Mathematically: assume base congruent to 1 and compute an equivelent
-   --  integer to Left.
-
-   --  If Sign = -1 return the alternating sum of the "digits"
-
-   --     D1 - D2 + D3 - D4 + D5 ...
-
-   --  (where D1 is Least Significant Digit)
-
-   --  Mathematically: assume base congruent to -1 and compute an equivelent
-   --  integer to Left.
-
-   --  This is used in Rem and Base is assumed to be 2 ** 15
-
-   --  Note: The next two functions are very similar, any style changes made
-   --  to one should be reflected in both.  These would be simpler if we
-   --  worked base 2 ** 32.
-
-   function Sum_Digits (Left : Uint; Sign : Int) return Int is
-   begin
-      pragma Assert (Sign = Int_1 or Sign = Int (-1));
-
-      --  First try simple case;
-
-      if Direct (Left) then
-         declare
-            Tmp_Int : Int := Direct_Val (Left);
-
-         begin
-            if Tmp_Int >= Base then
-               Tmp_Int := (Tmp_Int / Base) +
-                  Sign * (Tmp_Int rem Base);
-
-                  --  Now Tmp_Int is in [-(Base - 1) .. 2 * (Base - 1)]
-
-               if Tmp_Int >= Base then
-
-                  --  Sign must be 1
-
-                  Tmp_Int := (Tmp_Int / Base) + 1;
-
-               end if;
-
-               --  Now Tmp_Int is in [-(Base - 1) .. (Base - 1)]
-
-            end if;
-
-            return Tmp_Int;
-         end;
-
-      --  Otherwise full circuit is needed
-
-      else
-         declare
-            L_Length : constant Int := N_Digits (Left);
-            L_Vec    : UI_Vector (1 .. L_Length);
-            Tmp_Int  : Int;
-            Carry    : Int;
-            Alt      : Int;
-
-         begin
-            Init_Operand (Left, L_Vec);
-            L_Vec (1) := abs L_Vec (1);
-            Tmp_Int := 0;
-            Carry := 0;
-            Alt := 1;
-
-            for J in reverse 1 .. L_Length loop
-               Tmp_Int := Tmp_Int + Alt * (L_Vec (J) + Carry);
-
-               --  Tmp_Int is now between [-2 * Base + 1 .. 2 * Base - 1],
-               --  since old Tmp_Int is between [-(Base - 1) .. Base - 1]
-               --  and L_Vec is in [0 .. Base - 1] and Carry in [-1 .. 1]
-
-               if Tmp_Int >= Base then
-                  Tmp_Int := Tmp_Int - Base;
-                  Carry := 1;
-
-               elsif Tmp_Int <= -Base then
-                  Tmp_Int := Tmp_Int + Base;
-                  Carry := -1;
-
-               else
-                  Carry := 0;
-               end if;
-
-               --  Tmp_Int is now between [-Base + 1 .. Base - 1]
-
-               Alt := Alt * Sign;
-            end loop;
-
-            Tmp_Int := Tmp_Int + Alt * Carry;
-
-            --  Tmp_Int is now between [-Base .. Base]
-
-            if Tmp_Int >= Base then
-               Tmp_Int := Tmp_Int - Base + Alt * Sign * 1;
-
-            elsif Tmp_Int <= -Base then
-               Tmp_Int := Tmp_Int + Base + Alt * Sign * (-1);
-            end if;
-
-            --  Now Tmp_Int is in [-(Base - 1) .. (Base - 1)]
-
-            return Tmp_Int;
-         end;
-      end if;
-   end Sum_Digits;
-
-   -----------------------
-   -- Sum_Double_Digits --
-   -----------------------
-
-   --  Note: This is used in Rem, Base is assumed to be 2 ** 15
-
-   function Sum_Double_Digits (Left : Uint; Sign : Int) return Int is
-   begin
-      --  First try simple case;
-
-      pragma Assert (Sign = Int_1 or Sign = Int (-1));
-
-      if Direct (Left) then
-         return Direct_Val (Left);
-
-      --  Otherwise full circuit is needed
-
-      else
-         declare
-            L_Length      : constant Int := N_Digits (Left);
-            L_Vec         : UI_Vector (1 .. L_Length);
-            Most_Sig_Int  : Int;
-            Least_Sig_Int : Int;
-            Carry         : Int;
-            J             : Int;
-            Alt           : Int;
-
-         begin
-            Init_Operand (Left, L_Vec);
-            L_Vec (1) := abs L_Vec (1);
-            Most_Sig_Int := 0;
-            Least_Sig_Int := 0;
-            Carry := 0;
-            Alt := 1;
-            J := L_Length;
-
-            while J > Int_1 loop
-               Least_Sig_Int := Least_Sig_Int + Alt * (L_Vec (J) + Carry);
-
-               --  Least is in [-2 Base + 1 .. 2 * Base - 1]
-               --  Since L_Vec in [0 .. Base - 1] and Carry in [-1 .. 1]
-               --  and old Least in [-Base + 1 .. Base - 1]
-
-               if Least_Sig_Int >= Base then
-                  Least_Sig_Int := Least_Sig_Int - Base;
-                  Carry := 1;
-
-               elsif Least_Sig_Int <= -Base then
-                  Least_Sig_Int := Least_Sig_Int + Base;
-                  Carry := -1;
-
-               else
-                  Carry := 0;
-               end if;
-
-               --  Least is now in [-Base + 1 .. Base - 1]
-
-               Most_Sig_Int := Most_Sig_Int + Alt * (L_Vec (J - 1) + Carry);
-
-               --  Most is in [-2 Base + 1 .. 2 * Base - 1]
-               --  Since L_Vec in [0 ..  Base - 1] and Carry in  [-1 .. 1]
-               --  and old Most in [-Base + 1 .. Base - 1]
-
-               if Most_Sig_Int >= Base then
-                  Most_Sig_Int := Most_Sig_Int - Base;
-                  Carry := 1;
-
-               elsif Most_Sig_Int <= -Base then
-                  Most_Sig_Int := Most_Sig_Int + Base;
-                  Carry := -1;
-               else
-                  Carry := 0;
-               end if;
-
-               --  Most is now in [-Base + 1 .. Base - 1]
-
-               J := J - 2;
-               Alt := Alt * Sign;
-            end loop;
-
-            if J = Int_1 then
-               Least_Sig_Int := Least_Sig_Int + Alt * (L_Vec (J) + Carry);
-            else
-               Least_Sig_Int := Least_Sig_Int + Alt * Carry;
-            end if;
-
-            if Least_Sig_Int >= Base then
-               Least_Sig_Int := Least_Sig_Int - Base;
-               Most_Sig_Int := Most_Sig_Int + Alt * 1;
-
-            elsif Least_Sig_Int <= -Base then
-               Least_Sig_Int := Least_Sig_Int + Base;
-               Most_Sig_Int := Most_Sig_Int + Alt * (-1);
-            end if;
-
-            if Most_Sig_Int >= Base then
-               Most_Sig_Int := Most_Sig_Int - Base;
-               Alt := Alt * Sign;
-               Least_Sig_Int :=
-                 Least_Sig_Int + Alt * 1; -- cannot overflow again
-
-            elsif Most_Sig_Int <= -Base then
-               Most_Sig_Int := Most_Sig_Int + Base;
-               Alt := Alt * Sign;
-               Least_Sig_Int :=
-                 Least_Sig_Int + Alt * (-1); --  cannot overflow again.
-            end if;
-
-            return Most_Sig_Int * Base + Least_Sig_Int;
-         end;
-      end if;
-   end Sum_Double_Digits;
 
    ---------------
    -- Tree_Read --
@@ -1264,7 +1023,6 @@ package body Uintp is
       UI_Div_Rem
         (Left, Right,
          Quotient, Remainder,
-         Discard_Quotient  => False,
          Discard_Remainder => True);
       return Quotient;
    end UI_Div;
@@ -1277,11 +1035,14 @@ package body Uintp is
      (Left, Right       : Uint;
       Quotient          : out Uint;
       Remainder         : out Uint;
-      Discard_Quotient  : Boolean;
-      Discard_Remainder : Boolean)
+      Discard_Quotient  : Boolean := False;
+      Discard_Remainder : Boolean := False)
    is
    begin
       pragma Assert (Right /= Uint_0);
+
+      Quotient  := No_Uint;
+      Remainder := No_Uint;
 
       --  Cases where both operands are represented directly
 
@@ -1354,9 +1115,11 @@ package body Uintp is
             if not Discard_Quotient then
                Quotient := Uint_0;
             end if;
+
             if not Discard_Remainder then
                Remainder := Left;
             end if;
+
             return;
          end if;
 
@@ -1386,6 +1149,7 @@ package body Uintp is
                if not Discard_Remainder then
                   Remainder := UI_From_Int (Remainder_I);
                end if;
+
                return;
             end;
          end if;
@@ -1401,6 +1165,7 @@ package body Uintp is
             Divisor_Dig1 : Int;
             Divisor_Dig2 : Int;
             Q_Guess      : Int;
+            R_Guess      : Int;
 
          begin
             --  [ NORMALIZE ] (step D1 in the algorithm). First calculate the
@@ -1424,7 +1189,7 @@ package body Uintp is
 
             if D > Int_1 then
 
-               --  Multiply Dividend by D
+               --  Multiply Dividend by d
 
                Carry := 0;
                for J in reverse Dividend'Range loop
@@ -1452,23 +1217,28 @@ package body Uintp is
 
                --  [ CALCULATE Q (hat) ] (step D3 in the algorithm)
 
+               --  Note: this version of step D3 is from the original published
+               --  algorithm, which is known to have a bug causing overflows.
+               --  See: http://www-cs-faculty.stanford.edu/~uno/err2-2e.ps.gz
+               --  and http://www-cs-faculty.stanford.edu/~uno/all2-pre.ps.gz.
+               --  The code below is the fixed version of this step.
+
                Tmp_Int := Dividend (J) * Base + Dividend (J + 1);
 
                --  Initial guess
 
-               if Dividend (J) = Divisor_Dig1 then
-                  Q_Guess := Base - 1;
-               else
-                  Q_Guess := Tmp_Int / Divisor_Dig1;
-               end if;
+               Q_Guess := Tmp_Int / Divisor_Dig1;
+               R_Guess := Tmp_Int rem Divisor_Dig1;
 
                --  Refine the guess
 
-               while Divisor_Dig2 * Q_Guess >
-                     (Tmp_Int - Q_Guess * Divisor_Dig1) * Base +
-                                                          Dividend (J + 2)
+               while Q_Guess >= Base
+                 or else Divisor_Dig2 * Q_Guess >
+                           R_Guess * Base + Dividend (J + 2)
                loop
                   Q_Guess := Q_Guess - 1;
+                  R_Guess := R_Guess + Divisor_Dig1;
+                  exit when R_Guess >= Base;
                end loop;
 
                --  [ MULTIPLY & SUBTRACT ] (step D4). Q_Guess * Divisor is
@@ -1688,48 +1458,8 @@ package body Uintp is
 
    function UI_From_CC (Input : Char_Code) return Uint is
    begin
-      return UI_From_Dint (Dint (Input));
+      return UI_From_Int (Int (Input));
    end UI_From_CC;
-
-   ------------------
-   -- UI_From_Dint --
-   ------------------
-
-   function UI_From_Dint (Input : Dint) return Uint is
-   begin
-
-      if Dint (Min_Direct) <= Input and then Input <= Dint (Max_Direct) then
-         return Uint (Dint (Uint_Direct_Bias) + Input);
-
-      --  For values of larger magnitude, compute digits into a vector and call
-      --  Vector_To_Uint.
-
-      else
-         declare
-            Max_For_Dint : constant := 5;
-            --  Base is defined so that 5 Uint digits is sufficient to hold the
-            --  largest possible Dint value.
-
-            V : UI_Vector (1 .. Max_For_Dint);
-
-            Temp_Integer : Dint;
-
-         begin
-            for J in V'Range loop
-               V (J) := 0;
-            end loop;
-
-            Temp_Integer := Input;
-
-            for J in reverse V'Range loop
-               V (J) := Int (abs (Temp_Integer rem Dint (Base)));
-               Temp_Integer := Temp_Integer / Dint (Base);
-            end loop;
-
-            return Vector_To_Uint (V, Input < Dint'(0));
-         end;
-      end if;
-   end UI_From_Dint;
 
    -----------------
    -- UI_From_Int --
@@ -1761,15 +1491,9 @@ package body Uintp is
 
          V : UI_Vector (1 .. Max_For_Int);
 
-         Temp_Integer : Int;
+         Temp_Integer : Int := Input;
 
       begin
-         for J in V'Range loop
-            V (J) := 0;
-         end loop;
-
-         Temp_Integer := Input;
-
          for J in reverse V'Range loop
             V (J) := abs (Temp_Integer rem Base);
             Temp_Integer := Temp_Integer / Base;
@@ -1839,7 +1563,7 @@ package body Uintp is
 
             Den1 := V_Hat + C;
             Den2 := V_Hat + D;
-            exit when (Den1 * Den2) = Int_0;
+            exit when Den1 = Int_0 or else Den2 = Int_0;
 
             --  Compute Q, the trial quotient
 
@@ -1942,7 +1666,7 @@ package body Uintp is
 
    function UI_Gt (Left : Uint; Right : Uint) return Boolean is
    begin
-      return UI_Lt (Right, Left);
+      return UI_Lt (Left => Right, Right => Left);
    end UI_Gt;
 
    ---------------
@@ -1988,7 +1712,7 @@ package body Uintp is
 
    function UI_Le (Left : Uint; Right : Uint) return Boolean is
    begin
-      return not UI_Lt (Right, Left);
+      return not UI_Lt (Left => Right, Right => Left);
    end UI_Le;
 
    ------------
@@ -2209,11 +1933,7 @@ package body Uintp is
       Y := Uint_0;
 
       loop
-         UI_Div_Rem
-           (U, V,
-            Quotient => Q, Remainder => R,
-            Discard_Quotient  => False,
-            Discard_Remainder => False);
+         UI_Div_Rem (U, V, Quotient => Q, Remainder => R);
 
          U := V;
          V := R;
@@ -2250,12 +1970,13 @@ package body Uintp is
 
    function UI_Mul (Left : Uint; Right : Uint) return Uint is
    begin
-      --  Simple case of single length operands
+      --  Case where product fits in the range of a 32-bit integer
 
-      if Direct (Left) and then Direct (Right) then
-         return
-           UI_From_Dint
-             (Dint (Direct_Val (Left)) * Dint (Direct_Val (Right)));
+      if Int (Left)  <= Int (Uint_Max_Simple_Mul)
+           and then
+         Int (Right) <= Int (Uint_Max_Simple_Mul)
+      then
+         return UI_From_Int (Direct_Val (Left) * Direct_Val (Right));
       end if;
 
       --  Otherwise we have the general case (Algorithm M in Knuth)
@@ -2420,169 +2141,21 @@ package body Uintp is
    end UI_Rem;
 
    function UI_Rem (Left, Right : Uint) return Uint is
-      Sign : Int;
-      Tmp  : Int;
-
-      subtype Int1_12 is Integer range 1 .. 12;
+      Remainder : Uint;
+      Quotient  : Uint;
+      pragma Warnings (Off, Quotient);
 
    begin
       pragma Assert (Right /= Uint_0);
 
-      if Direct (Right) then
-         if Direct (Left) then
-            return UI_From_Int (Direct_Val (Left) rem Direct_Val (Right));
+      if Direct (Right) and then Direct (Left) then
+         return UI_From_Int (Direct_Val (Left) rem Direct_Val (Right));
 
-         else
-
-            --  Special cases when Right is less than 13 and Left is larger
-            --  larger than one digit. All of these algorithms depend on the
-            --  base being 2 ** 15 We work with Abs (Left) and Abs(Right)
-            --  then multiply result by Sign (Left)
-
-            if (Right <= Uint_12) and then (Right >= Uint_Minus_12) then
-
-               if Left < Uint_0 then
-                  Sign := -1;
-               else
-                  Sign := 1;
-               end if;
-
-               --  All cases are listed, grouped by mathematical method It is
-               --  not inefficient to do have this case list out of order since
-               --  GCC sorts the cases we list.
-
-               case Int1_12 (abs (Direct_Val (Right))) is
-
-                  when 1 =>
-                     return Uint_0;
-
-                  --  Powers of two are simple AND's with LS Left Digit GCC
-                  --  will recognise these constants as powers of 2 and replace
-                  --  the rem with simpler operations where possible.
-
-                  --  Least_Sig_Digit might return Negative numbers
-
-                  when 2 =>
-                     return UI_From_Int (
-                        Sign * (Least_Sig_Digit (Left) mod 2));
-
-                  when 4 =>
-                     return UI_From_Int (
-                        Sign * (Least_Sig_Digit (Left) mod 4));
-
-                  when 8 =>
-                     return UI_From_Int (
-                        Sign * (Least_Sig_Digit (Left) mod 8));
-
-                  --  Some number theoretical tricks:
-
-                  --    If B Rem Right = 1 then
-                  --    Left Rem Right = Sum_Of_Digits_Base_B (Left) Rem Right
-
-                  --  Note: 2^32 mod 3 = 1
-
-                  when 3 =>
-                     return UI_From_Int (
-                        Sign * (Sum_Double_Digits (Left, 1) rem Int (3)));
-
-                  --  Note: 2^15 mod 7 = 1
-
-                  when 7 =>
-                     return UI_From_Int (
-                        Sign * (Sum_Digits (Left, 1) rem Int (7)));
-
-                  --  Note: 2^32 mod 5 = -1
-
-                  --  Alternating sums might be negative, but rem is always
-                  --  positive hence we must use mod here.
-
-                  when 5 =>
-                     Tmp := Sum_Double_Digits (Left, -1) mod Int (5);
-                     return UI_From_Int (Sign * Tmp);
-
-                  --  Note: 2^15 mod 9 = -1
-
-                  --  Alternating sums might be negative, but rem is always
-                  --  positive hence we must use mod here.
-
-                  when 9  =>
-                     Tmp := Sum_Digits (Left, -1) mod Int (9);
-                     return UI_From_Int (Sign * Tmp);
-
-                  --  Note: 2^15 mod 11 = -1
-
-                  --  Alternating sums might be negative, but rem is always
-                  --  positive hence we must use mod here.
-
-                  when 11 =>
-                     Tmp := Sum_Digits (Left, -1) mod Int (11);
-                     return UI_From_Int (Sign * Tmp);
-
-                  --  Now resort to Chinese Remainder theorem to reduce 6, 10,
-                  --  12 to previous special cases
-
-                  --  There is no reason we could not add more cases like these
-                  --  if it proves useful.
-
-                  --  Perhaps we should go up to 16, however we have no "trick"
-                  --  for 13.
-
-                  --  To find u mod m we:
-
-                  --  Pick m1, m2 S.T.
-                  --     GCD(m1, m2) = 1 AND m = (m1 * m2).
-
-                  --  Next we pick (Basis) M1, M2 small S.T.
-                  --     (M1 mod m1) = (M2 mod m2) = 1 AND
-                  --     (M1 mod m2) = (M2 mod m1) = 0
-
-                  --  So u mod m = (u1 * M1 + u2 * M2) mod m Where u1 = (u mod
-                  --  m1) AND u2 = (u mod m2); Under typical circumstances the
-                  --  last mod m can be done with a (possible) single
-                  --  subtraction.
-
-                  --  m1 = 2; m2 = 3; M1 = 3; M2 = 4;
-
-                  when 6  =>
-                     Tmp := 3 * (Least_Sig_Digit (Left) rem 2) +
-                              4 * (Sum_Double_Digits (Left, 1) rem 3);
-                     return UI_From_Int (Sign * (Tmp rem 6));
-
-                  --  m1 = 2; m2 = 5; M1 = 5; M2 = 6;
-
-                  when 10 =>
-                     Tmp := 5 * (Least_Sig_Digit (Left) rem 2) +
-                              6 * (Sum_Double_Digits (Left, -1) mod 5);
-                     return UI_From_Int (Sign * (Tmp rem 10));
-
-                  --  m1 = 3; m2 = 4; M1 = 4; M2 = 9;
-
-                  when 12 =>
-                     Tmp := 4 * (Sum_Double_Digits (Left, 1) rem 3) +
-                              9 * (Least_Sig_Digit (Left) rem 4);
-                     return UI_From_Int (Sign * (Tmp rem 12));
-               end case;
-
-            end if;
-
-            --  Else fall through to general case
-
-            --  The special case Length (Left) = Length (Right) = 1 in Div
-            --  looks slow. It uses UI_To_Int when Int should suffice. ???
-         end if;
-      end if;
-
-      declare
-         Remainder : Uint;
-         Quotient  : Uint;
-         pragma Warnings (Off, Quotient);
-      begin
+      else
          UI_Div_Rem
-           (Left, Right, Quotient, Remainder,
-            Discard_Quotient  => True,
-            Discard_Remainder => False);
+           (Left, Right, Quotient, Remainder, Discard_Quotient => True);
          return Remainder;
-      end;
+      end if;
    end UI_Rem;
 
    ------------
@@ -2646,6 +2219,8 @@ package body Uintp is
    ----------------
 
    function UI_To_Int (Input : Uint) return Int is
+      pragma Assert (Input /= No_Uint);
+
    begin
       if Direct (Input) then
          return Direct_Val (Input);
@@ -2740,24 +2315,21 @@ package body Uintp is
 
             --  The value is outside the direct representation range and must
             --  therefore be stored in the table. Expand the table to contain
-            --  the count and tigis. The index of the new table entry will be
+            --  the count and digits. The index of the new table entry will be
             --  returned as the result.
 
-            Uints.Increment_Last;
-            Uints.Table (Uints.Last).Length := Size;
-            Uints.Table (Uints.Last).Loc    := Udigits.Last + 1;
-
-            Udigits.Increment_Last;
+            Uints.Append ((Length => Size, Loc => Udigits.Last + 1));
 
             if Negative then
-               Udigits.Table (Udigits.Last) := -In_Vec (J);
+               Val := -In_Vec (J);
             else
-               Udigits.Table (Udigits.Last) := +In_Vec (J);
+               Val := +In_Vec (J);
             end if;
 
+            Udigits.Append (Val);
+
             for K in 2 .. Size loop
-               Udigits.Increment_Last;
-               Udigits.Table (Udigits.Last) := In_Vec (J + K - 1);
+               Udigits.Append (In_Vec (J + K - 1));
             end loop;
 
             return Uints.Last;

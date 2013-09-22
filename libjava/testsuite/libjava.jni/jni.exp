@@ -21,6 +21,9 @@ proc gcj_jni_compile_c_to_so {file {options {}}} {
   } elseif { [istarget "hppa*-hp-hpux*"] } {
       set so_extension "sl"
       set so_flag "-shared"
+  } elseif { [istarget "*-*-cygwin*"] || [istarget "*-*-mingw*"] } {
+      set so_extension "dll"
+      set so_flag "-shared"
   } else {
       set so_extension "so"
       set so_flag "-shared"
@@ -99,6 +102,8 @@ proc gcj_jni_test_one {file} {
       set so_extension "dylib"
   } elseif { [istarget "hppa*-hp-hpux*"] } {
       set so_extension "sl"
+  } elseif { [istarget "*-*-cygwin*"] || [istarget "*-*-mingw*"] } {
+      set so_extension "dll"
   } else {
       set so_extension "so"
   }
@@ -160,6 +165,11 @@ proc gcj_jni_test_one {file} {
 	lappend cxxflaglist "-lstdc++"
     }
 
+    # ARM C++ emits an ABI warning for varargs.
+    if { [istarget "arm*"] } {
+	lappend cxxflaglist "-Wno-abi"
+    }
+    
     set cxxflags [join $cxxflaglist]
   }
 
@@ -241,7 +251,11 @@ proc gcj_jni_invocation_compile_c_to_binary {file {options {}}} {
 }
 
 proc gcj_jni_get_cxxflags_invocation {} {
+  global libiconv
   global LIBJAVA
+  if {$libiconv == ""} {
+      set libiconv "-liconv"
+  }
   if [info exists LIBJAVA] {
       set libjava $LIBJAVA;
   } else {
@@ -257,11 +271,13 @@ proc gcj_jni_get_cxxflags_invocation {} {
   # to just make the linker find libgcc using -L options.
   # Similar logic applies to libgcj.
   if { [istarget "*-*-darwin*"] } {
-    lappend cxxflags -shared-libgcc -lgcj -liconv
+    eval lappend cxxflags "-shared-libgcc -lgcj $libiconv"
   }
 
+  # Make sure libgcc unwinder is used on 64-bit Solaris 10+/x86 rather than
+  # the libc one.
   if { [istarget "*-*-solaris*"] } {
-    lappend cxxflags "-lsocket"
+    lappend cxxflags "-shared-libgcc"
   }
 
   return $cxxflags

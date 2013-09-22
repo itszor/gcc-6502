@@ -39,6 +39,8 @@ exception statement from your version. */
 
 package java.util.logging;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.ResourceBundle;
@@ -73,7 +75,7 @@ public class XMLFormatter
    */
   private static final String lineSep = SimpleFormatter.lineSep;
 
-    
+
   /**
    * A DateFormat for emitting time in the ISO 8601 format.
    * Since the API specification of SimpleDateFormat does not talk
@@ -86,10 +88,10 @@ public class XMLFormatter
   /**
    * Appends a line consisting of indentation, opening element tag,
    * element content, closing element tag and line separator to
-   * a StringBuffer, provided that the element content is
+   * a CPStringBuilder, provided that the element content is
    * actually existing.
    *
-   * @param buf the StringBuffer to which the line will be appended.
+   * @param buf the CPStringBuilder to which the line will be appended.
    *
    * @param indent the indentation level.
    *
@@ -98,7 +100,7 @@ public class XMLFormatter
    * @param content the element content, or <code>null</code> to
    *        have no output whatsoever appended to <code>buf</code>.
    */
-  private static void appendTag(StringBuffer buf, int indent,
+  private static void appendTag(CPStringBuilder buf, int indent,
                                 String tag, String content)
   {
     int i;
@@ -127,29 +129,29 @@ public class XMLFormatter
       switch (c)
       {
       case '&':
-	buf.append("&amp;");
-	break;
+        buf.append("&amp;");
+        break;
 
       case '<':
-	buf.append("&lt;");
-	break;
+        buf.append("&lt;");
+        break;
 
       case '>':
-	buf.append("&gt;");
-	break;
+        buf.append("&gt;");
+        break;
 
       default:
-	if (((c >= 0x20) && (c <= 0x7e))
-	    || (c == /* line feed */ 10)
-	    || (c == /* carriage return */ 13))
-	  buf.append(c);
-	else
-	{
-	  buf.append("&#");
-	  buf.append((int) c);
-	  buf.append(';');
-	}
-	break;
+        if (((c >= 0x20) && (c <= 0x7e))
+            || (c == /* line feed */ 10)
+            || (c == /* carriage return */ 13))
+          buf.append(c);
+        else
+        {
+          buf.append("&#");
+          buf.append((int) c);
+          buf.append(';');
+        }
+        break;
       } /* switch (c) */
     } /* for i */
 
@@ -163,9 +165,9 @@ public class XMLFormatter
   /**
    * Appends a line consisting of indentation, opening element tag,
    * numeric element content, closing element tag and line separator
-   * to a StringBuffer.
+   * to a CPStringBuilder.
    *
-   * @param buf the StringBuffer to which the line will be appended.
+   * @param buf the CPStringBuilder to which the line will be appended.
    *
    * @param indent the indentation level.
    *
@@ -173,7 +175,7 @@ public class XMLFormatter
    *
    * @param content the element content.
    */
-  private static void appendTag(StringBuffer buf, int indent,
+  private static void appendTag(CPStringBuilder buf, int indent,
                                 String tag, long content)
   {
     appendTag(buf, indent, tag, Long.toString(content));
@@ -182,17 +184,17 @@ public class XMLFormatter
 
   public String format(LogRecord record)
   {
-    StringBuffer    buf = new StringBuffer(400);
+    CPStringBuilder    buf = new CPStringBuilder(400);
     Level           level = record.getLevel();
     long            millis = record.getMillis();
     Object[]        params = record.getParameters();
     ResourceBundle  bundle = record.getResourceBundle();
     String          message;
-    
+
     buf.append("<record>");
     buf.append(lineSep);
-    
-    
+
+
     appendTag(buf, 1, "date", iso8601.format(new Date(millis)));
     appendTag(buf, 1, "millis", millis);
     appendTag(buf, 1, "sequence", record.getSequenceNumber());
@@ -314,10 +316,10 @@ public class XMLFormatter
    */
   public String getHead(Handler h)
   {
-    StringBuffer  buf;
+    CPStringBuilder  buf;
     String        encoding;
 
-    buf = new StringBuffer(80);
+    buf = new CPStringBuilder(80);
     buf.append("<?xml version=\"1.0\" encoding=\"");
 
     encoding = h.getEncoding();
@@ -344,7 +346,7 @@ public class XMLFormatter
      */
     if (encoding == null)
       encoding = "UTF-8";
-    
+
     /* On Windows XP localized for Swiss German (this is one of
      * my [Sascha Brawer's] test machines), the default encoding
      * has the canonical name "windows-1252". The "historical" name

@@ -1,4 +1,4 @@
-/* SubstringFunction.java -- 
+/* SubstringFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -60,10 +60,10 @@ final class SubstringFunction
   final Expr arg2;
   final Expr arg3;
 
-  SubstringFunction(List args)
+  SubstringFunction(List<Expr> args)
   {
-    this((Expr) args.get(0), (Expr) args.get(1),
-         (args.size() > 2) ? (Expr) args.get(2) : null);
+    this(args.get(0), args.get(1),
+         (args.size() > 2) ? args.get(2) : null);
   }
 
   SubstringFunction(Expr arg1, Expr arg2, Expr arg3)
@@ -73,6 +73,7 @@ final class SubstringFunction
     this.arg3 = arg3;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val1 = arg1.evaluate(context, pos, len);
@@ -90,7 +91,7 @@ final class SubstringFunction
       {
         Object val3 = arg3.evaluate(context, pos, len);
         int v3 = Expr.intValue(val3);
-        if (v3 < l) 
+        if (v3 < l)
           l = v3;
       }
 
@@ -114,5 +115,5 @@ final class SubstringFunction
     return (arg3 == null) ? "substring(" + arg1 + "," + arg2 + ")" :
       "substring(" + arg1 + "," + arg2 + "," + arg3 + ")";
   }
-  
+
 }

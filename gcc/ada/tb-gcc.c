@@ -1,29 +1,28 @@
 /****************************************************************************
  *                                                                          *
- *                         GNAT COMPILER COMPONENTS                         *
+ *                         GNAT RUN-TIME COMPONENTS                         *
  *                                                                          *
  *                   T R A C E B A C K - G C C t a b l e s                  *
  *                                                                          *
  *                          C Implementation File                           *
  *                                                                          *
- *                     Copyright (C) 2004-2007, AdaCore                     *
+ *          Copyright (C) 2004-2012, Free Software Foundation, Inc.         *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
- * ware  Foundation;  either version 2,  or (at your option) any later ver- *
+ * ware  Foundation;  either version 3,  or (at your option) any later ver- *
  * sion.  GNAT is distributed in the hope that it will be useful, but WITH- *
  * OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY *
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License *
- * for  more details.  You should have  received  a copy of the GNU General *
- * Public License  distributed with GNAT;  see file COPYING.  If not, write *
- * to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, *
- * Boston, MA 02110-1301, USA.                                              *
+ * or FITNESS FOR A PARTICULAR PURPOSE.                                     *
  *                                                                          *
- * As a  special  exception,  if you  link  this file  with other  files to *
- * produce an executable,  this file does not by itself cause the resulting *
- * executable to be covered by the GNU General Public License. This except- *
- * ion does not  however invalidate  any other reasons  why the  executable *
- * file might be covered by the  GNU Public License.                        *
+ * As a special exception under Section 7 of GPL version 3, you are granted *
+ * additional permissions described in the GCC Runtime Library Exception,   *
+ * version 3.1, as published by the Free Software Foundation.               *
+ *                                                                          *
+ * You should have received a copy of the GNU General Public License and    *
+ * a copy of the GCC Runtime Library Exception along with this program;     *
+ * see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    *
+ * <http://www.gnu.org/licenses/>.                                          *
  *                                                                          *
  * GNAT was originally developed  by the GNAT team at  New York University. *
  * Extensive contributions were provided by Ada Core Technologies Inc.      *
@@ -37,7 +36,7 @@
 #include <unwind.h>
 
 /* The implementation boils down to a call to _Unwind_Backtrace with a
-   tailored callback and carried-on datastructure to keep track of the
+   tailored callback and carried-on data structure to keep track of the
    input parameters we got as well as of the basic processing state.  */
 
 /******************
@@ -63,13 +62,13 @@ typedef struct {
 static _Unwind_Reason_Code
 trace_callback (struct _Unwind_Context * uw_context, uw_data_t * uw_data)
 {
-  void * pc;
+  char * pc;
 
-#if defined (__ia64__) && defined (__hpux__)
+#if defined (__ia64__) && defined (__hpux__) && defined (USE_LIBUNWIND_EXCEPTIONS)
   /* Work around problem with _Unwind_GetIP on ia64 HP-UX. */
   uwx_get_reg ((struct uwx_env *) uw_context, UWX_REG_IP, (uint64_t *) &pc);
 #else
-  pc = (void *) _Unwind_GetIP (uw_context);
+  pc = (char *) _Unwind_GetIP (uw_context);
 #endif
 
   if (uw_data->n_frames_skipped < uw_data->n_frames_to_skip)
@@ -81,7 +80,7 @@ trace_callback (struct _Unwind_Context * uw_context, uw_data_t * uw_data)
   if (uw_data->n_entries_filled >= uw_data->max_len)
     return _URC_NORMAL_STOP;
 
-  if (pc < uw_data->exclude_min || pc > uw_data->exclude_max)
+  if (pc < (char *)uw_data->exclude_min || pc > (char *)uw_data->exclude_max)
     uw_data->traceback [uw_data->n_entries_filled ++] = pc + PC_ADJUST;
 
   return _URC_NO_REASON;
@@ -94,9 +93,11 @@ trace_callback (struct _Unwind_Context * uw_context, uw_data_t * uw_data)
  ********************/
 
 int
-__gnat_backtrace (void ** traceback, int max_len,
-		  void * exclude_min, void * exclude_max,
-		  int  skip_frames)
+__gnat_backtrace (void ** traceback __attribute__((unused)),
+		  int max_len __attribute__((unused)),
+		  void * exclude_min __attribute__((unused)),
+		  void * exclude_max __attribute__((unused)),
+		  int skip_frames __attribute__((unused)))
 {
 #if defined (__USING_SJLJ_EXCEPTIONS__)
   /* We have no unwind material (tables) at hand with sjlj eh, and no

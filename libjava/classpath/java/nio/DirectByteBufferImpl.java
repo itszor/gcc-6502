@@ -89,6 +89,11 @@ abstract class DirectByteBufferImpl extends ByteBuffer
       super(capacity);
     }
 
+    ReadWrite(Pointer address, int capacity)
+    {
+      super(address, capacity);
+    }
+
     ReadWrite(Object owner, Pointer address,
               int capacity, int limit,
               int position)
@@ -104,18 +109,23 @@ abstract class DirectByteBufferImpl extends ByteBuffer
 
   DirectByteBufferImpl(int capacity)
   {
-    super(capacity, capacity, 0, -1);
+    super(capacity, capacity, 0, -1,
+          VMDirectByteBuffer.allocate(capacity), null, 0);
     this.owner = this;
-    this.address = VMDirectByteBuffer.allocate(capacity);
+  }
+
+  DirectByteBufferImpl(Pointer address, int capacity)
+  {
+    super(capacity, capacity, 0, -1, address, null, 0);
+    this.owner = null;
   }
 
   DirectByteBufferImpl(Object owner, Pointer address,
                        int capacity, int limit,
                        int position)
   {
-    super(capacity, limit, position, -1);
+    super(capacity, limit, position, -1, address, null, 0);
     this.owner = owner;
-    this.address = address;
   }
 
   /**
@@ -183,7 +193,6 @@ abstract class DirectByteBufferImpl extends ByteBuffer
   {
     checkArraySize (src.length, offset, length);
     checkForUnderflow (length);
-
     int index = position ();
     VMDirectByteBuffer.put (address, index, src, offset, length);
     position (index + length);

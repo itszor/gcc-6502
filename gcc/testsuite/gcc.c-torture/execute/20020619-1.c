@@ -1,8 +1,15 @@
-static int ref(void)
+#if (__SIZEOF_INT__ == 4)
+typedef int int32;
+#elif (__SIZEOF_LONG__ == 4)
+typedef long int32;
+#else
+#error Add target support for int32
+#endif
+static int32 ref(void)
 {
   union {
     char c[5];
-    int i;
+    int32 i;
   } u;
 
   __builtin_memset (&u, 0, sizeof(u));
@@ -14,19 +21,11 @@ static int ref(void)
   return u.i;
 }
 
-#define MAX(a,b)  (a < b ? b : a)
-
-static int test(void)
-{
-  char c[MAX(5, sizeof(int))] __attribute__((aligned)) = { 1, 2, 3, 4 };
-  return *(int *)c;
-}
-
 int main()
 {
-  int a = test();
-  int b = ref();
-  if (a != b)
+  int32 b = ref();
+  if (b != 0x01020304
+      && b != 0x04030201)
     abort ();
   return 0;
 }

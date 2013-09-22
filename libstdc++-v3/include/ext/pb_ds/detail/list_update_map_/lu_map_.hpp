@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,7 +34,7 @@
 // warranty.
 
 /**
- * @file lu_map_.hpp
+ * @file list_update_map_/lu_map_.hpp
  * Contains a list update map.
  */
 
@@ -53,82 +47,70 @@
 #include <ext/pb_ds/exception.hpp>
 #ifdef _GLIBCXX_DEBUG
 #include <ext/pb_ds/detail/debug_map_base.hpp>
-#endif 
+#endif
 #ifdef PB_DS_LU_MAP_TRACE_
 #include <iostream>
-#endif 
+#endif
 #include <debug/debug.h>
 
 namespace __gnu_pbds
 {
   namespace detail
   {
-#define PB_DS_CLASS_T_DEC \
-    template<typename Key, typename Mapped, class Eq_Fn, \
-	     class Allocator, class Update_Policy>
-
 #ifdef PB_DS_DATA_TRUE_INDICATOR
-#define PB_DS_CLASS_NAME lu_map_data_
-#endif 
+#define PB_DS_LU_NAME lu_map
+#endif
 
 #ifdef PB_DS_DATA_FALSE_INDICATOR
-#define PB_DS_CLASS_NAME lu_map_no_data_
-#endif 
+#define PB_DS_LU_NAME lu_set
+#endif
+
+#define PB_DS_CLASS_T_DEC \
+    template<typename Key, typename Mapped, typename Eq_Fn, \
+	     typename _Alloc, typename Update_Policy>
 
 #define PB_DS_CLASS_C_DEC \
-    PB_DS_CLASS_NAME<Key, Mapped, Eq_Fn, Allocator, Update_Policy>
+    PB_DS_LU_NAME<Key, Mapped, Eq_Fn, _Alloc, Update_Policy>
 
-#define PB_DS_TYPES_TRAITS_C_DEC \
-    types_traits<Key, Mapped, Allocator, false>
+#define PB_DS_LU_TRAITS_BASE \
+    types_traits<Key, Mapped, _Alloc, false>
 
 #ifdef _GLIBCXX_DEBUG
 #define PB_DS_DEBUG_MAP_BASE_C_DEC \
     debug_map_base<Key, Eq_Fn, \
-	      typename Allocator::template rebind<Key>::other::const_reference>
-#endif 
+	      typename _Alloc::template rebind<Key>::other::const_reference>
+#endif
 
-#ifdef PB_DS_DATA_TRUE_INDICATOR
-#define PB_DS_V2F(X) (X).first
-#define PB_DS_V2S(X) (X).second
-#define PB_DS_EP2VP(X)& ((X)->m_value)
-#endif 
-
-#ifdef PB_DS_DATA_FALSE_INDICATOR
-#define PB_DS_V2F(X) (X)
-#define PB_DS_V2S(X) Mapped_Data()
-#define PB_DS_EP2VP(X)& ((X)->m_value.first)
-#endif 
-
-    /* Skip to the lu, my darling. */
-    // list-based (with updates) associative container.
+    /// list-based (with updates) associative container.
+    /// Skip to the lu, my darling.
     template<typename Key,
 	     typename Mapped,
-	     class Eq_Fn,
-	     class Allocator,
-	     class Update_Policy>
-    class PB_DS_CLASS_NAME :
+	     typename Eq_Fn,
+	     typename _Alloc,
+	     typename Update_Policy>
+    class PB_DS_LU_NAME :
 #ifdef _GLIBCXX_DEBUG
       protected PB_DS_DEBUG_MAP_BASE_C_DEC,
-#endif 
-      public PB_DS_TYPES_TRAITS_C_DEC
+#endif
+      public PB_DS_LU_TRAITS_BASE
     {
     private:
-      typedef PB_DS_TYPES_TRAITS_C_DEC traits_base;
+      typedef PB_DS_LU_TRAITS_BASE 	       	traits_base;
 
-      struct entry 
+      struct entry
      : public lu_map_entry_metadata_base<typename Update_Policy::metadata_type>
       {
 	typename traits_base::value_type m_value;
-	typename Allocator::template rebind<entry>::other::pointer m_p_next;
+	typename _Alloc::template rebind<entry>::other::pointer m_p_next;
       };
 
-      typedef typename Allocator::template rebind<entry>::other entry_allocator;
+      typedef typename _Alloc::template rebind<entry>::other entry_allocator;
       typedef typename entry_allocator::pointer entry_pointer;
       typedef typename entry_allocator::const_pointer const_entry_pointer;
       typedef typename entry_allocator::reference entry_reference;
       typedef typename entry_allocator::const_reference const_entry_reference;
 
-      typedef typename Allocator::template rebind<entry_pointer>::other entry_pointer_allocator;
+      typedef typename _Alloc::template rebind<entry_pointer>::other entry_pointer_allocator;
       typedef typename entry_pointer_allocator::pointer entry_pointer_array;
 
       typedef typename traits_base::value_type value_type_;
@@ -139,7 +121,7 @@ namespace __gnu_pbds
 
 #define PB_DS_GEN_POS entry_pointer
 
-#include <ext/pb_ds/detail/unordered_iterator/const_point_iterator.hpp>
+#include <ext/pb_ds/detail/unordered_iterator/point_const_iterator.hpp>
 #include <ext/pb_ds/detail/unordered_iterator/point_iterator.hpp>
 #include <ext/pb_ds/detail/unordered_iterator/const_iterator.hpp>
 #include <ext/pb_ds/detail/unordered_iterator/iterator.hpp>
@@ -149,27 +131,27 @@ namespace __gnu_pbds
 
 #ifdef _GLIBCXX_DEBUG
       typedef PB_DS_DEBUG_MAP_BASE_C_DEC debug_base;
-#endif 
+#endif
 
-      typedef cond_dealtor<entry, Allocator> cond_dealtor_t;
+      typedef cond_dealtor<entry, _Alloc> cond_dealtor_t;
 
     public:
-      typedef Allocator allocator;
-      typedef typename Allocator::size_type size_type;
-      typedef typename Allocator::difference_type difference_type;
+      typedef _Alloc allocator_type;
+      typedef typename _Alloc::size_type size_type;
+      typedef typename _Alloc::difference_type difference_type;
       typedef Eq_Fn eq_fn;
       typedef Update_Policy update_policy;
       typedef typename Update_Policy::metadata_type update_metadata;
       typedef typename traits_base::key_type key_type;
       typedef typename traits_base::key_pointer key_pointer;
-      typedef typename traits_base::const_key_pointer const_key_pointer;
+      typedef typename traits_base::key_const_pointer key_const_pointer;
       typedef typename traits_base::key_reference key_reference;
-      typedef typename traits_base::const_key_reference const_key_reference;
+      typedef typename traits_base::key_const_reference key_const_reference;
       typedef typename traits_base::mapped_type mapped_type;
       typedef typename traits_base::mapped_pointer mapped_pointer;
-      typedef typename traits_base::const_mapped_pointer const_mapped_pointer;
+      typedef typename traits_base::mapped_const_pointer mapped_const_pointer;
       typedef typename traits_base::mapped_reference mapped_reference;
-      typedef typename traits_base::const_mapped_reference const_mapped_reference;
+      typedef typename traits_base::mapped_const_reference mapped_const_reference;
       typedef typename traits_base::value_type value_type;
       typedef typename traits_base::pointer pointer;
       typedef typename traits_base::const_pointer const_pointer;
@@ -177,35 +159,35 @@ namespace __gnu_pbds
       typedef typename traits_base::const_reference const_reference;
 
 #ifdef PB_DS_DATA_TRUE_INDICATOR
-      typedef point_iterator_ point_iterator;
-#endif 
+      typedef point_iterator_ 			point_iterator;
+#endif
 
 #ifdef PB_DS_DATA_FALSE_INDICATOR
-      typedef const_point_iterator_ point_iterator;
-#endif 
+      typedef point_const_iterator_ 		point_iterator;
+#endif
 
-      typedef const_point_iterator_ const_point_iterator;
+      typedef point_const_iterator_ 		point_const_iterator;
 
 #ifdef PB_DS_DATA_TRUE_INDICATOR
-      typedef iterator_ iterator;
-#endif 
+      typedef iterator_ 			iterator;
+#endif
 
 #ifdef PB_DS_DATA_FALSE_INDICATOR
-      typedef const_iterator_ iterator;
-#endif 
+      typedef const_iterator_ 			iterator;
+#endif
 
-      typedef const_iterator_ const_iterator;
+      typedef const_iterator_ 			const_iterator;
 
     public:
-      PB_DS_CLASS_NAME();
+      PB_DS_LU_NAME();
 
-      PB_DS_CLASS_NAME(const PB_DS_CLASS_C_DEC&);
+      PB_DS_LU_NAME(const PB_DS_CLASS_C_DEC&);
 
       virtual
-      ~PB_DS_CLASS_NAME();
+      ~PB_DS_LU_NAME();
 
       template<typename It>
-      PB_DS_CLASS_NAME(It first_it, It last_it);
+      PB_DS_LU_NAME(It, It);
 
       void
       swap(PB_DS_CLASS_C_DEC&);
@@ -220,38 +202,38 @@ namespace __gnu_pbds
       empty() const;
 
       inline mapped_reference
-      operator[](const_key_reference r_key)
+      operator[](key_const_reference r_key)
       {
 #ifdef PB_DS_DATA_TRUE_INDICATOR
-	_GLIBCXX_DEBUG_ONLY(assert_valid();)
+	_GLIBCXX_DEBUG_ONLY(assert_valid(__FILE__, __LINE__);)
 	return insert(std::make_pair(r_key, mapped_type())).first->second;
-#else 
+#else
 	insert(r_key);
-	return traits_base::s_null_mapped;
-#endif 
+	return traits_base::s_null_type;
+#endif
       }
 
       inline std::pair<point_iterator, bool>
       insert(const_reference);
 
       inline point_iterator
-      find(const_key_reference r_key)
+      find(key_const_reference r_key)
       {
-	_GLIBCXX_DEBUG_ONLY(assert_valid();)
+	_GLIBCXX_DEBUG_ONLY(assert_valid(__FILE__, __LINE__);)
 	entry_pointer p_e = find_imp(r_key);
-	return point_iterator(p_e == NULL ? NULL: &p_e->m_value);
+	return point_iterator(p_e == 0 ? 0: &p_e->m_value);
       }
 
-      inline const_point_iterator
-      find(const_key_reference r_key) const
+      inline point_const_iterator
+      find(key_const_reference r_key) const
       {
-	_GLIBCXX_DEBUG_ONLY(assert_valid();)
+	_GLIBCXX_DEBUG_ONLY(assert_valid(__FILE__, __LINE__);)
 	entry_pointer p_e = find_imp(r_key);
-	return const_point_iterator(p_e == NULL ? NULL: &p_e->m_value);
+	return point_const_iterator(p_e == 0 ? 0: &p_e->m_value);
       }
 
       inline bool
-      erase(const_key_reference);
+      erase(key_const_reference);
 
       template<typename Pred>
       inline size_type
@@ -274,8 +256,8 @@ namespace __gnu_pbds
 
 #ifdef _GLIBCXX_DEBUG
       void
-      assert_valid() const;
-#endif 
+      assert_valid(const char* file, int line) const;
+#endif
 
 #ifdef PB_DS_LU_MAP_TRACE_
       void
@@ -291,7 +273,7 @@ namespace __gnu_pbds
     private:
 #ifdef PB_DS_DATA_TRUE_INDICATOR
       friend class iterator_;
-#endif 
+#endif
 
       friend class const_iterator_;
 
@@ -306,7 +288,7 @@ namespace __gnu_pbds
       init_entry_metadata(entry_pointer, type_to_type<Metadata>);
 
       inline static void
-      init_entry_metadata(entry_pointer, type_to_type<null_lu_metadata>);
+      init_entry_metadata(entry_pointer, type_to_type<null_type>);
 
       void
       deallocate_all();
@@ -321,7 +303,7 @@ namespace __gnu_pbds
       inc_it_state(const_pointer& r_p_value, entry_pointer& r_pos) const
       {
 	r_pos = r_pos->m_p_next;
-	r_p_value = (r_pos == NULL) ? NULL : &r_pos->m_value;
+	r_p_value = (r_pos == 0) ? 0 : &r_pos->m_value;
       }
 
       template<typename Metadata>
@@ -329,18 +311,18 @@ namespace __gnu_pbds
       apply_update(entry_pointer, type_to_type<Metadata>);
 
       inline static bool
-      apply_update(entry_pointer, type_to_type<null_lu_metadata>);
+      apply_update(entry_pointer, type_to_type<null_type>);
 
       inline entry_pointer
-      find_imp(const_key_reference) const;
+      find_imp(key_const_reference) const;
 
-      static entry_allocator s_entry_allocator;
-      static Eq_Fn s_eq_fn;
-      static Update_Policy s_update_policy;
-      static type_to_type<update_metadata> s_metadata_type_indicator;
-      static null_lu_metadata s_null_lu_metadata;
+      static entry_allocator 			s_entry_allocator;
+      static Eq_Fn 				s_eq_fn;
+      static Update_Policy 			s_update_policy;
+      static type_to_type<update_metadata> 	s_metadata_type_indicator;
+      static null_type 				s_null_type;
 
-      mutable entry_pointer m_p_l;
+      mutable entry_pointer 			m_p_l;
     };
 
 #include <ext/pb_ds/detail/list_update_map_/constructor_destructor_fn_imps.hpp>
@@ -354,12 +336,8 @@ namespace __gnu_pbds
 
 #undef PB_DS_CLASS_T_DEC
 #undef PB_DS_CLASS_C_DEC
-#undef  PB_DS_TYPES_TRAITS_C_DEC
+#undef PB_DS_LU_TRAITS_BASE
 #undef PB_DS_DEBUG_MAP_BASE_C_DEC
-#undef PB_DS_CLASS_NAME
-#undef PB_DS_V2F
-#undef PB_DS_EP2VP
-#undef PB_DS_V2S
-
+#undef PB_DS_LU_NAME
   } // namespace detail
 } // namespace __gnu_pbds

@@ -1,4 +1,4 @@
-/* GnomeText.java - 
+/* GnomeText.java -
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.libxmlj.dom;
 
+import gnu.java.lang.CPStringBuilder;
+
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Node;
 import org.w3c.dom.Text;
@@ -55,7 +57,7 @@ implements Text
   {
     super (id);
   }
-  
+
   public Text splitText (int offset)
     throws DOMException
   {
@@ -67,14 +69,14 @@ implements Text
     setNodeValue (part2);
     return text;
   }
-  
+
   // DOM Level 3
 
   public boolean isElementContentWhitespace ()
   {
     return getTextContent ().trim ().length () == 0;
   }
-  
+
   public String getWholeText ()
   {
     Node first = this;
@@ -84,7 +86,7 @@ implements Text
         first = node;
         node = node.getPreviousSibling ();
       }
-    StringBuffer buf = new StringBuffer (first.getNodeValue ());
+    CPStringBuilder buf = new CPStringBuilder (first.getNodeValue ());
     node = first.getNextSibling ();
     while (node != null && node instanceof Text)
       {
@@ -101,7 +103,7 @@ implements Text
       {
         setNodeValue (content);
       }
-    
+
     Node first = this;
     Node node = getPreviousSibling ();
     while (node != null && node instanceof Text)

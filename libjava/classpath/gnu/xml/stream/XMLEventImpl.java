@@ -1,4 +1,4 @@
-/* XMLEventImpl.java -- 
+/* XMLEventImpl.java --
    Copyright (C) 2005,2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,10 +37,11 @@ exception statement from your version. */
 
 package gnu.xml.stream;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Writer;
 import javax.xml.namespace.QName;
 import javax.xml.stream.Location;
-import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.events.Characters;
 import javax.xml.stream.events.EndElement;
@@ -135,14 +136,14 @@ public abstract class XMLEventImpl
   {
     return null;
   }
-  
+
   public abstract void writeAsEncodedUnicode(Writer writer)
     throws XMLStreamException;
 
   protected String encode(String text, boolean inAttr)
   {
     int len = text.length();
-    StringBuffer buf = null;
+    CPStringBuilder buf = null;
     for (int i = 0; i < len; i++)
       {
         char c = text.charAt(i);
@@ -150,7 +151,7 @@ public abstract class XMLEventImpl
           {
             if (buf == null)
               {
-                buf = new StringBuffer(text.substring(0, i));
+                buf = new CPStringBuilder(text.substring(0, i));
               }
             buf.append("&lt;");
           }
@@ -158,7 +159,7 @@ public abstract class XMLEventImpl
           {
             if (buf == null)
               {
-                buf = new StringBuffer(text.substring(0, i));
+                buf = new CPStringBuilder(text.substring(0, i));
               }
             buf.append("&gt;");
           }
@@ -166,7 +167,7 @@ public abstract class XMLEventImpl
           {
             if (buf == null)
               {
-                buf = new StringBuffer(text.substring(0, i));
+                buf = new CPStringBuilder(text.substring(0, i));
               }
             buf.append("&amp;");
           }
@@ -174,7 +175,7 @@ public abstract class XMLEventImpl
           {
             if (buf == null)
               {
-                buf = new StringBuffer(text.substring(0, i));
+                buf = new CPStringBuilder(text.substring(0, i));
               }
             buf.append("&apos;");
           }
@@ -182,7 +183,7 @@ public abstract class XMLEventImpl
           {
             if (buf == null)
               {
-                buf = new StringBuffer(text.substring(0, i));
+                buf = new CPStringBuilder(text.substring(0, i));
               }
             buf.append("&quot;");
           }
@@ -191,8 +192,7 @@ public abstract class XMLEventImpl
             buf.append(c);
           }
       }
-    return (buf == null) ? text : buf.toString(); 
+    return (buf == null) ? text : buf.toString();
   }
 
 }
-

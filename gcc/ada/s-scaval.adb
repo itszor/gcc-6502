@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2003-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2003-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -61,7 +59,7 @@ package body System.Scalar_Values is
       --  Set True if we are on an x86 with 96-bit floats for extended
 
       AFloat : constant Boolean :=
-                 Long_Float'Size = 48 and Long_Long_Float'Size = 48;
+                 Long_Float'Size = 48 and then Long_Long_Float'Size = 48;
       --  Set True if we are on an AAMP with 48-bit extended floating point
 
       type ByteLF is array (0 .. 7 - 2 * Boolean'Pos (AFloat)) of Byte1;
@@ -73,7 +71,7 @@ package body System.Scalar_Values is
       --  On other targets the type is 8 bytes, and type Byte8 is used for
       --  values that are then converted to ByteLF.
 
-      pragma Warnings (Off);
+      pragma Warnings (Off); --  why ???
       function To_ByteLF is new Ada.Unchecked_Conversion (Byte8, ByteLF);
       pragma Warnings (On);
 
@@ -272,17 +270,14 @@ package body System.Scalar_Values is
       else
          --  Convert the two hex digits (we know they are valid here)
 
-         if C1 in '0' .. '9' then
-            B := Character'Pos (C1) - Character'Pos ('0');
-         else
-            B := Character'Pos (C1) - (Character'Pos ('A') - 10);
-         end if;
-
-         if C2 in '0' .. '9' then
-            B := B * 16 + Character'Pos (C2) - Character'Pos ('0');
-         else
-            B := B * 16 + Character'Pos (C2) - (Character'Pos ('A') - 10);
-         end if;
+         B := 16 * (Character'Pos (C1)
+                     - (if C1 in '0' .. '9'
+                        then Character'Pos ('0')
+                        else Character'Pos ('A') - 10))
+                 + (Character'Pos (C2)
+                     - (if C2 in '0' .. '9'
+                        then Character'Pos ('0')
+                        else Character'Pos ('A') - 10));
 
          --  Initialize data values from the hex value
 

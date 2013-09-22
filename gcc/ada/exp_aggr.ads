@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2009, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,9 +34,9 @@ package Exp_Aggr is
    --  Returns True if N is an aggregate of some kind whose Expansion_Delayed
    --  flag is set (see sinfo for meaning of flag).
 
-   procedure Convert_Aggr_In_Object_Decl  (N : Node_Id);
-   --  N is a N_Object_Declaration with an expression which must be
-   --  an N_Aggregate or N_Extension_Aggregate with Expansion_Delayed
+   procedure Convert_Aggr_In_Object_Decl (N : Node_Id);
+   --  N is a N_Object_Declaration with an expression which must be an
+   --  N_Aggregate or N_Extension_Aggregate with Expansion_Delayed.
    --  This procedure performs in-place aggregate assignment.
 
    procedure Convert_Aggr_In_Allocator
@@ -45,7 +45,7 @@ package Exp_Aggr is
       Aggr  : Node_Id);
    --  Alloc is the allocator whose expression is the aggregate Aggr.
    --  Decl is an N_Object_Declaration created during allocator expansion.
-   --  This procedure perform in-place aggregate assignment into the
+   --  This procedure performs in-place aggregate assignment into the
    --  temporary declared in Decl, and the allocator becomes an access to
    --  that temporary.
 

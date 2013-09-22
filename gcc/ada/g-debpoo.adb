@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -49,7 +47,7 @@ package body GNAT.Debug_Pools is
 
    Default_Alignment : constant := Standard'Maximum_Alignment;
    --  Alignment used for the memory chunks returned by Allocate. Using this
-   --  value garantees that this alignment will be compatible with all types
+   --  value guarantees that this alignment will be compatible with all types
    --  and at the same time makes it easy to find the location of the extra
    --  header allocated for each chunk.
 
@@ -286,10 +284,10 @@ package body GNAT.Debug_Pools is
       Ignored_Frame_Start : System.Address;
       Ignored_Frame_End   : System.Address);
    --  Set Start .. Len to the range of values from Trace that should be output
-   --  to the user. This range of values exludes any address prior to the first
-   --  one in Ignored_Frame_Start .. Ignored_Frame_End (basically addresses
-   --  internal to this package). Depth is the number of levels that the user
-   --  is interested in.
+   --  to the user. This range of values excludes any address prior to the
+   --  first one in Ignored_Frame_Start .. Ignored_Frame_End (basically
+   --  addresses internal to this package). Depth is the number of levels that
+   --  the user is interested in.
 
    ---------------
    -- Header_Of --
@@ -579,7 +577,7 @@ package body GNAT.Debug_Pools is
       begin
          --  The pool only returns addresses aligned on Default_Alignment so
          --  anything off cannot be a valid block address and we can return
-         --  early in this case. We actually have to since our datastructures
+         --  early in this case. We actually have to since our data structures
          --  map validity bits for such aligned addresses only.
 
          if Int_Storage mod Default_Alignment /= 0 then
@@ -670,9 +668,8 @@ package body GNAT.Debug_Pools is
       --  terms of wasted memory). To do that, all we should have to do it to
       --  set the size of this array to the page size. See mprotect().
 
-      P : Ptr;
-
       Current : Byte_Count;
+      P       : Ptr;
       Trace   : Traceback_Htable_Elem_Ptr;
 
    begin
@@ -692,10 +689,12 @@ package body GNAT.Debug_Pools is
          Free_Physically (Pool);
       end if;
 
-      --  Use standard (ie through malloc) allocations. This automatically
+      --  Use standard (i.e. through malloc) allocations. This automatically
       --  raises Storage_Error if needed. We also try once more to physically
       --  release memory, so that even marked blocks, in the advanced scanning,
-      --  are freed.
+      --  are freed. Note that we do not initialize the storage array since it
+      --  is not necessary to do so (however this will cause bogus valgrind
+      --  warnings, which should simply be ignored).
 
       begin
          P := new Local_Storage_Array;
@@ -987,11 +986,7 @@ package body GNAT.Debug_Pools is
       is
       begin
          if H.Block_Size /= 0 then
-            if In_Use then
-               To_Byte (A).all := In_Use_Mark;
-            else
-               To_Byte (A).all := Free_Mark;
-            end if;
+            To_Byte (A).all := (if In_Use then In_Use_Mark else Free_Mark);
          end if;
       end Mark;
 
@@ -1388,7 +1383,7 @@ package body GNAT.Debug_Pools is
 
       if Pool.Marked_Blocks_Deallocated then
          Put_Line ("Marked blocks were physically deallocated. This is");
-         Put_Line ("potentially dangereous, and you might want to run");
+         Put_Line ("potentially dangerous, and you might want to run");
          Put_Line ("again with a lower value of Minimum_To_Free");
       end if;
 
@@ -1418,11 +1413,8 @@ package body GNAT.Debug_Pools is
                Backtrace_Htable_Cumulate.Set (Elem);
 
                if Cumulate then
-                  if Data.Kind = Alloc then
-                     K := Indirect_Alloc;
-                  else
-                     K := Indirect_Dealloc;
-                  end if;
+                  K := (if Data.Kind = Alloc then Indirect_Alloc
+                                             else Indirect_Dealloc);
 
                   --  Propagate the direct call to all its parents
 
@@ -1677,10 +1669,13 @@ package body GNAT.Debug_Pools is
       Actual_Size : size_t;
       Num_Calls   : Integer;
       Tracebk     : Tracebacks_Array_Access;
+      Dummy_Time  : Duration := 1.0;
 
    begin
       File := fopen (File_Name & ASCII.NUL, "wb" & ASCII.NUL);
       fwrite ("GMEM DUMP" & ASCII.LF, 10, 1, File);
+      fwrite (Dummy_Time'Address, Duration'Max_Size_In_Storage_Elements, 1,
+              File);
 
       --  List of not deallocated blocks (see Print_Info)
 
@@ -1701,6 +1696,8 @@ package body GNAT.Debug_Pools is
          fputc (Character'Pos ('A'), File);
          fwrite (Current'Address, Address_Size, 1, File);
          fwrite (Actual_Size'Address, size_t'Max_Size_In_Storage_Elements, 1,
+                 File);
+         fwrite (Dummy_Time'Address, Duration'Max_Size_In_Storage_Elements, 1,
                  File);
          fwrite (Num_Calls'Address, Integer'Max_Size_In_Storage_Elements, 1,
                  File);

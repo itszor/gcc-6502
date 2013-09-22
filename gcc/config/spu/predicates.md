@@ -1,5 +1,5 @@
 ;; Predicate definitions for CELL SPU
-;; Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2013 Free Software Foundation, Inc.
 ;;
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -39,13 +39,13 @@
        (ior (not (match_code "subreg"))
             (match_test "valid_subreg (op)"))))
 
-(define_predicate "spu_mem_operand"
-  (and (match_operand 0 "memory_operand")
-       (match_test "reload_in_progress || reload_completed || aligned_mem_p (op)")))
-
 (define_predicate "spu_mov_operand"
-  (ior (match_operand 0 "spu_mem_operand")
+  (ior (match_operand 0 "memory_operand")
        (match_operand 0 "spu_nonmem_operand")))
+
+(define_predicate "spu_dest_operand"
+  (ior (match_operand 0 "memory_operand")
+       (match_operand 0 "spu_reg_operand")))
 
 (define_predicate "call_operand"
   (and (match_code "mem")
@@ -58,7 +58,7 @@
 
 (define_predicate "vec_imm_operand"
   (and (match_code "const_int,const_double,const_vector")
-       (match_test "spu_legitimate_constant_p (op)")))
+       (match_test "spu_legitimate_constant_p (mode, op)")))
 
 (define_predicate "spu_arith_operand"
   (match_code "reg,subreg,const_int,const_vector")
@@ -103,4 +103,20 @@
   (and (match_code "eq,ne")
        (ior (match_test "GET_MODE (XEXP (op, 0)) == HImode")
 	    (match_test "GET_MODE (XEXP (op, 0)) == SImode"))))
+
+(define_predicate "spu_inv_exp2_operand"
+  (and (match_code "const_double,const_vector")
+       (and (match_operand 0 "immediate_operand")
+	    (match_test "exp2_immediate_p (op, mode, -126, 0)"))))
+
+(define_predicate "spu_exp2_operand"
+  (and (match_code "const_double,const_vector")
+       (and (match_operand 0 "immediate_operand")
+	    (match_test "exp2_immediate_p (op, mode, 0, 127)"))))
+
+(define_predicate "shiftrt_operator"
+  (match_code "lshiftrt,ashiftrt"))
+
+(define_predicate "extend_operator"
+  (match_code "sign_extend,zero_extend"))
 

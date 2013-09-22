@@ -25,7 +25,7 @@ template<class T> void fnx(T *) throw(T){}  // { dg-error "" } invalid use of vo
 void fx()
 {
   fnx((int *)0);
-  fnx((void *)0);		// { dg-error "" } instantiated from here
+  fnx((void *)0);		// { dg-message "required from here" }
 }
 
 // [except.spec] 2, exception specifiers must be the same set of types (but
@@ -122,8 +122,8 @@ struct B1 : A
 {
 };
 
-struct C : A, A1
-{ // { dg-error "" } looser throw - A::~A()
+struct C : A, A1		// { dg-error "" } looser throw - A::~A()
+{
   virtual void foo() throw(int);    // { dg-error "" } looser throw - A::foo
   virtual void bar() throw(int);    // { dg-error "" } looser throw - A1::bar
 };

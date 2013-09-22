@@ -1,5 +1,4 @@
-#   Copyright (C) 1997, 1999, 2000, 2002, 2004, 2007
-#   Free Software Foundation, Inc.
+#   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,17 +16,27 @@
 
 # Prune messages from gcc that aren't useful.
 
+if ![info exists TEST_ALWAYS_FLAGS] {
+    set TEST_ALWAYS_FLAGS ""
+}
+set TEST_ALWAYS_FLAGS "-fno-diagnostics-show-caret $TEST_ALWAYS_FLAGS"
+
 proc prune_gcc_output { text } {
     #send_user "Before:$text\n"
 
-    regsub -all "(^|\n)(\[^\n\]*: )?In ((static member )?function|member|method|(copy )?constructor|destructor|instantiation|program|subroutine|block-data) \[^\n\]*" $text "" text
-    regsub -all "(^|\n)\[^\n\]*: At (top level|global scope):\[^\n\]*" $text "" text
-    regsub -all "(^|\n)\[^\n\]*:   instantiated from \[^\n\]*" $text "" text
+    regsub -all "(^|\n)(\[^\n\]*: )?In ((static member |lambda )?function|member|method|(copy )?constructor|destructor|instantiation|substitution|program|subroutine|block-data)\[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*(: )?At (top level|global scope):\[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*:   (recursively )?required \[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*:   . skipping \[0-9\]* instantiation contexts \[^\n\]*" $text "" text
     regsub -all "(^|\n)    inlined from \[^\n\]*" $text "" text
-    regsub -all "(^|\n)collect2: ld returned \[^\n\]*" $text "" text
+    regsub -all "(^|\n)collect2: error: ld returned \[^\n\]*" $text "" text
     regsub -all "(^|\n)collect: re(compiling|linking)\[^\n\]*" $text "" text
     regsub -all "(^|\n)Please submit.*instructions\[^\n\]*" $text "" text
     regsub -all "(^|\n)\[0-9\]\[0-9\]* errors\." $text "" text
+    regsub -all "(^|\n)(In file included|\[ \]+from)\[^\n\]*" $text "" text
+
+    # Ignore informational notes.
+    regsub -all "(^|\n)\[^\n\]*: note: \[^\n\]*" $text "" text
 
     # Ignore harmless -fpic warnings.
     regsub -all "(^|\n)\[^\n\]*: warning: -f(pic|PIC) ignored for target\[^\n\]*" $text "" text
@@ -37,6 +46,9 @@ proc prune_gcc_output { text } {
     regsub -all "(^|\n)\[^\n\]*: Additional NOP may be necessary to workaround Itanium processor A/B step errata" $text "" text
     regsub -all "(^|\n)\[^\n*\]*: Assembler messages:\[^\n\]*" $text "" text
 
+    # Ignore harmless VTA note.
+    regsub -all "(^|\n)\[^\n\]*: note: variable tracking size limit exceeded with -fvar-tracking-assignments, retrying without\[^\n\]*" $text "" text
+
     # It would be nice to avoid passing anything to gcc that would cause it to
     # issue these messages (since ignoring them seems like a hack on our part),
     # but that's too difficult in the general case.  For example, sometimes
@@ -44,6 +56,14 @@ proc prune_gcc_output { text } {
     # that don't have crt0.o.
     regsub -all "(^|\n)\[^\n\]*file path prefix \[^\n\]* never used" $text "" text
     regsub -all "(^|\n)\[^\n\]*linker input file unused since linking not done" $text "" text
+
+    # Ignore harmless warnings from Xcode 3.2.x.
+    regsub -all "(^|\n)\[^\n\]*ld: warning: can't add line info to anonymous symbol\[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*warning: DWARFDebugInfoEntry::AppendDependants\[^\n\]*AT_\[^\n\]*_bound\[^\n\]*FORM_ref4\[^\n\]*" $text "" text
+    regsub -all "(^|\n)\[^\n\]*warning:\[^\n\]*TAG_variable:  AT_location\[^\n\]*didn't have valid function low pc\[^\n\]*" $text "" text
+
+    # Ignore harmless warnings from Xcode 4.0.
+    regsub -all "(^|\n)\[^\n\]*ld: warning: could not create compact unwind for\[^\n\]*" $text "" text
 
     #send_user "After:$text\n"
 

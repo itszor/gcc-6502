@@ -1,4 +1,4 @@
-# Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2006-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,13 +20,10 @@
 # This file is loaded by the tool init file (eg: unix.exp).  It provides
 # default definitions for gnat_start, etc. and other supporting cast members.
 
-# These globals are used if no compiler arguments are provided.
-# They are also used by the various testsuites to define the environment:
-# where to find stdio.h, libc.a, etc.
-
-load_lib libgloss.exp
 load_lib prune.exp
 load_lib gcc-defs.exp
+load_lib gcc.exp
+load_lib timeout.exp
 
 #
 # GNAT_UNDER_TEST is the compiler under test.
@@ -52,12 +49,13 @@ proc default_gnat_version { } {
 
     # verify that the compiler exists
     if { $compiler_name != 0 } then {
-	set tmp [remote_exec host "$compiler -v"]
+	set tmp [remote_exec host "$compiler --version"]
 	set status [lindex $tmp 0]
 	set output [lindex $tmp 1]
-	regexp " version \[^\n\r\]*" $output version
+	regexp "^GNATMAKE (\[^\n\r\]*)" $output verline version
 	if { $status == 0 && [info exists version] } then {
-	    clone_output "$compiler_name $version\n"
+	    # test_summary expects "version" as second field.
+	    clone_output "$compiler_name version $version\n"
 	} else {
 	    clone_output "Couldn't determine version of $compiler_name: $output\n"
 	}
@@ -67,10 +65,16 @@ proc default_gnat_version { } {
     }
 }
 
-# gnat_init -- called at the start of each .exp script.
 #
-# There currently isn't much to do, but always using it allows us to
-# make some enhancements without having to go back and rewrite the scripts.
+# gnat_version -- Call default_gnat_version, so we can override it if needed.
+#
+
+proc gnat_version { } {
+    default_gnat_version
+}
+
+#
+# gnat_init -- called at the start of each .exp script.
 #
 
 set gnat_initialized 0
@@ -83,38 +87,23 @@ proc gnat_init { args } {
     global gnat_initialized
     global GNAT_UNDER_TEST
     global TOOL_EXECUTABLE
-    global gnat_libgcc_s_path
+    global gnat_target_current
+
+    set gnat_target_current ""
 
     if { $gnat_initialized == 1 } { return }
 
     if ![info exists GNAT_UNDER_TEST] then {
 	if [info exists TOOL_EXECUTABLE] {
-	    set GNAT_UNDER_TEST $TOOL_EXECUTABLE
+	    set GNAT_UNDER_TEST "$TOOL_EXECUTABLE"
 	} else {
-	    set GNAT_UNDER_TEST [find_gnatmake]
+	    set GNAT_UNDER_TEST "[local_find_gnatmake]"
 	}
     }
 
     if ![info exists tmpdir] then {
 	set tmpdir /tmp
     }
-
-    set gnat_libgcc_s_path "${rootme}"
-    # Leave this here since Ada should support multilibs at some point.
-    set compiler [lindex $GNAT_UNDER_TEST 0]
-#    if { [is_remote host] == 0 && [which $compiler] != 0 } {
-#	foreach i "[exec $compiler --print-multi-lib]" {
-#	    set mldir ""
-#	    regexp -- "\[a-z0-9=/\.-\]*;" $i mldir
-#	    set mldir [string trimright $mldir "\;@"]
-#	    if { "$mldir" == "." } {
-#		continue
-#	    }
-#	    if { [llength [glob -nocomplain ${rootme}/${mldir}/libgcc_s*.so.*]] >= 1 } {
-#		append gnat_libgcc_s_path ":${rootme}/${mldir}"
-#	    }
-#	}
-#    }
 }
 
 proc gnat_target_compile { source dest type options } {
@@ -124,17 +113,52 @@ proc gnat_target_compile { source dest type options } {
     global srcdir
     global GNAT_UNDER_TEST
     global TOOL_OPTIONS
-    global ld_library_path
-    global gnat_libgcc_s_path
+    global gnat_target_current
+    global TEST_ALWAYS_FLAGS
 
-    setenv ADA_INCLUDE_PATH "${rootme}/ada/rts"
-    set ld_library_path ".:${gnat_libgcc_s_path}"
+    # dg-require-effective-target tests must be compiled as C.
+    if [ string match "*.c" $source ] then {
+	return [gcc_target_compile $source $dest $type $options]
+    }
+
+    # If we detect a change of target, we need to recompute both
+    # GNAT_UNDER_TEST and the appropriate RTS.
+    if { $gnat_target_current!="[current_target_name]" } {
+	set gnat_target_current "[current_target_name]"
+	if [info exists TOOL_OPTIONS] {
+	    set rtsdir "[get_multilibs ${TOOL_OPTIONS}]/libada"
+	} else {
+	    set rtsdir "[get_multilibs]/libada"
+	}
+	if [info exists TOOL_EXECUTABLE] {
+	    set GNAT_UNDER_TEST "$TOOL_EXECUTABLE"
+	} else {
+	    set GNAT_UNDER_TEST "[local_find_gnatmake]"
+	}
+        set GNAT_UNDER_TEST "$GNAT_UNDER_TEST --RTS=$rtsdir"
+
+	# gnatlink looks for system.ads itself and has no --RTS option, so
+	# specify via environment
+	setenv ADA_INCLUDE_PATH "$rtsdir/adainclude"
+	setenv ADA_OBJECTS_PATH "$rtsdir/adainclude"
+	# Always log so compilations can be repeated manually.
+	verbose -log "ADA_INCLUDE_PATH=$rtsdir/adainclude"
+	verbose -log "ADA_OBJECTS_PATH=$rtsdir/adainclude"
+    }
+
     lappend options "compiler=$GNAT_UNDER_TEST -q -f"
-    lappend options "incdir=${rootme}/ada/rts"
+    lappend options "timeout=[timeout_value]"
 
     if { [target_info needs_status_wrapper]!="" && [info exists gluefile] } {
 	lappend options "libs=${gluefile}"
 	lappend options "ldflags=$wrap_flags"
+    }
+
+    # TEST_ALWAYS_FLAGS are flags that should be passed to every
+    # compilation.  They are passed first to allow individual
+    # tests to override them.
+    if [info exists TEST_ALWAYS_FLAGS] {
+	set options [concat "{additional_flags=$TEST_ALWAYS_FLAGS}" $options]
     }
 
     # TOOL_OPTIONS must come first, so that it doesn't override testcase
@@ -143,68 +167,7 @@ proc gnat_target_compile { source dest type options } {
 	set options [concat "additional_flags=$TOOL_OPTIONS" $options]
     }
 
-    # If we have built libada along with the compiler, point the test harness
-    # at it (and associated headers).
-
-#    set sourcename [string range $source 0 [expr [string length $source] - 5]]
-#    set dest ""
     return [target_compile $source $dest $type $options]
-}
-
-#
-# gnat_pass -- utility to record a testcase passed
-#
-
-proc gnat_pass { testcase cflags } {
-    if { "$cflags" == "" } {
-	pass "$testcase"
-    } else {
-	pass "$testcase, $cflags"
-    }
-}
-
-#
-# gnat_fail -- utility to record a testcase failed
-#
-
-proc gnat_fail { testcase cflags } {
-    if { "$cflags" == "" } {
-	fail "$testcase"
-    } else {
-	fail "$testcase, $cflags"
-    }
-}
-
-#
-# gnat_finish -- called at the end of every .exp script that calls gnat_init
-#
-# The purpose of this proc is to hide all quirks of the testing environment
-# from the testsuites.  It also exists to undo anything that gnat_init did
-# (that needs undoing).
-#
-
-proc gnat_finish { } {
-    # The testing harness apparently requires this.
-    global errorInfo
-
-    if [info exists errorInfo] then {
-	unset errorInfo
-    }
-
-    # Might as well reset these (keeps our caller from wondering whether
-    # s/he has to or not).
-    global prms_id bug_id
-    set prms_id 0
-    set bug_id 0
-}
-
-proc gnat_exit { } {
-    global gluefile
-
-    if [info exists gluefile] {
-	file_on_build delete $gluefile
-	unset gluefile
-    }
 }
 
 # Prune messages from GNAT that aren't useful.
@@ -230,52 +193,54 @@ proc prune_gnat_output { text } {
     return $text
 }
 
-# If this is an older version of DejaGnu (without find_gnatmake), provide one.
-# This can be deleted after next DejaGnu release.
+# find_gnatmake for some version of DejaGnu will hardcode a -I...rts/ada flag
+# which prevent multilib from working, so define a new one.
 
-if { [info procs find_gnatmake] == "" } {
-    proc find_gnatmake {} {
-	global tool_root_dir
+proc local_find_gnatmake {} {
+    global tool_root_dir
 
-	if ![is_remote host] {
-	    set file [lookfor_file $tool_root_dir gnatmake]
-	    if { $file == "" } {
-		set file [lookfor_file $tool_root_dir gcc/gnatmake]
-	    }
-	    if { $file != "" } {
-		set root [file dirname $file]
-		set CC "$file -I$root/ada/rts --GCC=$root/xgcc --GNATBIND=$root/gnatbind --GNATLINK=$root/gnatlink -cargs -B$root -largs --GCC=$root/xgcc -B$root -margs";
-	    } else {
-		set CC [transform gnatmake]
-	    }
-	} else {
+    if ![is_remote host] {
+        set file [lookfor_file $tool_root_dir gnatmake]
+        if { $file == "" } {
+	    set file [lookfor_file $tool_root_dir gcc/gnatmake]
+        }
+        if { $file != "" } {
+	    set root [file dirname $file]
+	    # Need to pass full --GCC, including multilib flags, to gnatlink,
+	    # otherwise gcc from PATH is invoked.
+	    set dest [target_info name]
+	    set gnatlink_gcc "--GCC=$root/xgcc -B$root [board_info $dest multilib_flags]"
+	    # Escape blanks to get them through DejaGnu's exec machinery.
+	    regsub -all {\s} "$gnatlink_gcc" {\\&} gnatlink_gcc
+	    set CC "$file --GCC=$root/xgcc --GNATBIND=$root/gnatbind --GNATLINK=$root/gnatlink -cargs -B$root -largs $gnatlink_gcc -margs";
+        } else {
 	    set CC [transform gnatmake]
-	}
-	return $CC
+        }
+    } else {
+        set CC [transform gnatmake]
     }
+    return $CC
 }
 
-# If this is an older version of DejaGnu (without runtest_file_p),
-# provide one and assume the old syntax: foo1.exp bar1.c foo2.exp bar2.c.
-# This can be deleted after next DejaGnu release.
+proc find_gnatclean {} {
+    global tool_root_dir
 
-if { [info procs runtest_file_p] == "" } then {
-    proc runtest_file_p { runtests testcase } {
-	if { $runtests != "" && [regexp "\[.\]\[cC\]" $runtests] } then {
-	    if { [lsearch $runtests [file tail $testcase]] >= 0 } then {
-		return 1
-	    } else {
-		return 0
-	    }
-	}
-	return 1
+    if ![is_remote host] {
+        set file [lookfor_file $tool_root_dir gnatclean]
+        if { $file == "" } {
+	    set file [lookfor_file $tool_root_dir gcc/gnatclean]
+        }
+        if { $file != "" } {
+	    set gnatclean $file;
+        } else {
+	    set gnatclean [transform gnatclean]
+        }
+    } else {
+        set gnatclean [transform gnatclean]
     }
+    return $gnatclean
 }
 
-# Provide a definition of this if missing (delete after next DejaGnu release).
-
-if { [info procs prune_warnings] == "" } then {
-    proc prune_warnings { text } {
-	return $text
-    }
-}
+# Local Variables:
+# tcl-indent-level:4
+# End:

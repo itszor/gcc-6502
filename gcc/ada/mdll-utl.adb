@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2008, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -51,7 +51,7 @@ package body MDLL.Utl is
    procedure Print_Command
      (Tool_Name : String;
       Arguments : OS_Lib.Argument_List);
-   --  display the command runned when in Verbose mode
+   --  display the command run when in Verbose mode
 
    -------------------
    -- Print_Command --

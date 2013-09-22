@@ -1,5 +1,5 @@
-/* BasePad.java -- 
-   Copyright (C) 2001, 2002, 2003, 2006 Free Software Foundation, Inc.
+/* BasePad.java --
+   Copyright (C) 2001, 2002, 2003, 2006, 2010 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
 
@@ -38,6 +38,8 @@ exception statement from your version.  */
 
 package gnu.javax.crypto.pad;
 
+import gnu.java.lang.CPStringBuilder;
+
 import gnu.java.security.Configuration;
 
 import java.util.Map;
@@ -50,7 +52,8 @@ import java.util.logging.Logger;
 public abstract class BasePad
     implements IPad
 {
-  private static final Logger log = Logger.getLogger(BasePad.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                        Logger.getLogger(BasePad.class.getName()) : null;
   /** The canonical name prefix of the padding algorithm. */
   protected String name;
   /** The block size, in bytes, for this instance. */
@@ -67,7 +70,7 @@ public abstract class BasePad
 
   public String name()
   {
-    final StringBuffer sb = new StringBuffer(name);
+    final CPStringBuilder sb = new CPStringBuilder(name);
     if (blockSize != -1)
       sb.append('-').append(String.valueOf(8 * blockSize));
     return sb.toString();
@@ -92,7 +95,7 @@ public abstract class BasePad
    * an {@link UnsupportedOperationException}. Concrete padding algorithms MUST
    * override this method if they wish to offer an initialisation method that
    * allows for other than the padding block size parameter to be specified.
-   * 
+   *
    * @param attributes a set of name-value pairs that describes the desired
    *          future behaviour of this instance.
    * @exception IllegalStateException if the instance is already initialised.
@@ -111,7 +114,7 @@ public abstract class BasePad
   /**
    * A default implementation of a correctness test that exercises the padder
    * implementation, using block sizes varying from 2 to 256 bytes.
-   * 
+   *
    * @return <code>true</code> if the concrete implementation correctly unpads
    *         what it pads for all tested block sizes. Returns <code>false</code>
    *         if the test fails for any block size.
@@ -130,7 +133,7 @@ public abstract class BasePad
    * <p>
    * The code ensures that the implementation is capable of unpadding what it
    * pads.
-   * 
+   *
    * @param size the block size to test.
    * @param buffer a work buffer. It is exposed as an argument for this method
    *          to reduce un-necessary object allocations.

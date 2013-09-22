@@ -43,20 +43,19 @@ import gnu.java.security.action.SetAccessibleAction;
 
 import java.awt.Component;
 import java.awt.Frame;
-import java.awt.Toolkit;
 import java.lang.reflect.Field;
 import java.security.AccessController;
 
 /**
  * Represents an AWT window that can be embedded into another
  * application.
- * 
+ *
  * @author Michael Koch (konqueror@gmx.de)
  */
 public class EmbeddedWindow extends Frame
 {
   private long handle;
-  
+
   /**
    * Creates a window to be embedded into another application.  The
    * window will only be embedded after its setHandle method has been
@@ -67,7 +66,7 @@ public class EmbeddedWindow extends Frame
     super();
     this.handle = 0;
   }
-  
+
   /**
    * Creates a window to be embedded into another application.
    *
@@ -79,7 +78,7 @@ public class EmbeddedWindow extends Frame
     super();
     this.handle = handle;
   }
-  
+
   /**
    * Creates the native peer for this embedded window.
    */
@@ -92,9 +91,9 @@ public class EmbeddedWindow extends Frame
     // java.awt.Component.peer member variable.
     try
       {
-	Field peerField = Component.class.getDeclaredField("peer");
-	AccessController.doPrivileged(new SetAccessibleAction(peerField));
-	peerField.set(this, tk.createEmbeddedWindow (this));
+        Field peerField = Component.class.getDeclaredField("peer");
+        AccessController.doPrivileged(new SetAccessibleAction(peerField));
+        peerField.set(this, tk.createEmbeddedWindow (this));
       }
     catch (IllegalAccessException e)
       {

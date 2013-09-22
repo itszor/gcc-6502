@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 1998-2007, AdaCore                     --
+--                     Copyright (C) 1998-2010, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -43,6 +41,7 @@
 --  directory names (OpenVMS native directory format is not supported).
 --  Read individual entries for more specific notes on OpenVMS support.
 
+with System;
 with Ada.Strings.Maps;
 
 package GNAT.Directory_Operations is
@@ -131,7 +130,7 @@ package GNAT.Directory_Operations is
    --  is equivalent to the UNIX basename command. The following rule is
    --  always true:
    --
-   --    'Path' and 'Dir_Name (Path) & Directory_Separator & Base_Name (Path)'
+   --    'Path' and 'Dir_Name (Path) & Dir_Separator & Base_Name (Path)'
    --    represent the same file.
    --
    --  The comparison of Suffix is case-insensitive on systems such as Windows
@@ -208,8 +207,8 @@ package GNAT.Directory_Operations is
    --      Recognize both forms described above.
    --
    --    System_Default
-   --      Uses either UNIX on Unix and OpenVMS systems, or DOS on Windows and
-   --      OS/2 depending on the running environment.
+   --      Uses either UNIX on Unix and OpenVMS systems, or DOS on Windows,
+   --      depending on the running environment. What about other OS's???
 
    ---------------
    -- Iterators --
@@ -222,7 +221,7 @@ package GNAT.Directory_Operations is
    --  Dir will be set to Null_Dir.
 
    procedure Close (Dir : in out Dir_Type);
-   --  Closes the directory stream refered to by Dir. After calling Close
+   --  Closes the directory stream referred to by Dir. After calling Close
    --  Is_Open will return False. Dir will be set to Null_Dir.
    --  Raises Directory_Error if Dir has not be opened (Dir = Null_Dir).
 
@@ -254,7 +253,15 @@ package GNAT.Directory_Operations is
 
 private
 
-   type Dir_Type_Value;
+   type Dir_Type_Value is new System.Address;
+   --  Low-level address directory structure as returned by opendir in C
+   --
+   --  Note that we used to define this type in the body of this package,
+   --  but this was causing troubles in the context of .NET code generation
+   --  (because Taft amendment types are not fully implemented and cause
+   --  undefined references to the class), so we moved the type declaration
+   --  to the spec's private part, which is no problem in any case here.
+
    type Dir_Type is access Dir_Type_Value;
 
    Null_Dir : constant Dir_Type := null;

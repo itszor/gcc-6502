@@ -6,25 +6,23 @@
 --                                                                          --
 --                                  B o d y                                 --
 --                                                                          --
---          Copyright (C) 1999-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1999-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -39,8 +37,6 @@ pragma Restrictions (No_Elaboration_Code);
 --  We want to guarantee the absence of elaboration code because the
 --  binder does not handle references to this package.
 
-with Ada.Exceptions;
-
 with System.Storage_Elements; use System.Storage_Elements;
 with System.Parameters; use System.Parameters;
 with System.Soft_Links;
@@ -52,29 +48,24 @@ package body System.Stack_Checking.Operations is
 
    function Set_Stack_Info
      (Stack : not null access Stack_Access) return Stack_Access;
-
-   --  The function Set_Stack_Info is the actual function that updates
-   --  the cache containing a pointer to the Stack_Info. It may also
-   --  be used for detecting asynchronous abort in combination with
-   --  Invalidate_Self_Cache.
-
+   --  The function Set_Stack_Info is the actual function that updates the
+   --  cache containing a pointer to the Stack_Info. It may also be used for
+   --  detecting asynchronous abort in combination with Invalidate_Self_Cache.
+   --
    --  Set_Stack_Info should do the following things in order:
    --     1) Get the Stack_Access value for the current task
    --     2) Set Stack.all to the value obtained in 1)
    --     3) Optionally Poll to check for asynchronous abort
-
-   --  This order is important because if at any time a write to
-   --  the stack cache is pending, that write should be followed
-   --  by a Poll to prevent loosing signals.
-
+   --
+   --  This order is important because if at any time a write to the stack
+   --  cache is pending, that write should be followed by a Poll to prevent
+   --  loosing signals.
+   --
    --  Note: This function must be compiled with Polling turned off
-
-   --  Note: on systems like VxWorks and OS/2 with real thread-local storage,
-   --        Set_Stack_Info should return an access value for such local
-   --        storage. In those cases the cache will always be up-to-date.
-
-   --  The following constants should be imported from some system-specific
-   --  constants package. The constants must be static for performance reasons.
+   --
+   --  Note: on systems with real thread-local storage, Set_Stack_Info should
+   --  return an access value for such local storage. In those cases the cache
+   --  will always be up-to-date.
 
    ----------------------------
    -- Invalidate_Stack_Cache --
@@ -130,15 +121,15 @@ package body System.Stack_Checking.Operations is
 
       if My_Stack.Base = Null_Address then
 
-         --  First invocation, initialize based on the assumption that
-         --  there are Environment_Stack_Size bytes available beyond
-         --  the current frame address.
+         --  First invocation, initialize based on the assumption that there
+         --  are Environment_Stack_Size bytes available beyond the current
+         --  frame address.
 
          if My_Stack.Size = 0 then
             My_Stack.Size := Storage_Offset (Default_Env_Stack_Size);
 
-            --  When the environment variable GNAT_STACK_LIMIT is set,
-            --  set Environment_Stack_Size to that number of kB.
+            --  When the environment variable GNAT_STACK_LIMIT is set, set
+            --  Environment_Stack_Size to that number of kB.
 
             Limit_Chars := System.CRTL.getenv ("GNAT_STACK_LIMIT" & ASCII.NUL);
 
@@ -151,14 +142,12 @@ package body System.Stack_Checking.Operations is
             end if;
          end if;
 
-         --  If a stack base address has been registered, honor it.
-         --  Fallback to the address of a local object otherwise.
+         --  If a stack base address has been registered, honor it. Fallback to
+         --  the address of a local object otherwise.
 
-         if My_Stack.Limit /= System.Null_Address then
-            My_Stack.Base := My_Stack.Limit;
-         else
-            My_Stack.Base := Frame_Address;
-         end if;
+         My_Stack.Base :=
+           (if My_Stack.Limit /= System.Null_Address
+            then My_Stack.Limit else Frame_Address);
 
          if Stack_Grows_Down then
 
@@ -191,7 +180,9 @@ package body System.Stack_Checking.Operations is
          raise Standard'Abort_Signal;
       end if;
 
-      return My_Stack; -- Never trust the cached value, but return local copy!
+      --  Never trust the cached value, but return local copy!
+
+      return My_Stack;
    end Set_Stack_Info;
 
    -----------------
@@ -216,27 +207,25 @@ package body System.Stack_Checking.Operations is
          (not Stack_Grows_Down and then
             Stack_Address < Frame_Address)
       then
-         Ada.Exceptions.Raise_Exception
-           (E       => Storage_Error'Identity,
-            Message => "stack overflow detected");
+         raise Storage_Error with "stack overflow detected";
       end if;
 
-      --  This function first does a "cheap" check which is correct
-      --  if it succeeds. In case of failure, the full check is done.
-      --  Ideally the cheap check should be done in an optimized manner,
-      --  or be inlined.
+      --  This function first does a "cheap" check which is correct if it
+      --  succeeds. In case of failure, the full check is done. Ideally the
+      --  cheap check should be done in an optimized manner, or be inlined.
 
       if (Stack_Grows_Down and then
             (Frame_Address <= Cached_Stack.Base
-               and
+               and then
              Stack_Address > Cached_Stack.Limit))
         or else
          (not Stack_Grows_Down and then
             (Frame_Address >= Cached_Stack.Base
-               and
+               and then
              Stack_Address < Cached_Stack.Limit))
       then
          --  Cached_Stack is valid as it passed the stack check
+
          return Cached_Stack;
       end if;
 
@@ -253,26 +242,23 @@ package body System.Stack_Checking.Operations is
             (not Stack_Grows_Down and then
                (not (Frame_Address >= My_Stack.Base)))
          then
-            --  The returned Base is lower than the stored one,
-            --  so assume that the original one wasn't right and use the
-            --  current Frame_Address as new one. This allows initializing
-            --  Base with the Frame_Address as approximation.
-            --  During initialization the Frame_Address will be close to
-            --  the stack base anyway: the difference should be compensated
-            --  for in the stack reserve.
+            --  The returned Base is lower than the stored one, so assume that
+            --  the original one wasn't right and use the current Frame_Address
+            --  as new one. This allows Base to be initialized with the
+            --  Frame_Address as approximation. During initialization the
+            --  Frame_Address will be close to the stack base anyway: the
+            --  difference should be compensated for in the stack reserve.
 
             My_Stack.Base := Frame_Address;
          end if;
 
-         if (Stack_Grows_Down and then
-                  Stack_Address < My_Stack.Limit)
+         if (Stack_Grows_Down
+              and then Stack_Address < My_Stack.Limit)
            or else
-            (not Stack_Grows_Down and then
-                  Stack_Address > My_Stack.Limit)
+            (not Stack_Grows_Down
+              and then Stack_Address > My_Stack.Limit)
          then
-            Ada.Exceptions.Raise_Exception
-              (E       => Storage_Error'Identity,
-               Message => "stack overflow detected");
+            raise Storage_Error with "stack overflow detected";
          end if;
 
          return My_Stack;

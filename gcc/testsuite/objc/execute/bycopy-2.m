@@ -2,16 +2,14 @@
  * Contributed by Nicola Pero <nicola@brainstorm.co.uk>
  * Fri Feb  2 11:48:01 GMT 2001
  */
-
 #include <objc/objc.h>
-#include <objc/Object.h>
-#include <objc/Protocol.h>
+#include "../../objc-obj-c++-shared/TestsuiteObject.m"
 
 @protocol MyProtocol
 + (bycopy id<MyProtocol>) bycopyMethod;
 @end
 
-@interface MyObject : Object <MyProtocol> 
+@interface MyObject : TestsuiteObject <MyProtocol> 
 @end
 
 @implementation MyObject
@@ -27,7 +25,6 @@ int main (void)
 
   object = [MyObject bycopyMethod];
 
-   exit (0);
+  return 0;
 }
-
 

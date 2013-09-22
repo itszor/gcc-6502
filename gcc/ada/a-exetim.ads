@@ -37,8 +37,8 @@ package Ada.Execution_Time is
    CPU_Tick       : constant Ada.Real_Time.Time_Span;
 
    function Clock
-     (T : Ada.Task_Identification.Task_Id
-          := Ada.Task_Identification.Current_Task)
+     (T : Ada.Task_Identification.Task_Id :=
+            Ada.Task_Identification.Current_Task)
       return CPU_Time;
 
    function "+"
@@ -71,6 +71,11 @@ package Ada.Execution_Time is
       (SC : Ada.Real_Time.Seconds_Count;
        TS : Ada.Real_Time.Time_Span := Ada.Real_Time.Time_Span_Zero)
        return CPU_Time;
+
+   Interrupt_Clocks_Supported          : constant Boolean := False;
+   Separate_Interrupt_Clocks_Supported : constant Boolean := False;
+
+   function Clock_For_Interrupts return CPU_Time;
 
 private
 

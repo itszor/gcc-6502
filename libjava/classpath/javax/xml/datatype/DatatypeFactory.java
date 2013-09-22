@@ -1,4 +1,4 @@
-/* DatatypeFactory.java -- 
+/* DatatypeFactory.java --
    Copyright (C) 2004, 2005, 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,17 +37,14 @@ exception statement from your version. */
 
 package javax.xml.datatype;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.Properties;
-import gnu.classpath.ServiceFactory;
+import java.util.ServiceLoader;
 
 /**
  * Factory class to create new datatype objects mapping XML to and from Java
@@ -100,11 +97,11 @@ public abstract class DatatypeFactory
               return (DatatypeFactory) Class.forName(className).newInstance();
           }
         // 3. services
-        Iterator i = ServiceFactory.lookupProviders(DatatypeFactory.class);
+        Iterator<DatatypeFactory> i = ServiceLoader.load(DatatypeFactory.class).iterator();
         if (i.hasNext())
-          return (DatatypeFactory) i.next();
+          return i.next();
         // 4. fallback
-        Class t = Class.forName(DATATYPEFACTORY_IMPLEMENTATION_CLASS);
+        Class<?> t = Class.forName(DATATYPEFACTORY_IMPLEMENTATION_CLASS);
         return (DatatypeFactory) t.newInstance();
       }
     catch (Exception e)
@@ -306,7 +303,7 @@ public abstract class DatatypeFactory
    * XML Schema 1.0 Part 2, section 3.2.[7-14].1.
    */
   public abstract XMLGregorianCalendar newXMLGregorianCalendar(String lexicalRepresentation);
-  
+
   /**
    * Returns a new XMLGregorianCalendar based on the specified Gregorian
    * calendar.
@@ -420,5 +417,5 @@ public abstract class DatatypeFactory
                                    new BigDecimal(((double) milliseconds) / 1000.0),
                                    timezone);
   }
-    
+
 }

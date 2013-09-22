@@ -3,13 +3,13 @@
 /* { dg-do compile { target { { i?86-*-* rs6000-*-* alpha*-*-* x86_64-*-* } || { powerpc*-*-* && ilp32 } } } } */
 /* { dg-require-effective-target fpic } */
 /* { dg-options "-O2 -fpic -fno-omit-frame-pointer -fno-asynchronous-unwind-tables" } */
-/* { dg-final { scan-assembler-not "LC\[0-9\]" { xfail powerpc*-*-* } } } */
+/* { dg-final { scan-assembler-not "LC\[0-9\]" } } */
 
 /* Clobber all call-saved registers that can hold a pointer value.  */
 #if defined(__i386__)
 #define clobber \
   asm volatile("#asm" : : : "si", "di")
-#elif defined(__powerpc__) || defined(__PPC__) || defined(__ppc__) || defined(__POWERPC__) || defined(PPC) || defined (_IBMR2)
+#elif defined(__powerpc__) || defined(__PPC__) || defined(__ppc__) || defined(__POWERPC__) || defined(PPC) || defined (_IBMR2) || defined (__ppc)
 #define clobber \
   asm volatile("#asm" : : : "14", "15", "16", "17", "18", "19", "20", \
 	       "21", "22", "23", "24", "25", "26", "27", "28", "29")

@@ -77,24 +77,26 @@ import java.util.List;
    * @throws ClassNotFoundException if all the class loaders fail
    *                                to load the class.
    */
+  // API issue with lack of <?> on Class
+  @SuppressWarnings("rawtypes")
   public static Class loadClass(String name)
     throws ClassNotFoundException
   {
     List<MBeanServer> servers = MBeanServerFactory.findMBeanServer(null);
     for (MBeanServer server : servers)
       {
-	try
-	  {
-	    return server.getClassLoaderRepository().loadClass(name);
-	  }
-	catch (ClassNotFoundException e)
-	  {
-	    /* Ignored; try the next server. */
-	  }
+        try
+          {
+            return server.getClassLoaderRepository().loadClass(name);
+          }
+        catch (ClassNotFoundException e)
+          {
+            /* Ignored; try the next server. */
+          }
       }
     throw new ClassNotFoundException("The class loaders of all registered " +
-				     "servers failed to load the class, " +
-				     name);
+                                     "servers failed to load the class, " +
+                                     name);
   }
 
   /**
@@ -124,25 +126,27 @@ import java.util.List;
    * @throws ClassNotFoundException if all the class loaders fail
    *                                to load the class.
    */
+  // API issue with lack of <?> on Class
+  @SuppressWarnings("rawtypes")
   public static Class loadClassWithout(ClassLoader exclude, String name)
     throws ClassNotFoundException
   {
     List<MBeanServer> servers = MBeanServerFactory.findMBeanServer(null);
     for (MBeanServer server : servers)
       {
-	try
-	  {
-	    return server.getClassLoaderRepository().loadClassWithout(exclude,
-								      name);
-	  }
-	catch (ClassNotFoundException e)
-	  {
-	    /* Ignored; try the next server. */
-	  }
+        try
+          {
+            return server.getClassLoaderRepository().loadClassWithout(exclude,
+                                                                      name);
+          }
+        catch (ClassNotFoundException e)
+          {
+            /* Ignored; try the next server. */
+          }
       }
     throw new ClassNotFoundException("The class loaders of all registered " +
-				     "servers failed to load the class, " +
-				     name);
+                                     "servers failed to load the class, " +
+                                     name);
   }
 
 }

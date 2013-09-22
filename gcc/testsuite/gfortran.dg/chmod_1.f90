@@ -1,5 +1,6 @@
-! { dg-do run }
+! { dg-do run { target { ! { *-*-mingw* *-*-cygwin* spu-*-* } } } }
 ! { dg-options "-std=gnu" }
+! See PR38956.  Test fails on cygwin when user has Administrator rights
   implicit none
   character(len=*), parameter :: n = "foobar_file"
   integer :: i

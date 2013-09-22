@@ -9,13 +9,14 @@ public:
 class Bar : public Foo
 {
 public:
-      int f (int); // { dg-error "" } candidates are
+      int f (int); // { dg-message "Bar::f|candidate expects" }
 };
 
 int main ()
 {
   Bar b;
 
-  b.f ();// { dg-error "" } 
+  b.f ();// { dg-error "no matching" } 
+  // { dg-message "candidate" "candidate note" { target *-*-* } 19 }
   b.f (10);
 }

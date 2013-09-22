@@ -1,12 +1,11 @@
 // { dg-do compile }
 
-// Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007, 2008 Free
-// Software Foundation
+// Copyright (C) 2002-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -15,9 +14,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 20.4.5 Template class auto_ptr negative tests [lib.auto.ptr]
 
@@ -38,6 +36,7 @@ test01()
 {
   std::auto_ptr<Base> ptr2;
   ptr2 = new Base; // { dg-error "no match" }
+  // { dg-error "candidate" "candidate note" { target *-*-* } 38 }
   return 0;
 }
 
@@ -47,5 +46,6 @@ main()
   test01();
   return 0;
 }
-// { dg-error "candidates" "" { target *-*-* } 139 } 
-// { dg-error "::auto_ptr" "" { target *-*-* } 267 } 
+// { dg-error "::auto_ptr|no known conversion" "" { target *-*-* } 136 } 
+// { dg-error "note" "" { target *-*-* } 154 }
+// { dg-error "::auto_ptr|no known conversion" "" { target *-*-* } 264 } 

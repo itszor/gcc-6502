@@ -1,6 +1,6 @@
 /* { dg-do run { target vect_cmdline_needed } } */
-/* { dg-options "-O2 -ftree-vectorize -ftree-vectorizer-verbose=4 -fdump-tree-vect-stats" } */
-/* { dg-options "-O2 -ftree-vectorize -ftree-vectorizer-verbose=4 -fdump-tree-vect-stats -mno-sse" { target { i?86-*-* x86_64-*-* } } } */
+/* { dg-options "-O2 -ftree-vectorize -fdump-tree-vect-details" } */
+/* { dg-options "-O2 -ftree-vectorize -fdump-tree-vect-details -mno-sse" { target { i?86-*-* x86_64-*-* } } } */
 
 #include <stdlib.h>
 
@@ -9,7 +9,7 @@
 
 /* unaligned store.  */
 
-int main (int off)
+int main_1 (int off)
 {
   int i;
   char ia[N+OFF];
@@ -29,8 +29,15 @@ int main (int off)
   return 0;
 }
 
+static volatile int off = 1;
 
-/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect"  } } */
-/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 0 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" } } */
+int main (void)
+{
+  return main_1 (off);
+}
+
+
+/* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" { target { ! avr-*-* } } } } */
+/* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 0 "vect" { target { ! avr-*-* } } } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" { target { ! avr-*-* } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

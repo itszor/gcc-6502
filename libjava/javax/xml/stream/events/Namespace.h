@@ -13,7 +13,7 @@ extern "Java"
   {
     namespace xml
     {
-      namespace namespace
+      namespace namespace$
       {
           class QName;
       }
@@ -39,6 +39,10 @@ public:
   virtual ::java::lang::String * getPrefix() = 0;
   virtual ::java::lang::String * getNamespaceURI() = 0;
   virtual jboolean isDefaultNamespaceDeclaration() = 0;
+  virtual ::javax::xml::namespace$::QName * getName() = 0;
+  virtual ::java::lang::String * getValue() = 0;
+  virtual ::java::lang::String * getDTDType() = 0;
+  virtual jboolean isSpecified() = 0;
   virtual jint getEventType() = 0;
   virtual ::javax::xml::stream::Location * getLocation() = 0;
   virtual jboolean isStartElement() = 0;
@@ -53,7 +57,7 @@ public:
   virtual ::javax::xml::stream::events::StartElement * asStartElement() = 0;
   virtual ::javax::xml::stream::events::EndElement * asEndElement() = 0;
   virtual ::javax::xml::stream::events::Characters * asCharacters() = 0;
-  virtual ::javax::xml::namespace::QName * getSchemaType() = 0;
+  virtual ::javax::xml::namespace$::QName * getSchemaType() = 0;
   virtual void writeAsEncodedUnicode(::java::io::Writer *) = 0;
   static ::java::lang::Class class$;
 } __attribute__ ((java_interface));

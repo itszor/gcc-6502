@@ -1,6 +1,5 @@
 /* Sets (bit vectors) of hard registers, and operations on them.
-   Copyright (C) 1987, 1992, 1994, 2000, 2003, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1987-2013 Free Software Foundation, Inc.
 
 This file is part of GCC
 
@@ -19,7 +18,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 #ifndef GCC_HARD_REG_SET_H
-#define GCC_HARD_REG_SET_H 
+#define GCC_HARD_REG_SET_H
 
 /* Define the type of a set of hard registers.  */
 
@@ -53,6 +52,14 @@ typedef unsigned HOST_WIDEST_FAST_INT HARD_REG_ELT_TYPE;
 typedef HARD_REG_ELT_TYPE HARD_REG_SET[HARD_REG_SET_LONGS];
 
 #endif
+
+/* HARD_REG_SET wrapped into a structure, to make it possible to
+   use HARD_REG_SET even in APIs that should not include
+   hard-reg-set.h.  */
+struct hard_reg_set_container
+{
+  HARD_REG_SET set;
+};
 
 /* HARD_CONST is used to cast a constant to the appropriate type
    for use with a HARD_REG_SET.  */
@@ -88,6 +95,8 @@ typedef HARD_REG_ELT_TYPE HARD_REG_SET[HARD_REG_SET_LONGS];
    hard_reg_set_equal_p (X, Y), which returns true if X and Y are equal.
    hard_reg_set_intersect_p (X, Y), which returns true if X and Y intersect.
    hard_reg_set_empty_p (X), which returns true if X is empty.  */
+
+#define UHOST_BITS_PER_WIDE_INT ((unsigned) HOST_BITS_PER_WIDEST_FAST_INT)
 
 #ifdef HARD_REG_SET
 
@@ -134,8 +143,6 @@ hard_reg_set_empty_p (const HARD_REG_SET x)
 }
 
 #else
-
-#define UHOST_BITS_PER_WIDE_INT ((unsigned) HOST_BITS_PER_WIDEST_FAST_INT)
 
 #define SET_HARD_REG_BIT(SET, BIT)		\
   ((SET)[(BIT) / UHOST_BITS_PER_WIDE_INT]	\
@@ -479,48 +486,101 @@ hard_reg_set_empty_p (const HARD_REG_SET x)
 #endif
 #endif
 
-/* Define some standard sets of registers.  */
+/* Iterator for hard register sets.  */
 
-/* Indexed by hard register number, contains 1 for registers
-   that are fixed use (stack pointer, pc, frame pointer, etc.).
-   These are the registers that cannot be used to allocate
-   a pseudo reg whose life does not cross calls.  */
+typedef struct
+{
+  /* Pointer to the current element.  */
+  HARD_REG_ELT_TYPE *pelt;
 
-extern char fixed_regs[FIRST_PSEUDO_REGISTER];
+  /* The length of the set.  */
+  unsigned short length;
 
-/* The same info as a HARD_REG_SET.  */
+  /* Word within the current element.  */
+  unsigned short word_no;
 
-extern HARD_REG_SET fixed_reg_set;
+  /* Contents of the actually processed word.  When finding next bit
+     it is shifted right, so that the actual bit is always the least
+     significant bit of ACTUAL.  */
+  HARD_REG_ELT_TYPE bits;
+} hard_reg_set_iterator;
 
-/* Indexed by hard register number, contains 1 for registers
-   that are fixed use or are clobbered by function calls.
-   These are the registers that cannot be used to allocate
-   a pseudo reg whose life crosses calls.  */
+#define HARD_REG_ELT_BITS UHOST_BITS_PER_WIDE_INT
 
-extern char call_used_regs[FIRST_PSEUDO_REGISTER];
-
-#ifdef CALL_REALLY_USED_REGISTERS
-extern char call_really_used_regs[];
+/* The implementation of the iterator functions is fully analogous to
+   the bitmap iterators.  */
+static inline void
+hard_reg_set_iter_init (hard_reg_set_iterator *iter, HARD_REG_SET set,
+                        unsigned min, unsigned *regno)
+{
+#ifdef HARD_REG_SET_LONGS
+  iter->pelt = set;
+  iter->length = HARD_REG_SET_LONGS;
+#else
+  iter->pelt = &set;
+  iter->length = 1;
 #endif
+  iter->word_no = min / HARD_REG_ELT_BITS;
+  if (iter->word_no < iter->length)
+    {
+      iter->bits = iter->pelt[iter->word_no];
+      iter->bits >>= min % HARD_REG_ELT_BITS;
 
-/* The same info as a HARD_REG_SET.  */
+      /* This is required for correct search of the next bit.  */
+      min += !iter->bits;
+    }
+  *regno = min;
+}
 
-extern HARD_REG_SET call_used_reg_set;
-  
-/* Registers that we don't want to caller save.  */
-extern HARD_REG_SET losing_caller_save_reg_set;
+static inline bool
+hard_reg_set_iter_set (hard_reg_set_iterator *iter, unsigned *regno)
+{
+  while (1)
+    {
+      /* Return false when we're advanced past the end of the set.  */
+      if (iter->word_no >= iter->length)
+        return false;
 
-/* Indexed by hard register number, contains 1 for registers that are
-   fixed use -- i.e. in fixed_regs -- or a function value return register
-   or TARGET_STRUCT_VALUE_RTX or STATIC_CHAIN_REGNUM.  These are the
-   registers that cannot hold quantities across calls even if we are
-   willing to save and restore them.  */
+      if (iter->bits)
+        {
+          /* Find the correct bit and return it.  */
+          while (!(iter->bits & 1))
+            {
+              iter->bits >>= 1;
+              *regno += 1;
+            }
+          return (*regno < FIRST_PSEUDO_REGISTER);
+        }
 
-extern char call_fixed_regs[FIRST_PSEUDO_REGISTER];
+      /* Round to the beginning of the next word.  */
+      *regno = (*regno + HARD_REG_ELT_BITS - 1);
+      *regno -= *regno % HARD_REG_ELT_BITS;
 
-/* The same info as a HARD_REG_SET.  */
+      /* Find the next non-zero word.  */
+      while (++iter->word_no < iter->length)
+        {
+          iter->bits = iter->pelt[iter->word_no];
+          if (iter->bits)
+            break;
+          *regno += HARD_REG_ELT_BITS;
+        }
+    }
+}
 
-extern HARD_REG_SET call_fixed_reg_set;
+static inline void
+hard_reg_set_iter_next (hard_reg_set_iterator *iter, unsigned *regno)
+{
+  iter->bits >>= 1;
+  *regno += 1;
+}
+
+#define EXECUTE_IF_SET_IN_HARD_REG_SET(SET, MIN, REGNUM, ITER)          \
+  for (hard_reg_set_iter_init (&(ITER), (SET), (MIN), &(REGNUM));       \
+       hard_reg_set_iter_set (&(ITER), &(REGNUM));                      \
+       hard_reg_set_iter_next (&(ITER), &(REGNUM)))
+
+
+/* Define some standard sets of registers.  */
 
 /* Indexed by hard register number, contains 1 for registers
    that are being used for global register decls.
@@ -529,46 +589,128 @@ extern HARD_REG_SET call_fixed_reg_set;
 
 extern char global_regs[FIRST_PSEUDO_REGISTER];
 
-/* Contains 1 for registers that are set or clobbered by calls.  */
-/* ??? Ideally, this would be just call_used_regs plus global_regs, but
-   for someone's bright idea to have call_used_regs strictly include
-   fixed_regs.  Which leaves us guessing as to the set of fixed_regs
-   that are actually preserved.  We know for sure that those associated
-   with the local stack frame are safe, but scant others.  */
+struct target_hard_regs {
+  /* The set of registers that actually exist on the current target.  */
+  HARD_REG_SET x_accessible_reg_set;
 
-extern HARD_REG_SET regs_invalidated_by_call;
+  /* The set of registers that should be considered to be register
+     operands.  It is a subset of x_accessible_reg_set.  */
+  HARD_REG_SET x_operand_reg_set;
 
-#ifdef REG_ALLOC_ORDER
-/* Table of register numbers in the order in which to try to use them.  */
+  /* Indexed by hard register number, contains 1 for registers
+     that are fixed use (stack pointer, pc, frame pointer, etc.;.
+     These are the registers that cannot be used to allocate
+     a pseudo reg whose life does not cross calls.  */
+  char x_fixed_regs[FIRST_PSEUDO_REGISTER];
 
-extern int reg_alloc_order[FIRST_PSEUDO_REGISTER];
+  /* The same info as a HARD_REG_SET.  */
+  HARD_REG_SET x_fixed_reg_set;
 
-/* The inverse of reg_alloc_order.  */
+  /* Indexed by hard register number, contains 1 for registers
+     that are fixed use or are clobbered by function calls.
+     These are the registers that cannot be used to allocate
+     a pseudo reg whose life crosses calls.  */
+  char x_call_used_regs[FIRST_PSEUDO_REGISTER];
 
-extern int inv_reg_alloc_order[FIRST_PSEUDO_REGISTER];
+  char x_call_really_used_regs[FIRST_PSEUDO_REGISTER];
+
+  /* The same info as a HARD_REG_SET.  */
+  HARD_REG_SET x_call_used_reg_set;
+
+  /* Contains registers that are fixed use -- i.e. in fixed_reg_set -- or
+     a function value return register or TARGET_STRUCT_VALUE_RTX or
+     STATIC_CHAIN_REGNUM.  These are the registers that cannot hold quantities
+     across calls even if we are willing to save and restore them.  */
+  HARD_REG_SET x_call_fixed_reg_set;
+
+  /* Contains 1 for registers that are set or clobbered by calls.  */
+  /* ??? Ideally, this would be just call_used_regs plus global_regs, but
+     for someone's bright idea to have call_used_regs strictly include
+     fixed_regs.  Which leaves us guessing as to the set of fixed_regs
+     that are actually preserved.  We know for sure that those associated
+     with the local stack frame are safe, but scant others.  */
+  HARD_REG_SET x_regs_invalidated_by_call;
+
+  /* Call used hard registers which can not be saved because there is no
+     insn for this.  */
+  HARD_REG_SET x_no_caller_save_reg_set;
+
+  /* Table of register numbers in the order in which to try to use them.  */
+  int x_reg_alloc_order[FIRST_PSEUDO_REGISTER];
+
+  /* The inverse of reg_alloc_order.  */
+  int x_inv_reg_alloc_order[FIRST_PSEUDO_REGISTER];
+
+  /* For each reg class, a HARD_REG_SET saying which registers are in it.  */
+  HARD_REG_SET x_reg_class_contents[N_REG_CLASSES];
+
+  /* For each reg class, a boolean saying whether the class contains only
+     fixed registers.  */
+  bool x_class_only_fixed_regs[N_REG_CLASSES];
+
+  /* For each reg class, number of regs it contains.  */
+  unsigned int x_reg_class_size[N_REG_CLASSES];
+
+  /* For each reg class, table listing all the classes contained in it.  */
+  enum reg_class x_reg_class_subclasses[N_REG_CLASSES][N_REG_CLASSES];
+
+  /* For each pair of reg classes,
+     a largest reg class contained in their union.  */
+  enum reg_class x_reg_class_subunion[N_REG_CLASSES][N_REG_CLASSES];
+
+  /* For each pair of reg classes,
+     the smallest reg class that contains their union.  */
+  enum reg_class x_reg_class_superunion[N_REG_CLASSES][N_REG_CLASSES];
+
+  /* Vector indexed by hardware reg giving its name.  */
+  const char *x_reg_names[FIRST_PSEUDO_REGISTER];
+};
+
+extern struct target_hard_regs default_target_hard_regs;
+#if SWITCHABLE_TARGET
+extern struct target_hard_regs *this_target_hard_regs;
+#else
+#define this_target_hard_regs (&default_target_hard_regs)
 #endif
 
-/* For each reg class, a HARD_REG_SET saying which registers are in it.  */
-
-extern HARD_REG_SET reg_class_contents[N_REG_CLASSES];
-
-/* For each reg class, number of regs it contains.  */
-
-extern unsigned int reg_class_size[N_REG_CLASSES];
-
-/* For each pair of reg classes,
-   a largest reg class contained in their union.  */
-
-extern enum reg_class reg_class_subunion[N_REG_CLASSES][N_REG_CLASSES];
-
-/* For each pair of reg classes,
-   the smallest reg class that contains their union.  */
-
-extern enum reg_class reg_class_superunion[N_REG_CLASSES][N_REG_CLASSES];
-
-/* Vector indexed by hardware reg giving its name.  */
-
-extern const char * reg_names[FIRST_PSEUDO_REGISTER];
+#define accessible_reg_set \
+  (this_target_hard_regs->x_accessible_reg_set)
+#define operand_reg_set \
+  (this_target_hard_regs->x_operand_reg_set)
+#define fixed_regs \
+  (this_target_hard_regs->x_fixed_regs)
+#define fixed_reg_set \
+  (this_target_hard_regs->x_fixed_reg_set)
+#define call_used_regs \
+  (this_target_hard_regs->x_call_used_regs)
+#define call_really_used_regs \
+  (this_target_hard_regs->x_call_really_used_regs)
+#define call_used_reg_set \
+  (this_target_hard_regs->x_call_used_reg_set)
+#define call_fixed_reg_set \
+  (this_target_hard_regs->x_call_fixed_reg_set)
+#define regs_invalidated_by_call \
+  (this_target_hard_regs->x_regs_invalidated_by_call)
+#define no_caller_save_reg_set \
+  (this_target_hard_regs->x_no_caller_save_reg_set)
+#define reg_alloc_order \
+  (this_target_hard_regs->x_reg_alloc_order)
+#define inv_reg_alloc_order \
+  (this_target_hard_regs->x_inv_reg_alloc_order)
+#define reg_class_contents \
+  (this_target_hard_regs->x_reg_class_contents)
+#define class_only_fixed_regs \
+  (this_target_hard_regs->x_class_only_fixed_regs)
+#define reg_class_size \
+  (this_target_hard_regs->x_reg_class_size)
+#define reg_class_subclasses \
+  (this_target_hard_regs->x_reg_class_subclasses)
+#define reg_class_subunion \
+  (this_target_hard_regs->x_reg_class_subunion)
+#define reg_class_superunion \
+  (this_target_hard_regs->x_reg_class_superunion)
+#define reg_names \
+  (this_target_hard_regs->x_reg_names)
 
 /* Vector indexed by reg class giving its name.  */
 

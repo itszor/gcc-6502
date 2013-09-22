@@ -1,5 +1,5 @@
 /* { dg-do run } */
-/* { dg-options "-march=x86-64 -msse5 -mno-ssse3" } */
+/* { dg-options "-march=x86-64 -mfma4 -mno-ssse3" } */
 
 extern void abort (void);
 
@@ -27,7 +27,7 @@ main ()
 #if !defined __SSE4A__
   abort ();
 #endif
-#if !defined __SSE5__
+#if defined __FMA4__
   abort ();
 #endif
   return 0;

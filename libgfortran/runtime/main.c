@@ -1,31 +1,26 @@
-/* Copyright (C) 2002-2003, 2005, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught and Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with libgfortran; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
@@ -45,10 +40,9 @@ stupid_function_name_for_static_linking (void)
   return;
 }
 
-/* This is the offset (in bytes) required to cast from logical(8)* to
-   logical(4)*. and still get the same result.  Will be 0 for little-endian
-   machines and 4 for big-endian machines.  */
-int l8_to_l4_offset = 0;
+/* This will be 0 for little-endian
+   machines and 1 for big-endian machines.  */
+int big_endian = 0;
 
 
 /* Figure out endianness for this machine.  */
@@ -64,9 +58,9 @@ determine_endianness (void)
 
   u.l8 = 1;
   if (u.l4[0])
-    l8_to_l4_offset = 0;
+    big_endian = 0;
   else if (u.l4[1])
-    l8_to_l4_offset = 1;
+    big_endian = 1;
   else
     runtime_error ("Unable to determine machine endianness");
 }
@@ -74,25 +68,6 @@ determine_endianness (void)
 
 static int argc_save;
 static char **argv_save;
-
-/* Set the saved values of the command line arguments.  */
-
-void
-set_args (int argc, char **argv)
-{
-  argc_save = argc;
-  argv_save = argv;
-}
-
-/* Retrieve the saved values of the command line arguments.  */
-
-void
-get_args (int *argc, char ***argv)
-{
-  *argc = argc_save;
-  *argv = argv_save;
-}
-
 
 static const char *exe_path;
 static int please_free_exe_path_when_done;
@@ -110,28 +85,65 @@ store_exe_path (const char * argv0)
 #define DIR_SEPARATOR '/'
 #endif
 
-  char buf[PATH_MAX], *cwd, *path;
+  char buf[PATH_MAX], *path;
+  const char *cwd;
 
-  if (argv0[0] == '/')
+  /* This can only happen if store_exe_path is called multiple times.  */
+  if (please_free_exe_path_when_done)
+    free ((char *) exe_path);
+
+  /* Reading the /proc/self/exe symlink is Linux-specific(?), but if
+     it works it gives the correct answer.  */
+#ifdef HAVE_READLINK
+  int len;
+  if ((len = readlink ("/proc/self/exe", buf, sizeof (buf) - 1)) != -1)
+    {
+      buf[len] = '\0';
+      exe_path = strdup (buf);
+      please_free_exe_path_when_done = 1;
+      return;
+    }
+#endif
+
+  /* If the path is absolute or on a simulator where argv is not set.  */
+#ifdef __MINGW32__
+  if (argv0 == NULL
+      || ('A' <= argv0[0] && argv0[0] <= 'Z' && argv0[1] == ':')
+      || ('a' <= argv0[0] && argv0[0] <= 'z' && argv0[1] == ':')
+      || (argv0[0] == '/' && argv0[1] == '/')
+      || (argv0[0] == '\\' && argv0[1] == '\\'))
+#else
+  if (argv0 == NULL || argv0[0] == DIR_SEPARATOR)
+#endif
     {
       exe_path = argv0;
       please_free_exe_path_when_done = 0;
       return;
     }
 
-  memset (buf, 0, sizeof (buf));
 #ifdef HAVE_GETCWD
   cwd = getcwd (buf, sizeof (buf));
 #else
-  cwd = "";
+  cwd = NULL;
 #endif
 
-  /* exe_path will be cwd + "/" + argv[0] + "\0" */
-  path = malloc (strlen (cwd) + 1 + strlen (argv0) + 1);
-  sprintf (path, "%s%c%s", cwd, DIR_SEPARATOR, argv0);
+  if (!cwd)
+    {
+      exe_path = argv0;
+      please_free_exe_path_when_done = 0;
+      return;
+    }
+
+  /* exe_path will be cwd + "/" + argv[0] + "\0".  This will not work
+     if the executable is not in the cwd, but at this point we're out
+     of better ideas.  */
+  size_t pathlen = strlen (cwd) + 1 + strlen (argv0) + 1;
+  path = malloc (pathlen);
+  snprintf (path, pathlen, "%s%c%s", cwd, DIR_SEPARATOR, argv0);
   exe_path = path;
   please_free_exe_path_when_done = 1;
 }
+
 
 /* Return the full path of the executable.  */
 char *
@@ -139,6 +151,65 @@ full_exe_path (void)
 {
   return (char *) exe_path;
 }
+
+
+char *addr2line_path;
+
+/* Find addr2line and store the path.  */
+
+void
+find_addr2line (void)
+{
+#ifdef HAVE_ACCESS
+#define A2L_LEN 10
+  char *path = secure_getenv ("PATH");
+  if (!path)
+    return;
+  size_t n = strlen (path);
+  char ap[n + 1 + A2L_LEN];
+  size_t ai = 0;
+  for (size_t i = 0; i < n; i++)
+    {
+      if (path[i] != ':')
+	ap[ai++] = path[i];
+      else
+	{
+	  ap[ai++] = '/';
+	  memcpy (ap + ai, "addr2line", A2L_LEN);
+	  if (access (ap, R_OK|X_OK) == 0)
+	    {
+	      addr2line_path = strdup (ap);
+	      return;
+	    }
+	  else
+	    ai = 0;
+	}
+    }
+#endif
+}
+
+
+/* Set the saved values of the command line arguments.  */
+
+void
+set_args (int argc, char **argv)
+{
+  argc_save = argc;
+  argv_save = argv;
+  store_exe_path (argv[0]);
+}
+iexport(set_args);
+
+
+/* Retrieve the saved values of the command line arguments.  */
+
+void
+get_args (int *argc, char ***argv)
+{
+  *argc = argc_save;
+  *argv = argv_save;
+}
+
 
 /* Initialize the runtime library.  */
 
@@ -164,6 +235,9 @@ init (void)
   /* if (argc > 1 && strcmp(argv[1], "--resume") == 0) resume();  */
 #endif
 
+  if (options.backtrace == 1)
+    find_addr2line ();
+
   random_seed_i4 (NULL, NULL, NULL);
 }
 
@@ -177,4 +251,6 @@ cleanup (void)
   
   if (please_free_exe_path_when_done)
     free ((char *) exe_path);
+
+  free (addr2line_path);
 }

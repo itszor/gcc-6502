@@ -2,11 +2,13 @@
    block survive until the @catch block is reached.  */
 /* Developed by Ziemowit Laski <zlaski@apple.com>.  */
 
-/* { dg-options "-fobjc-exceptions -O2" } */
-/* { dg-xfail-if "PR23616" { "*-*-*" } { "*" } { "" } } */
 /* { dg-do run } */
+/* { dg-xfail-run-if "PR23616" { *-*-* } { "-fgnu-runtime" } { "-fnext-runtime" } } */
+/* { dg-xfail-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" "-fgnu-runtime" } { "" } } 
+/* { dg-prune-output ".*internal compiler error.*" } */
+/* { dg-options "-fobjc-exceptions -O2" } */
 
-#include <objc/Object.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -33,13 +35,13 @@ void foo (int arg1, float *arg2)
     local6 = 18.0;
     pi = &gi2;
     pf = &gf2;
-    obj2 = obj1 = [Object new];
+    obj2 = obj1 = [TestsuiteObject new];
     arg1 = 17;
     arg2 = &gf2;
     
-    @throw [Object new];
+    @throw [TestsuiteObject new];
   }
-  @catch (Object *obj) {
+  @catch (TestsuiteObject *obj) {
    if (local1 != 123 || local2 != 345 || local3 != 5.0
        || local4 != 6.0 || local5 != 17 || local6 != 18.0) {
      printf("Abort 1\n");
@@ -64,3 +66,4 @@ int main(void) {
   foo(15, &gf1);
   return 0;
 }
+

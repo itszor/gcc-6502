@@ -1,4 +1,4 @@
-/* XSLURIResolver.java -- 
+/* XSLURIResolver.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -75,8 +75,8 @@ class XSLURIResolver
   implements URIResolver
 {
 
-  Map lastModifiedCache = new HashMap();
-  Map nodeCache = new HashMap();
+  final Map<String,Long> lastModifiedCache = new HashMap<String,Long>();
+  final Map<String,Node> nodeCache = new HashMap<String,Node>();
   DocumentBuilder builder;
   URIResolver userResolver;
   ErrorListener userListener;
@@ -157,10 +157,10 @@ class XSLURIResolver
             if (url != null)
               {
                 systemId = url.toString();
-                node = (Node) nodeCache.get(systemId);
+                node = nodeCache.get(systemId);
                 // Is the resource up to date?
                 URLConnection conn = url.openConnection();
-                Long llm = (Long) lastModifiedCache.get(systemId);
+                Long llm = lastModifiedCache.get(systemId);
                 if (llm != null)
                   {
                     lastLastModified = llm.longValue();
@@ -168,7 +168,7 @@ class XSLURIResolver
                   }
                 conn.connect();
                 lastModified = conn.getLastModified();
-                if (node != null && 
+                if (node != null &&
                     lastModified > 0L &&
                     lastModified <= lastLastModified)
                   {
@@ -266,7 +266,7 @@ class XSLURIResolver
         return (file == null) ? null : file.toURL();
       }
   }
-  
+
   DocumentBuilder getDocumentBuilder()
     throws TransformerException
   {
@@ -301,6 +301,7 @@ class XSLURIResolver
   {
     SAXEventSink eventSink = new SAXEventSink();
     eventSink.setReader(reader);
+    eventSink.setNamespaceAware(true);
     reader.setContentHandler(eventSink);
     reader.setDTDHandler(eventSink);
     reader.setProperty("http://xml.org/sax/properties/lexical-handler",
@@ -316,6 +317,5 @@ class XSLURIResolver
       ((DomDocument) doc).setDocumentURI(systemId);
     return new DOMSource(doc, systemId);
   }
-  
-}
 
+}

@@ -1,4 +1,4 @@
-/* EndDocumentImpl.java -- 
+/* EndDocumentImpl.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,7 +37,6 @@ exception statement from your version. */
 
 package gnu.xml.stream;
 
-import java.io.IOException;
 import java.io.Writer;
 import javax.xml.stream.Location;
 import javax.xml.stream.XMLStreamException;
@@ -62,11 +61,10 @@ public class EndDocumentImpl
   {
     return END_DOCUMENT;
   }
-  
+
   public void writeAsEncodedUnicode(Writer writer)
     throws XMLStreamException
   {
   }
-  
-}
 
+}

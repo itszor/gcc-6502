@@ -4,10 +4,10 @@
 ## files that should be in the distribution are not mentioned in this
 ## Makefile.am.
 
-AUTOMAKE_OPTIONS = cygnus subdir-objects
+AUTOMAKE_OPTIONS = foreign subdir-objects no-dist
 ACLOCAL_AMFLAGS = -I .. -I ../config
 
-SUBDIRS = include
+SUBDIRS = include testsuite
 
 noinst_LTLIBRARIES = libgcjgc.la libgcjgc_convenience.la
 
@@ -33,26 +33,20 @@ mips_sgi_mach_dep.s mips_ultrix_mach_dep.s powerpc_darwin_mach_dep.s \
 rs6000_mach_dep.s sparc_mach_dep.S sparc_netbsd_mach_dep.s \
 sparc_sunos4_mach_dep.s ia64_save_regs_in_stack.s
 
-extra_ldflags_libgc = @extra_ldflags_libgc@
-
 # Include THREADLIBS here to ensure that the correct versions of
 # linuxthread semaphore functions get linked:
-libgcjgc_la_LIBADD = @addobjs@ $(THREADLIBS) $(UNWINDLIBS)
-libgcjgc_la_DEPENDENCIES = @addobjs@
+libgcjgc_la_LIBADD = $(addobjs) $(THREADLIBS)
+libgcjgc_la_DEPENDENCIES = $(addobjs)
 libgcjgc_la_LDFLAGS = $(extra_ldflags_libgc) -version-info 1:2:0 -rpath $(toolexeclibdir)
+libgcjgc_la_LINK = $(LINK) $(libgcjgc_la_LDFLAGS)
 
-libgcjgc_convenience_la_LIBADD = @addobjs@
-libgcjgc_convenience_la_DEPENDENCIES = @addobjs@
+libgcjgc_convenience_la_LIBADD = $(addobjs)
+libgcjgc_convenience_la_DEPENDENCIES = $(addobjs)
 
-AM_CXXFLAGS = @GC_CFLAGS@
-AM_CFLAGS = @GC_CFLAGS@
-
-check_PROGRAMS = gctest
-gctest_SOURCES = tests/test.c
-gctest_LDADD = ./libgcjgc.la $(THREADLIBS) $(UNWINDLIBS) $(EXTRA_TEST_LIBS)
-gctest_LDFLAGS = -shared-libgcc
-TESTS_ENVIRONMENT = LD_LIBRARY_PATH=../../$(MULTIBUILDTOP)gcc
-TESTS = gctest
+AM_CXXFLAGS = $(GC_CFLAGS) $(THREADCFLAGS)
+AM_CFLAGS = $(GC_CFLAGS) $(THREADCFLAGS)
+AM_LDFLAGS = $(shell $(top_srcdir)/../libtool-ldflags $(LDFLAGS))
+override CFLAGS := $(filter-out $(O0_CFLAGS), $(CFLAGS)) $(O0_CFLAGS)
 
 ## FIXME: we shouldn't have to do this, but automake forces us to.
 .s.lo:
@@ -61,12 +55,6 @@ TESTS = gctest
 	$(LTCOMPILE) -Wp,-P -x assembler-with-cpp -c $<
 .S.lo:
 	$(LTCOMPILE) -Wp,-P -x assembler-with-cpp -c $<
-
-## We have our own definition of LTCOMPILE because we want to use our
-## CFLAGS, not those passed in from the top level make.
-LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) \
-	$(AM_CFLAGS) $(MY_CFLAGS) $(GC_CFLAGS) 
-LINK = $(LIBTOOL) --mode=link $(CC) $(AM_CFLAGS) $(MY_CFLAGS) $(LDFLAGS) -o $@
 
 # Work around what appears to be a GNU make bug handling MAKEFLAGS
 # values defined in terms of make variables, as is the case for CC and
@@ -112,9 +100,3 @@ AM_MAKEFLAGS = \
 CONFIG_STATUS_DEPENDENCIES = $(srcdir)/configure.host
 
 MAKEOVERRIDES=
-
-# No install-html or install-pdf support in automake yet
-.PHONY: install-html install-pdf
-install-html:
-install-pdf:
-

@@ -7,8 +7,8 @@
 
 /* Unaligned stores.  */
 
-int ia[N+1];
-short sa[N+1];
+int ia[N+2];
+short sa[N+2];
 
 int main1 (int n)
 {
@@ -56,5 +56,5 @@ int main (void)
 
 /* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect"  } } */
 /* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 0 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 2 "vect" } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 2 "vect" { xfail { vect_no_align || { ! vect_natural_alignment } } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

@@ -36,6 +36,9 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package java.util;
+
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 
 /* Written using "Java Class Libraries", 2nd edition, ISBN 0-201-31002-3
@@ -104,7 +107,7 @@ public class BitSet implements Cloneable, Serializable
   {
     if (nbits < 0)
       throw new NegativeArraySizeException();
-    
+
     int length = nbits >>> 6;
     if ((nbits & LONG_MASK) != 0)
       ++length;
@@ -409,7 +412,7 @@ public class BitSet implements Cloneable, Serializable
    * Then the following definition of the hashCode method
    * would be a correct implementation of the actual algorithm:
    *
-   * 
+   *
 <pre>public int hashCode()
 {
   long h = 1234;
@@ -532,7 +535,7 @@ public class BitSet implements Cloneable, Serializable
    * Returns the index of the next true bit, from the specified bit
    * (inclusive). If there is none, -1 is returned. You can iterate over
    * all true bits with this loop:<br>
-   * 
+   *
 <pre>for (int i = bs.nextSetBit(0); i &gt;= 0; i = bs.nextSetBit(i + 1))
 {
   // operate on i here
@@ -687,7 +690,7 @@ public class BitSet implements Cloneable, Serializable
    */
   public String toString()
   {
-    StringBuffer r = new StringBuffer("{");
+    CPStringBuilder r = new CPStringBuilder("{");
     boolean first = true;
     for (int i = 0; i < bits.length; ++i)
       {
@@ -747,8 +750,8 @@ public class BitSet implements Cloneable, Serializable
   {
     for (int i = other.bits.length - 1; i >= 0; i--)
       {
-	if ((bits[i] & other.bits[i]) != other.bits[i])
-	  return false;
+        if ((bits[i] & other.bits[i]) != other.bits[i])
+          return false;
       }
     return true;
   }

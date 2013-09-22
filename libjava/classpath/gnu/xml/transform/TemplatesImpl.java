@@ -1,4 +1,4 @@
-/* TemplatesImpl.java -- 
+/* TemplatesImpl.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.transform;
+
+import gnu.java.lang.CPStringBuilder;
 
 import java.util.Properties;
 import javax.xml.transform.Templates;
@@ -76,5 +78,18 @@ class TemplatesImpl
   {
     return (Properties) outputProperties.clone();
   }
-  
+
+  public String toString()
+  {
+    CPStringBuilder b = new CPStringBuilder(getClass().getName());
+    b.append("[factory=");
+    b.append(factory);
+    b.append(",stylesheet=");
+    b.append(stylesheet);
+    b.append(",outputProperties=");
+    b.append(outputProperties);
+    b.append("]");
+    return b.toString();
+  }
+
 }

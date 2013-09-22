@@ -1,5 +1,5 @@
 /* Structure layout test generator.
-   Copyright (C) 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2005, 2007, 2010, 2011 Free Software Foundation, Inc.
    Contributed by Jakub Jelinek <jakub@redhat.com>.
 
 This file is part of GCC.
@@ -221,9 +221,9 @@ switchfiles (int fields)
       fputs ("failed to create test files\n", stderr);
       exit (1);
     }
-  /* FIXME: these tests should not be xfailed on PowerPC darwin or aix
-     but they are because libobjc uses GCC's headers for trying to find
-     the struct layout but it gets it wrong.  */
+  /* FIXME: these tests should not be xfailed on aix but they are because
+     libobjc uses GCC's headers for trying to find the struct layout but it
+     gets it wrong.  */
   if (filecnt == 2
       || filecnt == 3
       || filecnt == 4
@@ -236,17 +236,23 @@ switchfiles (int fields)
       || filecnt == 22)
      {
       fprintf (outfile, "\
-/* { dg-do run { xfail powerpc*-*-darwin* powerpc*-*-aix* } } */\n\
+/* { dg-do run { xfail { powerpc*-*-aix* } } } */\n\
 /* { dg-options \"-w -I%s -fgnu-runtime\" } */\n", srcdir);
      }
   /* FIXME: these should not be xfailed but they are because
      of bugs in libobjc and the objc front-end.  25 is because
      vectors are not encoded.  The rest are because or zero sized
-     arrays are encoded as pointers.  */
-  else if (filecnt >= 25)
+     arrays are encoded as pointers.  See PR objc/25361.  */
+  else if (filecnt == 25 || (filecnt >= 27 && filecnt <= 29))
     {
       fprintf (outfile, "\
-/* { dg-do run { xfail *-*-* } } */\n\
+/* { dg-do run { xfail { { i?86-*-* x86_64-*-* } || { powerpc*-apple-darwin* && ilp32 } } } } */\n\
+/* { dg-options \"-w -I%s -fgnu-runtime\" } */\n", srcdir);
+    }
+  else if (filecnt >= 30)
+    {
+      fprintf (outfile, "\
+/* { dg-do run { xfail { i?86-*-* x86_64-*-* } } } */\n\
 /* { dg-options \"-w -I%s -fgnu-runtime\" } */\n", srcdir);
     }
   else
@@ -255,7 +261,7 @@ switchfiles (int fields)
 /* { dg-do run } */\n\
 /* { dg-options \"-w -I%s -fgnu-runtime\" } */\n", srcdir);
     }
-  fprintf(outfile, "#include <objc/encoding.h> \n\
+  fprintf(outfile, "#include <objc/runtime.h> \n\
 #include \"struct-layout-1.h\"\n\
 \n\
 int fails; \n\

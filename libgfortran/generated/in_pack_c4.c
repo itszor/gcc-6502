@@ -1,32 +1,27 @@
 /* Helper function for repacking arrays.
-   Copyright 2003, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@nowt.org>
 
-This file is part of the GNU Fortran 95 runtime library (libgfortran).
+This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either
-version 2 of the License, or (at your option) any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
+version 3 of the License, or (at your option) any later version.
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public
-License along with libgfortran; see the file COPYING.  If not,
-write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "libgfortran.h"
 #include <stdlib.h>
@@ -48,7 +43,7 @@ internal_pack_c4 (gfc_array_c4 * source)
   index_type dim;
   index_type ssize;
   const GFC_COMPLEX_4 *src;
-  GFC_COMPLEX_4 *dest;
+  GFC_COMPLEX_4 * restrict dest;
   GFC_COMPLEX_4 *destptr;
   int n;
   int packed;
@@ -62,8 +57,8 @@ internal_pack_c4 (gfc_array_c4 * source)
   for (n = 0; n < dim; n++)
     {
       count[n] = 0;
-      stride[n] = source->dim[n].stride;
-      extent[n] = source->dim[n].ubound + 1 - source->dim[n].lbound;
+      stride[n] = GFC_DESCRIPTOR_STRIDE(source,n);
+      extent[n] = GFC_DESCRIPTOR_EXTENT(source,n);
       if (extent[n] <= 0)
         {
           /* Do nothing.  */
@@ -78,12 +73,12 @@ internal_pack_c4 (gfc_array_c4 * source)
     }
 
   if (packed)
-    return source->data;
+    return source->base_addr;
 
   /* Allocate storage for the destination.  */
-  destptr = (GFC_COMPLEX_4 *)internal_malloc_size (ssize * sizeof (GFC_COMPLEX_4));
+  destptr = (GFC_COMPLEX_4 *)xmalloc (ssize * sizeof (GFC_COMPLEX_4));
   dest = destptr;
-  src = source->data;
+  src = source->base_addr;
   stride0 = stride[0];
 
 

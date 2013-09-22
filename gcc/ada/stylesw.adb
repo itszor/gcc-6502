@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -28,6 +28,42 @@ with Opt;      use Opt;
 
 package body Stylesw is
 
+   --  The following constant defines the default style options for -gnaty
+
+   Default_Style : constant String :=
+                     "3" &  -- indentation level is 3
+                     "a" &  -- check attribute casing
+                     "A" &  -- check array attribute indexes
+                     "b" &  -- check no blanks at end of lines
+                     "c" &  -- check comment formats
+                     "e" &  -- check end/exit labels present
+                     "f" &  -- check no form/feeds vertical tabs in source
+                     "h" &  -- check no horizontal tabs in source
+                     "i" &  -- check if-then layout
+                     "k" &  -- check casing rules for keywords
+                     "l" &  -- check reference manual layout
+                     "m" &  -- check line length <= 79 characters
+                     "n" &  -- check casing of package Standard idents
+                     "p" &  -- check pragma casing
+                     "r" &  -- check casing for identifier references
+                     "s" &  -- check separate subprogram specs present
+                     "t";   -- check token separation rules
+
+   --  The following constant defines the GNAT style options, showing them
+   --  as additions to the standard default style check options.
+
+   GNAT_Style    : constant String := Default_Style &
+                     "d" &  -- check no DOS line terminators
+                     "I" &  -- check mode IN
+                     "S" &  -- check separate lines after THEN or ELSE
+                     "u" &  -- check no unnecessary blank lines
+                     "x";   -- check extra parentheses around conditionals
+
+   --  Note: we intend GNAT_Style to also include the following, but we do
+   --  not yet have the whole tool suite clean with respect to this.
+
+   --                "B" &  -- check boolean operators
+
    -------------------------------
    -- Reset_Style_Check_Options --
    -------------------------------
@@ -39,6 +75,7 @@ package body Stylesw is
       Style_Check_Attribute_Casing      := False;
       Style_Check_Blanks_At_End         := False;
       Style_Check_Blank_Lines           := False;
+      Style_Check_Boolean_And_Or        := False;
       Style_Check_Comments              := False;
       Style_Check_DOS_Line_Terminator   := False;
       Style_Check_End_Labels            := False;
@@ -49,6 +86,7 @@ package body Stylesw is
       Style_Check_Layout                := False;
       Style_Check_Max_Line_Length       := False;
       Style_Check_Max_Nesting_Level     := False;
+      Style_Check_Missing_Overriding    := False;
       Style_Check_Mode_In               := False;
       Style_Check_Order_Subprograms     := False;
       Style_Check_Pragma_Casing         := False;
@@ -59,6 +97,15 @@ package body Stylesw is
       Style_Check_Tokens                := False;
       Style_Check_Xtra_Parens           := False;
    end Reset_Style_Check_Options;
+
+   ---------------------
+   -- RM_Column_Check --
+   ---------------------
+
+   function RM_Column_Check return Boolean is
+   begin
+      return Style_Check and Style_Check_Layout;
+   end RM_Column_Check;
 
    ------------------------------
    -- Save_Style_Check_Options --
@@ -112,7 +159,14 @@ package body Stylesw is
       Add ('a', Style_Check_Attribute_Casing);
       Add ('A', Style_Check_Array_Attribute_Index);
       Add ('b', Style_Check_Blanks_At_End);
-      Add ('c', Style_Check_Comments);
+      Add ('B', Style_Check_Boolean_And_Or);
+
+      if Style_Check_Comments_Spacing = 2 then
+         Add ('c', Style_Check_Comments);
+      elsif Style_Check_Comments_Spacing = 1 then
+         Add ('C', Style_Check_Comments);
+      end if;
+
       Add ('d', Style_Check_DOS_Line_Terminator);
       Add ('e', Style_Check_End_Labels);
       Add ('f', Style_Check_Form_Feeds);
@@ -123,6 +177,7 @@ package body Stylesw is
       Add ('l', Style_Check_Layout);
       Add ('n', Style_Check_Standard);
       Add ('o', Style_Check_Order_Subprograms);
+      Add ('O', Style_Check_Missing_Overriding);
       Add ('p', Style_Check_Pragma_Casing);
       Add ('r', Style_Check_References);
       Add ('s', Style_Check_Specs);
@@ -158,7 +213,7 @@ package body Stylesw is
    procedure Set_Default_Style_Check_Options is
    begin
       Reset_Style_Check_Options;
-      Set_Style_Check_Options ("3aAbcefhiklmnprst");
+      Set_Style_Check_Options (Default_Style);
    end Set_Default_Style_Check_Options;
 
    ----------------------------------
@@ -168,7 +223,7 @@ package body Stylesw is
    procedure Set_GNAT_Style_Check_Options is
    begin
       Reset_Style_Check_Options;
-      Set_Style_Check_Options ("3aAbcdefhiklmnprsStux");
+      Set_Style_Check_Options (GNAT_Style);
    end Set_GNAT_Style_Check_Options;
 
    -----------------------------
@@ -195,11 +250,18 @@ package body Stylesw is
    is
       C : Character;
 
+      On : Boolean := True;
+      --  Set to False if minus encountered
+      --  Set to True if plus encountered
+
+      Last_Option : Character := ' ';
+      --  Set to last character encountered
+
       procedure Add_Img (N : Natural);
       --  Concatenates image of N at end of Style_Msg_Buf
 
       procedure Bad_Style_Switch (Msg : String);
-      --  Called if bad style switch found. Msg is mset in Style_Msg_Buf and
+      --  Called if bad style switch found. Msg is set in Style_Msg_Buf and
       --  Style_Msg_Len. OK is set False.
 
       -------------
@@ -234,10 +296,21 @@ package body Stylesw is
       Err_Col := Options'First;
       while Err_Col <= Options'Last loop
          C := Options (Err_Col);
+         Last_Option := C;
          Err_Col := Err_Col + 1;
 
-         case C is
-            when '1' .. '9' =>
+         --  Turning switches on
+
+         if On then
+            case C is
+
+            when '+' =>
+               null;
+
+            when '-' =>
+               On := False;
+
+            when '0' .. '9' =>
                Style_Check_Indentation :=
                  Character'Pos (C) - Character'Pos ('0');
 
@@ -250,8 +323,16 @@ package body Stylesw is
             when 'b' =>
                Style_Check_Blanks_At_End         := True;
 
+            when 'B' =>
+               Style_Check_Boolean_And_Or        := True;
+
             when 'c' =>
                Style_Check_Comments              := True;
+               Style_Check_Comments_Spacing      := 2;
+
+            when 'C' =>
+               Style_Check_Comments              := True;
+               Style_Check_Comments_Spacing      := 1;
 
             when 'd' =>
                Style_Check_DOS_Line_Terminator   := True;
@@ -352,6 +433,9 @@ package body Stylesw is
             when 'o' =>
                Style_Check_Order_Subprograms     := True;
 
+            when 'O' =>
+               Style_Check_Missing_Overriding    := True;
+
             when 'p' =>
                Style_Check_Pragma_Casing         := True;
 
@@ -373,20 +457,128 @@ package body Stylesw is
             when 'x' =>
                Style_Check_Xtra_Parens           := True;
 
+            when 'y' =>
+               Set_Default_Style_Check_Options;
+
             when ' ' =>
                null;
 
             when others =>
                Err_Col := Err_Col - 1;
-               Style_Msg_Buf (1 .. 22) := "invalid style switch: ";
-               Style_Msg_Len := 23;
-               Style_Msg_Buf (Style_Msg_Len) := C;
-               OK := False;
+               Bad_Style_Switch ("invalid style switch: " & C);
                return;
-         end case;
+            end case;
+
+         --  Turning switches off
+
+         else
+            case C is
+
+            when '+' =>
+               On := True;
+
+            when '-' =>
+               null;
+
+            when '0' .. '9' =>
+               Style_Check_Indentation := 0;
+
+            when 'a' =>
+               Style_Check_Attribute_Casing      := False;
+
+            when 'A' =>
+               Style_Check_Array_Attribute_Index := False;
+
+            when 'b' =>
+               Style_Check_Blanks_At_End         := False;
+
+            when 'B' =>
+               Style_Check_Boolean_And_Or        := False;
+
+            when 'c' | 'C' =>
+               Style_Check_Comments              := False;
+
+            when 'd' =>
+               Style_Check_DOS_Line_Terminator   := False;
+
+            when 'e' =>
+               Style_Check_End_Labels            := False;
+
+            when 'f' =>
+               Style_Check_Form_Feeds            := False;
+
+            when 'g' =>
+               Reset_Style_Check_Options;
+
+            when 'h' =>
+               Style_Check_Horizontal_Tabs       := False;
+
+            when 'i' =>
+               Style_Check_If_Then_Layout        := False;
+
+            when 'I' =>
+               Style_Check_Mode_In               := False;
+
+            when 'k' =>
+               Style_Check_Keyword_Casing        := False;
+
+            when 'l' =>
+               Style_Check_Layout                := False;
+
+            when 'L' =>
+               Style_Max_Nesting_Level := 0;
+
+            when 'm' =>
+               Style_Check_Max_Line_Length       := False;
+
+            when 'M' =>
+               Style_Max_Line_Length             := 0;
+               Style_Check_Max_Line_Length       := False;
+
+            when 'n' =>
+               Style_Check_Standard              := False;
+
+            when 'o' =>
+               Style_Check_Order_Subprograms     := False;
+
+            when 'O' =>
+               Style_Check_Missing_Overriding    := False;
+
+            when 'p' =>
+               Style_Check_Pragma_Casing         := False;
+
+            when 'r' =>
+               Style_Check_References            := False;
+
+            when 's' =>
+               Style_Check_Specs                 := False;
+
+            when 'S' =>
+               Style_Check_Separate_Stmt_Lines   := False;
+
+            when 't' =>
+               Style_Check_Tokens                := False;
+
+            when 'u' =>
+               Style_Check_Blank_Lines           := False;
+
+            when 'x' =>
+               Style_Check_Xtra_Parens           := False;
+
+            when ' ' =>
+               null;
+
+            when others =>
+               Err_Col := Err_Col - 1;
+               Bad_Style_Switch ("invalid style switch: " & C);
+               return;
+            end case;
+         end if;
       end loop;
 
-      Style_Check := True;
+      --  Turn on style checking if other than N at end of string
+
+      Style_Check := (Last_Option /= 'N');
       OK := True;
    end Set_Style_Check_Options;
 end Stylesw;

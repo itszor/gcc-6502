@@ -2,30 +2,27 @@
 --                                                                          --
 --                         GNAT LIBRARY COMPONENTS                          --
 --                                                                          --
---                       A D A . C O N T A I N E R S .                      --
---       H A S H _ T A B L E S . G E N E R I C _ O P E R A T I O N S        --
+--              ADA.CONTAINERS.HASH_TABLES.GENERIC_OPERATIONS               --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
@@ -38,9 +35,8 @@ with System;  use type System.Address;
 package body Ada.Containers.Hash_Tables.Generic_Operations is
 
    type Buckets_Allocation is access all Buckets_Type;
-   --  Used for allocation and deallocation (see New_Buckets and
-   --  Free_Buckets). This is necessary because Buckets_Access has an empty
-   --  storage pool.
+   --  Used for allocation and deallocation (see New_Buckets and Free_Buckets).
+   --  This is necessary because Buckets_Access has an empty storage pool.
 
    ------------
    -- Adjust --
@@ -136,7 +132,7 @@ package body Ada.Containers.Hash_Tables.Generic_Operations is
    begin
       if HT.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (container is busy)";
+           "attempt to tamper with cursors (container is busy)";
       end if;
 
       while HT.Length > 0 loop
@@ -482,7 +478,7 @@ package body Ada.Containers.Hash_Tables.Generic_Operations is
 
       if Source.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (container is busy)";
+           "attempt to tamper with cursors (container is busy)";
       end if;
 
       Clear (Target);
@@ -623,7 +619,7 @@ package body Ada.Containers.Hash_Tables.Generic_Operations is
 
       if HT.Busy > 0 then
          raise Program_Error with
-           "attempt to tamper with elements (container is busy)";
+           "attempt to tamper with cursors (container is busy)";
       end if;
 
       Rehash : declare

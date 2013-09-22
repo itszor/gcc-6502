@@ -58,8 +58,6 @@ import org.omg.PortableInterceptor.ForwardRequest;
 
 import java.io.IOException;
 
-import java.net.Socket;
-
 /**
  * The Classpath implementation of the {@link Delegate} functionality in the
  * case, when the object was constructed from an IOR object. The IOR can be
@@ -87,8 +85,6 @@ public class IorDelegate extends SimpleDelegate
    * @param operation the method name
    * @param parameters the method parameters
    * @param returns the return value holder
-   * @param exceptions the exceptions that can be thrown by the method
-   * @param ctx_list the context list (null allowed)
    *
    * @return the created request.
    */
@@ -156,18 +152,18 @@ public class IorDelegate extends SimpleDelegate
    * request to the new direction. The ReplyHeader.LOCATION_FORWARD_PERM will
    * cause additionally to remember the new location by this delegate, so
    * subsequent calls will be immediately delivered to the new target.
-   * 
+   *
    * @param target the target object.
    * @param output the output stream, previously returned by
    * {@link #request(org.omg.CORBA.Object, String, boolean)}.
-   * 
+   *
    * @return the input stream, to read the response from or null for a one-way
    * request.
-   * 
+   *
    * @throws SystemException if the SystemException has been thrown on the
    * remote side (the exact type and the minor code matches the data of the
    * remote exception that has been thrown).
-   * 
+   *
    * @throws org.omg.CORBA.portable.ApplicationException as specified.
    * @throws org.omg.CORBA.portable.RemarshalException as specified.
    */
@@ -175,7 +171,7 @@ public class IorDelegate extends SimpleDelegate
     throws ApplicationException, RemarshalException
   {
     StreamBasedRequest request = (StreamBasedRequest) output;
-    Forwardings: while (true)
+    while (true)
       {
         try
           {

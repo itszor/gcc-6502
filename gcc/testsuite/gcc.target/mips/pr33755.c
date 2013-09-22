@@ -1,5 +1,4 @@
 /* { dg-do link } */
-/* { dg-mips-options "-O2" } */
 
 volatile int gv;
 const char *ptrs[2];

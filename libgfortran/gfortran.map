@@ -528,6 +528,7 @@ GFORTRAN_1.0 {
     _gfortran_pow_r10_i16;
     _gfortran_pow_r10_i8;
     _gfortran_pow_r16_i16;
+    _gfortran_pow_r16_i4;
     _gfortran_pow_r16_i8;
     _gfortran_pow_r4_i16;
     _gfortran_pow_r4_i8;
@@ -1026,10 +1027,173 @@ GFORTRAN_1.0 {
     __iso_c_binding_c_f_pointer_l4;
     __iso_c_binding_c_f_pointer_l8;
     __iso_c_binding_c_f_pointer_u0;
-    __iso_c_binding_c_f_procpointer;
   local:
     *;
 };
+
+GFORTRAN_1.1 {
+  global:
+    _gfortran_adjustl_char4;
+    _gfortran_adjustr_char4;
+    _gfortran_compare_string_char4;
+    _gfortran_concat_string_char4;
+    _gfortran_convert_char1_to_char4;
+    _gfortran_convert_char4_to_char1;
+    _gfortran_cshift0_16;
+    _gfortran_cshift0_16_char;
+    _gfortran_cshift0_1_char4;
+    _gfortran_cshift0_2_char4;
+    _gfortran_cshift0_4_char4;
+    _gfortran_cshift0_8_char4;
+    _gfortran_cshift1_16_char4;
+    _gfortran_cshift1_4_char4;
+    _gfortran_cshift1_8_char4;
+    _gfortran_eoshift0_16;
+    _gfortran_eoshift0_16_char;
+    _gfortran_eoshift0_1_char4;
+    _gfortran_eoshift0_2_char4;
+    _gfortran_eoshift0_4_char4;
+    _gfortran_eoshift0_8_char4;
+    _gfortran_eoshift1_16_char4;
+    _gfortran_eoshift1_4_char4;
+    _gfortran_eoshift1_8_char4;
+    _gfortran_eoshift2_16;
+    _gfortran_eoshift2_16_char;
+    _gfortran_eoshift2_1_char4;
+    _gfortran_eoshift2_2_char4;
+    _gfortran_eoshift2_4_char4;
+    _gfortran_eoshift2_8_char4;
+    _gfortran_eoshift3_16_char4;
+    _gfortran_eoshift3_4_char4;
+    _gfortran_eoshift3_8_char4;
+    _gfortran_erfc_scaled_r10;
+    _gfortran_erfc_scaled_r16;
+    _gfortran_erfc_scaled_r4;
+    _gfortran_erfc_scaled_r8;
+    _gfortran_execute_command_line_i4;
+    _gfortran_execute_command_line_i8;
+    _gfortran_pack_char4;
+    _gfortran_pack_s_char4;
+    _gfortran_reshape_char4;
+    _gfortran_runtime_warning_at;
+    _gfortran_selected_char_kind;
+    _gfortran_select_string_char4;
+    _gfortran_spread_char4;
+    _gfortran_spread_char4_scalar;
+    _gfortran_string_index_char4;
+    _gfortran_string_len_trim_char4;
+    _gfortran_string_minmax_char4;
+    _gfortran_string_scan_char4;
+    _gfortran_string_trim_char4;
+    _gfortran_string_verify_char4;
+    _gfortran_st_wait;
+    _gfortran_transfer_character_wide;
+    _gfortran_transpose_char4;
+    _gfortran_unpack0_char4;
+    _gfortran_unpack1_char4;
+} GFORTRAN_1.0; 
+
+
+GFORTRAN_1.2 {
+  global:
+    _gfortran_clz128;
+    _gfortran_ctz128;
+    _gfortran_is_extension_of;
+} GFORTRAN_1.1; 
+
+GFORTRAN_1.3 {
+  global:
+    _gfortran_error_stop_string;
+} GFORTRAN_1.2; 
+
+GFORTRAN_1.4 {
+  global:
+    _gfortran_bessel_jn_r4;
+    _gfortran_bessel_jn_r8;
+    _gfortran_bessel_jn_r10;
+    _gfortran_bessel_jn_r16;
+    _gfortran_bessel_yn_r4;
+    _gfortran_bessel_yn_r8;
+    _gfortran_bessel_yn_r10;
+    _gfortran_bessel_yn_r16;
+    _gfortran_error_stop_numeric;
+    _gfortran_iall_i1;
+    _gfortran_iall_i2;
+    _gfortran_iall_i4;
+    _gfortran_iall_i8;
+    _gfortran_iall_i16;
+    _gfortran_miall_i1;
+    _gfortran_miall_i2;
+    _gfortran_miall_i4;
+    _gfortran_miall_i8;
+    _gfortran_miall_i16;
+    _gfortran_siall_i1;
+    _gfortran_siall_i2;
+    _gfortran_siall_i4;
+    _gfortran_siall_i8;
+    _gfortran_siall_i16;
+    _gfortran_iany_i1;
+    _gfortran_iany_i2;
+    _gfortran_iany_i4;
+    _gfortran_iany_i8;
+    _gfortran_iany_i16;
+    _gfortran_miany_i1;
+    _gfortran_miany_i2;
+    _gfortran_miany_i4;
+    _gfortran_miany_i8;
+    _gfortran_miany_i16;
+    _gfortran_siany_i1;
+    _gfortran_siany_i2;
+    _gfortran_siany_i4;
+    _gfortran_siany_i8;
+    _gfortran_siany_i16;
+    _gfortran_iparity_i1;
+    _gfortran_iparity_i2;
+    _gfortran_iparity_i4;
+    _gfortran_iparity_i8;
+    _gfortran_iparity_i16;
+    _gfortran_miparity_i1;
+    _gfortran_miparity_i2;
+    _gfortran_miparity_i4;
+    _gfortran_miparity_i8;
+    _gfortran_miparity_i16;
+    _gfortran_siparity_i1;
+    _gfortran_siparity_i2;
+    _gfortran_siparity_i4;
+    _gfortran_siparity_i8;
+    _gfortran_siparity_i16;
+    _gfortran_norm2_r4;
+    _gfortran_norm2_r8;
+    _gfortran_norm2_r10;
+    _gfortran_norm2_r16;
+    _gfortran_parity_l1;
+    _gfortran_parity_l2;
+    _gfortran_parity_l4;
+    _gfortran_parity_l8;
+    _gfortran_parity_l16;
+    _gfortran_selected_real_kind2008;
+    _gfortran_stop_numeric_f08;
+    _gfortran_transfer_array_write;
+    _gfortran_transfer_character_write;
+    _gfortran_transfer_character_wide_write;
+    _gfortran_transfer_complex_write;
+    _gfortran_transfer_complex128;
+    _gfortran_transfer_complex128_write;
+    _gfortran_transfer_integer_write;
+    _gfortran_transfer_logical_write;
+    _gfortran_transfer_real_write;
+    _gfortran_transfer_real128;
+    _gfortran_transfer_real128_write;
+    _gfortran_cshift0_16_char4;
+    _gfortran_eoshift0_16_char4;
+    _gfortran_eoshift2_16_char4;
+} GFORTRAN_1.3; 
+
+GFORTRAN_1.5 {
+  global:
+    _gfortran_ftell2;
+    _gfortran_backtrace;
+} GFORTRAN_1.4; 
 
 F2C_1.0 {
   global:
@@ -1162,3 +1326,32 @@ GFORTRAN_C99_1.0 {
     y1f;
     ynf;
 };
+
+GFORTRAN_C99_1.1 {
+  global:
+    cacos;
+    cacosf;
+    cacosh;
+    cacoshf;
+    cacoshl;
+    cacosl;
+    casin;
+    casinf;
+    casinh;
+    casinhf;
+    casinhl;
+    casinl;
+    catan;
+    catanf;
+    catanh;
+    catanhf;
+    catanhl;
+    catanl;
+    llround;
+    llroundf;
+    llroundl;
+    lround;
+    lroundf;
+    lroundl;
+    roundl;
+} GFORTRAN_C99_1.0;

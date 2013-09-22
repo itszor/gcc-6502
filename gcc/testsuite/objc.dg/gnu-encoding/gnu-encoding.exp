@@ -1,5 +1,5 @@
 # GCC Objective-C testsuite that uses the `dg.exp' driver.
-#   Copyright (C) 1997, 2001, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 # Load support procs.
 load_lib objc-dg.exp
+load_lib target-libpath.exp
 
 # If a testcase doesn't have special options, use these.
 global DEFAULT_CFLAGS
@@ -37,8 +38,11 @@ set generator_src "$srcdir/$subdir/struct-layout-encoding-1_generate.c"
 set generator_src "$generator_src $srcdir/$subdir/generate-random.c"
 set generator_src "$generator_src $srcdir/$subdir/generate-random_r.c"
 set generator_cmd "-o $generator $generator_src"
-set status [remote_exec host "$HOSTCC $HOSTCFLAGS $generator_cmd"]
+# Temporarily switch to the environment of the host compiler.
+restore_ld_library_path_env_vars
+set status [remote_exec build "$HOSTCC $HOSTCFLAGS $generator_cmd"]
 set status [lindex $status 0]
+set_ld_library_path_env_vars
 if { $status == 0 } then {
     file delete -force $tstobjdir
     file mkdir $tstobjdir

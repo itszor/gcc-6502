@@ -1,31 +1,27 @@
-<?xml version='1.0'?>
-<!DOCTYPE part PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" 
- "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd" 
-[ ]>
-
-<part id="manual.numerics" xreflabel="Numerics">
+<chapter xmlns="http://docbook.org/ns/docbook" version="5.0" 
+	 xml:id="std.numerics" xreflabel="Numerics">
 <?dbhtml filename="numerics.html"?>
- 
-<partinfo>
+
+<info><title>
+  Numerics
+  <indexterm><primary>Numerics</primary></indexterm>
+</title>
   <keywordset>
-    <keyword>
-      ISO C++
-    </keyword>
-    <keyword>
-      library
-    </keyword>
+    <keyword>ISO C++</keyword>
+    <keyword>library</keyword>
   </keywordset>
-</partinfo>
+</info>
 
-<title>Numerics</title>
 
-<!-- Chapter 01 : Complex -->
-<chapter id="manual.numerics.complex" xreflabel="complex">
-  <title>Complex</title>
+
+<!-- Sect1 01 : Complex -->
+<section xml:id="std.numerics.complex" xreflabel="complex"><info><title>Complex</title></info>
+<?dbhtml filename="complex.html"?>
+  
   <para>
   </para>
-  <sect1 id="numerics.complex.processing" xreflabel="complex Processing">
-    <title>complex Processing</title>
+  <section xml:id="numerics.complex.processing" xreflabel="complex Processing"><info><title>complex Processing</title></info>
+    
     <para>
     </para>
    <para>Using <code>complex&lt;&gt;</code> becomes even more comple- er, sorry,
@@ -34,7 +30,7 @@
       compiled a list of C++98 and C99 conflict points; his description of
       C's new type versus those of C++ and how to get them playing together
       nicely is
-<ulink url="http://david.tribble.com/text/cdiffs.htm#C99-complex">here</ulink>.
+<link xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://david.tribble.com/text/cdiffs.htm#C99-complex">here</link>.
    </para>
    <para><code>complex&lt;&gt;</code> is intended to be instantiated with a
       floating-point type.  As long as you meet that and some other basic
@@ -44,13 +40,19 @@
       prints <code>(u,v)</code> and <code>op&gt;&gt;</code> can read <code>u</code>,
       <code>(u)</code>, and <code>(u,v)</code>.
    </para>
+   <para>As an extension to C++11 and for increased compatibility with C,
+      <code>&lt;complex.h&gt;</code> includes both <code>&lt;complex&gt;</code>
+      and the C99 <code>&lt;complex.h&gt;</code> (if the C library provides
+      it).
+   </para>
 
-  </sect1>
-</chapter>
+  </section>
+</section>
 
-<!-- Chapter 02 : Generalized Operations -->
-<chapter id="manual.numerics.generalized_ops" xreflabel="Generalized Ops">
-  <title>Generalized Operations</title>
+<!-- Sect1 02 : Generalized Operations -->
+<section xml:id="std.numerics.generalized_ops" xreflabel="Generalized Ops"><info><title>Generalized Operations</title></info>
+<?dbhtml filename="generalized_numeric_operations.html"?>
+  
   <para>
   </para>
 
@@ -63,7 +65,7 @@
    <itemizedlist>
       <listitem><para><code>accumulate</code></para></listitem>
       <listitem><para><code>inner_product</code></para></listitem>
-      <listitem><para><code>partial_sum</code></para></listitem>
+      <listitem><para><code>chapterial_sum</code></para></listitem>
       <listitem><para><code>adjacent_difference</code></para></listitem>
    </itemizedlist>
    <para>Here is a simple example of the two forms of <code>accumulate</code>.
@@ -88,14 +90,15 @@
    <para>The other three functions have similar dual-signature forms.
    </para>
 
-</chapter>
+</section>
 
-<!-- Chapter 03 : Interacting with C -->
-<chapter id="manual.numerics.c" xreflabel="Interacting with C">
-  <title>Interacting with C</title>
+<!-- Sect1 03 : Interacting with C -->
+<section xml:id="std.numerics.c" xreflabel="Interacting with C"><info><title>Interacting with C</title></info>
+<?dbhtml filename="numerics_and_c.html"?>
+  
 
-  <sect1 id="numerics.c.array" xreflabel="Numerics vs. Arrays">
-    <title>Numerics vs. Arrays</title>
+  <section xml:id="numerics.c.array" xreflabel="Numerics vs. Arrays"><info><title>Numerics vs. Arrays</title></info>
+    
 
    <para>One of the major reasons why FORTRAN can chew through numbers so well
       is that it is defined to be free of pointer aliasing, an assumption
@@ -106,7 +109,7 @@
       as an extension).
    </para>
    <para>That library solution is a set of two classes, five template classes,
-      and &quot;a whole bunch&quot; of functions.  The classes are required
+      and "a whole bunch" of functions.  The classes are required
       to be free of pointer aliasing, so compilers can optimize the
       daylights out of them the same way that they have been for FORTRAN.
       They are collectively called <code>valarray</code>, although strictly
@@ -115,10 +118,10 @@
       libraries before.
    </para>
 
-  </sect1>
+  </section>
 
-  <sect1 id="numerics.c.c99" xreflabel="C99">
-    <title>C99</title>
+  <section xml:id="numerics.c.c99" xreflabel="C99"><info><title>C99</title></info>
+    
 
    <para>In addition to the other topics on this page, we'll note here some
       of the C99 features that appear in libstdc++.
@@ -137,7 +140,7 @@
       <code>wcstoll</code>.
    </para>
 
-  </sect1>
-</chapter>
+  </section>
+</section>
 
-</part>
+</chapter>

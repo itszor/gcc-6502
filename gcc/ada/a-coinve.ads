@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived from the Ada Reference Manual for use with --
 -- GNAT. The copyright notice above, and the license provisions that follow --
@@ -14,24 +14,24 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- This unit was originally developed by Matthew J Heaney.                  --
 ------------------------------------------------------------------------------
+
+with Ada.Iterator_Interfaces;
 
 private with Ada.Finalization;
 private with Ada.Streams;
@@ -52,7 +52,13 @@ package Ada.Containers.Indefinite_Vectors is
 
    No_Index : constant Extended_Index := Extended_Index'First;
 
-   type Vector is tagged private;
+   type Vector is tagged private
+   with
+     Constant_Indexing => Constant_Reference,
+     Variable_Indexing => Reference,
+     Default_Iterator  => Iterate,
+     Iterator_Element  => Element_Type;
+
    pragma Preelaborable_Initialization (Vector);
 
    type Cursor is private;
@@ -62,7 +68,12 @@ package Ada.Containers.Indefinite_Vectors is
 
    No_Element : constant Cursor;
 
-   function "=" (Left, Right : Vector) return Boolean;
+   function Has_Element (Position : Cursor) return Boolean;
+
+   package Vector_Iterator_Interfaces is new
+     Ada.Iterator_Interfaces (Cursor, Has_Element);
+
+   overriding function "=" (Left, Right : Vector) return Boolean;
 
    function To_Vector (Length : Count_Type) return Vector;
 
@@ -93,6 +104,35 @@ package Ada.Containers.Indefinite_Vectors is
    function Is_Empty (Container : Vector) return Boolean;
 
    procedure Clear (Container : in out Vector);
+
+   type Constant_Reference_Type
+      (Element : not null access constant Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   type Reference_Type (Element : not null access Element_Type) is private
+   with
+      Implicit_Dereference => Element;
+
+   function Constant_Reference
+     (Container : aliased Vector;
+      Position  : Cursor) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Vector;
+      Position  : Cursor) return Reference_Type;
+   pragma Inline (Reference);
+
+   function Constant_Reference
+     (Container : aliased Vector;
+      Index     : Index_Type) return Constant_Reference_Type;
+   pragma Inline (Constant_Reference);
+
+   function Reference
+     (Container : aliased in out Vector;
+      Index     : Index_Type) return Reference_Type;
+   pragma Inline (Reference);
 
    function To_Cursor
      (Container : Vector;
@@ -134,6 +174,10 @@ package Ada.Containers.Indefinite_Vectors is
      (Container : in out Vector;
       Position  : Cursor;
       Process   : not null access procedure (Element : in out Element_Type));
+
+   procedure Assign (Target : in out Vector; Source : Vector);
+
+   function Copy (Source : Vector; Capacity : Count_Type := 0) return Vector;
 
    procedure Move (Target : in out Vector; Source : in out Vector);
 
@@ -269,11 +313,17 @@ package Ada.Containers.Indefinite_Vectors is
      (Container : Vector;
       Item      : Element_Type) return Boolean;
 
-   function Has_Element (Position : Cursor) return Boolean;
-
    procedure Iterate
      (Container : Vector;
       Process   : not null access procedure (Position : Cursor));
+
+   function Iterate (Container : Vector)
+      return Vector_Iterator_Interfaces.Reversible_Iterator'class;
+
+   function Iterate
+     (Container : Vector;
+      Start     : Cursor)
+      return Vector_Iterator_Interfaces.Reversible_Iterator'class;
 
    procedure Reverse_Iterate
      (Container : Vector;
@@ -316,21 +366,18 @@ private
 
    type Elements_Access is access Elements_Type;
 
-   use Ada.Finalization;
-
-   type Vector is new Controlled with record
+   type Vector is new Ada.Finalization.Controlled with record
       Elements : Elements_Access;
       Last     : Extended_Index := No_Index;
       Busy     : Natural := 0;
       Lock     : Natural := 0;
    end record;
 
-   overriding
-   procedure Adjust (Container : in out Vector);
+   overriding procedure Adjust (Container : in out Vector);
 
-   overriding
-   procedure Finalize (Container : in out Vector);
+   overriding procedure Finalize (Container : in out Vector);
 
+   use Ada.Finalization;
    use Ada.Streams;
 
    procedure Write
@@ -345,7 +392,7 @@ private
 
    for Vector'Read use Read;
 
-   type Vector_Access is access constant Vector;
+   type Vector_Access is access all Vector;
    for Vector_Access'Storage_Size use 0;
 
    type Cursor is record
@@ -353,17 +400,64 @@ private
       Index     : Index_Type := Index_Type'First;
    end record;
 
+   procedure Read
+     (Stream   : not null access Root_Stream_Type'Class;
+      Position : out Cursor);
+
+   for Cursor'Read use Read;
+
    procedure Write
      (Stream   : not null access Root_Stream_Type'Class;
       Position : Cursor);
 
    for Cursor'Write use Write;
 
-   procedure Read
-     (Stream   : not null access Root_Stream_Type'Class;
-      Position : out Cursor);
+   type Reference_Control_Type is
+      new Controlled with record
+         Container : Vector_Access;
+      end record;
 
-   for Cursor'Read use Read;
+   overriding procedure Adjust (Control : in out Reference_Control_Type);
+   pragma Inline (Adjust);
+
+   overriding procedure Finalize (Control : in out Reference_Control_Type);
+   pragma Inline (Finalize);
+
+   type Constant_Reference_Type
+     (Element : not null access constant Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Constant_Reference_Type);
+
+   for Constant_Reference_Type'Write use Write;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Constant_Reference_Type);
+
+   for Constant_Reference_Type'Read use Read;
+
+   type Reference_Type
+     (Element : not null access Element_Type) is
+      record
+         Control : Reference_Control_Type;
+      end record;
+
+   procedure Write
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : Reference_Type);
+
+   for Reference_Type'Write use Write;
+
+   procedure Read
+     (Stream : not null access Root_Stream_Type'Class;
+      Item   : out Reference_Type);
+
+   for Reference_Type'Read use Read;
 
    Empty_Vector : constant Vector := (Controlled with null, No_Index, 0, 0);
 

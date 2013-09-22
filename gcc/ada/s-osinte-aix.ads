@@ -7,25 +7,23 @@
 --                                  S p e c                                 --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2011, Free Software Foundation, Inc.         --
 --                                                                          --
--- GNARL is free software; you can  redistribute it  and/or modify it under --
+-- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University.       --
 -- Extensive contributions were provided by Ada Core Technologies, Inc.     --
@@ -35,13 +33,14 @@
 --  This is a AIX (Native THREADS) version of this package
 
 --  This package encapsulates all direct interfaces to OS services that are
---  needed by children of System.
+--  needed by the tasking run-time (libgnarl).
 
 --  PLEASE DO NOT add any with-clauses to this package or remove the pragma
 --  Preelaborate. This package is designed to be a bottom-level (leaf) package.
 
-with Interfaces.C;
 with Ada.Unchecked_Conversion;
+
+with Interfaces.C;
 
 package System.OS_Interface is
    pragma Preelaborate;
@@ -131,7 +130,7 @@ package System.OS_Interface is
    SIGCPUFAIL  : constant := 59; -- Predictive De-configuration of Processors
    SIGKAP      : constant := 60; -- keep alive poll from native keyboard
    SIGGRANT    : constant := SIGKAP; -- monitor mode granted
-   SIGRETRACT  : constant := 61; -- monitor mode should be relinguished
+   SIGRETRACT  : constant := 61; -- monitor mode should be relinquished
    SIGSOUND    : constant := 62; -- sound control has completed
    SIGSAK      : constant := 63; -- secure attention key
 
@@ -173,7 +172,8 @@ package System.OS_Interface is
    pragma Convention (C, struct_sigaction);
    type struct_sigaction_ptr is access all struct_sigaction;
 
-   SA_SIGINFO  : constant := 16#0100#;
+   SA_SIGINFO : constant := 16#0100#;
+   SA_ONSTACK : constant := 16#0001#;
 
    SIG_BLOCK   : constant := 0;
    SIG_UNBLOCK : constant := 1;
@@ -197,14 +197,11 @@ package System.OS_Interface is
 
    type timespec is private;
 
-   type clockid_t is private;
-
-   CLOCK_REALTIME : constant clockid_t;
+   type clockid_t is new int;
 
    function clock_gettime
      (clock_id : clockid_t;
       tp       : access timespec) return int;
-   --  AIX threads don't have clock_gettime, so use gettimeofday() instead
 
    function To_Duration (TS : timespec) return Duration;
    pragma Inline (To_Duration);
@@ -218,16 +215,6 @@ package System.OS_Interface is
    end record;
    pragma Convention (C, struct_timezone);
    type struct_timezone_ptr is access all struct_timezone;
-
-   type struct_timeval is private;
-   --  This is needed on systems that do not have clock_gettime() but do have
-   --  gettimeofday().
-
-   function To_Duration (TV : struct_timeval) return Duration;
-   pragma Inline (To_Duration);
-
-   function To_Timeval (D : Duration) return struct_timeval;
-   pragma Inline (To_Timeval);
 
    -------------------------
    -- Priority Scheduling --
@@ -286,12 +273,38 @@ package System.OS_Interface is
    PTHREAD_SCOPE_PROCESS : constant := 1;
    PTHREAD_SCOPE_SYSTEM  : constant := 0;
 
+   --  Read/Write lock not supported on AIX. To add support both types
+   --  pthread_rwlock_t and pthread_rwlockattr_t must properly be defined
+   --  with the associated routines pthread_rwlock_[init/destroy] and
+   --  pthread_rwlock_[rdlock/wrlock/unlock].
+
+   subtype pthread_rwlock_t     is pthread_mutex_t;
+   subtype pthread_rwlockattr_t is pthread_mutexattr_t;
+
    -----------
    -- Stack --
    -----------
 
+   type stack_t is record
+      ss_sp    : System.Address;
+      ss_size  : size_t;
+      ss_flags : int;
+   end record;
+   pragma Convention (C, stack_t);
+
+   function sigaltstack
+     (ss  : not null access stack_t;
+      oss : access stack_t) return int;
+   pragma Import (C, sigaltstack, "sigaltstack");
+
+   Alternate_Stack : aliased System.Address;
+   --  This is a dummy definition, never used (Alternate_Stack_Size is null)
+
+   Alternate_Stack_Size : constant := 0;
+   --  No alternate signal stack is used on this platform
+
    Stack_Base_Available : constant Boolean := False;
-   --  Indicates wether the stack base is available on this target
+   --  Indicates whether the stack base is available on this target
 
    function Get_Stack_Base (thread : pthread_t) return Address;
    pragma Inline (Get_Stack_Base);
@@ -301,14 +314,13 @@ package System.OS_Interface is
    function Get_Page_Size return size_t;
    function Get_Page_Size return Address;
    pragma Import (C, Get_Page_Size, "getpagesize");
-   --  Returns the size of a page, or 0 if this is not relevant on this target
+   --  Returns the size of a page
 
    PROT_NONE  : constant := 0;
    PROT_READ  : constant := 1;
    PROT_WRITE : constant := 2;
    PROT_EXEC  : constant := 4;
    PROT_ALL   : constant := PROT_READ + PROT_WRITE + PROT_EXEC;
-
    PROT_ON    : constant := PROT_READ;
    PROT_OFF   : constant := PROT_ALL;
 
@@ -531,15 +543,6 @@ private
       tv_nsec : long;
    end record;
    pragma Convention (C, timespec);
-
-   type clockid_t is new int;
-   CLOCK_REALTIME : constant clockid_t := 0;
-
-   type struct_timeval is record
-      tv_sec  : long;
-      tv_usec : long;
-   end record;
-   pragma Convention (C, struct_timeval);
 
    type pthread_attr_t is new System.Address;
    pragma Convention (C, pthread_attr_t);

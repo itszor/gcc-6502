@@ -1,4 +1,4 @@
-/* XPathFunction.java -- 
+/* XPathFunction.java --
    Copyright (C) 2004, 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -52,7 +52,8 @@ public interface XPathFunction
    * Evaluate the function with the specified arguments.
    * @param args the list of arguments
    */
+  @SuppressWarnings("rawtypes")
   Object evaluate(List args)
     throws XPathFunctionException;
-  
+
 }

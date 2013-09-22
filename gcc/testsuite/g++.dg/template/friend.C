@@ -7,7 +7,7 @@ extern ostream& cout;
 template <class T> struct s;
 
 template <class T>
-ostream& operator<<(ostream &o, const typename s<T>::t &x)
+ostream& operator<<(ostream &o, const typename s<T>::t &x) // { dg-message "note" }
 {
   return o;
 }
@@ -26,4 +26,5 @@ int main()
 {
   s<int>::t y;
   cout << y; // { dg-error "" }
+  // { dg-message "(candidate|deduce template parameter)" "candidate note" { target *-*-* } 28 }
 }

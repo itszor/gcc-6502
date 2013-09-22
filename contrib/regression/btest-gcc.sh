@@ -1,11 +1,12 @@
 #!/bin/sh
 
 #  Test GCC.
-#  Copyright (C) 1999, 2000, 2001, 2002, 2005, 2006  Free Software Foundation, Inc.
+#  Copyright (C) 1999, 2000, 2001, 2002, 2005, 2006, 2009, 2012
+#  Free Software Foundation, Inc.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
+#  the Free Software Foundation; either version 3 of the License, or
 #  (at your option) any later version.
 
 #  This program is distributed in the hope that it will be useful,
@@ -14,8 +15,8 @@
 #  GNU General Public License for more details.
 
 #  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+#  along with this program; see the file COPYING3.  If not see
+#  <http://www.gnu.org/licenses/>.
 
 # INPUT:
 # btest <options> <target> <source> <prefix> <state> <build>
@@ -116,7 +117,6 @@ H_REAL_TARGET=`$SOURCE/config.sub $H_TARGET || exit 1`
 # look at.
 TESTLOGS="gcc/testsuite/gcc/gcc.sum
 gcc/testsuite/g++/g++.sum
-gcc/testsuite/gfortran/gfortran.sum
 gcc/testsuite/objc/objc.sum"
 
 # Build.
@@ -126,6 +126,7 @@ if [ $H_HOST = $H_TARGET ] ; then
   if ! make $dashj bootstrap ; then
     [ -s .bad_compare ] || exit 1
     cat .bad_compare >> $REGRESS || exit 1
+    touch compare || exit 1   # Prevent the comparison from running again
     make $dashj all || exit 1
   fi
 else
@@ -142,6 +143,10 @@ echo error > $RESULT || exit 1
 # Test GCC against its internal testsuite.
 make $dashj -k check
 
+if [ -f gcc/testsuite/gfortran/gfortran.sum ] ; then
+  TESTLOGS="$TESTLOGS gcc/testsuite/gfortran/gfortran.sum"
+fi
+
 if [ -f $BUILD/$H_TARGET/libstdc++-v3/testsuite/libstdc++.sum ] ; then
   TESTLOGS="$TESTLOGS $H_TARGET/libstdc++-v3/testsuite/libstdc++.sum"
 fi
@@ -156,6 +161,10 @@ fi
 
 if [ -f $BUILD/$H_TARGET/libgomp/testsuite/libgomp.sum ] ; then
   TESTLOGS="$TESTLOGS $H_TARGET/libgomp/testsuite/libgomp.sum"
+fi
+
+if [ -f $BUILD/$H_TARGET/libmudflap/testsuite/libmudflap.sum ] ; then
+  TESTLOGS="$TESTLOGS $H_TARGET/libmudflap/testsuite/libmudflap.sum"
 fi
 
 # Test the just-built GCC with the GDB testsuite.

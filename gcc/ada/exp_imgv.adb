@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 2001-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2001-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -34,6 +34,7 @@ with Nmake;    use Nmake;
 with Nlists;   use Nlists;
 with Opt;      use Opt;
 with Rtsfind;  use Rtsfind;
+with Sem_Aux;  use Sem_Aux;
 with Sem_Res;  use Sem_Res;
 with Sinfo;    use Sinfo;
 with Snames;   use Snames;
@@ -42,8 +43,14 @@ with Stringt;  use Stringt;
 with Tbuild;   use Tbuild;
 with Ttypes;   use Ttypes;
 with Uintp;    use Uintp;
+with Urealp;   use Urealp;
 
 package body Exp_Imgv is
+
+   function Has_Decimal_Small (E : Entity_Id) return Boolean;
+   --  Applies to all entities. True for a Decimal_Fixed_Point_Type, or an
+   --  Ordinary_Fixed_Point_Type with a small that is a negative power of ten.
+   --  Shouldn't this be in einfo.adb or sem_aux.adb???
 
    ------------------------------------
    -- Build_Enumeration_Image_Tables --
@@ -238,7 +245,10 @@ package body Exp_Imgv is
    --  Snn (1 .. Pnn) then occurs as in the other cases. A special case is
    --  when pragma Discard_Names applies, in which case we replace expr by:
 
-   --    Missing ???
+   --     (rt'Pos (expr))'Img
+
+   --  So that the result is a space followed by the decimal value for the
+   --  position of the enumeration value in the enumeration type.
 
    procedure Expand_Image_Attribute (N : Node_Id) is
       Loc       : constant Source_Ptr := Sloc (N);
@@ -259,13 +269,8 @@ package body Exp_Imgv is
       Ins_List : List_Id;
       --  List of actions to be inserted
 
-      Snn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('S'));
-
-      Pnn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('P'));
+      Snn : constant Entity_Id := Make_Temporary (Loc, 'S');
+      Pnn : constant Entity_Id := Make_Temporary (Loc, 'P');
 
    begin
       --  Build declarations of Snn and Pnn to be inserted
@@ -304,8 +309,16 @@ package body Exp_Imgv is
          Imid := RE_Image_Boolean;
          Tent := Rtyp;
 
+      --  For standard character, we have to select the version which handles
+      --  soft hyphen correctly, based on the version of Ada in use (ugly!)
+
       elsif Rtyp = Standard_Character then
-         Imid := RE_Image_Character;
+         if Ada_Version < Ada_2005 then
+            Imid := RE_Image_Character;
+         else
+            Imid := RE_Image_Character_05;
+         end if;
+
          Tent := Rtyp;
 
       elsif Rtyp = Standard_Wide_Character then
@@ -334,7 +347,7 @@ package body Exp_Imgv is
             Tent := RTE (RE_Long_Long_Unsigned);
          end if;
 
-      elsif Is_Decimal_Fixed_Point_Type (Rtyp) then
+      elsif Is_Fixed_Point_Type (Rtyp) and then Has_Decimal_Small (Rtyp) then
          if UI_To_Int (Esize (Rtyp)) <= Standard_Integer_Size then
             Imid := RE_Image_Decimal;
             Tent := Standard_Integer;
@@ -357,8 +370,8 @@ package body Exp_Imgv is
          if Discard_Names (First_Subtype (Ptyp))
            or else No (Lit_Strings (Root_Type (Ptyp)))
          then
-            --  When pragma Discard_Names applies to the first subtype,
-            --  then build (Pref'Pos)'Img.
+            --  When pragma Discard_Names applies to the first subtype, build
+            --  (Pref'Pos (Expr))'Img.
 
             Rewrite (N,
               Make_Attribute_Reference (Loc,
@@ -379,8 +392,10 @@ package body Exp_Imgv is
 
             if Ttyp = Standard_Integer_8 then
                Imid := RE_Image_Enumeration_8;
-            elsif Ttyp = Standard_Integer_16  then
+
+            elsif Ttyp = Standard_Integer_16 then
                Imid := RE_Image_Enumeration_16;
+
             else
                Imid := RE_Image_Enumeration_32;
             end if;
@@ -453,22 +468,27 @@ package body Exp_Imgv is
              Prefix         => New_Reference_To (Ptyp, Loc),
              Attribute_Name => Name_Aft));
 
+         if Has_Decimal_Small (Rtyp) then
+            Set_Conversion_OK (First (Arg_List));
+            Set_Etype (First (Arg_List), Tent);
+         end if;
+
       --  For decimal, append Scale and also set to do literal conversion
 
       elsif Is_Decimal_Fixed_Point_Type (Rtyp) then
          Append_To (Arg_List,
            Make_Attribute_Reference (Loc,
-             Prefix => New_Reference_To (Ptyp, Loc),
+             Prefix         => New_Reference_To (Ptyp, Loc),
              Attribute_Name => Name_Scale));
 
          Set_Conversion_OK (First (Arg_List));
          Set_Etype (First (Arg_List), Tent);
 
-         --  For Wide_Character, append Ada 2005 indication
+      --  For Wide_Character, append Ada 2005 indication
 
       elsif Rtyp = Standard_Wide_Character then
          Append_To (Arg_List,
-           New_Reference_To (Boolean_Literals (Ada_Version >= Ada_05), Loc));
+           New_Reference_To (Boolean_Literals (Ada_Version >= Ada_2005), Loc));
       end if;
 
       --  Now append the procedure call to the insert list
@@ -556,7 +576,7 @@ package body Exp_Imgv is
    --    Enum'Val (Value_Enumeration_NN (typS, typI'Address, Num, X))
 
    --  where typS and typI and the Lit_Strings and Lit_Indexes entities
-   --  from T's root type entitym and Num is Enum'Pos (Enum'Last). The
+   --  from T's root type entity, and Num is Enum'Pos (Enum'Last). The
    --  Value_Enumeration_NN function will search the tables looking for
    --  X and return the position number in the table if found which is
    --  used to provide the result of 'Value (using Enum'Val). If the
@@ -770,14 +790,8 @@ package body Exp_Imgv is
    procedure Expand_Wide_Image_Attribute (N : Node_Id) is
       Loc  : constant Source_Ptr := Sloc (N);
       Rtyp : constant Entity_Id  := Root_Type (Entity (Prefix (N)));
-
-      Rnn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('S'));
-
-      Lnn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('P'));
+      Rnn  : constant Entity_Id := Make_Temporary (Loc, 'S');
+      Lnn  : constant Entity_Id := Make_Temporary (Loc, 'P');
 
    begin
       Insert_Actions (N, New_List (
@@ -868,13 +882,8 @@ package body Exp_Imgv is
       Loc  : constant Source_Ptr := Sloc (N);
       Rtyp : constant Entity_Id  := Root_Type (Entity (Prefix (N)));
 
-      Rnn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('S'));
-
-      Lnn : constant Entity_Id :=
-              Make_Defining_Identifier (Loc,
-                Chars => New_Internal_Name ('P'));
+      Rnn : constant Entity_Id := Make_Temporary (Loc, 'S');
+      Lnn : constant Entity_Id := Make_Temporary (Loc, 'P');
 
    begin
       Insert_Actions (N, New_List (
@@ -1049,9 +1058,14 @@ package body Exp_Imgv is
    --                   typ'Pos (Typ'Last))
    --                   Wide_Character_Encoding_Method);
 
-   --  where typS and typI are the enumeration image strings and
-   --  indexes table, as described in Build_Enumeration_Image_Tables.
-   --  NN is 8/16/32 for depending on the element type for typI.
+   --  where typS and typI are the enumeration image strings and indexes
+   --  table, as described in Build_Enumeration_Image_Tables. NN is 8/16/32
+   --  for depending on the element type for typI.
+
+   --  Finally if Discard_Names is in effect for an enumeration type, then
+   --  a special if expression is built that yields the space needed for the
+   --  decimal representation of the largest pos value in the subtype. See
+   --  code below for details.
 
    procedure Expand_Width_Attribute (N : Node_Id; Attr : Atype := Normal) is
       Loc     : constant Source_Ptr := Sloc (N);
@@ -1059,10 +1073,10 @@ package body Exp_Imgv is
       Pref    : constant Node_Id    := Prefix (N);
       Ptyp    : constant Entity_Id  := Etype (Pref);
       Rtyp    : constant Entity_Id  := Root_Type (Ptyp);
-      XX      : RE_Id;
-      YY      : Entity_Id;
       Arglist : List_Id;
       Ttyp    : Entity_Id;
+      XX      : RE_Id;
+      YY      : Entity_Id;
 
    begin
       --  Types derived from Standard.Boolean
@@ -1119,9 +1133,8 @@ package body Exp_Imgv is
       --  Real types
 
       elsif Is_Real_Type (Rtyp) then
-
          Rewrite (N,
-           Make_Conditional_Expression (Loc,
+           Make_If_Expression (Loc,
              Expressions => New_List (
 
                Make_Op_Gt (Loc,
@@ -1149,21 +1162,113 @@ package body Exp_Imgv is
       else
          pragma Assert (Is_Enumeration_Type (Rtyp));
 
+         --  Whenever pragma Discard_Names is in effect, the value we need
+         --  is the value needed to accomodate the largest integer pos value
+         --  in the range of the subtype + 1 for the space at the start. We
+         --  build:
+
+         --     Tnn : constant Integer := Rtyp'Pos (Ptyp'Last)
+
+         --  and replace the expression by
+
+         --     (if Ptyp'Range_Length = 0 then 0
+         --      else (if Tnn < 10 then 2
+         --            else (if Tnn < 100 then 3
+         --                  ...
+         --                      else n)))...
+
+         --  where n is equal to Rtyp'Pos (Ptyp'Last) + 1
+
+         --  Note: The above processing is in accordance with the intent of
+         --  the RM, which is that Width should be related to the impl-defined
+         --  behavior of Image. It is not clear what this means if Image is
+         --  not defined (as in the configurable run-time case for GNAT) and
+         --  gives an error at compile time.
+
+         --  We choose in this case to just go ahead and implement Width the
+         --  same way, returning what Image would have returned if it has been
+         --  available in the configurable run-time library.
+
          if Discard_Names (Rtyp) then
-
-            --  This is a configurable run-time, or else a restriction is in
-            --  effect. In either case the attribute cannot be supported. Force
-            --  a load error from Rtsfind to generate an appropriate message,
-            --  as is done with other ZFP violations.
-
             declare
-               pragma Warnings (Off); -- since Discard is unreferenced
-               Discard : constant Entity_Id := RTE (RE_Null);
-               pragma Warnings (On);
+               Tnn   : constant Entity_Id := Make_Temporary (Loc, 'T');
+               Cexpr : Node_Id;
+               P     : Int;
+               M     : Int;
+               K     : Int;
+
             begin
+               Insert_Action (N,
+                 Make_Object_Declaration (Loc,
+                   Defining_Identifier => Tnn,
+                   Constant_Present    => True,
+                   Object_Definition   =>
+                     New_Occurrence_Of (Standard_Integer, Loc),
+                   Expression =>
+                     Make_Attribute_Reference (Loc,
+                       Prefix         => New_Occurrence_Of (Rtyp, Loc),
+                       Attribute_Name => Name_Pos,
+                       Expressions    => New_List (
+                         Convert_To (Rtyp,
+                           Make_Attribute_Reference (Loc,
+                             Prefix         => New_Occurrence_Of (Ptyp, Loc),
+                             Attribute_Name => Name_Last))))));
+
+               --  OK, now we need to build the if expression. First get the
+               --  value of M, the largest possible value needed.
+
+               P := UI_To_Int
+                      (Enumeration_Pos (Entity (Type_High_Bound (Rtyp))));
+
+               K := 1;
+               M := 1;
+               while M < P loop
+                  M := M * 10;
+                  K := K + 1;
+               end loop;
+
+               --  Build inner else
+
+               Cexpr := Make_Integer_Literal (Loc, K);
+
+               --  Wrap in inner if's until counted down to 2
+
+               while K > 2 loop
+                  M := M / 10;
+                  K := K - 1;
+
+                  Cexpr :=
+                    Make_If_Expression (Loc,
+                      Expressions => New_List (
+                        Make_Op_Lt (Loc,
+                          Left_Opnd  => New_Occurrence_Of (Tnn, Loc),
+                          Right_Opnd => Make_Integer_Literal (Loc, M)),
+                        Make_Integer_Literal (Loc, K),
+                        Cexpr));
+               end loop;
+
+               --  Add initial comparison for null range and we are done, so
+               --  rewrite the attribute occurrence with this expression.
+
+               Rewrite (N,
+                 Convert_To (Typ,
+                   Make_If_Expression (Loc,
+                     Expressions => New_List (
+                       Make_Op_Eq (Loc,
+                         Left_Opnd  =>
+                           Make_Attribute_Reference (Loc,
+                             Prefix         => New_Occurrence_Of (Ptyp, Loc),
+                             Attribute_Name => Name_Range_Length),
+                         Right_Opnd => Make_Integer_Literal (Loc, 0)),
+                       Make_Integer_Literal (Loc, 0),
+                       Cexpr))));
+
+               Analyze_And_Resolve (N, Typ);
                return;
             end;
          end if;
+
+         --  Normal case, not Discard_Names
 
          Ttyp := Component_Type (Etype (Lit_Indexes (Rtyp)));
 
@@ -1253,5 +1358,17 @@ package body Exp_Imgv is
 
       Analyze_And_Resolve (N, Typ);
    end Expand_Width_Attribute;
+
+   -----------------------
+   -- Has_Decimal_Small --
+   -----------------------
+
+   function Has_Decimal_Small (E : Entity_Id) return Boolean is
+   begin
+      return Is_Decimal_Fixed_Point_Type (E)
+        or else
+          (Is_Ordinary_Fixed_Point_Type (E)
+             and then Ureal_10**Aft_Value (E) * Small_Value (E) = Ureal_1);
+   end Has_Decimal_Small;
 
 end Exp_Imgv;

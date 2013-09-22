@@ -40,16 +40,12 @@ package gnu.javax.imageio.jpeg;
 import java.io.IOException;
 import java.nio.ByteOrder;
 
-import javax.imageio.*;
 import javax.imageio.plugins.jpeg.JPEGHuffmanTable;
 import javax.imageio.plugins.jpeg.JPEGQTable;
-import javax.imageio.spi.*;
-import javax.imageio.metadata.*;
 import javax.imageio.stream.ImageInputStream;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.awt.Point;
 import java.awt.Transparency;
 import java.awt.color.ColorSpace;
@@ -72,7 +68,7 @@ public class JPEGDecoder
   BufferedImage image;
   int width;
   int height;
-  
+
   byte marker;
 
   /**
@@ -104,7 +100,7 @@ public class JPEGDecoder
     {
       return height;
     }
-    
+
     public int getWidth()
     {
         return width;
@@ -337,7 +333,7 @@ public class JPEGDecoder
                   {
                     for (int i = 0; i < 64; i++)
                       quantData[i] = jpegStream.readByte();
-                  
+
                   }
                 else if ((byte) (quantSpecs >> 4) == 1)
                   // Precision 16 bit.
@@ -374,7 +370,7 @@ public class JPEGDecoder
             byte endSpectralSelection = jpegStream.readByte();
             byte successiveApproximation = jpegStream.readByte();
 
-            int mcuIndex = 0; 
+            int mcuIndex = 0;
             int mcuTotalIndex = 0;
             // This loops through until a MarkerTagFound exception is
             // found, if the marker tag is a RST (Restart Marker) it
@@ -391,7 +387,7 @@ public class JPEGDecoder
                     // read in how much they need
                     for (int compIndex = 0; compIndex < numberOfComponents; compIndex++)
                       {
-                        JPEGComponent comp = (JPEGComponent) frame.components.getComponentByID(componentSelector[compIndex]);
+                        JPEGComponent comp = frame.components.getComponentByID(componentSelector[compIndex]);
                         comp.readComponentMCU(jpegStream);
                       }
                     mcuIndex++;
@@ -420,7 +416,7 @@ public class JPEGDecoder
                       {
                         for (int compIndex = 0; compIndex < numberOfComponents; compIndex++)
                           {
-                            JPEGComponent comp = (JPEGComponent) frame.components.getComponentByID(componentSelector[compIndex]);
+                            JPEGComponent comp = frame.components.getComponentByID(componentSelector[compIndex]);
                             if (compIndex > 1)
                               comp.padMCU(mcuTotalIndex, resetInterval - mcuIndex);
                             comp.resetInterval();
@@ -485,8 +481,7 @@ public class JPEGDecoder
                 // Unencode the data.
                 for (int i = 0; i < frame.getComponentCount(); i++)
                   {
-                    JPEGComponent comp =
-                      (JPEGComponent) frame.components.get(i);
+                    JPEGComponent comp = frame.components.get(i);
                     comp.setQuantizationTable(qTables[comp.quant_id].getTable());
                     comp.quantitizeData();
                     comp.idctData(myDCT);
@@ -494,7 +489,7 @@ public class JPEGDecoder
                 // Scale the image and write the data to the raster.
                 for (int i = 0; i < frame.getComponentCount(); i++)
                   {
-                    JPEGComponent comp = (JPEGComponent) frame.components.get(i);
+                    JPEGComponent comp = frame.components.get(i);
                     comp.scaleByFactors();
                     comp.writeData(raster, i);
                     // Ensure garbage collection.
@@ -546,7 +541,7 @@ public class JPEGDecoder
             throw new JPEGException("Unsupported Codec Type: Extended "
                                     + "Sequential DCT JPEG's Not-Supported");
             //case JPEGMarker.SOF2:
-            //	throw new JPEGException("Unsupported Codec Type: Progressive DCT JPEG's Not-Supported");
+            //  throw new JPEGException("Unsupported Codec Type: Progressive DCT JPEG's Not-Supported");
           case JPEGMarker.SOF3:
             throw new JPEGException("Unsupported Codec Type:"
                                     + " Lossless (sequential)");

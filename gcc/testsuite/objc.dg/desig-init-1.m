@@ -1,15 +1,15 @@
-/* Test Objective-C capability for handling GNU/C99 designated
-   initializers, and distinguishing them from message sends.  */
-/* Contributed by Ziemowit Laski <zlaski@apple.com>.  */
+/* Test Objective-C capability for handling GNU/C99 designated initializers, and distinguishing them
+   from message sends.  Contributed by Ziemowit Laski <zlaski@apple.com>.  */
 /* { dg-options "-std=gnu99" } */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
+
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 #include <stdio.h> 
 #include <stdlib.h>
-#include <objc/objc.h>
-#include <objc/Object.h>
 
-@interface Cls : Object
+@interface Cls : TestsuiteObject
 + (int) meth1;
 + (int) meth2;
 + (void) doTests;
@@ -47,3 +47,5 @@ int main(void) {
 /* { dg-warning "Messages without a matching method signature" "" { target *-*-* } 0 } */
 /* { dg-warning "will be assumed to return .id. and accept" "" { target *-*-* } 0 } */
 /* { dg-warning ".\.\.\.. as arguments" "" { target *-*-* } 0 } */
+
+

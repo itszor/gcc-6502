@@ -1,5 +1,5 @@
 /* Definitions for ARM EABI ucLinux
-   Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2006-2013 Free Software Foundation, Inc.
    Contributed by Paul Brook <paul@codesourcery.com>
 
    This file is part of GCC.
@@ -42,7 +42,8 @@
   while (false)
 
 #undef SUBTARGET_EXTRA_LINK_SPEC
-#define SUBTARGET_EXTRA_LINK_SPEC " -m armelf_linux_eabi"
+#define SUBTARGET_EXTRA_LINK_SPEC " -m armelf_linux_eabi -elf2flt" \
+  " --pic-veneer --target2=abs"
 
 /* We default to the "aapcs-linux" ABI so that enums are int-sized by
    default.  */
@@ -63,3 +64,4 @@
 		    : "0" (_beg), "r" (_end), "r" (_flg), "r" (_scno));	\
 }
 
+#define ARM_TARGET2_DWARF_FORMAT DW_EH_PE_absptr

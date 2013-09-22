@@ -1,5 +1,5 @@
 /* Transformations based on profile information for values.
-   Copyright (C) 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -26,7 +26,6 @@ along with GCC; see the file COPYING3.  If not see
 #include "hard-reg-set.h"
 #include "basic-block.h"
 #include "value-prof.h"
-#include "output.h"
 #include "flags.h"
 #include "insn-config.h"
 #include "recog.h"
@@ -36,16 +35,15 @@ along with GCC; see the file COPYING3.  If not see
 #include "tree-flow.h"
 #include "tree-flow-inline.h"
 #include "diagnostic.h"
+#include "gimple-pretty-print.h"
 #include "coverage.h"
 #include "tree.h"
 #include "gcov-io.h"
 #include "cgraph.h"
 #include "timevar.h"
-#include "tree-pass.h"
-#include "toplev.h"
+#include "dumpfile.h"
 #include "pointer-set.h"
-
-static struct value_prof_hooks *value_prof_hooks;
+#include "profile.h"
 
 /* In this file value profile based optimizations are placed.  Currently the
    following optimizations are implemented (for more detailed descriptions
@@ -54,45 +52,79 @@ static struct value_prof_hooks *value_prof_hooks;
    1) Division/modulo specialization.  Provided that we can determine that the
       operands of the division have some special properties, we may use it to
       produce more effective code.
-   2) Speculative prefetching.  If we are able to determine that the difference
+
+   2) Indirect/virtual call specialization. If we can determine most
+      common function callee in indirect/virtual call. We can use this
+      information to improve code effectiveness (especially info for
+      the inliner).
+
+   3) Speculative prefetching.  If we are able to determine that the difference
       between addresses accessed by a memory reference is usually constant, we
       may add the prefetch instructions.
       FIXME: This transformation was removed together with RTL based value
       profiling.
 
-   3) Indirect/virtual call specialization. If we can determine most
-      common function callee in indirect/virtual call. We can use this
-      information to improve code effectiveness (especially info for
-      inliner).
 
-   Every such optimization should add its requirements for profiled values to
-   insn_values_to_profile function.  This function is called from branch_prob
-   in profile.c and the requested values are instrumented by it in the first
-   compilation with -fprofile-arcs.  The optimization may then read the
-   gathered data in the second compilation with -fbranch-probabilities.
+   Value profiling internals
+   ==========================
 
-   The measured data is pointed to from the histograms
-   field of the statement annotation of the instrumented insns.  It is
-   kept as a linked list of struct histogram_value_t's, which contain the
-   same information as above.  */
+   Every value profiling transformation starts with defining what values
+   to profile.  There are different histogram types (see HIST_TYPE_* in
+   value-prof.h) and each transformation can request one or more histogram
+   types per GIMPLE statement.  The function gimple_find_values_to_profile()
+   collects the values to profile in a vec, and adds the number of counters
+   required for the different histogram types.
 
+   For a -fprofile-generate run, the statements for which values should be
+   recorded, are instrumented in instrument_values().  The instrumentation
+   is done by helper functions that can be found in tree-profile.c, where
+   new types of histograms can be added if necessary.
 
-static tree tree_divmod_fixed_value (tree, tree, tree, tree, 
-				    tree, int, gcov_type, gcov_type);
-static tree tree_mod_pow2 (tree, tree, tree, tree, int, gcov_type, gcov_type);
-static tree tree_mod_subtract (tree, tree, tree, tree, int, int, int,
-				gcov_type, gcov_type, gcov_type);
-static bool tree_divmod_fixed_value_transform (tree);
-static bool tree_mod_pow2_value_transform (tree);
-static bool tree_mod_subtract_transform (tree);
-static bool tree_stringops_transform (block_stmt_iterator *);
-static bool tree_ic_transform (tree);
+   After a -fprofile-use, the value profiling data is read back in by
+   compute_value_histograms() that translates the collected data to
+   histograms and attaches them to the profiled statements via
+   gimple_add_histogram_value().  Histograms are stored in a hash table
+   that is attached to every intrumented function, see VALUE_HISTOGRAMS
+   in function.h.
+   
+   The value-profile transformations driver is the function
+   gimple_value_profile_transformations().  It traverses all statements in
+   the to-be-transformed function, and looks for statements with one or
+   more histograms attached to it.  If a statement has histograms, the
+   transformation functions are called on the statement.
+
+   Limitations / FIXME / TODO:
+   * Only one histogram of each type can be associated with a statement.
+   * Currently, HIST_TYPE_CONST_DELTA is not implemented.
+     (This type of histogram was originally used to implement a form of
+     stride profiling based speculative prefetching to improve SPEC2000
+     scores for memory-bound benchmarks, mcf and equake.  However, this
+     was an RTL value-profiling transformation, and those have all been
+     removed.)
+   * Some value profile transformations are done in builtins.c (?!)
+   * Updating of histograms needs some TLC.
+   * The value profiling code could be used to record analysis results
+     from non-profiling (e.g. VRP).
+   * Adding new profilers should be simplified, starting with a cleanup
+     of what-happens-where andwith making gimple_find_values_to_profile
+     and gimple_value_profile_transformations table-driven, perhaps...
+*/
+
+static tree gimple_divmod_fixed_value (gimple, tree, int, gcov_type, gcov_type);
+static tree gimple_mod_pow2 (gimple, int, gcov_type, gcov_type);
+static tree gimple_mod_subtract (gimple, int, int, int, gcov_type, gcov_type,
+				 gcov_type);
+static bool gimple_divmod_fixed_value_transform (gimple_stmt_iterator *);
+static bool gimple_mod_pow2_value_transform (gimple_stmt_iterator *);
+static bool gimple_mod_subtract_transform (gimple_stmt_iterator *);
+static bool gimple_stringops_transform (gimple_stmt_iterator *);
+static bool gimple_ic_transform (gimple_stmt_iterator *);
 
 /* Allocate histogram value.  */
 
 static histogram_value
 gimple_alloc_histogram_value (struct function *fun ATTRIBUTE_UNUSED,
-			      enum hist_type type, tree stmt, tree value)
+			      enum hist_type type, gimple stmt, tree value)
 {
    histogram_value hist = (histogram_value) xcalloc (1, sizeof (*hist));
    hist->hvalue.value = value;
@@ -109,18 +141,18 @@ histogram_hash (const void *x)
   return htab_hash_pointer (((const_histogram_value)x)->hvalue.stmt);
 }
 
-/* Return nonzero if decl_id of die_struct X is the same as UID of decl *Y.  */
+/* Return nonzero if statement for histogram_value X is Y.  */
 
 static int
 histogram_eq (const void *x, const void *y)
 {
-  return ((const_histogram_value) x)->hvalue.stmt == (const_tree)y;
+  return ((const_histogram_value) x)->hvalue.stmt == (const_gimple) y;
 }
 
 /* Set histogram for STMT.  */
 
 static void
-set_histogram_value (struct function *fun, tree stmt, histogram_value hist)
+set_histogram_value (struct function *fun, gimple stmt, histogram_value hist)
 {
   void **loc;
   if (!hist && !VALUE_HISTOGRAMS (fun))
@@ -143,27 +175,30 @@ set_histogram_value (struct function *fun, tree stmt, histogram_value hist)
 /* Get histogram list for STMT.  */
 
 histogram_value
-gimple_histogram_value (struct function *fun, tree stmt)
+gimple_histogram_value (struct function *fun, gimple stmt)
 {
   if (!VALUE_HISTOGRAMS (fun))
     return NULL;
-  return htab_find_with_hash (VALUE_HISTOGRAMS (fun), stmt,
-                              htab_hash_pointer (stmt));
+  return (histogram_value) htab_find_with_hash (VALUE_HISTOGRAMS (fun), stmt,
+						htab_hash_pointer (stmt));
 }
 
 /* Add histogram for STMT.  */
 
 void
-gimple_add_histogram_value (struct function *fun, tree stmt, histogram_value hist)
+gimple_add_histogram_value (struct function *fun, gimple stmt,
+			    histogram_value hist)
 {
   hist->hvalue.next = gimple_histogram_value (fun, stmt);
   set_histogram_value (fun, stmt, hist);
 }
 
+
 /* Remove histogram HIST from STMT's histogram list.  */
 
 void
-gimple_remove_histogram_value (struct function *fun, tree stmt, histogram_value hist)
+gimple_remove_histogram_value (struct function *fun, gimple stmt,
+			       histogram_value hist)
 {
   histogram_value hist2 = gimple_histogram_value (fun, stmt);
   if (hist == hist2)
@@ -183,13 +218,16 @@ gimple_remove_histogram_value (struct function *fun, tree stmt, histogram_value 
   free (hist);
 }
 
+
 /* Lookup histogram of type TYPE in the STMT.  */
 
 histogram_value
-gimple_histogram_value_of_type (struct function *fun, tree stmt, enum hist_type type)
+gimple_histogram_value_of_type (struct function *fun, gimple stmt,
+				enum hist_type type)
 {
   histogram_value hist;
-  for (hist = gimple_histogram_value (fun, stmt); hist; hist = hist->hvalue.next)
+  for (hist = gimple_histogram_value (fun, stmt); hist;
+       hist = hist->hvalue.next)
     if (hist->type == type)
       return hist;
   return NULL;
@@ -301,17 +339,17 @@ dump_histogram_value (FILE *dump_file, histogram_value hist)
 /* Dump all histograms attached to STMT to DUMP_FILE.  */
 
 void
-dump_histograms_for_stmt (struct function *fun, FILE *dump_file, tree stmt)
+dump_histograms_for_stmt (struct function *fun, FILE *dump_file, gimple stmt)
 {
   histogram_value hist;
   for (hist = gimple_histogram_value (fun, stmt); hist; hist = hist->hvalue.next)
-   dump_histogram_value (dump_file, hist);
+    dump_histogram_value (dump_file, hist);
 }
 
 /* Remove all histograms associated with STMT.  */
 
 void
-gimple_remove_stmt_histograms (struct function *fun, tree stmt)
+gimple_remove_stmt_histograms (struct function *fun, gimple stmt)
 {
   histogram_value val;
   while ((val = gimple_histogram_value (fun, stmt)) != NULL)
@@ -321,18 +359,37 @@ gimple_remove_stmt_histograms (struct function *fun, tree stmt)
 /* Duplicate all histograms associates with OSTMT to STMT.  */
 
 void
-gimple_duplicate_stmt_histograms (struct function *fun, tree stmt,
-				  struct function *ofun, tree ostmt)
+gimple_duplicate_stmt_histograms (struct function *fun, gimple stmt,
+				  struct function *ofun, gimple ostmt)
 {
   histogram_value val;
   for (val = gimple_histogram_value (ofun, ostmt); val != NULL; val = val->hvalue.next)
     {
-      histogram_value new = gimple_alloc_histogram_value (fun, val->type, NULL, NULL);
-      memcpy (new, val, sizeof (*val));
-      new->hvalue.stmt = stmt;
-      new->hvalue.counters = xmalloc (sizeof (*new->hvalue.counters) * new->n_counters);
-      memcpy (new->hvalue.counters, val->hvalue.counters, sizeof (*new->hvalue.counters) * new->n_counters);
-      gimple_add_histogram_value (fun, stmt, new);
+      histogram_value new_val = gimple_alloc_histogram_value (fun, val->type, NULL, NULL);
+      memcpy (new_val, val, sizeof (*val));
+      new_val->hvalue.stmt = stmt;
+      new_val->hvalue.counters = XNEWVAR (gcov_type, sizeof (*new_val->hvalue.counters) * new_val->n_counters);
+      memcpy (new_val->hvalue.counters, val->hvalue.counters, sizeof (*new_val->hvalue.counters) * new_val->n_counters);
+      gimple_add_histogram_value (fun, stmt, new_val);
+    }
+}
+
+
+/* Move all histograms associated with OSTMT to STMT.  */
+
+void
+gimple_move_stmt_histograms (struct function *fun, gimple stmt, gimple ostmt)
+{
+  histogram_value val = gimple_histogram_value (fun, ostmt);
+  if (val)
+    {
+      /* The following three statements can't be reordered,
+         because histogram hashtab relies on stmt field value
+	 for finding the exact slot. */
+      set_histogram_value (fun, ostmt, NULL);
+      for (; val != NULL; val = val->hvalue.next)
+	val->hvalue.stmt = stmt;
+      set_histogram_value (fun, stmt, val);
     }
 }
 
@@ -348,38 +405,40 @@ visit_hist (void **slot, void *data)
   histogram_value hist = *(histogram_value *) slot;
   if (!pointer_set_contains (visited, hist))
     {
-      error ("Dead histogram");
+      error ("dead histogram");
       dump_histogram_value (stderr, hist);
-      debug_generic_stmt (hist->hvalue.stmt);
+      debug_gimple_stmt (hist->hvalue.stmt);
       error_found = true;
     }
   return 1;
 }
 
+
 /* Verify sanity of the histograms.  */
 
-void
+DEBUG_FUNCTION void
 verify_histograms (void)
 {
   basic_block bb;
-  block_stmt_iterator bsi;
+  gimple_stmt_iterator gsi;
   histogram_value hist;
   struct pointer_set_t *visited_hists;
 
   error_found = false;
   visited_hists = pointer_set_create ();
   FOR_EACH_BB (bb)
-    for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
+    for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       {
-	tree stmt = bsi_stmt (bsi);
+	gimple stmt = gsi_stmt (gsi);
 
-	for (hist = gimple_histogram_value (cfun, stmt); hist; hist = hist->hvalue.next)
+	for (hist = gimple_histogram_value (cfun, stmt); hist;
+	     hist = hist->hvalue.next)
 	  {
 	    if (hist->hvalue.stmt != stmt)
 	      {
-		error ("Histogram value statement does not correspond to statement"
-		       " it is associated with");
-		debug_generic_stmt (stmt);
+		error ("Histogram value statement does not correspond to "
+		       "the statement it is associated with");
+		debug_gimple_stmt (stmt);
 		dump_histogram_value (stderr, hist);
 		error_found = true;
 	      }
@@ -419,38 +478,63 @@ free_histograms (void)
     }
 }
 
-/* The overall number of invocations of the counter should match execution count
-   of basic block.  Report it as error rather than internal error as it might
-   mean that user has misused the profile somehow.  */
+
+/* The overall number of invocations of the counter should match
+   execution count of basic block.  Report it as error rather than
+   internal error as it might mean that user has misused the profile
+   somehow.  */
+
 static bool
-check_counter (tree stmt, const char * name, gcov_type all, gcov_type bb_count)
+check_counter (gimple stmt, const char * name,
+	       gcov_type *count, gcov_type *all, gcov_type bb_count)
 {
-  if (all != bb_count)
+  if (*all != bb_count || *count > *all)
     {
-      location_t * locus;
-      locus = (stmt != NULL && EXPR_HAS_LOCATION (stmt)
-	       ? EXPR_LOCUS (stmt)
-	       : &DECL_SOURCE_LOCATION (current_function_decl));
-      error ("%HCorrupted value profile: %s profiler overall count (%d) does not match BB count (%d)",
-	     locus, name, (int)all, (int)bb_count);
-      return true;
+      location_t locus;
+      locus = (stmt != NULL)
+              ? gimple_location (stmt)
+              : DECL_SOURCE_LOCATION (current_function_decl);
+      if (flag_profile_correction)
+        {
+	  inform (locus, "correcting inconsistent value profile: "
+		  "%s profiler overall count (%d) does not match BB count "
+                  "(%d)", name, (int)*all, (int)bb_count);
+	  *all = bb_count;
+	  if (*count > *all)
+            *count = *all;
+	  return false;
+	}
+      else
+	{
+	  error_at (locus, "corrupted value profile: %s "
+		    "profile counter (%d out of %d) inconsistent with "
+		    "basic-block count (%d)",
+		    name,
+		    (int) *count,
+		    (int) *all,
+		    (int) bb_count);
+	  return true;
+	}
     }
+
   return false;
 }
 
-/* Tree based transformations. */
-static bool
-tree_value_profile_transformations (void)
+
+/* GIMPLE based transformations. */
+
+bool
+gimple_value_profile_transformations (void)
 {
   basic_block bb;
-  block_stmt_iterator bsi;
+  gimple_stmt_iterator gsi;
   bool changed = false;
 
   FOR_EACH_BB (bb)
     {
-      for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
+      for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
 	{
-	  tree stmt = bsi_stmt (bsi);
+	  gimple stmt = gsi_stmt (gsi);
 	  histogram_value th = gimple_histogram_value (cfun, stmt);
 	  if (!th)
 	    continue;
@@ -458,7 +542,7 @@ tree_value_profile_transformations (void)
 	  if (dump_file)
 	    {
 	      fprintf (dump_file, "Trying transformations on stmt ");
-	      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+	      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
 	      dump_histograms_for_stmt (cfun, dump_file, stmt);
 	    }
 
@@ -469,20 +553,19 @@ tree_value_profile_transformations (void)
 	     will be added before the current statement, and that the
 	     current statement remain valid (although possibly
 	     modified) upon return.  */
-	  if (flag_value_profile_transformations
-	      && (tree_mod_subtract_transform (stmt)
-		  || tree_divmod_fixed_value_transform (stmt)
-		  || tree_mod_pow2_value_transform (stmt)
-		  || tree_stringops_transform (&bsi)
-		  || tree_ic_transform (stmt)))
+	  if (gimple_mod_subtract_transform (&gsi)
+	      || gimple_divmod_fixed_value_transform (&gsi)
+	      || gimple_mod_pow2_value_transform (&gsi)
+	      || gimple_stringops_transform (&gsi)
+	      || gimple_ic_transform (&gsi))
 	    {
-	      stmt = bsi_stmt (bsi);
+	      stmt = gsi_stmt (gsi);
 	      changed = true;
 	      /* Original statement may no longer be in the same block. */
-	      if (bb != bb_for_stmt (stmt))
+	      if (bb != gimple_bb (stmt))
 		{
-	          bb = bb_for_stmt (stmt);
-		  bsi = bsi_for_stmt (stmt);
+	          bb = gimple_bb (stmt);
+		  gsi = gsi_for_stmt (stmt);
 		}
 	    }
         }
@@ -496,57 +579,55 @@ tree_value_profile_transformations (void)
   return changed;
 }
 
-/* Generate code for transformation 1 (with OPERATION, operands OP1
-   and OP2, whose value is expected to be VALUE, parent modify-expr STMT and
-   probability of taking the optimal path PROB, which is equivalent to COUNT/ALL
-   within roundoff error).  This generates the result into a temp and returns 
-   the temp; it does not replace or alter the original STMT.  */
+
+/* Generate code for transformation 1 (with parent gimple assignment
+   STMT and probability of taking the optimal path PROB, which is
+   equivalent to COUNT/ALL within roundoff error).  This generates the
+   result into a temp and returns the temp; it does not replace or
+   alter the original STMT.  */
+
 static tree
-tree_divmod_fixed_value (tree stmt, tree operation, 
-			 tree op1, tree op2, tree value, int prob, gcov_type count,
-			 gcov_type all)
+gimple_divmod_fixed_value (gimple stmt, tree value, int prob, gcov_type count,
+			   gcov_type all)
 {
-  tree stmt1, stmt2, stmt3;
-  tree tmp1, tmp2, tmpv;
-  tree label_decl1 = create_artificial_label ();
-  tree label_decl2 = create_artificial_label ();
-  tree label1, label2;
-  tree bb1end, bb2end, bb3end;
+  gimple stmt1, stmt2, stmt3;
+  tree tmp0, tmp1, tmp2;
+  gimple bb1end, bb2end, bb3end;
   basic_block bb, bb2, bb3, bb4;
-  tree optype = TREE_TYPE (operation);
+  tree optype, op1, op2;
   edge e12, e13, e23, e24, e34;
-  block_stmt_iterator bsi;
+  gimple_stmt_iterator gsi;
 
-  bb = bb_for_stmt (stmt);
-  bsi = bsi_for_stmt (stmt);
+  gcc_assert (is_gimple_assign (stmt)
+	      && (gimple_assign_rhs_code (stmt) == TRUNC_DIV_EXPR
+		  || gimple_assign_rhs_code (stmt) == TRUNC_MOD_EXPR));
 
-  tmpv = create_tmp_var (optype, "PROF");
-  tmp1 = create_tmp_var (optype, "PROF");
-  stmt1 = build_gimple_modify_stmt (tmpv, fold_convert (optype, value));
-  stmt2 = build_gimple_modify_stmt (tmp1, op2);
-  stmt3 = build3 (COND_EXPR, void_type_node,
-	    build2 (NE_EXPR, boolean_type_node, tmp1, tmpv),
-	    NULL_TREE, NULL_TREE);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt3, BSI_SAME_STMT);
+  optype = TREE_TYPE (gimple_assign_lhs (stmt));
+  op1 = gimple_assign_rhs1 (stmt);
+  op2 = gimple_assign_rhs2 (stmt);
+
+  bb = gimple_bb (stmt);
+  gsi = gsi_for_stmt (stmt);
+
+  tmp0 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp1 = make_temp_ssa_name (optype, NULL, "PROF");
+  stmt1 = gimple_build_assign (tmp0, fold_convert (optype, value));
+  stmt2 = gimple_build_assign (tmp1, op2);
+  stmt3 = gimple_build_cond (NE_EXPR, tmp1, tmp0, NULL_TREE, NULL_TREE);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt3, GSI_SAME_STMT);
   bb1end = stmt3;
 
-  tmp2 = create_tmp_var (optype, "PROF");
-  label1 = build1 (LABEL_EXPR, void_type_node, label_decl1);
-  stmt1 = build_gimple_modify_stmt (tmp2,
-				    build2 (TREE_CODE (operation), optype,
-					    op1, tmpv));
-  bsi_insert_before (&bsi, label1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
+  tmp2 = create_tmp_reg (optype, "PROF");
+  stmt1 = gimple_build_assign_with_ops (gimple_assign_rhs_code (stmt), tmp2,
+					op1, tmp0);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   bb2end = stmt1;
 
-  label2 = build1 (LABEL_EXPR, void_type_node, label_decl2);
-  stmt1 = build_gimple_modify_stmt (tmp2,
-				    build2 (TREE_CODE (operation), optype,
-					    op1, op2));
-  bsi_insert_before (&bsi, label2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
+  stmt1 = gimple_build_assign_with_ops (gimple_assign_rhs_code (stmt), tmp2,
+					op1, op2);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   bb3end = stmt1;
 
   /* Fix CFG. */
@@ -571,7 +652,7 @@ tree_divmod_fixed_value (tree stmt, tree operation,
   e13->count = all - count;
 
   remove_edge (e23);
-  
+
   e24 = make_edge (bb2, bb4, EDGE_FALLTHRU);
   e24->probability = REG_BR_PROB_BASE;
   e24->count = count;
@@ -582,35 +663,33 @@ tree_divmod_fixed_value (tree stmt, tree operation,
   return tmp2;
 }
 
+
 /* Do transform 1) on INSN if applicable.  */
+
 static bool
-tree_divmod_fixed_value_transform (tree stmt)
+gimple_divmod_fixed_value_transform (gimple_stmt_iterator *si)
 {
   histogram_value histogram;
   enum tree_code code;
   gcov_type val, count, all;
-  tree modify, op, op1, op2, result, value, tree_val;
-  int prob;
+  tree result, value, tree_val;
+  gcov_type prob;
+  gimple stmt;
 
-  modify = stmt;
-  if (TREE_CODE (stmt) == RETURN_EXPR
-      && TREE_OPERAND (stmt, 0)
-      && TREE_CODE (TREE_OPERAND (stmt, 0)) == GIMPLE_MODIFY_STMT)
-    modify = TREE_OPERAND (stmt, 0);
-  if (TREE_CODE (modify) != GIMPLE_MODIFY_STMT)
+  stmt = gsi_stmt (*si);
+  if (gimple_code (stmt) != GIMPLE_ASSIGN)
     return false;
-  op = GIMPLE_STMT_OPERAND (modify, 1);
-  if (!INTEGRAL_TYPE_P (TREE_TYPE (op)))
+
+  if (!INTEGRAL_TYPE_P (TREE_TYPE (gimple_assign_lhs (stmt))))
     return false;
-  code = TREE_CODE (op);
-  
+
+  code = gimple_assign_rhs_code (stmt);
+
   if (code != TRUNC_DIV_EXPR && code != TRUNC_MOD_EXPR)
     return false;
 
-  op1 = TREE_OPERAND (op, 0);
-  op2 = TREE_OPERAND (op, 1);
-
-  histogram = gimple_histogram_value_of_type (cfun, stmt, HIST_TYPE_SINGLE_VALUE);
+  histogram = gimple_histogram_value_of_type (cfun, stmt,
+					      HIST_TYPE_SINGLE_VALUE);
   if (!histogram)
     return false;
 
@@ -623,20 +702,24 @@ tree_divmod_fixed_value_transform (tree stmt)
   /* We require that count is at least half of all; this means
      that for the transformation to fire the value must be constant
      at least 50% of time (and 75% gives the guarantee of usage).  */
-  if (simple_cst_equal (op2, value) != 1 || 2 * count < all
-      || !maybe_hot_bb_p (bb_for_stmt (stmt)))
+  if (simple_cst_equal (gimple_assign_rhs2 (stmt), value) != 1
+      || 2 * count < all
+      || optimize_bb_for_size_p (gimple_bb (stmt)))
     return false;
 
-  if (check_counter (stmt, "value", all, bb_for_stmt (stmt)->count))
+  if (check_counter (stmt, "value", &count, &all, gimple_bb (stmt)->count))
     return false;
 
   /* Compute probability of taking the optimal path.  */
-  prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  if (all > 0)
+    prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  else
+    prob = 0;
 
   tree_val = build_int_cst_wide (get_gcov_type (),
 				 (unsigned HOST_WIDE_INT) val,
 				 val >> (HOST_BITS_PER_WIDE_INT - 1) >> 1);
-  result = tree_divmod_fixed_value (stmt, op, op1, op2, tree_val, prob, count, all);
+  result = gimple_divmod_fixed_value (stmt, tree_val, prob, count, all);
 
   if (dump_file)
     {
@@ -645,68 +728,62 @@ tree_divmod_fixed_value_transform (tree stmt)
       fprintf (dump_file, "=");
       print_generic_expr (dump_file, tree_val, TDF_SLIM);
       fprintf (dump_file, " transformation on insn ");
-      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
 
-  GIMPLE_STMT_OPERAND (modify, 1) = result;
+  gimple_assign_set_rhs_from_tree (si, result);
+  update_stmt (gsi_stmt (*si));
 
   return true;
 }
 
-/* Generate code for transformation 2 (with OPERATION, operands OP1
-   and OP2, parent modify-expr STMT and probability of taking the optimal 
-   path PROB, which is equivalent to COUNT/ALL within roundoff error).  
-   This generates the result into a temp and returns 
+/* Generate code for transformation 2 (with parent gimple assign STMT and
+   probability of taking the optimal path PROB, which is equivalent to COUNT/ALL
+   within roundoff error).  This generates the result into a temp and returns
    the temp; it does not replace or alter the original STMT.  */
 static tree
-tree_mod_pow2 (tree stmt, tree operation, tree op1, tree op2, int prob, 
-	       gcov_type count, gcov_type all)
+gimple_mod_pow2 (gimple stmt, int prob, gcov_type count, gcov_type all)
 {
-  tree stmt1, stmt2, stmt3, stmt4;
+  gimple stmt1, stmt2, stmt3, stmt4;
   tree tmp2, tmp3;
-  tree label_decl1 = create_artificial_label ();
-  tree label_decl2 = create_artificial_label ();
-  tree label1, label2;
-  tree bb1end, bb2end, bb3end;
+  gimple bb1end, bb2end, bb3end;
   basic_block bb, bb2, bb3, bb4;
-  tree optype = TREE_TYPE (operation);
+  tree optype, op1, op2;
   edge e12, e13, e23, e24, e34;
-  block_stmt_iterator bsi;
-  tree result = create_tmp_var (optype, "PROF");
+  gimple_stmt_iterator gsi;
+  tree result;
 
-  bb = bb_for_stmt (stmt);
-  bsi = bsi_for_stmt (stmt);
+  gcc_assert (is_gimple_assign (stmt)
+	      && gimple_assign_rhs_code (stmt) == TRUNC_MOD_EXPR);
 
-  tmp2 = create_tmp_var (optype, "PROF");
-  tmp3 = create_tmp_var (optype, "PROF");
-  stmt2 = build_gimple_modify_stmt (tmp2, 
-				    build2 (PLUS_EXPR, optype, op2,
-					    build_int_cst (optype, -1)));
-  stmt3 = build_gimple_modify_stmt (tmp3,
-				    build2 (BIT_AND_EXPR, optype, tmp2, op2));
-  stmt4 = build3 (COND_EXPR, void_type_node,
-		  build2 (NE_EXPR, boolean_type_node,
-			  tmp3, build_int_cst (optype, 0)),
-		  NULL_TREE, NULL_TREE);
-  bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt3, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt4, BSI_SAME_STMT);
+  optype = TREE_TYPE (gimple_assign_lhs (stmt));
+  op1 = gimple_assign_rhs1 (stmt);
+  op2 = gimple_assign_rhs2 (stmt);
+
+  bb = gimple_bb (stmt);
+  gsi = gsi_for_stmt (stmt);
+
+  result = create_tmp_reg (optype, "PROF");
+  tmp2 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp3 = make_temp_ssa_name (optype, NULL, "PROF");
+  stmt2 = gimple_build_assign_with_ops (PLUS_EXPR, tmp2, op2,
+					build_int_cst (optype, -1));
+  stmt3 = gimple_build_assign_with_ops (BIT_AND_EXPR, tmp3, tmp2, op2);
+  stmt4 = gimple_build_cond (NE_EXPR, tmp3, build_int_cst (optype, 0),
+			     NULL_TREE, NULL_TREE);
+  gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt3, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt4, GSI_SAME_STMT);
   bb1end = stmt4;
 
-  /* tmp2 == op2-1 inherited from previous block */
-  label1 = build1 (LABEL_EXPR, void_type_node, label_decl1);
-  stmt1 = build_gimple_modify_stmt (result,
-				    build2 (BIT_AND_EXPR, optype, op1, tmp2));
-  bsi_insert_before (&bsi, label1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
+  /* tmp2 == op2-1 inherited from previous block.  */
+  stmt1 = gimple_build_assign_with_ops (BIT_AND_EXPR, result, op1, tmp2);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   bb2end = stmt1;
 
-  label2 = build1 (LABEL_EXPR, void_type_node, label_decl2);
-  stmt1 = build_gimple_modify_stmt (result,
-				    build2 (TREE_CODE (operation), optype,
-					    op1, op2));
-  bsi_insert_before (&bsi, label2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
+  stmt1 = gimple_build_assign_with_ops (gimple_assign_rhs_code (stmt), result,
+					op1, op2);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   bb3end = stmt1;
 
   /* Fix CFG. */
@@ -731,7 +808,7 @@ tree_mod_pow2 (tree stmt, tree operation, tree op1, tree op2, int prob,
   e13->count = all - count;
 
   remove_edge (e23);
-  
+
   e24 = make_edge (bb2, bb4, EDGE_FALLTHRU);
   e24->probability = REG_BR_PROB_BASE;
   e24->count = count;
@@ -744,31 +821,27 @@ tree_mod_pow2 (tree stmt, tree operation, tree op1, tree op2, int prob,
 
 /* Do transform 2) on INSN if applicable.  */
 static bool
-tree_mod_pow2_value_transform (tree stmt)
+gimple_mod_pow2_value_transform (gimple_stmt_iterator *si)
 {
   histogram_value histogram;
   enum tree_code code;
   gcov_type count, wrong_values, all;
-  tree modify, op, op1, op2, result, value;
-  int prob;
+  tree lhs_type, result, value;
+  gcov_type prob;
+  gimple stmt;
 
-  modify = stmt;
-  if (TREE_CODE (stmt) == RETURN_EXPR
-      && TREE_OPERAND (stmt, 0)
-      && TREE_CODE (TREE_OPERAND (stmt, 0)) == GIMPLE_MODIFY_STMT)
-    modify = TREE_OPERAND (stmt, 0);
-  if (TREE_CODE (modify) != GIMPLE_MODIFY_STMT)
-    return false;
-  op = GIMPLE_STMT_OPERAND (modify, 1);
-  if (!INTEGRAL_TYPE_P (TREE_TYPE (op)))
-    return false;
-  code = TREE_CODE (op);
-  
-  if (code != TRUNC_MOD_EXPR || !TYPE_UNSIGNED (TREE_TYPE (op)))
+  stmt = gsi_stmt (*si);
+  if (gimple_code (stmt) != GIMPLE_ASSIGN)
     return false;
 
-  op1 = TREE_OPERAND (op, 0);
-  op2 = TREE_OPERAND (op, 1);
+  lhs_type = TREE_TYPE (gimple_assign_lhs (stmt));
+  if (!INTEGRAL_TYPE_P (lhs_type))
+    return false;
+
+  code = gimple_assign_rhs_code (stmt);
+
+  if (code != TRUNC_MOD_EXPR || !TYPE_UNSIGNED (lhs_type))
+    return false;
 
   histogram = gimple_histogram_value_of_type (cfun, stmt, HIST_TYPE_POW2);
   if (!histogram)
@@ -781,99 +854,92 @@ tree_mod_pow2_value_transform (tree stmt)
   gimple_remove_histogram_value (cfun, stmt, histogram);
 
   /* We require that we hit a power of 2 at least half of all evaluations.  */
-  if (simple_cst_equal (op2, value) != 1 || count < wrong_values
-      || !maybe_hot_bb_p (bb_for_stmt (stmt)))
+  if (simple_cst_equal (gimple_assign_rhs2 (stmt), value) != 1
+      || count < wrong_values
+      || optimize_bb_for_size_p (gimple_bb (stmt)))
     return false;
 
   if (dump_file)
     {
       fprintf (dump_file, "Mod power of 2 transformation on insn ");
-      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
 
   /* Compute probability of taking the optimal path.  */
   all = count + wrong_values;
 
-  if (check_counter (stmt, "pow2", all, bb_for_stmt (stmt)->count))
+  if (check_counter (stmt, "pow2", &count, &all, gimple_bb (stmt)->count))
     return false;
 
-  prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  if (all > 0)
+    prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  else
+    prob = 0;
 
-  result = tree_mod_pow2 (stmt, op, op1, op2, prob, count, all);
+  result = gimple_mod_pow2 (stmt, prob, count, all);
 
-  GIMPLE_STMT_OPERAND (modify, 1) = result;
+  gimple_assign_set_rhs_from_tree (si, result);
+  update_stmt (gsi_stmt (*si));
 
   return true;
 }
 
-/* Generate code for transformations 3 and 4 (with OPERATION, operands OP1
-   and OP2, parent modify-expr STMT, and NCOUNTS the number of cases to
-   support.  Currently only NCOUNTS==0 or 1 is supported and this is
-   built into this interface.  The probabilities of taking the optimal 
-   paths are PROB1 and PROB2, which are equivalent to COUNT1/ALL and
-   COUNT2/ALL respectively within roundoff error).  This generates the 
-   result into a temp and returns the temp; it does not replace or alter 
+/* Generate code for transformations 3 and 4 (with parent gimple assign STMT, and
+   NCOUNTS the number of cases to support.  Currently only NCOUNTS==0 or 1 is
+   supported and this is built into this interface.  The probabilities of taking
+   the optimal paths are PROB1 and PROB2, which are equivalent to COUNT1/ALL and
+   COUNT2/ALL respectively within roundoff error).  This generates the
+   result into a temp and returns the temp; it does not replace or alter
    the original STMT.  */
 /* FIXME: Generalize the interface to handle NCOUNTS > 1.  */
 
 static tree
-tree_mod_subtract (tree stmt, tree operation, tree op1, tree op2, 
-		    int prob1, int prob2, int ncounts,
-		    gcov_type count1, gcov_type count2, gcov_type all)
+gimple_mod_subtract (gimple stmt, int prob1, int prob2, int ncounts,
+		     gcov_type count1, gcov_type count2, gcov_type all)
 {
-  tree stmt1, stmt2, stmt3;
+  gimple stmt1, stmt2, stmt3;
   tree tmp1;
-  tree label_decl1 = create_artificial_label ();
-  tree label_decl2 = create_artificial_label ();
-  tree label_decl3 = create_artificial_label ();
-  tree label1, label2, label3;
-  tree bb1end, bb2end = NULL_TREE, bb3end;
+  gimple bb1end, bb2end = NULL, bb3end;
   basic_block bb, bb2, bb3, bb4;
-  tree optype = TREE_TYPE (operation);
+  tree optype, op1, op2;
   edge e12, e23 = 0, e24, e34, e14;
-  block_stmt_iterator bsi;
-  tree result = create_tmp_var (optype, "PROF");
+  gimple_stmt_iterator gsi;
+  tree result;
 
-  bb = bb_for_stmt (stmt);
-  bsi = bsi_for_stmt (stmt);
+  gcc_assert (is_gimple_assign (stmt)
+	      && gimple_assign_rhs_code (stmt) == TRUNC_MOD_EXPR);
 
-  tmp1 = create_tmp_var (optype, "PROF");
-  stmt1 = build_gimple_modify_stmt (result, op1);
-  stmt2 = build_gimple_modify_stmt (tmp1, op2);
-  stmt3 = build3 (COND_EXPR, void_type_node,
-	    build2 (LT_EXPR, boolean_type_node, result, tmp1),
-	    NULL_TREE, NULL_TREE);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt3, BSI_SAME_STMT);
+  optype = TREE_TYPE (gimple_assign_lhs (stmt));
+  op1 = gimple_assign_rhs1 (stmt);
+  op2 = gimple_assign_rhs2 (stmt);
+
+  bb = gimple_bb (stmt);
+  gsi = gsi_for_stmt (stmt);
+
+  result = create_tmp_reg (optype, "PROF");
+  tmp1 = make_temp_ssa_name (optype, NULL, "PROF");
+  stmt1 = gimple_build_assign (result, op1);
+  stmt2 = gimple_build_assign (tmp1, op2);
+  stmt3 = gimple_build_cond (LT_EXPR, result, tmp1, NULL_TREE, NULL_TREE);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
+  gsi_insert_before (&gsi, stmt3, GSI_SAME_STMT);
   bb1end = stmt3;
 
   if (ncounts)	/* Assumed to be 0 or 1 */
     {
-      label1 = build1 (LABEL_EXPR, void_type_node, label_decl1);
-      stmt1 = build_gimple_modify_stmt (result,
-					build2 (MINUS_EXPR, optype,
-						result, tmp1));
-      stmt2 = build3 (COND_EXPR, void_type_node,
-		build2 (LT_EXPR, boolean_type_node, result, tmp1),
-		NULL_TREE, NULL_TREE);
-      bsi_insert_before (&bsi, label1, BSI_SAME_STMT);
-      bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-      bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
+      stmt1 = gimple_build_assign_with_ops (MINUS_EXPR, result, result, tmp1);
+      stmt2 = gimple_build_cond (LT_EXPR, result, tmp1, NULL_TREE, NULL_TREE);
+      gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
+      gsi_insert_before (&gsi, stmt2, GSI_SAME_STMT);
       bb2end = stmt2;
     }
 
   /* Fallback case. */
-  label2 = build1 (LABEL_EXPR, void_type_node, label_decl2);
-  stmt1 = build_gimple_modify_stmt (result,
-				    build2 (TREE_CODE (operation), optype,
-					    result, tmp1));
-  bsi_insert_before (&bsi, label2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
+  stmt1 = gimple_build_assign_with_ops (gimple_assign_rhs_code (stmt), result,
+					result, tmp1);
+  gsi_insert_before (&gsi, stmt1, GSI_SAME_STMT);
   bb3end = stmt1;
-
-  label3 = build1 (LABEL_EXPR, void_type_node, label_decl3);
-  bsi_insert_before (&bsi, label3, BSI_SAME_STMT);
 
   /* Fix CFG. */
   /* Edge e23 connects bb2 to bb3, etc. */
@@ -882,7 +948,7 @@ tree_mod_subtract (tree stmt, tree operation, tree op1, tree op2,
   e12 = split_block (bb, bb1end);
   bb2 = e12->dest;
   bb2->count = all - count1;
-    
+
   if (ncounts)	/* Assumed to be 0 or 1.  */
     {
       e23 = split_block (bb2, bb2end);
@@ -921,41 +987,38 @@ tree_mod_subtract (tree stmt, tree operation, tree op1, tree op2,
   return result;
 }
 
-/* Do transforms 3) and 4) on INSN if applicable.  */
+
+/* Do transforms 3) and 4) on the statement pointed-to by SI if applicable.  */
+
 static bool
-tree_mod_subtract_transform (tree stmt)
+gimple_mod_subtract_transform (gimple_stmt_iterator *si)
 {
   histogram_value histogram;
   enum tree_code code;
   gcov_type count, wrong_values, all;
-  tree modify, op, op1, op2, result, value;
-  int prob1, prob2;
+  tree lhs_type, result;
+  gcov_type prob1, prob2;
   unsigned int i, steps;
   gcov_type count1, count2;
+  gimple stmt;
 
-  modify = stmt;
-  if (TREE_CODE (stmt) == RETURN_EXPR
-      && TREE_OPERAND (stmt, 0)
-      && TREE_CODE (TREE_OPERAND (stmt, 0)) == GIMPLE_MODIFY_STMT)
-    modify = TREE_OPERAND (stmt, 0);
-  if (TREE_CODE (modify) != GIMPLE_MODIFY_STMT)
-    return false;
-  op = GIMPLE_STMT_OPERAND (modify, 1);
-  if (!INTEGRAL_TYPE_P (TREE_TYPE (op)))
-    return false;
-  code = TREE_CODE (op);
-  
-  if (code != TRUNC_MOD_EXPR || !TYPE_UNSIGNED (TREE_TYPE (op)))
+  stmt = gsi_stmt (*si);
+  if (gimple_code (stmt) != GIMPLE_ASSIGN)
     return false;
 
-  op1 = TREE_OPERAND (op, 0);
-  op2 = TREE_OPERAND (op, 1);
+  lhs_type = TREE_TYPE (gimple_assign_lhs (stmt));
+  if (!INTEGRAL_TYPE_P (lhs_type))
+    return false;
+
+  code = gimple_assign_rhs_code (stmt);
+
+  if (code != TRUNC_MOD_EXPR || !TYPE_UNSIGNED (lhs_type))
+    return false;
 
   histogram = gimple_histogram_value_of_type (cfun, stmt, HIST_TYPE_INTERVAL);
   if (!histogram)
     return false;
 
-  value = histogram->hvalue.value;
   all = 0;
   wrong_values = 0;
   for (i = 0; i < histogram->hdata.intvl.steps; i++)
@@ -969,11 +1032,16 @@ tree_mod_subtract_transform (tree stmt)
   count2 = histogram->hvalue.counters[1];
 
   /* Compute probability of taking the optimal path.  */
-  if (check_counter (stmt, "interval", all, bb_for_stmt (stmt)->count))
+  if (check_counter (stmt, "interval", &count1, &all, gimple_bb (stmt)->count))
     {
       gimple_remove_histogram_value (cfun, stmt, histogram);
       return false;
     }
+
+  if (flag_profile_correction && count1 + count2 > all)
+      all = count1 + count2;
+
+  gcc_assert (count1 + count2 <= all);
 
   /* We require that we use just subtractions in at least 50% of all
      evaluations.  */
@@ -985,162 +1053,245 @@ tree_mod_subtract_transform (tree stmt)
 	break;
     }
   if (i == steps
-      || !maybe_hot_bb_p (bb_for_stmt (stmt)))
+      || optimize_bb_for_size_p (gimple_bb (stmt)))
     return false;
 
   gimple_remove_histogram_value (cfun, stmt, histogram);
   if (dump_file)
     {
       fprintf (dump_file, "Mod subtract transformation on insn ");
-      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
 
   /* Compute probability of taking the optimal path(s).  */
-  prob1 = (count1 * REG_BR_PROB_BASE + all / 2) / all;
-  prob2 = (count2 * REG_BR_PROB_BASE + all / 2) / all;
+  if (all > 0)
+    {
+      prob1 = (count1 * REG_BR_PROB_BASE + all / 2) / all;
+      prob2 = (count2 * REG_BR_PROB_BASE + all / 2) / all;
+    }
+  else
+    {
+      prob1 = prob2 = 0;
+    }
 
   /* In practice, "steps" is always 2.  This interface reflects this,
      and will need to be changed if "steps" can change.  */
-  result = tree_mod_subtract (stmt, op, op1, op2, prob1, prob2, i,
-			      count1, count2, all);
+  result = gimple_mod_subtract (stmt, prob1, prob2, i, count1, count2, all);
 
-  GIMPLE_STMT_OPERAND (modify, 1) = result;
+  gimple_assign_set_rhs_from_tree (si, result);
+  update_stmt (gsi_stmt (*si));
 
   return true;
 }
 
-static struct cgraph_node** pid_map = NULL;
+static vec<cgraph_node_ptr> cgraph_node_map
+    = vNULL;
 
-/* Initialize map of pids (pid -> cgraph node) */
+/* Initialize map from FUNCDEF_NO to CGRAPH_NODE.  */
 
-static void 
-init_pid_map (void)
+void
+init_node_map (void)
 {
   struct cgraph_node *n;
 
-  if (pid_map != NULL)
-    return;
+  if (get_last_funcdef_no ())
+    cgraph_node_map.safe_grow_cleared (get_last_funcdef_no ());
 
-  pid_map 
-    = (struct cgraph_node**) xmalloc (sizeof (struct cgraph_node*) * cgraph_max_pid);
-
-  for (n = cgraph_nodes; n; n = n->next)
+  FOR_EACH_FUNCTION (n)
     {
-      if (n->pid != -1)
-	pid_map [n->pid] = n;
+      if (DECL_STRUCT_FUNCTION (n->symbol.decl))
+        cgraph_node_map[DECL_STRUCT_FUNCTION (n->symbol.decl)->funcdef_no] = n;
     }
+}
+
+/* Delete the CGRAPH_NODE_MAP.  */
+
+void
+del_node_map (void)
+{
+   cgraph_node_map.release ();
 }
 
 /* Return cgraph node for function with pid */
 
 static inline struct cgraph_node*
-find_func_by_pid (int	pid)
+find_func_by_funcdef_no (int func_id)
 {
-  init_pid_map ();
+  int max_id = get_last_funcdef_no ();
+  if (func_id >= max_id || cgraph_node_map[func_id] == NULL)
+    {
+      if (flag_profile_correction)
+        inform (DECL_SOURCE_LOCATION (current_function_decl),
+                "Inconsistent profile: indirect call target (%d) does not exist", func_id);
+      else
+        error ("Inconsistent profile: indirect call target (%d) does not exist", func_id);
 
-  return pid_map [pid];
+      return NULL;
+    }
+
+  return cgraph_node_map[func_id];
+}
+
+/* Perform sanity check on the indirect call target. Due to race conditions,
+   false function target may be attributed to an indirect call site. If the
+   call expression type mismatches with the target function's type, expand_call
+   may ICE. Here we only do very minimal sanity check just to make compiler happy.
+   Returns true if TARGET is considered ok for call CALL_STMT.  */
+
+static bool
+check_ic_target (gimple call_stmt, struct cgraph_node *target)
+{
+   location_t locus;
+   if (gimple_check_call_matching_types (call_stmt, target->symbol.decl))
+     return true;
+
+   locus =  gimple_location (call_stmt);
+   inform (locus, "Skipping target %s with mismatching types for icall ",
+           cgraph_node_name (target));
+   return false;
 }
 
 /* Do transformation
 
-  if (actual_callee_addres == addres_of_most_common_function/method)
+  if (actual_callee_address == address_of_most_common_function/method)
     do direct call
   else
     old call
  */
 
-static tree
-tree_ic (tree stmt, tree call, struct cgraph_node* direct_call, 
-	 int prob, gcov_type count, gcov_type all)
+static gimple
+gimple_ic (gimple icall_stmt, struct cgraph_node *direct_call,
+	   int prob, gcov_type count, gcov_type all)
 {
-  tree stmt1, stmt2, stmt3;
-  tree tmp1, tmpv, tmp;
-  tree label_decl1 = create_artificial_label ();
-  tree label_decl2 = create_artificial_label ();
-  tree label1, label2;
-  tree bb1end, bb2end, bb3end;
-  tree new_call;
-  basic_block bb, bb2, bb3, bb4;
+  gimple dcall_stmt, load_stmt, cond_stmt;
+  tree tmp0, tmp1, tmp;
+  basic_block cond_bb, dcall_bb, icall_bb, join_bb = NULL;
   tree optype = build_pointer_type (void_type_node);
-  edge e12, e13, e23, e24, e34;
-  block_stmt_iterator bsi;
-  int region;
+  edge e_cd, e_ci, e_di, e_dj = NULL, e_ij;
+  gimple_stmt_iterator gsi;
+  int lp_nr, dflags;
 
-  bb = bb_for_stmt (stmt);
-  bsi = bsi_for_stmt (stmt);
+  cond_bb = gimple_bb (icall_stmt);
+  gsi = gsi_for_stmt (icall_stmt);
 
-  tmpv = create_tmp_var (optype, "PROF");
-  tmp1 = create_tmp_var (optype, "PROF");
-  stmt1 = build_gimple_modify_stmt (tmpv, 
-				    unshare_expr (CALL_EXPR_FN (call)));
-  tmp = fold_convert (optype, build_addr (direct_call->decl, 
+  tmp0 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp1 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp = unshare_expr (gimple_call_fn (icall_stmt));
+  load_stmt = gimple_build_assign (tmp0, tmp);
+  gsi_insert_before (&gsi, load_stmt, GSI_SAME_STMT);
+
+  tmp = fold_convert (optype, build_addr (direct_call->symbol.decl,
 					  current_function_decl));
-  stmt2 = build_gimple_modify_stmt (tmp1, tmp);
-  stmt3 = build3 (COND_EXPR, void_type_node,
-		  build2 (NE_EXPR, boolean_type_node, tmp1, tmpv),
-		  NULL_TREE, NULL_TREE);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt3, BSI_SAME_STMT);
-  bb1end = stmt3;
+  load_stmt = gimple_build_assign (tmp1, tmp);
+  gsi_insert_before (&gsi, load_stmt, GSI_SAME_STMT);
 
-  label1 = build1 (LABEL_EXPR, void_type_node, label_decl1);
-  stmt1 = unshare_expr (stmt);
-  new_call = get_call_expr_in (stmt1);
-  CALL_EXPR_FN (new_call) = build_addr (direct_call->decl, 
-					current_function_decl);
-  bsi_insert_before (&bsi, label1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  bb2end = stmt1;
+  cond_stmt = gimple_build_cond (EQ_EXPR, tmp1, tmp0, NULL_TREE, NULL_TREE);
+  gsi_insert_before (&gsi, cond_stmt, GSI_SAME_STMT);
 
-  label2 = build1 (LABEL_EXPR, void_type_node, label_decl2);
-  bsi_insert_before (&bsi, label2, BSI_SAME_STMT);
-  bb3end = stmt;
+  gimple_set_vdef (icall_stmt, NULL_TREE);
+  gimple_set_vuse (icall_stmt, NULL_TREE);
+  update_stmt (icall_stmt);
+  dcall_stmt = gimple_copy (icall_stmt);
+  gimple_call_set_fndecl (dcall_stmt, direct_call->symbol.decl);
+  dflags = flags_from_decl_or_type (direct_call->symbol.decl);
+  if ((dflags & ECF_NORETURN) != 0)
+    gimple_call_set_lhs (dcall_stmt, NULL_TREE);
+  gsi_insert_before (&gsi, dcall_stmt, GSI_SAME_STMT);
 
   /* Fix CFG. */
-  /* Edge e23 connects bb2 to bb3, etc. */
-  e12 = split_block (bb, bb1end);
-  bb2 = e12->dest;
-  bb2->count = count;
-  e23 = split_block (bb2, bb2end);
-  bb3 = e23->dest;
-  bb3->count = all - count;
-  e34 = split_block (bb3, bb3end);
-  bb4 = e34->dest;
-  bb4->count = all;
+  /* Edge e_cd connects cond_bb to dcall_bb, etc; note the first letters. */
+  e_cd = split_block (cond_bb, cond_stmt);
+  dcall_bb = e_cd->dest;
+  dcall_bb->count = count;
 
-  e12->flags &= ~EDGE_FALLTHRU;
-  e12->flags |= EDGE_FALSE_VALUE;
-  e12->probability = prob;
-  e12->count = count;
+  e_di = split_block (dcall_bb, dcall_stmt);
+  icall_bb = e_di->dest;
+  icall_bb->count = all - count;
 
-  e13 = make_edge (bb, bb3, EDGE_TRUE_VALUE);
-  e13->probability = REG_BR_PROB_BASE - prob;
-  e13->count = all - count;
-
-  remove_edge (e23);
-  
-  e24 = make_edge (bb2, bb4, EDGE_FALLTHRU);
-  e24->probability = REG_BR_PROB_BASE;
-  e24->count = count;
-  e34->probability = REG_BR_PROB_BASE;
-  e34->count = all - count;
-
-  /* Fix eh edges */
-  region = lookup_stmt_eh_region (stmt);
-  if (region >=0 && tree_could_throw_p (stmt1))
+  /* Do not disturb existing EH edges from the indirect call.  */
+  if (!stmt_ends_bb_p (icall_stmt))
+    e_ij = split_block (icall_bb, icall_stmt);
+  else
     {
-      add_stmt_to_eh_region (stmt1, region);
-      make_eh_edges (stmt1);
+      e_ij = find_fallthru_edge (icall_bb->succs);
+      /* The indirect call might be noreturn.  */
+      if (e_ij != NULL)
+	{
+	  e_ij->probability = REG_BR_PROB_BASE;
+	  e_ij->count = all - count;
+	  e_ij = single_pred_edge (split_edge (e_ij));
+	}
+    }
+  if (e_ij != NULL)
+    {
+      join_bb = e_ij->dest;
+      join_bb->count = all;
     }
 
-  if (region >=0 && tree_could_throw_p (stmt))
+  e_cd->flags = (e_cd->flags & ~EDGE_FALLTHRU) | EDGE_TRUE_VALUE;
+  e_cd->probability = prob;
+  e_cd->count = count;
+
+  e_ci = make_edge (cond_bb, icall_bb, EDGE_FALSE_VALUE);
+  e_ci->probability = REG_BR_PROB_BASE - prob;
+  e_ci->count = all - count;
+
+  remove_edge (e_di);
+
+  if (e_ij != NULL)
     {
-      tree_purge_dead_eh_edges (bb4);
-      make_eh_edges (stmt);
+      if ((dflags & ECF_NORETURN) != 0)
+	e_ij->count = all;
+      else
+	{
+	  e_dj = make_edge (dcall_bb, join_bb, EDGE_FALLTHRU);
+	  e_dj->probability = REG_BR_PROB_BASE;
+	  e_dj->count = count;
+
+	  e_ij->count = all - count;
+	}
+      e_ij->probability = REG_BR_PROB_BASE;
     }
 
-  return stmt1;
+  /* Insert PHI node for the call result if necessary.  */
+  if (gimple_call_lhs (icall_stmt)
+      && TREE_CODE (gimple_call_lhs (icall_stmt)) == SSA_NAME
+      && (dflags & ECF_NORETURN) == 0)
+    {
+      tree result = gimple_call_lhs (icall_stmt);
+      gimple phi = create_phi_node (result, join_bb);
+      gimple_call_set_lhs (icall_stmt,
+			   duplicate_ssa_name (result, icall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (icall_stmt), e_ij, UNKNOWN_LOCATION);
+      gimple_call_set_lhs (dcall_stmt,
+			   duplicate_ssa_name (result, dcall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (dcall_stmt), e_dj, UNKNOWN_LOCATION);
+    }
+
+  /* Build an EH edge for the direct call if necessary.  */
+  lp_nr = lookup_stmt_eh_lp (icall_stmt);
+  if (lp_nr != 0
+      && stmt_could_throw_p (dcall_stmt))
+    {
+      edge e_eh, e;
+      edge_iterator ei;
+      gimple_stmt_iterator psi;
+
+      add_stmt_to_eh_lp (dcall_stmt, lp_nr);
+      FOR_EACH_EDGE (e_eh, ei, icall_bb->succs)
+	if (e_eh->flags & EDGE_EH)
+	  break;
+      e = make_edge (dcall_bb, e_eh->dest, EDGE_EH);
+      for (psi = gsi_start_phis (e_eh->dest);
+	   !gsi_end_p (psi); gsi_next (&psi))
+	{
+	  gimple phi = gsi_stmt (psi);
+	  SET_USE (PHI_ARG_DEF_PTR_FROM_EDGE (phi, e),
+		   PHI_ARG_DEF_FROM_EDGE (phi, e_eh));
+	}
+    }
+
+  return dcall_stmt;
 }
 
 /*
@@ -1150,22 +1301,22 @@ tree_ic (tree stmt, tree call, struct cgraph_node* direct_call,
  */
 
 static bool
-tree_ic_transform (tree stmt)
+gimple_ic_transform (gimple_stmt_iterator *gsi)
 {
+  gimple stmt = gsi_stmt (*gsi);
   histogram_value histogram;
-  gcov_type val, count, all;
-  int prob;
-  tree call, callee, modify;
+  gcov_type val, count, all, bb_all;
+  gcov_type prob;
+  gimple modify;
   struct cgraph_node *direct_call;
-  
-  call = get_call_expr_in (stmt);
 
-  if (!call || TREE_CODE (call) != CALL_EXPR)
+  if (gimple_code (stmt) != GIMPLE_CALL)
     return false;
 
-  callee = CALL_EXPR_FN (call);
+  if (gimple_call_fndecl (stmt) != NULL_TREE)
+    return false;
 
-  if (TREE_CODE (callee) == ADDR_EXPR)
+  if (gimple_call_internal_p (stmt))
     return false;
 
   histogram = gimple_histogram_value_of_type (cfun, stmt, HIST_TYPE_INDIR_CALL);
@@ -1180,192 +1331,209 @@ tree_ic_transform (tree stmt)
   if (4 * count <= 3 * all)
     return false;
 
-  prob = (count * REG_BR_PROB_BASE + all / 2) / all;
-  direct_call = find_func_by_pid ((int)val);
+  bb_all = gimple_bb (stmt)->count;
+  /* The order of CHECK_COUNTER calls is important -
+     since check_counter can correct the third parameter
+     and we want to make count <= all <= bb_all. */
+  if ( check_counter (stmt, "ic", &all, &bb_all, bb_all)
+      || check_counter (stmt, "ic", &count, &all, all))
+    return false;
+
+  if (all > 0)
+    prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  else
+    prob = 0;
+  direct_call = find_func_by_funcdef_no ((int)val);
 
   if (direct_call == NULL)
     return false;
 
-  modify = tree_ic (stmt, call, direct_call, prob, count, all);
+  if (!check_ic_target (stmt, direct_call))
+    return false;
+
+  modify = gimple_ic (stmt, direct_call, prob, count, all);
 
   if (dump_file)
     {
       fprintf (dump_file, "Indirect call -> direct call ");
-      print_generic_expr (dump_file, call, TDF_SLIM);
+      print_generic_expr (dump_file, gimple_call_fn (stmt), TDF_SLIM);
       fprintf (dump_file, "=> ");
-      print_generic_expr (dump_file, direct_call->decl, TDF_SLIM);
+      print_generic_expr (dump_file, direct_call->symbol.decl, TDF_SLIM);
       fprintf (dump_file, " transformation on insn ");
-      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
       fprintf (dump_file, " to ");
-      print_generic_stmt (dump_file, modify, TDF_SLIM);
+      print_gimple_stmt (dump_file, modify, 0, TDF_SLIM);
+      fprintf (dump_file, "hist->count "HOST_WIDEST_INT_PRINT_DEC
+	       " hist->all "HOST_WIDEST_INT_PRINT_DEC"\n", count, all);
     }
 
   return true;
 }
 
-/* Return true if the stringop CALL with FNDECL shall be profiled.  */
+/* Return true if the stringop CALL with FNDECL shall be profiled.
+   SIZE_ARG be set to the argument index for the size of the string
+   operation.
+*/
 static bool
-interesting_stringop_to_profile_p (tree fndecl, tree call)
+interesting_stringop_to_profile_p (tree fndecl, gimple call, int *size_arg)
 {
   enum built_in_function fcode = DECL_FUNCTION_CODE (fndecl);
 
-  if (fcode != BUILT_IN_MEMSET && fcode != BUILT_IN_MEMCPY
-      && fcode != BUILT_IN_BZERO)
+  if (fcode != BUILT_IN_MEMCPY && fcode != BUILT_IN_MEMPCPY
+      && fcode != BUILT_IN_MEMSET && fcode != BUILT_IN_BZERO)
     return false;
 
   switch (fcode)
     {
      case BUILT_IN_MEMCPY:
      case BUILT_IN_MEMPCPY:
-       return validate_arglist (call,
-				POINTER_TYPE, POINTER_TYPE, INTEGER_TYPE,
-				VOID_TYPE);
+       *size_arg = 2;
+       return validate_gimple_arglist (call, POINTER_TYPE, POINTER_TYPE,
+				       INTEGER_TYPE, VOID_TYPE);
      case BUILT_IN_MEMSET:
-       return validate_arglist (call,
-				POINTER_TYPE, INTEGER_TYPE, INTEGER_TYPE,
-				VOID_TYPE);
+       *size_arg = 2;
+       return validate_gimple_arglist (call, POINTER_TYPE, INTEGER_TYPE,
+				      INTEGER_TYPE, VOID_TYPE);
      case BUILT_IN_BZERO:
-       return validate_arglist (call, POINTER_TYPE, INTEGER_TYPE,
-				VOID_TYPE);
+       *size_arg = 1;
+       return validate_gimple_arglist (call, POINTER_TYPE, INTEGER_TYPE,
+				       VOID_TYPE);
      default:
        gcc_unreachable ();
     }
 }
 
-/* Convert   stringop (..., size)
-   into 
-   if (size == VALUE)
-     stringop (...., VALUE);
+/* Convert   stringop (..., vcall_size)
+   into
+   if (vcall_size == icall_size)
+     stringop (..., icall_size);
    else
-     stringop (...., size);
-   assuming constant propagation of VALUE will happen later.
-*/
+     stringop (..., vcall_size);
+   assuming we'll propagate a true constant into ICALL_SIZE later.  */
+
 static void
-tree_stringop_fixed_value (tree stmt, tree value, int prob, gcov_type count,
-			   gcov_type all)
+gimple_stringop_fixed_value (gimple vcall_stmt, tree icall_size, int prob,
+			     gcov_type count, gcov_type all)
 {
-  tree stmt1, stmt2, stmt3;
-  tree tmp1, tmpv;
-  tree label_decl1 = create_artificial_label ();
-  tree label_decl2 = create_artificial_label ();
-  tree label1, label2;
-  tree bb1end, bb2end;
-  basic_block bb, bb2, bb3, bb4;
-  edge e12, e13, e23, e24, e34;
-  block_stmt_iterator bsi;
-  tree call = get_call_expr_in (stmt);
-  tree blck_size = CALL_EXPR_ARG (call, 2);
-  tree optype = TREE_TYPE (blck_size);
-  int region;
+  gimple tmp_stmt, cond_stmt, icall_stmt;
+  tree tmp0, tmp1, vcall_size, optype;
+  basic_block cond_bb, icall_bb, vcall_bb, join_bb;
+  edge e_ci, e_cv, e_iv, e_ij, e_vj;
+  gimple_stmt_iterator gsi;
+  tree fndecl;
+  int size_arg;
 
-  bb = bb_for_stmt (stmt);
-  bsi = bsi_for_stmt (stmt);
+  fndecl = gimple_call_fndecl (vcall_stmt);
+  if (!interesting_stringop_to_profile_p (fndecl, vcall_stmt, &size_arg))
+    gcc_unreachable();
 
-  if (bsi_end_p (bsi))
-    {
-      edge_iterator ei;
-      for (ei = ei_start (bb->succs); (e34 = ei_safe_edge (ei)); )
-	if (!e34->flags & EDGE_ABNORMAL)
-	  break;
-    }
-  else
-    {
-      e34 = split_block (bb, stmt);
-      bsi = bsi_for_stmt (stmt);
-    }
-  bb4 = e34->dest;
+  cond_bb = gimple_bb (vcall_stmt);
+  gsi = gsi_for_stmt (vcall_stmt);
 
-  tmpv = create_tmp_var (optype, "PROF");
-  tmp1 = create_tmp_var (optype, "PROF");
-  stmt1 = build_gimple_modify_stmt (tmpv, fold_convert (optype, value));
-  stmt2 = build_gimple_modify_stmt (tmp1, blck_size);
-  stmt3 = build3 (COND_EXPR, void_type_node,
-	    build2 (NE_EXPR, boolean_type_node, tmp1, tmpv),
-	    NULL_TREE, NULL_TREE);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt2, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt3, BSI_SAME_STMT);
-  bb1end = stmt3;
+  vcall_size = gimple_call_arg (vcall_stmt, size_arg);
+  optype = TREE_TYPE (vcall_size);
 
-  label1 = build1 (LABEL_EXPR, void_type_node, label_decl1);
-  stmt1 = unshare_expr (stmt);
-  call = get_call_expr_in (stmt1);
-  CALL_EXPR_ARG (call, 2) = value;
-  bsi_insert_before (&bsi, label1, BSI_SAME_STMT);
-  bsi_insert_before (&bsi, stmt1, BSI_SAME_STMT);
-  region = lookup_stmt_eh_region (stmt);
-  if (region >= 0)
-    add_stmt_to_eh_region (stmt1, region);
-  bb2end = stmt1;
-  label2 = build1 (LABEL_EXPR, void_type_node, label_decl2);
-  bsi_insert_before (&bsi, label2, BSI_SAME_STMT);
+  tmp0 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp1 = make_temp_ssa_name (optype, NULL, "PROF");
+  tmp_stmt = gimple_build_assign (tmp0, fold_convert (optype, icall_size));
+  gsi_insert_before (&gsi, tmp_stmt, GSI_SAME_STMT);
+
+  tmp_stmt = gimple_build_assign (tmp1, vcall_size);
+  gsi_insert_before (&gsi, tmp_stmt, GSI_SAME_STMT);
+
+  cond_stmt = gimple_build_cond (EQ_EXPR, tmp1, tmp0, NULL_TREE, NULL_TREE);
+  gsi_insert_before (&gsi, cond_stmt, GSI_SAME_STMT);
+
+  gimple_set_vdef (vcall_stmt, NULL);
+  gimple_set_vuse (vcall_stmt, NULL);
+  update_stmt (vcall_stmt);
+  icall_stmt = gimple_copy (vcall_stmt);
+  gimple_call_set_arg (icall_stmt, size_arg, icall_size);
+  gsi_insert_before (&gsi, icall_stmt, GSI_SAME_STMT);
 
   /* Fix CFG. */
-  /* Edge e23 connects bb2 to bb3, etc. */
-  e12 = split_block (bb, bb1end);
-  bb2 = e12->dest;
-  bb2->count = count;
-  e23 = split_block (bb2, bb2end);
-  bb3 = e23->dest;
-  bb3->count = all - count;
+  /* Edge e_ci connects cond_bb to icall_bb, etc. */
+  e_ci = split_block (cond_bb, cond_stmt);
+  icall_bb = e_ci->dest;
+  icall_bb->count = count;
 
-  e12->flags &= ~EDGE_FALLTHRU;
-  e12->flags |= EDGE_FALSE_VALUE;
-  e12->probability = prob;
-  e12->count = count;
+  e_iv = split_block (icall_bb, icall_stmt);
+  vcall_bb = e_iv->dest;
+  vcall_bb->count = all - count;
 
-  e13 = make_edge (bb, bb3, EDGE_TRUE_VALUE);
-  e13->probability = REG_BR_PROB_BASE - prob;
-  e13->count = all - count;
+  e_vj = split_block (vcall_bb, vcall_stmt);
+  join_bb = e_vj->dest;
+  join_bb->count = all;
 
-  remove_edge (e23);
-  
-  e24 = make_edge (bb2, bb4, EDGE_FALLTHRU);
-  e24->probability = REG_BR_PROB_BASE;
-  e24->count = count;
+  e_ci->flags = (e_ci->flags & ~EDGE_FALLTHRU) | EDGE_TRUE_VALUE;
+  e_ci->probability = prob;
+  e_ci->count = count;
 
-  e34->probability = REG_BR_PROB_BASE;
-  e34->count = all - count;
+  e_cv = make_edge (cond_bb, vcall_bb, EDGE_FALSE_VALUE);
+  e_cv->probability = REG_BR_PROB_BASE - prob;
+  e_cv->count = all - count;
+
+  remove_edge (e_iv);
+
+  e_ij = make_edge (icall_bb, join_bb, EDGE_FALLTHRU);
+  e_ij->probability = REG_BR_PROB_BASE;
+  e_ij->count = count;
+
+  e_vj->probability = REG_BR_PROB_BASE;
+  e_vj->count = all - count;
+
+  /* Insert PHI node for the call result if necessary.  */
+  if (gimple_call_lhs (vcall_stmt)
+      && TREE_CODE (gimple_call_lhs (vcall_stmt)) == SSA_NAME)
+    {
+      tree result = gimple_call_lhs (vcall_stmt);
+      gimple phi = create_phi_node (result, join_bb);
+      gimple_call_set_lhs (vcall_stmt,
+			   duplicate_ssa_name (result, vcall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (vcall_stmt), e_vj, UNKNOWN_LOCATION);
+      gimple_call_set_lhs (icall_stmt,
+			   duplicate_ssa_name (result, icall_stmt));
+      add_phi_arg (phi, gimple_call_lhs (icall_stmt), e_ij, UNKNOWN_LOCATION);
+    }
+
+  /* Because these are all string op builtins, they're all nothrow.  */
+  gcc_assert (!stmt_could_throw_p (vcall_stmt));
+  gcc_assert (!stmt_could_throw_p (icall_stmt));
 }
 
 /* Find values inside STMT for that we want to measure histograms for
    division/modulo optimization.  */
 static bool
-tree_stringops_transform (block_stmt_iterator *bsi)
+gimple_stringops_transform (gimple_stmt_iterator *gsi)
 {
-  tree stmt = bsi_stmt (*bsi);
-  tree call = get_call_expr_in (stmt);
+  gimple stmt = gsi_stmt (*gsi);
   tree fndecl;
   tree blck_size;
   enum built_in_function fcode;
   histogram_value histogram;
   gcov_type count, all, val;
-  tree value;
   tree dest, src;
   unsigned int dest_align, src_align;
-  int prob;
+  gcov_type prob;
   tree tree_val;
+  int size_arg;
 
-  if (!call)
+  if (gimple_code (stmt) != GIMPLE_CALL)
     return false;
-  fndecl = get_callee_fndecl (call);
+  fndecl = gimple_call_fndecl (stmt);
   if (!fndecl)
     return false;
   fcode = DECL_FUNCTION_CODE (fndecl);
-  if (!interesting_stringop_to_profile_p (fndecl, call))
+  if (!interesting_stringop_to_profile_p (fndecl, stmt, &size_arg))
     return false;
 
-  if (fcode == BUILT_IN_BZERO)
-    blck_size = CALL_EXPR_ARG (call, 1);
-  else
-    blck_size = CALL_EXPR_ARG (call, 2);
+  blck_size = gimple_call_arg (stmt, size_arg);
   if (TREE_CODE (blck_size) == INTEGER_CST)
     return false;
 
   histogram = gimple_histogram_value_of_type (cfun, stmt, HIST_TYPE_SINGLE_VALUE);
   if (!histogram)
     return false;
-  value = histogram->hvalue.value;
   val = histogram->hvalue.counters[0];
   count = histogram->hvalue.counters[1];
   all = histogram->hvalue.counters[2];
@@ -1373,25 +1541,28 @@ tree_stringops_transform (block_stmt_iterator *bsi)
   /* We require that count is at least half of all; this means
      that for the transformation to fire the value must be constant
      at least 80% of time.  */
-  if ((6 * count / 5) < all || !maybe_hot_bb_p (bb_for_stmt (stmt)))
+  if ((6 * count / 5) < all || optimize_bb_for_size_p (gimple_bb (stmt)))
     return false;
-  if (check_counter (stmt, "value", all, bb_for_stmt (stmt)->count))
+  if (check_counter (stmt, "value", &count, &all, gimple_bb (stmt)->count))
     return false;
-  prob = (count * REG_BR_PROB_BASE + all / 2) / all;
-  dest = CALL_EXPR_ARG (call, 0);
-  dest_align = get_pointer_alignment (dest, BIGGEST_ALIGNMENT);
+  if (all > 0)
+    prob = (count * REG_BR_PROB_BASE + all / 2) / all;
+  else
+    prob = 0;
+  dest = gimple_call_arg (stmt, 0);
+  dest_align = get_pointer_alignment (dest);
   switch (fcode)
     {
     case BUILT_IN_MEMCPY:
     case BUILT_IN_MEMPCPY:
-      src = CALL_EXPR_ARG (call, 1);
-      src_align = get_pointer_alignment (src, BIGGEST_ALIGNMENT);
+      src = gimple_call_arg (stmt, 1);
+      src_align = get_pointer_alignment (src);
       if (!can_move_by_pieces (val, MIN (dest_align, src_align)))
 	return false;
       break;
     case BUILT_IN_MEMSET:
       if (!can_store_by_pieces (val, builtin_memset_read_str,
-				CALL_EXPR_ARG (call, 1),
+				gimple_call_arg (stmt, 1),
 				dest_align, true))
 	return false;
       break;
@@ -1411,15 +1582,15 @@ tree_stringops_transform (block_stmt_iterator *bsi)
     {
       fprintf (dump_file, "Single value %i stringop transformation on ",
 	       (int)val);
-      print_generic_stmt (dump_file, stmt, TDF_SLIM);
+      print_gimple_stmt (dump_file, stmt, 0, TDF_SLIM);
     }
-  tree_stringop_fixed_value (stmt, tree_val, prob, count, all);
-  
+  gimple_stringop_fixed_value (stmt, tree_val, prob, count, all);
+
   return true;
 }
 
 void
-stringop_block_profile (tree stmt, unsigned int *expected_align,
+stringop_block_profile (gimple stmt, unsigned int *expected_align,
 			HOST_WIDE_INT *expected_size)
 {
   histogram_value histogram;
@@ -1467,70 +1638,56 @@ stringop_block_profile (tree stmt, unsigned int *expected_align,
     }
 }
 
-struct value_prof_hooks {
-  /* Find list of values for which we want to measure histograms.  */
-  void (*find_values_to_profile) (histogram_values *);
-
-  /* Identify and exploit properties of values that are hard to analyze
-     statically.  See value-prof.c for more detail.  */
-  bool (*value_profile_transformations) (void);  
-};
 
 /* Find values inside STMT for that we want to measure histograms for
    division/modulo optimization.  */
 static void
-tree_divmod_values_to_profile (tree stmt, histogram_values *values)
+gimple_divmod_values_to_profile (gimple stmt, histogram_values *values)
 {
-  tree assign, lhs, rhs, divisor, op0, type;
+  tree lhs, divisor, op0, type;
   histogram_value hist;
 
-  if (TREE_CODE (stmt) == RETURN_EXPR)
-    assign = TREE_OPERAND (stmt, 0);
-  else
-    assign = stmt;
-
-  if (!assign
-      || TREE_CODE (assign) != GIMPLE_MODIFY_STMT)
+  if (gimple_code (stmt) != GIMPLE_ASSIGN)
     return;
-  lhs = GIMPLE_STMT_OPERAND (assign, 0);
+
+  lhs = gimple_assign_lhs (stmt);
   type = TREE_TYPE (lhs);
   if (!INTEGRAL_TYPE_P (type))
     return;
 
-  rhs = GIMPLE_STMT_OPERAND (assign, 1);
-  switch (TREE_CODE (rhs))
+  switch (gimple_assign_rhs_code (stmt))
     {
     case TRUNC_DIV_EXPR:
     case TRUNC_MOD_EXPR:
-      divisor = TREE_OPERAND (rhs, 1);
-      op0 = TREE_OPERAND (rhs, 0);
+      divisor = gimple_assign_rhs2 (stmt);
+      op0 = gimple_assign_rhs1 (stmt);
 
-      VEC_reserve (histogram_value, heap, *values, 3);
+      values->reserve (3);
 
-      if (is_gimple_reg (divisor))
+      if (TREE_CODE (divisor) == SSA_NAME)
 	/* Check for the case where the divisor is the same value most
 	   of the time.  */
-	VEC_quick_push (histogram_value, *values,
-			gimple_alloc_histogram_value (cfun, HIST_TYPE_SINGLE_VALUE,
+	values->quick_push (gimple_alloc_histogram_value (cfun,
+						      HIST_TYPE_SINGLE_VALUE,
 						      stmt, divisor));
 
       /* For mod, check whether it is not often a noop (or replaceable by
 	 a few subtractions).  */
-      if (TREE_CODE (rhs) == TRUNC_MOD_EXPR
+      if (gimple_assign_rhs_code (stmt) == TRUNC_MOD_EXPR
 	  && TYPE_UNSIGNED (type))
 	{
           tree val;
           /* Check for a special case where the divisor is power of 2.  */
-	  VEC_quick_push (histogram_value, *values,
-			  gimple_alloc_histogram_value (cfun, HIST_TYPE_POW2,
-							stmt, divisor));
+	  values->quick_push (gimple_alloc_histogram_value (cfun,
+		                                            HIST_TYPE_POW2,
+							    stmt, divisor));
 
 	  val = build2 (TRUNC_DIV_EXPR, type, op0, divisor);
 	  hist = gimple_alloc_histogram_value (cfun, HIST_TYPE_INTERVAL,
 					       stmt, val);
 	  hist->hdata.intvl.int_start = 0;
 	  hist->hdata.intvl.steps = 2;
-	  VEC_quick_push (histogram_value, *values, hist);
+	  values->quick_push (hist);
 	}
       return;
 
@@ -1539,30 +1696,25 @@ tree_divmod_values_to_profile (tree stmt, histogram_values *values)
     }
 }
 
-/* Find calls inside STMT for that we want to measure histograms for 
-   indirect/virtual call optimization. */ 
+/* Find calls inside STMT for that we want to measure histograms for
+   indirect/virtual call optimization. */
 
 static void
-tree_indirect_call_to_profile (tree stmt, histogram_values *values)
+gimple_indirect_call_to_profile (gimple stmt, histogram_values *values)
 {
-  tree			call;
-  tree			callee;
+  tree callee;
 
-  call = get_call_expr_in (stmt);
-
-  if (!call || TREE_CODE (call) != CALL_EXPR)
+  if (gimple_code (stmt) != GIMPLE_CALL
+      || gimple_call_internal_p (stmt)
+      || gimple_call_fndecl (stmt) != NULL_TREE)
     return;
 
-  callee = CALL_EXPR_FN (call);
-  
-  if (TREE_CODE (callee) == ADDR_EXPR)
-    return;
+  callee = gimple_call_fn (stmt);
 
-  VEC_reserve (histogram_value, heap, *values, 3);
+  values->reserve (3);
 
-  VEC_quick_push (histogram_value, *values, 
-		  gimple_alloc_histogram_value (cfun, HIST_TYPE_INDIR_CALL,
-						stmt, callee));
+  values->quick_push (gimple_alloc_histogram_value (cfun, HIST_TYPE_INDIR_CALL,
+						    stmt, callee));
 
   return;
 }
@@ -1570,73 +1722,63 @@ tree_indirect_call_to_profile (tree stmt, histogram_values *values)
 /* Find values inside STMT for that we want to measure histograms for
    string operations.  */
 static void
-tree_stringops_values_to_profile (tree stmt, histogram_values *values)
+gimple_stringops_values_to_profile (gimple stmt, histogram_values *values)
 {
-  tree call = get_call_expr_in (stmt);
   tree fndecl;
   tree blck_size;
   tree dest;
-  enum built_in_function fcode;
+  int size_arg;
 
-  if (!call)
+  if (gimple_code (stmt) != GIMPLE_CALL)
     return;
-  fndecl = get_callee_fndecl (call);
+  fndecl = gimple_call_fndecl (stmt);
   if (!fndecl)
     return;
-  fcode = DECL_FUNCTION_CODE (fndecl);
 
-  if (!interesting_stringop_to_profile_p (fndecl, call))
+  if (!interesting_stringop_to_profile_p (fndecl, stmt, &size_arg))
     return;
 
-  dest = CALL_EXPR_ARG (call, 0);
-  if (fcode == BUILT_IN_BZERO)
-    blck_size = CALL_EXPR_ARG (call, 1);
-  else
-    blck_size = CALL_EXPR_ARG (call, 2);
+  dest = gimple_call_arg (stmt, 0);
+  blck_size = gimple_call_arg (stmt, size_arg);
 
   if (TREE_CODE (blck_size) != INTEGER_CST)
     {
-      VEC_safe_push (histogram_value, heap, *values,
-		     gimple_alloc_histogram_value (cfun, HIST_TYPE_SINGLE_VALUE,
-						   stmt, blck_size));
-      VEC_safe_push (histogram_value, heap, *values,
-		     gimple_alloc_histogram_value (cfun, HIST_TYPE_AVERAGE,
-						   stmt, blck_size));
+      values->safe_push (gimple_alloc_histogram_value (cfun,
+						       HIST_TYPE_SINGLE_VALUE,
+						       stmt, blck_size));
+      values->safe_push (gimple_alloc_histogram_value (cfun, HIST_TYPE_AVERAGE,
+						       stmt, blck_size));
     }
   if (TREE_CODE (blck_size) != INTEGER_CST)
-    VEC_safe_push (histogram_value, heap, *values,
-		   gimple_alloc_histogram_value (cfun, HIST_TYPE_IOR,
-						 stmt, dest));
+    values->safe_push (gimple_alloc_histogram_value (cfun, HIST_TYPE_IOR,
+						     stmt, dest));
 }
 
 /* Find values inside STMT for that we want to measure histograms and adds
    them to list VALUES.  */
 
 static void
-tree_values_to_profile (tree stmt, histogram_values *values)
+gimple_values_to_profile (gimple stmt, histogram_values *values)
 {
-  if (flag_value_profile_transformations)
-    {
-      tree_divmod_values_to_profile (stmt, values);
-      tree_stringops_values_to_profile (stmt, values);
-      tree_indirect_call_to_profile (stmt, values);
-    }
+  gimple_divmod_values_to_profile (stmt, values);
+  gimple_stringops_values_to_profile (stmt, values);
+  gimple_indirect_call_to_profile (stmt, values);
 }
 
-static void
-tree_find_values_to_profile (histogram_values *values)
+void
+gimple_find_values_to_profile (histogram_values *values)
 {
   basic_block bb;
-  block_stmt_iterator bsi;
+  gimple_stmt_iterator gsi;
   unsigned i;
   histogram_value hist = NULL;
 
-  *values = NULL;
+  values->create (0);
   FOR_EACH_BB (bb)
-    for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
-      tree_values_to_profile (bsi_stmt (bsi), values);
-  
-  for (i = 0; VEC_iterate (histogram_value, *values, i, hist); i++)
+    for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
+      gimple_values_to_profile (gsi_stmt (gsi), values);
+
+  FOR_EACH_VEC_ELT (*values, i, hist)
     {
       switch (hist->type)
         {
@@ -1674,35 +1816,8 @@ tree_find_values_to_profile (histogram_values *values)
       if (dump_file)
         {
 	  fprintf (dump_file, "Stmt ");
-          print_generic_expr (dump_file, hist->hvalue.stmt, TDF_SLIM);
+          print_gimple_stmt (dump_file, hist->hvalue.stmt, 0, TDF_SLIM);
 	  dump_histogram_value (dump_file, hist);
         }
     }
 }
-
-static struct value_prof_hooks tree_value_prof_hooks = {
-  tree_find_values_to_profile,
-  tree_value_profile_transformations
-};
-
-void
-tree_register_value_prof_hooks (void)
-{
-  gcc_assert (current_ir_type () == IR_GIMPLE);
-  value_prof_hooks = &tree_value_prof_hooks;
-}
-
-/* IR-independent entry points.  */
-void
-find_values_to_profile (histogram_values *values)
-{
-  (value_prof_hooks->find_values_to_profile) (values);
-}
-
-bool
-value_profile_transformations (void)
-{
-  return (value_prof_hooks->value_profile_transformations) ();
-}
-
-

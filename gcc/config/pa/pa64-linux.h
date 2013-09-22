@@ -1,5 +1,5 @@
 /* Definitions for PA_RISC with ELF format on 64-bit Linux
-   Copyright (C) 1999, 2000, 2002, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1999-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -28,12 +28,6 @@ along with GCC; see the file COPYING3.  If not see
   {ARG_POINTER_REGNUM,	 FRAME_POINTER_REGNUM},				\
 }
 
-/* A C expression that returns nonzero if the compiler is allowed to try to
-   replace register number FROM with register number TO.  The frame pointer
-   is automatically handled.  */
-
-#define CAN_ELIMINATE(FROM, TO) 1
-
 /* This macro is similar to `INITIAL_FRAME_POINTER_OFFSET'.  It
    specifies the initial difference between the specified pair of
    registers.  This macro must be defined if `ELIMINABLE_REGS' is
@@ -43,7 +37,7 @@ along with GCC; see the file COPYING3.  If not see
     {								\
       int fsize;						\
 								\
-      fsize = compute_frame_size (get_frame_size (), 0);	\
+      fsize = pa_compute_frame_size (get_frame_size (), 0);	\
       if ((TO) == FRAME_POINTER_REGNUM				\
 	  && (FROM) == ARG_POINTER_REGNUM)			\
 	{							\

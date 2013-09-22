@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2007, 2008 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file parallel/quicksort.h
  *  @brief Implementation of a unbalanced parallel quicksort (in-place).
@@ -44,144 +38,139 @@
 namespace __gnu_parallel
 {
   /** @brief Unbalanced quicksort divide step.
-   *  @param begin Begin iterator of subsequence.
-   *  @param end End iterator of subsequence.
-   *  @param comp Comparator.
-   *  @param pivot_rank Desired rank of the pivot.
-   *  @param num_samples Choose pivot from that many samples.
-   *  @param num_threads Number of threads that are allowed to work on
+   *  @param __begin Begin iterator of subsequence.
+   *  @param __end End iterator of subsequence.
+   *  @param __comp Comparator.
+   *  @param __pivot_rank Desired __rank of the pivot.
+   *  @param __num_samples Choose pivot from that many samples.
+   *  @param __num_threads Number of threads that are allowed to work on
    *  this part.
    */
-  template<typename RandomAccessIterator, typename Comparator>
-    typename std::iterator_traits<RandomAccessIterator>::difference_type
-    parallel_sort_qs_divide(RandomAccessIterator begin,
-			    RandomAccessIterator end,
-			    Comparator comp, typename std::iterator_traits
-			    <RandomAccessIterator>::difference_type pivot_rank,
-			    typename std::iterator_traits
-			    <RandomAccessIterator>::difference_type
-			    num_samples, thread_index_t num_threads)
+  template<typename _RAIter, typename _Compare>
+    typename std::iterator_traits<_RAIter>::difference_type
+    __parallel_sort_qs_divide(_RAIter __begin, _RAIter __end,
+			      _Compare __comp, typename std::iterator_traits
+			      <_RAIter>::difference_type __pivot_rank,
+			      typename std::iterator_traits
+			      <_RAIter>::difference_type
+			      __num_samples, _ThreadIndex __num_threads)
     {
-      typedef std::iterator_traits<RandomAccessIterator> traits_type;
-      typedef typename traits_type::value_type value_type;
-      typedef typename traits_type::difference_type difference_type;
+      typedef std::iterator_traits<_RAIter> _TraitsType;
+      typedef typename _TraitsType::value_type _ValueType;
+      typedef typename _TraitsType::difference_type _DifferenceType;
 
-      difference_type n = end - begin;
-      num_samples = std::min(num_samples, n);
+      _DifferenceType __n = __end - __begin;
+      __num_samples = std::min(__num_samples, __n);
 
       // Allocate uninitialized, to avoid default constructor.
-      value_type* samples =
-	static_cast<value_type*>(::operator new(num_samples
-						* sizeof(value_type)));
+      _ValueType* __samples = static_cast<_ValueType*>
+	(::operator new(__num_samples * sizeof(_ValueType)));
 
-      for (difference_type s = 0; s < num_samples; ++s)
-	{
-	  const unsigned long long index = static_cast<unsigned long long>(s)
-	    * n / num_samples;
-	  ::new(&(samples[s])) value_type(begin[index]);
-	}
+      for (_DifferenceType __s = 0; __s < __num_samples; ++__s)
+        {
+          const unsigned long long __index = static_cast<unsigned long long>
+	    (__s) * __n / __num_samples;
+          ::new(&(__samples[__s])) _ValueType(__begin[__index]);
+        }
 
-      __gnu_sequential::sort(samples, samples + num_samples, comp);
+      __gnu_sequential::sort(__samples, __samples + __num_samples, __comp);
 
-      value_type& pivot = samples[pivot_rank * num_samples / n];
+      _ValueType& __pivot = __samples[__pivot_rank * __num_samples / __n];
 
-      __gnu_parallel::binder2nd<Comparator, value_type, value_type, bool>
-        pred(comp, pivot);
-      difference_type split = parallel_partition(begin, end, pred, num_threads);
+      __gnu_parallel::__binder2nd<_Compare, _ValueType, _ValueType, bool>
+        __pred(__comp, __pivot);
+      _DifferenceType __split = __parallel_partition(__begin, __end,
+						     __pred, __num_threads);
 
-      ::operator delete(samples);
+      for (_DifferenceType __s = 0; __s < __num_samples; ++__s)
+	__samples[__s].~_ValueType();
+      ::operator delete(__samples);
 
-      return split;
+      return __split;
     }
 
   /** @brief Unbalanced quicksort conquer step.
-   *  @param begin Begin iterator of subsequence.
-   *  @param end End iterator of subsequence.
-   *  @param comp Comparator.
-   *  @param num_threads Number of threads that are allowed to work on
+   *  @param __begin Begin iterator of subsequence.
+   *  @param __end End iterator of subsequence.
+   *  @param __comp Comparator.
+   *  @param __num_threads Number of threads that are allowed to work on
    *  this part.
    */
-  template<typename RandomAccessIterator, typename Comparator>
+  template<typename _RAIter, typename _Compare>
     void
-    parallel_sort_qs_conquer(RandomAccessIterator begin,
-			     RandomAccessIterator end,
-			     Comparator comp,
-			     thread_index_t num_threads)
+    __parallel_sort_qs_conquer(_RAIter __begin, _RAIter __end,
+			       _Compare __comp,
+			       _ThreadIndex __num_threads)
     {
-      typedef std::iterator_traits<RandomAccessIterator> traits_type;
-      typedef typename traits_type::value_type value_type;
-      typedef typename traits_type::difference_type difference_type;
+      typedef std::iterator_traits<_RAIter> _TraitsType;
+      typedef typename _TraitsType::value_type _ValueType;
+      typedef typename _TraitsType::difference_type _DifferenceType;
 
-      if (num_threads <= 1)
-	{
-	  __gnu_sequential::sort(begin, end, comp);
-	  return;
-	}
+      if (__num_threads <= 1)
+        {
+          __gnu_sequential::sort(__begin, __end, __comp);
+          return;
+        }
 
-      difference_type n = end - begin, pivot_rank;
+      _DifferenceType __n = __end - __begin, __pivot_rank;
 
-      if (n <= 1)
-	return;
+      if (__n <= 1)
+        return;
 
-      thread_index_t num_threads_left;
+      _ThreadIndex __num_threads_left;
 
-      if ((num_threads % 2) == 1)
-	num_threads_left = num_threads / 2 + 1;
+      if ((__num_threads % 2) == 1)
+        __num_threads_left = __num_threads / 2 + 1;
       else
-	num_threads_left = num_threads / 2;
+        __num_threads_left = __num_threads / 2;
 
-      pivot_rank = n * num_threads_left / num_threads;
+      __pivot_rank = __n * __num_threads_left / __num_threads;
 
-      difference_type split =
-	parallel_sort_qs_divide(begin, end, comp, pivot_rank,
-				_Settings::get().sort_qs_num_samples_preset,
-				num_threads);
+      _DifferenceType __split = __parallel_sort_qs_divide
+	(__begin, __end, __comp, __pivot_rank,
+	 _Settings::get().sort_qs_num_samples_preset, __num_threads);
 
 #pragma omp parallel sections num_threads(2)
       {
 #pragma omp section
-	parallel_sort_qs_conquer(begin, begin + split,
-				 comp, num_threads_left);
+        __parallel_sort_qs_conquer(__begin, __begin + __split,
+				   __comp, __num_threads_left);
 #pragma omp section
-	parallel_sort_qs_conquer(begin + split, end,
-				 comp, num_threads - num_threads_left);
+        __parallel_sort_qs_conquer(__begin + __split, __end,
+				   __comp, __num_threads - __num_threads_left);
       }
     }
 
 
-
   /** @brief Unbalanced quicksort main call.
-   *  @param begin Begin iterator of input sequence.
-   *  @param end End iterator input sequence, ignored.
-   *  @param comp Comparator.
-   *  @param n Length of input sequence.
-   *  @param num_threads Number of threads that are allowed to work on
+   *  @param __begin Begin iterator of input sequence.
+   *  @param __end End iterator input sequence, ignored.
+   *  @param __comp Comparator.
+   *  @param __num_threads Number of threads that are allowed to work on
    *  this part.
    */
-  template<typename RandomAccessIterator, typename Comparator>
+  template<typename _RAIter, typename _Compare>
     void
-    parallel_sort_qs(RandomAccessIterator begin,
-		     RandomAccessIterator end,
-		     Comparator comp, typename std::iterator_traits
-		     <RandomAccessIterator>::difference_type n,
-		     int num_threads)
+    __parallel_sort_qs(_RAIter __begin, _RAIter __end,
+		       _Compare __comp,
+		       _ThreadIndex __num_threads)
     {
-      _GLIBCXX_CALL(n)
+      _GLIBCXX_CALL(__n)
 
-      typedef std::iterator_traits<RandomAccessIterator> traits_type;
-      typedef typename traits_type::value_type value_type;
-      typedef typename traits_type::difference_type difference_type;
+      typedef std::iterator_traits<_RAIter> _TraitsType;
+      typedef typename _TraitsType::value_type _ValueType;
+      typedef typename _TraitsType::difference_type _DifferenceType;
 
-      if (n == 0)
-	return;
+      _DifferenceType __n = __end - __begin;
 
       // At least one element per processor.
-      if (num_threads > n)
-	num_threads = static_cast<thread_index_t>(n);
+      if (__num_threads > __n)
+        __num_threads = static_cast<_ThreadIndex>(__n);
 
-      parallel_sort_qs_conquer(begin, begin + n, comp, num_threads);
+      __parallel_sort_qs_conquer(
+        __begin, __begin + __n, __comp, __num_threads);
     }
 
 } //namespace __gnu_parallel
 
-#endif
+#endif /* _GLIBCXX_PARALLEL_QUICKSORT_H */

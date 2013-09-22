@@ -75,7 +75,7 @@ public abstract class DuplicateNameHelper
   /**
    * Insert the DuplicateName into the given Any. This method uses the
    * DuplicateNameHolder.
-   * 
+   *
    * @param any the Any to insert into.
    * @param that the DuplicateName to insert.
    */
@@ -99,7 +99,7 @@ public abstract class DuplicateNameHelper
     catch (ClassCastException cex)
       {
         BAD_OPERATION bad = new BAD_OPERATION("DuplicateName expected");
-        bad.minor = Minor.Any;        
+        bad.minor = Minor.Any;
         bad.initCause(cex);
         throw bad;
       }
@@ -123,7 +123,7 @@ public abstract class DuplicateNameHelper
   public static DuplicateName read(InputStream input)
   {
     // Read the exception repository id.
-    String id = input.read_string();
+    input.read_string();
     DuplicateName value = new DuplicateName();
 
     value.name = input.read_string();

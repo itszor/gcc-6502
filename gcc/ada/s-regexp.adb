@@ -2,29 +2,27 @@
 --                                                                          --
 --                         GNAT COMPILER COMPONENTS                         --
 --                                                                          --
---                          G N A T . R E G E X P                           --
+--                        S Y S T E M . R E G E X P                         --
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---                     Copyright (C) 1999-2007, AdaCore                     --
+--                     Copyright (C) 1999-2012, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -32,7 +30,6 @@
 ------------------------------------------------------------------------------
 
 with Ada.Unchecked_Deallocation;
-with Ada.Exceptions;
 
 with System.Case_Util;
 
@@ -103,10 +100,12 @@ package body System.Regexp is
       Tmp : Regexp_Access;
 
    begin
-      Tmp := new Regexp_Value (Alphabet_Size => R.R.Alphabet_Size,
-                               Num_States    => R.R.Num_States);
-      Tmp.all := R.R.all;
-      R.R := Tmp;
+      if R.R /= null then
+         Tmp := new Regexp_Value (Alphabet_Size => R.R.Alphabet_Size,
+                                  Num_States    => R.R.Num_States);
+         Tmp.all := R.R.all;
+         R.R := Tmp;
+      end if;
    end Adjust;
 
    -------------
@@ -130,6 +129,13 @@ package body System.Regexp is
       --  Number of significant characters in the regular expression.
       --  This total does not include special operators, such as *, (, ...
 
+      procedure Check_Well_Formed_Pattern;
+      --  Check that the pattern to compile is well-formed, so that subsequent
+      --  code can rely on this without performing each time the checks to
+      --  avoid accessing the pattern outside its bounds. However, not all
+      --  well-formedness rules are checked. In particular, rules about special
+      --  characters not being treated as regular characters are not checked.
+
       procedure Create_Mapping;
       --  Creates a mapping between characters in the regexp and columns
       --  in the tables representing the regexp. Test that the regexp is
@@ -140,7 +146,7 @@ package body System.Regexp is
          Num_States  : out State_Index;
          Start_State : out State_Index;
          End_State   : out State_Index);
-      --  Creates the first version of the regexp (this is a non determinist
+      --  Creates the first version of the regexp (this is a non deterministic
       --  finite state machine, which is unadapted for a fast pattern
       --  matching algorithm). We use a recursive algorithm to process the
       --  parenthesis sub-expressions.
@@ -177,11 +183,285 @@ package body System.Regexp is
       --  add a third pass to reduce the number of states in the machine, with
       --  no speed improvement...
 
-      procedure Raise_Exception
-        (M     : String;
-         Index : Integer);
+      procedure Raise_Exception (M : String; Index : Integer);
       pragma No_Return (Raise_Exception);
       --  Raise an exception, indicating an error at character Index in S
+
+      -------------------------------
+      -- Check_Well_Formed_Pattern --
+      -------------------------------
+
+      procedure Check_Well_Formed_Pattern is
+         J : Integer;
+
+         Past_Elmt : Boolean := False;
+         --  Set to True everywhere an elmt has been parsed, if Glob=False,
+         --  meaning there can be now an occurrence of '*', '+' and '?'.
+
+         Past_Term : Boolean := False;
+         --  Set to True everywhere a term has been parsed, if Glob=False,
+         --  meaning there can be now an occurrence of '|'.
+
+         Parenthesis_Level : Integer := 0;
+         Curly_Level       : Integer := 0;
+
+         Last_Open : Integer := S'First - 1;
+         --  The last occurrence of an opening parenthesis, if Glob=False,
+         --  or the last occurrence of an opening curly brace, if Glob=True.
+
+         procedure Raise_Exception_If_No_More_Chars (K : Integer := 0);
+         --  If no more characters are raised, call Raise_Exception
+
+         --------------------------------------
+         -- Raise_Exception_If_No_More_Chars --
+         --------------------------------------
+
+         procedure Raise_Exception_If_No_More_Chars (K : Integer := 0) is
+         begin
+            if J + K > S'Last then
+               Raise_Exception ("Ill-formed pattern while parsing", J);
+            end if;
+         end Raise_Exception_If_No_More_Chars;
+
+      --  Start of processing for Check_Well_Formed_Pattern
+
+      begin
+         J := S'First;
+         while J <= S'Last loop
+            case S (J) is
+               when Open_Bracket =>
+                  J := J + 1;
+                  Raise_Exception_If_No_More_Chars;
+
+                  if not Glob then
+                     if S (J) = '^' then
+                        J := J + 1;
+                        Raise_Exception_If_No_More_Chars;
+                     end if;
+                  end if;
+
+                  --  The first character never has a special meaning
+
+                  if S (J) = ']' or else S (J) = '-' then
+                     J := J + 1;
+                     Raise_Exception_If_No_More_Chars;
+                  end if;
+
+                  --  The set of characters cannot be empty
+
+                  if S (J) = ']' then
+                     Raise_Exception
+                       ("Set of characters cannot be empty in regular "
+                          & "expression", J);
+                  end if;
+
+                  declare
+                     Possible_Range_Start : Boolean := True;
+                     --  Set True everywhere a range character '-' can occur
+
+                  begin
+                     loop
+                        exit when S (J) = Close_Bracket;
+
+                        --  The current character should be followed by a
+                        --  closing bracket.
+
+                        Raise_Exception_If_No_More_Chars (1);
+
+                        if S (J) = '-'
+                          and then S (J + 1) /= Close_Bracket
+                        then
+                           if not Possible_Range_Start then
+                              Raise_Exception
+                                ("No mix of ranges is allowed in "
+                                   & "regular expression", J);
+                           end if;
+
+                           J := J + 1;
+                           Raise_Exception_If_No_More_Chars;
+
+                           --  Range cannot be followed by '-' character,
+                           --  except as last character in the set.
+
+                           Possible_Range_Start := False;
+
+                        else
+                           Possible_Range_Start := True;
+                        end if;
+
+                        if S (J) = '\' then
+                           J := J + 1;
+                           Raise_Exception_If_No_More_Chars;
+                        end if;
+
+                        J := J + 1;
+                     end loop;
+                  end;
+
+                  --  A closing bracket can end an elmt or term
+
+                  Past_Elmt := True;
+                  Past_Term := True;
+
+               when Close_Bracket =>
+
+                  --  A close bracket must follow a open_bracket, and cannot be
+                  --  found alone on the line.
+
+                  Raise_Exception
+                    ("Incorrect character ']' in regular expression", J);
+
+               when '\' =>
+                  if J < S'Last then
+                     J := J + 1;
+
+                     --  Any character can be an elmt or a term
+
+                     Past_Elmt := True;
+                     Past_Term := True;
+
+                  else
+                     --  \ not allowed at the end of the regexp
+
+                     Raise_Exception
+                       ("Incorrect character '\' in regular expression", J);
+                  end if;
+
+               when Open_Paren =>
+                  if not Glob then
+                     Parenthesis_Level := Parenthesis_Level + 1;
+                     Last_Open := J;
+
+                     --  An open parenthesis does not end an elmt or term
+
+                     Past_Elmt := False;
+                     Past_Term := False;
+                  end if;
+
+               when Close_Paren =>
+                  if not Glob then
+                     Parenthesis_Level := Parenthesis_Level - 1;
+
+                     if Parenthesis_Level < 0 then
+                        Raise_Exception
+                          ("')' is not associated with '(' in regular "
+                           & "expression", J);
+                     end if;
+
+                     if J = Last_Open + 1 then
+                        Raise_Exception
+                          ("Empty parentheses not allowed in regular "
+                           & "expression", J);
+                     end if;
+
+                     if not Past_Term then
+                        Raise_Exception
+                          ("Closing parenthesis not allowed here in regular "
+                             & "expression", J);
+                     end if;
+
+                     --  A closing parenthesis can end an elmt or term
+
+                     Past_Elmt := True;
+                     Past_Term := True;
+                  end if;
+
+               when '{' =>
+                  if Glob then
+                     Curly_Level := Curly_Level + 1;
+                     Last_Open := J;
+
+                  else
+                     --  Any character can be an elmt or a term
+
+                     Past_Elmt := True;
+                     Past_Term := True;
+                  end if;
+
+                  --  No need to check for ',' as the code always accepts them
+
+               when '}' =>
+                  if Glob then
+                     Curly_Level := Curly_Level - 1;
+
+                     if Curly_Level < 0 then
+                        Raise_Exception
+                          ("'}' is not associated with '{' in regular "
+                           & "expression", J);
+                     end if;
+
+                     if J = Last_Open + 1 then
+                        Raise_Exception
+                          ("Empty curly braces not allowed in regular "
+                           & "expression", J);
+                     end if;
+
+                  else
+                     --  Any character can be an elmt or a term
+
+                     Past_Elmt := True;
+                     Past_Term := True;
+                  end if;
+
+               when '*' | '?' | '+' =>
+                  if not Glob then
+
+                     --  These operators must apply to an elmt sub-expression,
+                     --  and cannot be found if one has not just been parsed.
+
+                     if not Past_Elmt then
+                        Raise_Exception
+                          ("'*', '+' and '?' operators must be "
+                           & "applied to an element in regular expression", J);
+                     end if;
+
+                     Past_Elmt := False;
+                     Past_Term := True;
+                  end if;
+
+               when '|' =>
+                  if not Glob then
+
+                     --  This operator must apply to a term sub-expression,
+                     --  and cannot be found if one has not just been parsed.
+
+                     if not Past_Term then
+                        Raise_Exception
+                          ("'|' operator must be "
+                           & "applied to a term in regular expression", J);
+                     end if;
+
+                     Past_Elmt := False;
+                     Past_Term := False;
+                  end if;
+
+               when others =>
+                  if not Glob then
+
+                     --  Any character can be an elmt or a term
+
+                     Past_Elmt := True;
+                     Past_Term := True;
+                  end if;
+            end case;
+
+            J := J + 1;
+         end loop;
+
+         --  A closing parenthesis must follow an open parenthesis
+
+         if Parenthesis_Level /= 0 then
+            Raise_Exception
+              ("'(' must always be associated with a ')'", J);
+         end if;
+
+         --  A closing curly brace must follow an open curly brace
+
+         if Curly_Level /= 0 then
+            Raise_Exception
+              ("'{' must always be associated with a '}'", J);
+         end if;
+      end Check_Well_Formed_Pattern;
 
       --------------------
       -- Create_Mapping --
@@ -207,6 +487,7 @@ package body System.Regexp is
          J                 : Integer := S'First;
          Parenthesis_Level : Integer := 0;
          Curly_Level       : Integer := 0;
+         Last_Open         : Integer := S'First - 1;
 
       --  Start of processing for Create_Mapping
 
@@ -220,7 +501,7 @@ package body System.Regexp is
                      J := J + 1;
                   end if;
 
-                  if S (J) = ']' or S (J) = '-' then
+                  if S (J) = ']' or else S (J) = '-' then
                      J := J + 1;
                   end if;
 
@@ -284,6 +565,7 @@ package body System.Regexp is
                when Open_Paren =>
                   if not Glob then
                      Parenthesis_Level := Parenthesis_Level + 1;
+                     Last_Open := J;
                   else
                      Add_In_Map (Open_Paren);
                   end if;
@@ -298,7 +580,7 @@ package body System.Regexp is
                            & "expression", J);
                      end if;
 
-                     if S (J - 1) = Open_Paren then
+                     if J = Last_Open + 1 then
                         Raise_Exception
                           ("Empty parenthesis not allowed in regular "
                            & "expression", J);
@@ -620,7 +902,7 @@ package body System.Regexp is
 
                         --  Automatically add the first character
 
-                        if S (J) = '-' or S (J) = ']' then
+                        if S (J) = '-' or else S (J) = ']' then
                            Set (Table, Current_State, Map (S (J)),
                                 Value => Next_State);
                            J := J + 1;
@@ -900,7 +1182,7 @@ package body System.Regexp is
 
                         --  Automatically add the first character
 
-                        if S (J) = '-' or S (J) = ']' then
+                        if S (J) = '-' or else S (J) = ']' then
                            Set (Table, Current_State, Map (S (J)),
                                 Value => Current_State);
                            J := J + 1;
@@ -1139,7 +1421,7 @@ package body System.Regexp is
             end loop;
          end Closure;
 
-      --  Start of procesing for Create_Secondary_Table
+      --  Start of processing for Create_Secondary_Table
 
       begin
          --  Create a new state
@@ -1223,13 +1505,9 @@ package body System.Regexp is
       -- Raise_Exception --
       ---------------------
 
-      procedure Raise_Exception
-        (M     : String;
-         Index : Integer)
-      is
+      procedure Raise_Exception (M : String; Index : Integer) is
       begin
-         Ada.Exceptions.Raise_Exception
-           (Error_In_Regexp'Identity, M & " at offset " & Index'Img);
+         raise Error_In_Regexp with M & " at offset" & Index'Img;
       end Raise_Exception;
 
    --  Start of processing for Compile
@@ -1252,12 +1530,16 @@ package body System.Regexp is
          System.Case_Util.To_Lower (S);
       end if;
 
+      --  Check the pattern is well-formed before any treatment
+
+      Check_Well_Formed_Pattern;
+
       Create_Mapping;
 
       --  Creates the primary table
 
       declare
-         Table : Regexp_Array_Access;
+         Table       : Regexp_Array_Access;
          Num_States  : State_Index;
          Start_State : State_Index;
          End_State   : State_Index;

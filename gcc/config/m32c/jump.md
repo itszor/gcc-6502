@@ -1,6 +1,5 @@
 ;; Machine Descriptions for R8C/M16C/M32C
-;; Copyright (C) 2005, 2007
-;; Free Software Foundation, Inc.
+;; Copyright (C) 2005-2013 Free Software Foundation, Inc.
 ;; Contributed by Red Hat.
 ;;
 ;; This file is part of GCC.
@@ -82,6 +81,7 @@ switch (which_alternative) {
     }
   case 1: return TARGET_A16 ? \"push.w %a0 | jsr.a\tm32c_jsri16\" : \"jsri.a\t%a0\";
   case 2: return \"jsri.a\t%a0\";
+  default: gcc_unreachable ();
 }"
   [(set_attr "flags" "x")]
   )
@@ -108,6 +108,27 @@ switch (which_alternative) {
     }
   case 1: return TARGET_A16 ? \"push.w %a1 | jsr.a\tm32c_jsri16\" : \"jsri.a\t%a1\";
   case 2: return \"jsri.a\t%a1\";
+  default: gcc_unreachable ();
 }"
   [(set_attr "flags" "x,x,x")]
   )
+
+(define_expand "untyped_call"
+  [(parallel [(call (match_operand 0 "" "")
+                    (const_int 0))
+              (match_operand 1 "" "")
+              (match_operand 2 "" "")])]
+  ""
+  "
+{
+  int i;
+
+  emit_call_insn (gen_call (operands[0], const0_rtx, const0_rtx));
+
+  for (i = 0; i < XVECLEN (operands[2], 0); i++)
+    {
+      rtx set = XVECEXP (operands[2], 0, i);
+      emit_move_insn (SET_DEST (set), SET_SRC (set));
+    }
+  DONE;
+}")

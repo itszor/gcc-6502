@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 2000-2006, AdaCore                     --
+--                     Copyright (C) 2000-2010, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -46,6 +44,8 @@
 --  Note that this interface should remain synchronized with those in
 --  GNAT.Table and the GNAT compiler source unit Table to keep as much
 --  coherency as possible between these three related units.
+
+pragma Compiler_Unit;
 
 generic
    type Table_Component_Type is private;
@@ -91,17 +91,19 @@ package GNAT.Dynamic_Tables is
 
    type Table_Type is
      array (Table_Index_Type range <>) of Table_Component_Type;
-
    subtype Big_Table_Type is
      Table_Type (Table_Low_Bound .. Table_Index_Type'Last);
-   --  We work with pointers to a bogus array type that is constrained
-   --  with the maximum possible range bound. This means that the pointer
-   --  is a thin pointer, which is more efficient. Since subscript checks
-   --  in any case must be on the logical, rather than physical bounds,
-   --  safety is not compromised by this approach.
+   --  We work with pointers to a bogus array type that is constrained with
+   --  the maximum possible range bound. This means that the pointer is a thin
+   --  pointer, which is more efficient. Since subscript checks in any case
+   --  must be on the logical, rather than physical bounds, safety is not
+   --  compromised by this approach. These types should not be used by the
+   --  client.
 
    type Table_Ptr is access all Big_Table_Type;
-   --  The table is actually represented as a pointer to allow reallocation
+   for Table_Ptr'Storage_Size use 0;
+   --  The table is actually represented as a pointer to allow reallocation.
+   --  This type should not be used by the client.
 
    type Table_Private is private;
    --  Table private data that is not exported in Instance
@@ -166,6 +168,9 @@ package GNAT.Dynamic_Tables is
    --    T.Table (T.Last) := New_Val;
    --  i.e. the table size is increased by one, and the given new item
    --  stored in the newly created table element.
+
+   procedure Append_All (T : in out Instance; New_Vals : Table_Type);
+   --  Appends all components of New_Vals
 
    procedure Set_Item
      (T     : in out Instance;

@@ -2,22 +2,22 @@
 ! Check for conflicts
 ! PR fortran/29657
 
-function f1() ! { dg-error "has no IMPLICIT type" }
+function f1() ! { dg-error "PROCEDURE attribute conflicts with SAVE attribute" }
   implicit none
-  real, save :: f1 ! { dg-error "PROCEDURE attribute conflicts with SAVE attribute" }
+  real, save :: f1
   f1 = 1.0
 end function f1
 
-function f2()
+function f2() ! { dg-error "PROCEDURE attribute conflicts with SAVE attribute" }
   implicit none
   real :: f2
-  save f2 ! { dg-error "PROCEDURE attribute conflicts with SAVE attribute" }
+  save f2
   f2 = 1.0
 end function f2
 
 subroutine f3()
   implicit none
-  dimension f3(3) ! { dg-error "PROCEDURE attribute conflicts with DIMENSION attribute" }
+  dimension f3(3) ! { dg-error "SUBROUTINE attribute conflicts with DIMENSION attribute" }
 end subroutine f3
 
 subroutine f4(b)

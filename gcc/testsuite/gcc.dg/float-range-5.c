@@ -1,7 +1,8 @@
 /* PR 23572 : warnings for out of range floating-point constants 
    Test that they are NOT pedantic warnings.  */
-/* { dg-compile } */
+/* { dg-do compile } */
 /* { dg-options "-pedantic-errors -std=c99" } */
+/* { dg-skip-if "No Inf support" { spu-*-* } } */
 #include <math.h>
 
 #ifndef INFINITY

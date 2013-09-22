@@ -1,5 +1,5 @@
 /* gnu_java_awt_peer_gtk_CairoGraphics2d.c
-   Copyright (C) 2006  Free Software Foundation, Inc.
+   Copyright (C) 2006, 2008  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
    
@@ -41,10 +41,8 @@ exception statement from your version. */
 #include "gnu_java_awt_peer_gtk_CairoGraphics2D.h"
 #include <gdk/gdktypes.h>
 #include <gdk/gdkprivate.h>
-#include <gdk/gdkx.h>
 
 #include <cairo-ft.h>
-#include <cairo-xlib.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -353,7 +351,6 @@ Java_gnu_java_awt_peer_gtk_CairoGraphics2D_cairoDrawGlyphVector
   for (i = 0; i < n; i++)
     {
       PangoFcFont *font = JLONG_TO_PTR(PangoFcFont, fonts[i]);
-  gdk_threads_leave ();
 
       /* Draw as many glyphs as possible with the current font */
       int length = 0;
@@ -373,8 +370,9 @@ Java_gnu_java_awt_peer_gtk_CairoGraphics2D_cairoDrawGlyphVector
       cairo_font_face_destroy (ft);
       pango_fc_font_unlock_face(font);
     }
-    gdk_threads_leave();
+  gdk_threads_leave();
     
+  (*env)->ReleaseLongArrayElements (env, java_fontset, fonts, 0);
   g_free(glyphs);
 }
 

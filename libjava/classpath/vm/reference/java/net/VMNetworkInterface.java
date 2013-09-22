@@ -1,5 +1,5 @@
 /* VMNetworkInterface.java --
-   Copyright (C) 2005  Free Software Foundation, Inc.
+   Copyright (C) 2005, 2008  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -57,21 +57,21 @@ import java.util.Set;
 final class VMNetworkInterface
 {
   String name;
-  Set<InetAddress> addresses;
+  Set addresses;
 
   VMNetworkInterface(String name)
   {
     this.name = name;
-    addresses = new HashSet<InetAddress>();
+    addresses = new HashSet();
   }
-  
+
   /**
    * Creates a dummy instance which represents any network
    * interface.
    */
   public VMNetworkInterface()
   {
-    addresses = new HashSet<InetAddress>();
+    addresses = new HashSet();
     try
       {
         addresses.add(InetAddress.getByName("0.0.0.0"));
@@ -81,15 +81,15 @@ final class VMNetworkInterface
         // Cannot happen.
       }
   }
-  
+
   static
   {
     if (Configuration.INIT_LOAD_LIBRARY)
       System.loadLibrary("javanet");
-    
+
     initIds();
   }
-  
+
   private static native void initIds();
 
   /**
@@ -100,7 +100,7 @@ final class VMNetworkInterface
    */
   public static native VMNetworkInterface[] getVMInterfaces()
     throws SocketException;
-  
+
   private void addAddress(ByteBuffer addr)
     throws SocketException, UnknownHostException
   {
@@ -119,4 +119,13 @@ final class VMNetworkInterface
     else
       throw new SocketException("invalid interface address");
   }
+
+  static native boolean isUp(String name) throws SocketException;
+
+  static native boolean isLoopback(String name) throws SocketException;
+
+  static native boolean isPointToPoint(String name) throws SocketException;
+
+  static native boolean supportsMulticast(String name) throws SocketException;
+
 }

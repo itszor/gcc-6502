@@ -1,9 +1,9 @@
-// Copyright (C) 2001, 2004, 2005 Free Software Foundation, Inc.
+// Copyright (C) 2001-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -12,53 +12,15 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
-// 23.2.2.1 list constructors, copy, and assignment
-
+#include "8.h"
 #include <list>
-#include <testsuite_hooks.h>
-
-bool test __attribute__((unused)) = true;
-
-
-// A nontrivial type.
-template<typename T>
-  struct A { };
-
-// Another nontrivial type
-struct B { };
-
-// A nontrivial type convertible from an int
-struct C {
-  C(int i) : i_(i) { }
-  bool operator==(const C& rhs) { return i_ == rhs.i_; }
-  int i_;
-};
-
-// Fill Assignment disguised as a Range Assignment
-void
-test06D()
-{
-  const std::size_t LIST_SIZE = 5;
-  const int INIT_VALUE = 7;
-  std::size_t count = 0;
-  std::list<C> list0604;
-  VERIFY(list0604.size() == 0);
-  
-  list0604.assign(LIST_SIZE, INIT_VALUE);
-  std::list<C>::iterator i = list0604.begin();
-  for (; i != list0604.end(); ++i, ++count)
-    VERIFY(*i == INIT_VALUE);
-  VERIFY(count == LIST_SIZE);
-  VERIFY(list0604.size() == LIST_SIZE);
-}
 
 int main()
 {
-  test06D();
+  cons08<std::list<C> >();
   return 0;
 }
 

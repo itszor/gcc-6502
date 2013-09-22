@@ -1,5 +1,5 @@
 /* Subroutines for the gcc driver.
-   Copyright (C) 2007 Free Software Foundation, Inc.
+   Copyright (C) 2007-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -31,7 +31,7 @@ along with GCC; see the file COPYING3.  If not see
 # include <link.h>
 #endif
 
-#ifdef __APPLE__
+#if defined (__APPLE__) || (__FreeBSD__)
 # include <sys/types.h>
 # include <sys/sysctl.h>
 #endif
@@ -123,6 +123,36 @@ detect_processor_darwin (void)
 }
 
 #endif /* __APPLE__ */
+
+#ifdef __FreeBSD__
+
+/* Returns the description of caches on FreeBSD PPC.  */
+
+static char *
+detect_caches_freebsd (void)
+{
+  unsigned l1_sizekb, l1_line, l1_assoc, l2_sizekb;
+  size_t len = 4;
+
+  /* Currently, as of FreeBSD-7.0, there is only the cacheline_size
+     available via sysctl.  */
+  sysctlbyname ("machdep.cacheline_size", &l1_line, &len, NULL, 0);
+
+  l1_sizekb = 32;
+  l1_assoc = 0;
+  l2_sizekb = 512;
+
+  return describe_cache (l1_sizekb, l1_line, l1_assoc, l2_sizekb);
+}
+
+/* Currently returns default powerpc.  */
+static const char *
+detect_processor_freebsd (void)
+{
+  return "powerpc";
+}
+
+#endif /* __FreeBSD__  */
 
 #ifdef __linux__
 
@@ -265,15 +295,6 @@ detect_processor_aix (void)
 {
   switch (_system_configuration.implementation)
     {
-    case 0x0001:
-      return "rios1";
-
-    case 0x0002:
-      return "rsc";
-
-    case 0x0004:
-      return "rios2";
-
     case 0x0008:
       return "601";
 
@@ -313,10 +334,103 @@ detect_processor_aix (void)
 #endif /* _AIX */
 
 
+/*
+ * Array to map -mcpu=native names to the switches passed to the assembler.
+ * This list mirrors the specs in ASM_CPU_SPEC, and any changes made here
+ * should be made there as well.
+ */
+
+struct asm_name {
+  const char *cpu;
+  const char *asm_sw;
+};
+
+static const struct asm_name asm_names[] = {
+#if defined (_AIX)
+  { "power3",	"-m620" },
+  { "power4",	"-mpwr4" },
+  { "power5",	"-mpwr5" },
+  { "power5+",	"-mpwr5x" },
+  { "power6",	"-mpwr6" },
+  { "power6x",	"-mpwr6" },
+  { "power7",	"-mpwr7" },
+  { "power8",	"-mpwr8" },
+  { "powerpc",	"-mppc" },
+  { "rs64a",	"-mppc" },
+  { "603",	"-m603" },
+  { "603e",	"-m603" },
+  { "604",	"-m604" },
+  { "604e",	"-m604" },
+  { "620",	"-m620" },
+  { "630",	"-m620" },
+  { "970",	"-m970" },
+  { "G5",	"-m970" },
+  { NULL,	"\
+%{!maix64: \
+%{mpowerpc64: -mppc64} \
+%{maltivec: -m970} \
+%{!maltivec: %{!mpowerpc64: %(asm_default)}}}" },
+
+#else
+  { "cell",	"-mcell" },
+  { "power3",	"-mppc64" },
+  { "power4",	"-mpower4" },
+  { "power5",	"%(asm_cpu_power5)" },
+  { "power5+",	"%(asm_cpu_power5)" },
+  { "power6",	"%(asm_cpu_power6) -maltivec" },
+  { "power6x",	"%(asm_cpu_power6) -maltivec" },
+  { "power7",	"%(asm_cpu_power7)" },
+  { "power8",	"%(asm_cpu_power8)" },
+  { "powerpc",	"-mppc" },
+  { "rs64a",	"-mppc64" },
+  { "401",	"-mppc" },
+  { "403",	"-m403" },
+  { "405",	"-m405" },
+  { "405fp",	"-m405" },
+  { "440",	"-m440" },
+  { "440fp",	"-m440" },
+  { "464",	"-m440" },
+  { "464fp",	"-m440" },
+  { "505",	"-mppc" },
+  { "601",	"-m601" },
+  { "602",	"-mppc" },
+  { "603",	"-mppc" },
+  { "603e",	"-mppc" },
+  { "ec603e",	"-mppc" },
+  { "604",	"-mppc" },
+  { "604e",	"-mppc" },
+  { "620",	"-mppc64" },
+  { "630",	"-mppc64" },
+  { "740",	"-mppc" },
+  { "750",	"-mppc" },
+  { "G3",	"-mppc" },
+  { "7400",	"-mppc -maltivec" },
+  { "7450",	"-mppc -maltivec" },
+  { "G4",	"-mppc -maltivec" },
+  { "801",	"-mppc" },
+  { "821",	"-mppc" },
+  { "823",	"-mppc" },
+  { "860",	"-mppc" },
+  { "970",	"-mpower4 -maltivec" },
+  { "G5",	"-mpower4 -maltivec" },
+  { "8540",	"-me500" },
+  { "8548",	"-me500" },
+  { "e300c2",	"-me300" },
+  { "e300c3",	"-me300" },
+  { "e500mc",	"-me500mc" },
+  { NULL,	"\
+%{mpowerpc64*: -mppc64} \
+%{!mpowerpc64*: %(asm_default)}" },
+#endif
+};
+
 /* This will be called by the spec parser in gcc.c when it sees
    a %:local_cpu_detect(args) construct.  Currently it will be called
    with either "arch" or "tune" as argument depending on if -march=native
    or -mtune=native is to be substituted.
+
+   Additionally it will be called with "asm" to select the appropriate flags
+   for the assembler.
 
    It returns a string containing new command line parameters to be
    put at the place of the above two options, depending on what CPU
@@ -324,42 +438,65 @@ detect_processor_aix (void)
 
    ARGC and ARGV are set depending on the actual arguments given
    in the spec.  */
-const char
-*host_detect_local_cpu (int argc, const char **argv)
+const char *
+host_detect_local_cpu (int argc, const char **argv)
 {
   const char *cpu = NULL;
   const char *cache = "";
   const char *options = "";
   bool arch;
+  bool assembler;
+  size_t i;
 
   if (argc < 1)
     return NULL;
 
   arch = strcmp (argv[0], "cpu") == 0;
-  if (!arch && strcmp (argv[0], "tune"))
+  assembler = (!arch && strcmp (argv[0], "asm") == 0);
+  if (!arch && !assembler && strcmp (argv[0], "tune"))
     return NULL;
 
+  if (! assembler)
+    {
 #if defined (_AIX)
-  cache = detect_caches_aix ();
+      cache = detect_caches_aix ();
 #elif defined (__APPLE__)
-  cache = detect_caches_darwin ();
+      cache = detect_caches_darwin ();
+#elif defined (__FreeBSD__)
+      cache = detect_caches_freebsd ();
+      /* FreeBSD PPC does not provide any cache information yet.  */
+      cache = "";
 #elif defined (__linux__)
-  cache = detect_caches_linux ();
-  /* PPC Linux does not provide any cache information yet.  */
-  cache = "";
+      cache = detect_caches_linux ();
+      /* PPC Linux does not provide any cache information yet.  */
+      cache = "";
 #else
-  cache = "";
+      cache = "";
 #endif
+    }
 
 #if defined (_AIX)
   cpu = detect_processor_aix ();
 #elif defined (__APPLE__)
   cpu = detect_processor_darwin ();
+#elif defined (__FreeBSD__)
+  cpu = detect_processor_freebsd ();
 #elif defined (__linux__)
   cpu = detect_processor_linux ();
 #else
   cpu = "powerpc";
 #endif
+
+  if (assembler)
+    {
+      for (i = 0; i < sizeof (asm_names) / sizeof (asm_names[0]); i++)
+	{
+	  if (!asm_names[i].cpu || !strcmp (asm_names[i].cpu, cpu))
+	    return asm_names[i].asm_sw;
+	}
+
+      return NULL;
+    }
 
   return concat (cache, "-m", argv[0], "=", cpu, " ", options, NULL);
 }
@@ -368,7 +505,8 @@ const char
 
 /* If we aren't compiling with GCC we just provide a minimal
    default value.  */
-const char *host_detect_local_cpu (int argc, const char **argv)
+const char *
+host_detect_local_cpu (int argc, const char **argv)
 {
   const char *cpu;
   bool arch;

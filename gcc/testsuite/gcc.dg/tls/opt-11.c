@@ -1,8 +1,11 @@
 /* { dg-do run } */
 /* { dg-require-effective-target tls_runtime } */
+/* { dg-add-options tls } */
+
+__extension__ typedef __SIZE_TYPE__ size_t;
 
 extern void abort (void);
-extern void *memset (void *, int, __SIZE_TYPE__);
+extern void *memset (void *, int, size_t);
 
 struct A
 {

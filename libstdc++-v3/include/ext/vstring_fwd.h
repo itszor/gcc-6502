@@ -1,11 +1,11 @@
-// Versatile string forward -*- C++ -*-
+// <vstring.h> Forward declarations -*- C++ -*-
 
-// Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -13,24 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 /** @file ext/vstring_fwd.h
- *  This file is a GNU extension to the Standard C++ Library.
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ext/vstring.h}
  */
 
 #ifndef _VSTRING_FWD_H
@@ -42,7 +36,9 @@
 #include <bits/char_traits.h>
 #include <bits/allocator.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits, typename _Alloc>
     class __sso_string_base;
@@ -70,6 +66,24 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		 std::allocator<wchar_t>, __rc_string_base> __wrc_string;
 #endif  
 
-_GLIBCXX_END_NAMESPACE
+#if ((__cplusplus >= 201103L) \
+     && defined(_GLIBCXX_USE_C99_STDINT_TR1))
+
+  typedef __versa_string<char16_t>                          __u16vstring;
+  typedef __u16vstring                                      __u16sso_string;
+  typedef 
+  __versa_string<char16_t, std::char_traits<char16_t>,
+		 std::allocator<char16_t>, __rc_string_base> __u16rc_string;
+
+  typedef __versa_string<char32_t>                          __u32vstring;
+  typedef __u32vstring                                      __u32sso_string;
+  typedef 
+  __versa_string<char32_t, std::char_traits<char32_t>,
+		 std::allocator<char32_t>, __rc_string_base> __u32rc_string;
+
+#endif
+
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 
 #endif /* _VSTRING_FWD_H */

@@ -5,9 +5,9 @@
 
 #define N 64
 
-unsigned char uX[N] __attribute__ ((__aligned__(16)));
+unsigned char uX[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 unsigned short uresult[N];
-signed char X[N] __attribute__ ((__aligned__(16)));
+signed char X[N] __attribute__ ((__aligned__(__BIGGEST_ALIGNMENT__)));
 short result[N];
 
 /* Unsigned type promotion (qi->hi) */
@@ -39,6 +39,7 @@ int main (void)
   for (i=0; i<N; i++) {
     X[i] = 16-i;
     uX[i] = 16-i;
+    __asm__ volatile ("");
   }
 
   foo1 (N);

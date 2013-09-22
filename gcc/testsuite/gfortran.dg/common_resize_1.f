@@ -13,13 +13,13 @@ c
 c
 c     unpack connection data
 c
-      common/aux32/kka(lnv),kkb(lnv),kkc(lnv),
+      common/aux32/kka(lnv),kkb(lnv),kkc(lnv), ! { dg-warning "shall be of the same size as elsewhere" }
      1 kk1(lnv),kk2(lnv),kk3(lnv),dxy(lnv),
      2 dyx(lnv),dyz(lnv),dzy(lnv),dzx(lnv),
      3 dxz(lnv),vx17(lnv),vx28(lnv),vx35(lnv),
      4 vx46(lnv),vy17(lnv),vy28(lnv),
      5 vy35(lnv),vy46(lnv),vz17(lnv),vz28(lnv),vz35(lnv),vz46(lnv)
-      common/aux33/ix1(lnv),ix2(lnv),ix3(lnv),ix4(lnv),ix5(lnv),
+      common/aux33/ix1(lnv),ix2(lnv),ix3(lnv),ix4(lnv),ix5(lnv), ! { dg-warning "shall be of the same size as elsewhere" }
      1             ix6(lnv),ix7(lnv),ix8(lnv),mxt(lnv)
       dimension ixp(nwcon,*)
 c
@@ -49,14 +49,15 @@ c
      7 vy5(lnv),vy6(lnv),vy7(lnv),vy8(lnv),
      8 vz1(lnv),vz2(lnv),vz3(lnv),vz4(lnv),
      9 vz5(lnv),vz6(lnv),vz7(lnv),vz8(lnv)
-      common/aux32/    ! { dg-warning "shall be of the same size" }
+                       ! XFAILed here and below because of PRs 45045 and 45044
+      common/aux32/    ! { dg-warning "shall be of the same size" "" { xfail *-*-*} }
      a a17(lnv),a28(lnv),dett(lnv),
      1 aj1(lnv),aj2(lnv),aj3(lnv),aj4(lnv),
      2 aj5(lnv),aj6(lnv),aj7(lnv),aj8(lnv),
      3 aj9(lnv),x17(lnv),x28(lnv),x35(lnv),
      4 x46(lnv),y17(lnv),y28(lnv),y35(lnv),
      5 y46(lnv),z17(lnv),z28(lnv),z35(lnv),z46(lnv)
-      common/aux33/    ! { dg-warning "shall be of the same size" }
+      common/aux33/    ! { dg-warning "shall be of the same size" "" { xfail *-*-*} }
      a ix1(lnv),ix2(lnv),ix3(lnv),ix4(lnv),ix5(lnv),
      1             ix6(lnv),ix7(lnv),ix8(lnv),mxt(lnv),nmel
       common/aux36/lft,llt

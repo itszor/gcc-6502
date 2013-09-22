@@ -239,6 +239,35 @@ dnl 2) has "C" linkage
 dnl
 dnl argument 1 is name of function to check
 dnl
+dnl ASSUMES argument is a stdlib function with ONE parameter
+dnl
+dnl GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1
+AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1], [
+  AC_MSG_CHECKING([for $1 declaration])
+  if test x${glibcxx_cv_func_$1_use+set} != xset; then
+    AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
+      AC_LANG_SAVE
+      AC_LANG_CPLUSPLUS
+      AC_TRY_COMPILE([#include <stdlib.h>],
+                     [ $1(0);],
+                     [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
+      AC_LANG_RESTORE
+    ])
+  fi
+  AC_MSG_RESULT($glibcxx_cv_func_$1_use)
+  if test x$glibcxx_cv_func_$1_use = x"yes"; then
+    AC_CHECK_FUNCS($1)
+  fi
+])
+
+
+dnl
+dnl Check to see if the (stdlib function) argument passed is
+dnl 1) declared when using the c++ compiler
+dnl 2) has "C" linkage
+dnl
+dnl argument 1 is name of function to check
+dnl
 dnl ASSUMES argument is a stdlib function with TWO parameters
 dnl
 dnl GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2
@@ -291,94 +320,6 @@ AC_DEFUN([GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_3], [
 ])
 
 dnl
-dnl Because the builtins are picky picky picky about the arguments they take,
-dnl do an explict linkage tests here.
-dnl Check to see if the (math function) argument passed is
-dnl 1) declared when using the c++ compiler
-dnl 2) has "C" linkage
-dnl
-dnl Define HAVE_CARGF etc if "cargf" is declared and links
-dnl
-dnl argument 1 is name of function to check
-dnl
-dnl ASSUMES argument is a math function with ONE parameter
-dnl
-dnl GLIBCXX_CHECK_BUILTIN_MATH_DECL_LINKAGE_1
-AC_DEFUN([GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1], [
-  AC_MSG_CHECKING([for $1 declaration])
-  if test x${glibcxx_cv_func_$1_use+set} != xset; then
-    AC_CACHE_VAL(glibcxx_cv_func_$1_use, [
-      AC_LANG_SAVE
-      AC_LANG_CPLUSPLUS
-      AC_TRY_COMPILE([#include <math.h>],
-                     [ $1(0);],
-                     [glibcxx_cv_func_$1_use=yes], [glibcxx_cv_func_$1_use=no])
-      AC_LANG_RESTORE
-    ])
-  fi
-  AC_MSG_RESULT($glibcxx_cv_func_$1_use)
-  if test x$glibcxx_cv_func_$1_use = x"yes"; then
-    AC_MSG_CHECKING([for $1 linkage])
-    if test x${glibcxx_cv_func_$1_link+set} != xset; then
-      AC_CACHE_VAL(glibcxx_cv_func_$1_link, [
-        AC_TRY_LINK([#include <math.h>],
-                    [ $1(0);],
-                    [glibcxx_cv_func_$1_link=yes], [glibcxx_cv_func_$1_link=no])
-      ])
-    fi
-    AC_MSG_RESULT($glibcxx_cv_func_$1_link)
-    define([NAME], [translit([$1],[abcdefghijklmnopqrstuvwxyz],
-    				  [ABCDEFGHIJKLMNOPQRSTUVWXYZ])])
-    if test x$glibcxx_cv_func_$1_link = x"yes"; then
-      AC_DEFINE([HAVE_]NAME, 1, [Define if the compiler/host combination has $1.])
-    fi
-    undefine([NAME])
-  fi
-])
-
-
-dnl
-dnl Check to see what builtin math functions are supported
-dnl
-dnl check for __builtin_abs
-dnl check for __builtin_fabsf
-dnl check for __builtin_fabs
-dnl check for __builtin_fabl
-dnl check for __builtin_labs
-dnl check for __builtin_sqrtf
-dnl check for __builtin_sqrtl
-dnl check for __builtin_sqrt
-dnl check for __builtin_sinf
-dnl check for __builtin_sin
-dnl check for __builtin_sinl
-dnl check for __builtin_cosf
-dnl check for __builtin_cos
-dnl check for __builtin_cosl
-dnl
-dnl GLIBCXX_CHECK_BUILTIN_MATH_SUPPORT
-AC_DEFUN([GLIBCXX_CHECK_BUILTIN_MATH_SUPPORT], [
-  dnl Test for builtin math functions.
-  dnl These are made in gcc/c-common.c
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_abs)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_fabsf)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_fabs)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_fabsl)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_labs)
-
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sqrtf)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sqrt)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sqrtl)
-
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sinf)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sin)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_sinl)
-
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_cosf)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_cos)
-  GLIBCXX_CHECK_BUILTIN_MATH_DECL_AND_LINKAGE_1(__builtin_cosl)
-])
-
-dnl
 dnl Check to see what the underlying c library is like
 dnl These checks need to do two things:
 dnl 1) make sure the name is declared when using the c++ compiler
@@ -394,6 +335,8 @@ AC_DEFUN([GLIBCXX_CHECK_STDLIB_SUPPORT], [
   ac_save_CXXFLAGS="$CXXFLAGS"
   CXXFLAGS='-fno-builtin -D_GNU_SOURCE'
 
+  GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1(at_quick_exit)
+  GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_1(quick_exit)
   GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2(strtold)
   GLIBCXX_CHECK_STDLIB_DECL_AND_LINKAGE_2(strtof)
 
@@ -424,7 +367,6 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_SUPPORT], [
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(isinf)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(isnan)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(finite)
-  GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_2(copysign)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_3(sincos)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(fpclass)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(qfpclass)
@@ -468,7 +410,6 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_SUPPORT], [
                                           ceill floorl)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(isnanl)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(isinfl)
-  GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_2(copysignl)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_2(atan2l)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(expl)
   GLIBCXX_CHECK_MATH_DECL_AND_LINKAGE_1(fabsl)
@@ -487,53 +428,3 @@ AC_DEFUN([GLIBCXX_CHECK_MATH_SUPPORT], [
   LIBS="$ac_save_LIBS"
   CXXFLAGS="$ac_save_CXXFLAGS"
 ])
-
-
-dnl
-dnl Check to see if there is native support for complex
-dnl
-dnl Don't compile bits in math/* if native support exits.
-dnl
-dnl Define USE_COMPLEX_LONG_DOUBLE etc if "copysignl" is found.
-dnl
-dnl GLIBCXX_CHECK_COMPLEX_MATH_SUPPORT
-AC_DEFUN([GLIBCXX_CHECK_COMPLEX_MATH_SUPPORT], [
-  dnl Check for complex versions of math functions of platform.  This will
-  dnl always pass if libm is available, and fail if it isn't.  If it is
-  dnl available, we assume we'll need it later, so add it to LIBS.
-  AC_CHECK_LIB(m, main)
-  AC_REPLACE_MATHFUNCS(copysignf)
-
-  dnl For __signbit to signbit conversions.
-  dnl Not sure why this is done, as these will be macros mostly. 
-  dnl Should probably coordinate this with std_cmath.h.
-  AC_CHECK_FUNCS([__signbit], , [LIBMATHOBJS="$LIBMATHOBJS signbit.lo"])
-
-  AC_CHECK_FUNCS([__signbitf], , [LIBMATHOBJS="$LIBMATHOBJS signbitf.lo"])
-
-  dnl Compile the long double complex functions only if the function
-  dnl provides the non-complex long double functions that are needed.
-  dnl Currently this includes copysignl, which should be
-  dnl cached from the GLIBCXX_CHECK_MATH_SUPPORT macro, above.
-  if test x$ac_cv_func_copysignl = x"yes"; then
-    AC_CHECK_FUNCS([__signbitl], , [LIBMATHOBJS="$LIBMATHOBJS signbitl.lo"])
-  fi
-
-  # Used in libmath/Makefile.am.
-  if test -n "$LIBMATHOBJS"; then
-    need_libmath=yes
-  fi
-  AC_SUBST(LIBMATHOBJS)
-])
-
-
-# Check for functions in math library.
-# Ulrich Drepper <drepper@cygnus.com>, 1998.
-#
-# This file can be copied and used freely without restrictions.  It can
-# be used in projects which are not available under the GNU Public License
-# but which still want to provide support for the GNU gettext functionality.
-# Please note that the actual code is *not* freely available.
-dnl AC_REPLACE_MATHFUNCS(FUNCTION...)
-AC_DEFUN([AC_REPLACE_MATHFUNCS],
-[AC_CHECK_FUNCS([$1], , [LIBMATHOBJS="$LIBMATHOBJS ${ac_func}.lo"])])

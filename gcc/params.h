@@ -1,5 +1,5 @@
 /* params.h - Run-time parameters.
-   Copyright (C) 2001, 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2001-2013 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
 This file is part of GCC.
@@ -43,18 +43,16 @@ typedef struct param_info
   /* The name used with the `--param <name>=<value>' switch to set this
      value.  */
   const char *const option;
-  /* The associated value.  */
-  int value;
 
-  /* True if the parameter was explicitly set.  */
-  bool set;
+  /* The default value.  */
+  int default_value;
 
   /* Minimum acceptable value.  */
   int min_value;
-  
+
   /* Maximum acceptable value, if greater than minimum  */
   int max_value;
-  
+
   /* A short description of the option.  */
   const char *const help;
 } param_info;
@@ -64,13 +62,19 @@ typedef struct param_info
 
 extern param_info *compiler_params;
 
+/* Returns the number of entries in the table, for the use by plugins.  */
+extern size_t get_num_compiler_params (void);
+
 /* Add the N PARAMS to the current list of compiler parameters.  */
 
 extern void add_params (const param_info params[], size_t n);
 
-/* Set the VALUE associated with the parameter given by NAME.  */
+/* Set the VALUE associated with the parameter given by NAME in the
+   table PARAMS using PARAMS_SET to indicate which have been
+   explicitly set.  */
 
-extern void set_param_value (const char *name, int value);
+extern void set_param_value (const char *name, int value,
+			     int *params, int *params_set);
 
 
 /* The parameters in use by language-independent code.  */
@@ -84,27 +88,40 @@ typedef enum compiler_param
   LAST_PARAM
 } compiler_param;
 
-/* The value of the parameter given by ENUM.  */
+/* The value of the parameter given by ENUM.  Not an lvalue.  */
 #define PARAM_VALUE(ENUM) \
-  (compiler_params[(int) ENUM].value)
+  ((int) global_options.x_param_values[(int) ENUM])
 
-/* True if the value of the parameter was explicitly changed.  */
-#define PARAM_SET_P(ENUM) \
-  (compiler_params[(int) ENUM].set)
+/* Set the value of the parameter given by NUM to VALUE, implicitly,
+   if it has not been set explicitly by the user, in the table PARAMS
+   using PARAMS_SET to indicate which have been explicitly set.  */
+
+extern void maybe_set_param_value (compiler_param num, int value,
+				   int *params, int *params_set);
+
+/* Set the default value of a parameter given by NUM to VALUE, before
+   option processing.  */
+
+extern void set_default_param_value (compiler_param num, int value);
+
+/* Add all parameters and default values that can be set in both the
+   driver and the compiler proper.  */
+
+extern void global_init_params (void);
+
+/* Note that all parameters have been added and all default values
+   set.  */
+extern void finish_params (void);
+
+/* Return the default value of parameter NUM.  */
+
+extern int default_param_value (compiler_param num);
+
+/* Initialize an array PARAMS with default values of the
+   parameters.  */
+extern void init_param_values (int *params);
 
 /* Macros for the various parameters.  */
-#define SALIAS_MAX_IMPLICIT_FIELDS \
-  PARAM_VALUE (PARAM_SALIAS_MAX_IMPLICIT_FIELDS)
-#define SALIAS_MAX_ARRAY_ELEMENTS \
-  PARAM_VALUE (PARAM_SALIAS_MAX_ARRAY_ELEMENTS)
-#define SRA_MAX_STRUCTURE_SIZE \
-  PARAM_VALUE (PARAM_SRA_MAX_STRUCTURE_SIZE)
-#define SRA_MAX_STRUCTURE_COUNT \
-  PARAM_VALUE (PARAM_SRA_MAX_STRUCTURE_COUNT)
-#define SRA_FIELD_STRUCTURE_RATIO \
-  PARAM_VALUE (PARAM_SRA_FIELD_STRUCTURE_RATIO)
-#define STRUCT_REORG_COLD_STRUCT_RATIO \
-  PARAM_VALUE (PARAM_STRUCT_REORG_COLD_STRUCT_RATIO)
 #define MAX_INLINE_INSNS_SINGLE \
   PARAM_VALUE (PARAM_MAX_INLINE_INSNS_SINGLE)
 #define MAX_INLINE_INSNS \
@@ -127,12 +144,18 @@ typedef enum compiler_param
   PARAM_VALUE (PARAM_MAX_PENDING_LIST_LENGTH)
 #define MAX_GCSE_MEMORY \
   ((size_t) PARAM_VALUE (PARAM_MAX_GCSE_MEMORY))
-#define MAX_GCSE_PASSES \
-  PARAM_VALUE (PARAM_MAX_GCSE_PASSES)
+#define MAX_GCSE_INSERTION_RATIO \
+  ((size_t) PARAM_VALUE (PARAM_MAX_GCSE_INSERTION_RATIO))
 #define GCSE_AFTER_RELOAD_PARTIAL_FRACTION \
   PARAM_VALUE (PARAM_GCSE_AFTER_RELOAD_PARTIAL_FRACTION)
 #define GCSE_AFTER_RELOAD_CRITICAL_FRACTION \
   PARAM_VALUE (PARAM_GCSE_AFTER_RELOAD_CRITICAL_FRACTION)
+#define GCSE_COST_DISTANCE_RATIO \
+  PARAM_VALUE (PARAM_GCSE_COST_DISTANCE_RATIO)
+#define GCSE_UNRESTRICTED_COST \
+  PARAM_VALUE (PARAM_GCSE_UNRESTRICTED_COST)
+#define MAX_HOIST_DEPTH \
+  PARAM_VALUE (PARAM_MAX_HOIST_DEPTH)
 #define MAX_UNROLLED_INSNS \
   PARAM_VALUE (PARAM_MAX_UNROLLED_INSNS)
 #define MAX_SMS_LOOP_NUMBER \
@@ -143,10 +166,6 @@ typedef enum compiler_param
   PARAM_VALUE (PARAM_SMS_DFA_HISTORY)
 #define SMS_LOOP_AVERAGE_COUNT_THRESHOLD \
   PARAM_VALUE (PARAM_SMS_LOOP_AVERAGE_COUNT_THRESHOLD)
-#define MAX_ALIASED_VOPS \
-  PARAM_VALUE (PARAM_MAX_ALIASED_VOPS)
-#define AVG_ALIASED_VOPS \
-  PARAM_VALUE (PARAM_AVG_ALIASED_VOPS)
 #define INTEGER_SHARE_LIMIT \
   PARAM_VALUE (PARAM_INTEGER_SHARE_LIMIT)
 #define MAX_LAST_VALUE_RTL \
@@ -171,4 +190,33 @@ typedef enum compiler_param
   PARAM_VALUE (PARAM_L2_CACHE_SIZE)
 #define USE_CANONICAL_TYPES \
   PARAM_VALUE (PARAM_USE_CANONICAL_TYPES)
+#define IRA_MAX_LOOPS_NUM \
+  PARAM_VALUE (PARAM_IRA_MAX_LOOPS_NUM)
+#define IRA_MAX_CONFLICT_TABLE_SIZE \
+  PARAM_VALUE (PARAM_IRA_MAX_CONFLICT_TABLE_SIZE)
+#define IRA_LOOP_RESERVED_REGS \
+  PARAM_VALUE (PARAM_IRA_LOOP_RESERVED_REGS)
+#define SWITCH_CONVERSION_BRANCH_RATIO \
+  PARAM_VALUE (PARAM_SWITCH_CONVERSION_BRANCH_RATIO)
+#define LOOP_INVARIANT_MAX_BBS_IN_LOOP \
+  PARAM_VALUE (PARAM_LOOP_INVARIANT_MAX_BBS_IN_LOOP)
+#define SLP_MAX_INSNS_IN_BB \
+  PARAM_VALUE (PARAM_SLP_MAX_INSNS_IN_BB)
+#define MIN_INSN_TO_PREFETCH_RATIO \
+  PARAM_VALUE (PARAM_MIN_INSN_TO_PREFETCH_RATIO)
+#define PREFETCH_MIN_INSN_TO_MEM_RATIO \
+  PARAM_VALUE (PARAM_PREFETCH_MIN_INSN_TO_MEM_RATIO)
+#define MIN_NONDEBUG_INSN_UID \
+  PARAM_VALUE (PARAM_MIN_NONDEBUG_INSN_UID)
+#define MAX_STORES_TO_SINK \
+  PARAM_VALUE (PARAM_MAX_STORES_TO_SINK)
+#define ALLOW_LOAD_DATA_RACES \
+  PARAM_VALUE (PARAM_ALLOW_LOAD_DATA_RACES)
+#define ALLOW_STORE_DATA_RACES \
+  PARAM_VALUE (PARAM_ALLOW_STORE_DATA_RACES)
+#define ALLOW_PACKED_LOAD_DATA_RACES \
+  PARAM_VALUE (PARAM_ALLOW_PACKED_LOAD_DATA_RACES)
+#define ALLOW_PACKED_STORE_DATA_RACES \
+  PARAM_VALUE (PARAM_ALLOW_PACKED_STORE_DATA_RACES)
+
 #endif /* ! GCC_PARAMS_H */

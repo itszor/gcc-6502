@@ -1,12 +1,12 @@
 // New abi Support -*- C++ -*-
 
-// Copyright (C) 2000, 2001, 2003, 2004 Free Software Foundation, Inc.
+// Copyright (C) 2000-2013 Free Software Foundation, Inc.
 //  
 // This file is part of GCC.
 //
 // GCC is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2, or (at your option)
+// the Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // GCC is distributed in the hope that it will be useful,
@@ -14,26 +14,21 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with GCC; see the file COPYING.  If not, write to
-// the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-// Boston, MA 02110-1301, USA. 
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Written by Nathan Sidwell, Codesourcery LLC, <nathan@codesourcery.com>
 
 #include <cxxabi.h>
 #include <new>
 #include <exception>
-#include <exception_defines.h>
+#include <bits/exception_defines.h>
 #include "unwind-cxx.h"
 
 namespace __cxxabiv1
@@ -63,6 +58,19 @@ namespace __cxxabiv1
       globals->caughtExceptions = p->nextException;
       globals->uncaughtExceptions += 1;
     }
+
+    // Compute the total size with overflow checking.
+    std::size_t compute_size(std::size_t element_count,
+			     std::size_t element_size,
+			     std::size_t padding_size)
+    {
+      if (element_size && element_count > std::size_t(-1) / element_size)
+	_GLIBCXX_THROW_OR_ABORT(std::bad_alloc());
+      std::size_t size = element_count * element_size;
+      if (size + padding_size < size)
+	_GLIBCXX_THROW_OR_ABORT(std::bad_alloc());
+      return size + padding_size;
+    }
   }
 
   // Allocate and construct array.
@@ -87,7 +95,8 @@ namespace __cxxabiv1
 		 void *(*alloc) (std::size_t),
 		 void (*dealloc) (void *))
   {
-    std::size_t size = element_count * element_size + padding_size;
+    std::size_t size
+      = compute_size(element_count, element_size, padding_size);
     char *base = static_cast <char *> (alloc (size));
     if (!base)
       return base;
@@ -100,16 +109,19 @@ namespace __cxxabiv1
 	reinterpret_cast <std::size_t *> (base)[-2] = element_size;
 #endif
       }
-    try
+    __try
       {
 	__cxa_vec_ctor(base, element_count, element_size,
 		       constructor, destructor);
       }
-    catch (...)
+    __catch(...)
       {
 	{
 	  uncatch_exception ue;
-	  dealloc(base - padding_size);
+	  // Core issue 901 will probably be resolved such that a
+	  // deleted operator delete means not freeing memory here.
+	  if (dealloc)
+	    dealloc(base - padding_size);
 	}
 	__throw_exception_again;
       }
@@ -125,7 +137,8 @@ namespace __cxxabiv1
 		 void *(*alloc) (std::size_t),
 		 void (*dealloc) (void *, std::size_t))
   {
-    std::size_t size = element_count * element_size + padding_size;
+    std::size_t size
+      = compute_size(element_count, element_size, padding_size);
     char *base = static_cast<char *>(alloc (size));
     if (!base)
       return base;
@@ -138,16 +151,17 @@ namespace __cxxabiv1
 	reinterpret_cast <std::size_t *> (base)[-2] = element_size;
 #endif
       }
-    try
+    __try
       {
 	__cxa_vec_ctor(base, element_count, element_size,
 		       constructor, destructor);
       }
-    catch (...)
+    __catch(...)
       {
 	{
 	  uncatch_exception ue;
-	  dealloc(base - padding_size, size);
+	  if (dealloc)
+	    dealloc(base - padding_size, size);
 	}
 	__throw_exception_again;
       }
@@ -165,13 +179,13 @@ namespace __cxxabiv1
     std::size_t ix = 0;
     char *ptr = static_cast<char *>(array_address);
     
-    try
+    __try
       {
 	if (constructor)
 	  for (; ix != element_count; ix++, ptr += element_size)
 	    constructor(ptr);
       }
-    catch (...)
+    __catch(...)
       {
 	{
 	  uncatch_exception ue;
@@ -195,14 +209,14 @@ namespace __cxxabiv1
     char *dest_ptr = static_cast<char *>(dest_array);
     char *src_ptr = static_cast<char *>(src_array);
     
-    try
+    __try
       {
 	if (constructor)
 	  for (; ix != element_count; 
 	       ix++, src_ptr += element_size, dest_ptr += element_size)
 	    constructor(dest_ptr, src_ptr);
       }
-    catch (...)
+    __catch(...)
       {
 	{
 	  uncatch_exception ue;
@@ -227,7 +241,7 @@ namespace __cxxabiv1
 
 	ptr += element_count * element_size;
 
-	try
+	__try
 	  {
 	    while (ix--)
 	      {
@@ -235,7 +249,7 @@ namespace __cxxabiv1
 		destructor(ptr);
 	      }
 	  }
-	catch (...)
+	__catch(...)
 	  {
 	    {
 	      uncatch_exception ue;
@@ -253,7 +267,7 @@ namespace __cxxabiv1
   __cxa_vec_cleanup(void *array_address,
 		    std::size_t element_count,
 		    std::size_t element_size,
-		    __cxa_cdtor_type destructor)
+		    __cxa_cdtor_type destructor) throw()
   {
     if (destructor)
       {
@@ -262,7 +276,7 @@ namespace __cxxabiv1
 
 	ptr += element_count * element_size;
 
-	try
+	__try
 	  {
 	    while (ix--)
 	      {
@@ -270,7 +284,7 @@ namespace __cxxabiv1
 		destructor(ptr);
 	      }
 	  }
-	catch (...)
+	__catch(...)
 	  {
 	    std::terminate();
 	  }
@@ -305,12 +319,12 @@ namespace __cxxabiv1
       {
 	std::size_t element_count = reinterpret_cast<std::size_t *>(base)[-1];
 	base -= padding_size;
-	try
+	__try
 	  {
 	    __cxa_vec_dtor(array_address, element_count, element_size,
 			   destructor);
 	  }
-	catch (...)
+	__catch(...)
 	  {
 	    {
 	      uncatch_exception ue;
@@ -340,12 +354,12 @@ namespace __cxxabiv1
 	std::size_t element_count = reinterpret_cast<std::size_t *> (base)[-1];
 	base -= padding_size;
 	size = element_count * element_size + padding_size;
-	try
+	__try
 	  {
 	    __cxa_vec_dtor(array_address, element_count, element_size,
 			   destructor);
 	  }
-	catch (...)
+	__catch(...)
 	  {
 	    {
 	      uncatch_exception ue;
@@ -461,6 +475,9 @@ namespace __aeabiv1
   __aeabi_vec_dtor_cookie (void *array_address, 
 			   abi::__cxa_cdtor_type destructor)
   {
+    if (!array_address)
+      return NULL;
+
     abi::__cxa_vec_dtor (array_address, 
 			 reinterpret_cast<std::size_t *>(array_address)[-1],
 			 reinterpret_cast<std::size_t *>(array_address)[-2],
@@ -473,6 +490,9 @@ namespace __aeabiv1
   __aeabi_vec_delete (void *array_address, 
 		      abi::__cxa_cdtor_type destructor)
   {
+    if (!array_address)
+      return;
+
     abi::__cxa_vec_delete (array_address,
 			   reinterpret_cast<std::size_t *>(array_address)[-2],
 			   2 * sizeof (std::size_t),
@@ -484,6 +504,9 @@ namespace __aeabiv1
 		       abi::__cxa_cdtor_type destructor,
 		       void (*dealloc) (void *, std::size_t))
   {
+    if (!array_address)
+      return;
+
     abi::__cxa_vec_delete3 (array_address,
 			    reinterpret_cast<std::size_t *>(array_address)[-2],
 			    2 * sizeof (std::size_t),
@@ -494,6 +517,9 @@ namespace __aeabiv1
   __aeabi_vec_delete3_nodtor (void *array_address,
 			      void (*dealloc) (void *, std::size_t))
   {
+    if (!array_address)
+      return;
+
     abi::__cxa_vec_delete3 (array_address,
 			    reinterpret_cast<std::size_t *>(array_address)[-2],
 			    2 * sizeof (std::size_t),

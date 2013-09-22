@@ -1,5 +1,5 @@
 /* Configuration common to all targets running RTEMS. 
-   Copyright (C) 2000, 2002, 2004, 2007 Free Software Foundation, Inc. 
+   Copyright (C) 2000-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -18,6 +18,7 @@ along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
 /* The system headers under RTEMS are C++-aware.  */
+#undef NO_IMPLICIT_EXTERN_C
 #define NO_IMPLICIT_EXTERN_C
 
 /*
@@ -38,6 +39,7 @@ along with GCC; see the file COPYING3.  If not see
 #undef LIB_SPEC
 #define LIB_SPEC "%{!qrtems: " STD_LIB_SPEC "} " \
 "%{!nostdlib: %{qrtems: --start-group \
- %{!qrtems_debug: -lrtemsbsp -lrtemscpu} \
- %{qrtems_debug: -lrtemsbsp_g -lrtemscpu_g} \
+ -lrtemsbsp -lrtemscpu \
  -lc -lgcc --end-group %{!qnolinkcmds: -T linkcmds%s}}}"
+
+#define TARGET_POSIX_IO

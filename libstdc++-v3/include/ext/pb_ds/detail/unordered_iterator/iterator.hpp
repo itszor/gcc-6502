@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -45,102 +39,82 @@
  *    table.
  */
 
-// Range-type iterator.
-class iterator_ : 
-  public const_iterator_
-
+/// Range-type iterator.
+class iterator_
+: public const_iterator_
 {
-
 public:
-
-  // Category.
+  /// Category.
   typedef std::forward_iterator_tag iterator_category;
 
-  // Difference type.
-  typedef typename Allocator::difference_type difference_type;
+  /// Difference type.
+  typedef typename _Alloc::difference_type difference_type;
 
-  // Iterator's value type.
+  /// Iterator's value type.
   typedef value_type_ value_type;
 
-  // Iterator's pointer type.
+  /// Iterator's pointer type.
   typedef pointer_ pointer;
 
-  // Iterator's const pointer type.
+  /// Iterator's const pointer type.
   typedef const_pointer_ const_pointer;
 
-  // Iterator's reference type.
+  /// Iterator's reference type.
   typedef reference_ reference;
 
-  // Iterator's const reference type.
+  /// Iterator's const reference type.
   typedef const_reference_ const_reference;
 
-public:
-
-  // Default constructor.
+  /// Default constructor.
   inline
   iterator_()
+  : const_iterator_(0, PB_DS_GEN_POS(), 0) { }
 
-    : const_iterator_(NULL, PB_DS_GEN_POS(), NULL)
-  { }
-
-  // Conversion to a point-type iterator.
+  /// Conversion to a point-type iterator.
   inline
   operator point_iterator_()
-  {
-    return (point_iterator_(
-			    const_cast<pointer>(const_iterator_::m_p_value)));
-  }
+  { return point_iterator_(const_cast<pointer>(const_iterator_::m_p_value)); }
 
-  // Conversion to a point-type iterator.
+  /// Conversion to a point-type iterator.
   inline
   operator const point_iterator_() const
-  {
-    return (point_iterator_(
-			    const_cast<pointer>(const_iterator_::m_p_value)));
-  }
+  { return point_iterator_(const_cast<pointer>(const_iterator_::m_p_value)); }
 
-  // Access.
-  inline pointer
+  /// Access.
+  pointer
   operator->() const
   {
-    _GLIBCXX_DEBUG_ASSERT(base_type::m_p_value != NULL);
-
+    _GLIBCXX_DEBUG_ASSERT(base_type::m_p_value != 0);
     return (const_cast<pointer>(base_type::m_p_value));
   }
 
-  // Access.
-  inline reference
+  /// Access.
+  reference
   operator*() const
   {
-    _GLIBCXX_DEBUG_ASSERT(base_type::m_p_value != NULL);
-
+    _GLIBCXX_DEBUG_ASSERT(base_type::m_p_value != 0);
     return (const_cast<reference>(*base_type::m_p_value));
   }
 
-  // Increments.
-  inline iterator_& 
+  /// Increments.
+  iterator_&
   operator++()
   {
     base_type::m_p_tbl->inc_it_state(base_type::m_p_value, base_type::m_pos);
-
-    return (*this);
+    return *this;
   }
 
-  // Increments.
-  inline iterator_
+  /// Increments.
+  iterator_
   operator++(int)
   {
     iterator_ ret =* this;
-
     base_type::m_p_tbl->inc_it_state(base_type::m_p_value, base_type::m_pos);
-
-    return (ret);
+    return ret;
   }
 
 protected:
   typedef const_iterator_ base_type;
-
-protected:
 
   /**
    *  Constructor used by the table to initiate the generalized
@@ -148,9 +122,9 @@ protected:
    *      of a table.
    * */
   inline
-  iterator_(pointer p_value, PB_DS_GEN_POS pos, PB_DS_CLASS_C_DEC* p_tbl) : const_iterator_(p_value, pos, p_tbl)
+  iterator_(pointer p_value, PB_DS_GEN_POS pos, PB_DS_CLASS_C_DEC* p_tbl)
+  : const_iterator_(p_value, pos, p_tbl)
   { }
 
   friend class PB_DS_CLASS_C_DEC;
 };
-

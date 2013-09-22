@@ -10,24 +10,23 @@
 --                             $Revision: 1.2 $
 --                                                                          --
 --            Copyright (C) 1991-2003, Florida State University             --
+--            Copyright (C) 2008-2012, Free Software Foundation, Inc.       --
 --                                                                          --
 -- GNARL is free software; you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
--- sion. GNARL is distributed in the hope that it will be useful, but WITH- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
+-- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNARL; see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNARL was developed by the GNARL team at Florida State University. It is --
 -- now maintained by Ada Core Technologies Inc. in cooperation with Florida --
@@ -36,7 +35,7 @@
 ------------------------------------------------------------------------------
 
 --  This is a RTEMS version of this package which uses a special
---  variable for Ada self which is contexted switch implicitly by RTEMS.
+--  variable for Ada self which is context switched implicitly by RTEMS.
 --
 --  This is the same as the POSIX version except that an RTEMS variable
 --  is used instead of a POSIX key.
@@ -47,8 +46,8 @@ package body Specific is
    --  The following gives the Ada run-time direct access to a variable
    --  context switched by RTEMS at the lowest level.
 
-   RTEMS_Ada_Self : System.Address;
-   pragma Import (C, RTEMS_Ada_Self, "rtems_ada_self");
+   ATCB_Key : System.Address;
+   pragma Import (C, ATCB_Key, "rtems_ada_self");
 
    ----------------
    -- Initialize --
@@ -58,8 +57,7 @@ package body Specific is
       pragma Warnings (Off, Environment_Task);
 
    begin
-      ATCB_Key := No_Key;
-      RTEMS_Ada_Self := To_Address (Environment_Task);
+      ATCB_Key := To_Address (Environment_Task);
    end Initialize;
 
    -------------------
@@ -68,7 +66,7 @@ package body Specific is
 
    function Is_Valid_Task return Boolean is
    begin
-      return RTEMS_Ada_Self /= System.Null_Address;
+      return ATCB_Key /= System.Null_Address;
    end Is_Valid_Task;
 
    ---------
@@ -77,7 +75,7 @@ package body Specific is
 
    procedure Set (Self_Id : Task_Id) is
    begin
-      RTEMS_Ada_Self := To_Address (Self_Id);
+      ATCB_Key := To_Address (Self_Id);
    end Set;
 
    ----------
@@ -101,7 +99,7 @@ package body Specific is
       Result : System.Address;
 
    begin
-      Result := RTEMS_Ada_Self;
+      Result := ATCB_Key;
 
       --  If the key value is Null, then it is a non-Ada task.
 

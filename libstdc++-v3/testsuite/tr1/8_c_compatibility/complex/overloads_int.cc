@@ -1,11 +1,11 @@
 // 2006-01-12  Paolo Carlini  <pcarlini@suse.de>
 //
-// Copyright (C) 2006 Free Software Foundation, Inc.
+// Copyright (C) 2006-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -14,9 +14,8 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 8.1 Additions to header <complex>
 
@@ -64,18 +63,13 @@ void test01()
   typedef std::complex<int> cmplx_i_type;
   check_ret_type<cmplx_i_type>(std::tr1::polar(i1, i1));
 
-  // NB: According to the letter of 8.1.9/3 the return type should be a
-  // cmplx_d_type, but the existing std::pow(const complex<>&, int) wins.
-  // check_ret_type<cmplx_d_type>(std::tr1::pow(cmplx_f_type(f1, f1), i1));
-  check_ret_type<cmplx_f_type>(std::tr1::pow(cmplx_f_type(f1, f1), i1));
-
+  check_ret_type<cmplx_d_type>(std::tr1::pow(cmplx_f_type(f1, f1), i1));
   check_ret_type<cmplx_d_type>(std::tr1::pow(cmplx_f_type(f1, f1), u1));
   check_ret_type<cmplx_d_type>(std::tr1::pow(cmplx_f_type(f1, f1), l1));
   check_ret_type<cmplx_d_type>(std::tr1::pow(cmplx_d_type(d1, d1), i1));
 
-  // See last comment.
-  // VERIFY( std::tr1::pow(cmplx_d_type(d1, d1), i1)
-  //         == std::tr1::pow(cmplx_d_type(d1, d1), double(i1)) );
+  VERIFY( std::tr1::pow(cmplx_d_type(d1, d1), i1)
+	  == std::tr1::pow(cmplx_d_type(d1, d1), double(i1)) );
   VERIFY( std::tr1::pow(cmplx_d_type(d1, d1), u1)
 	  == std::tr1::pow(cmplx_d_type(d1, d1), double(u1)) );
   VERIFY( std::tr1::pow(cmplx_d_type(d1, d1), l1)

@@ -1,14 +1,15 @@
-// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* alpha*-*-osf* mips-sgi-irix6* } }
-// { dg-options "-pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* alpha*-*-osf* mips-sgi-irix6* } }
+// { dg-do run { target *-*-freebsd* *-*-netbsd* *-*-linux* *-*-solaris* *-*-cygwin *-*-darwin* } }
+// { dg-options "-pthread" { target *-*-freebsd* *-*-netbsd* *-*-linux* } }
 // { dg-options "-pthreads" { target *-*-solaris* } }
-// { dg-require-namedlocale "" }
+// { dg-require-namedlocale "en_US" }
+// { dg-require-namedlocale "fr_FR" }
 
-// Copyright (C) 2004, 2005, 2007 Free Software Foundation
+// Copyright (C) 2004-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -17,9 +18,8 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 
 // 22.1.1.2 locale constructors and destructors [lib.locale.cons]
 
@@ -56,10 +56,10 @@ main()
     loc[j] = std::locale(j % 2 ? "en_US" : "fr_FR");  
 
   for (int i = 0; i < max_thread_count; i++)
-    pthread_create(&tid[i], NULL, thread_main, 0);
+    pthread_create(&tid[i], 0, thread_main, 0);
   
   for (int i = 0; i < max_thread_count; i++)
-    pthread_join(tid[i], NULL);
+    pthread_join(tid[i], 0);
 
   return 0;
 }

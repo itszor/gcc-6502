@@ -3,12 +3,12 @@
 // Testing character type and state type with char_traits and codecvt
 // specializations for the C++ library testsuite.
 //
-// Copyright (C) 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+// Copyright (C) 2003-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 //
 // This library is distributed in the hope that it will be useful,
@@ -17,18 +17,9 @@
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// with this library; see the file COPYING3.  If not see
+// <http://www.gnu.org/licenses/>.
 //
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
 
 #ifndef _GLIBCXX_TESTSUITE_CHARACTER_H
 #define _GLIBCXX_TESTSUITE_CHARACTER_H
@@ -44,8 +35,18 @@ namespace __gnu_test
   struct pod_int
   {
     int value;
+
+#if __cplusplus >= 201103L
+    // For std::iota.
+    pod_int&
+    operator++()
+    {
+      ++value;
+      return *this;
+    }
+#endif
   };
-  
+
   // For 20.1 requirements for instantiable type: equality comparable
   // and less than comparable.
   inline bool
@@ -292,7 +293,7 @@ namespace std
 		const extern_type* end, size_t max) const
       {
 	const extern_type* beg = from;
-	while (from < end && max)
+	while (from < end)
 	  {
 	    unsigned char c = *from;
 	    if (c & 0xc0)
@@ -302,6 +303,8 @@ namespace std
 		++from;
 		continue;
 	      }
+	    
+	    if (max == 0) break;
 
 	    unsigned char tmp;
 	    if (state.value & 0x8)

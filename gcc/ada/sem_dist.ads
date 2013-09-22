@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -31,14 +31,19 @@ with Types;  use Types;
 package Sem_Dist is
 
    function Get_PCS_Name return PCS_Names;
-   --  Return the name of a literal of type System.Partition_Interface.
-   --  DSA_Implementation_Type indicating what PCS is currently in use.
+   --  Return the name of a literal of type DSA_Implementation_Name in package
+   --  System.Partition_Interface indicating what PCS is currently in use.
 
    function Get_PCS_Version return Int;
    --  Return the version number of the PCS API implemented by the PCS.
    --  The consistency of this version with the one expected by Exp_Dist
    --  (Exp_Dist.PCS_Version_Number) in Rtsfind.RTE.Check_RPC.
    --  If no PCS version information is available, 0 is returned.
+
+   function Is_Valid_Remote_Object_Type (E : Entity_Id) return Boolean;
+   --  True if tagged type E is a valid candidate as the root type of the
+   --  designated type for a RACW, i.e. a tagged limited private type, or a
+   --  limited interface type, or a private extension of such a type.
 
    procedure Add_Stub_Constructs (N : Node_Id);
    --  Create the stubs constructs for a remote call interface package
@@ -99,5 +104,8 @@ package Sem_Dist is
 
    function Package_Specification_Of_Scope (E : Entity_Id) return Node_Id;
    --  Return the N_Package_Specification corresponding to a scope E
+
+   function Is_RACW_Stub_Type_Operation (Op : Entity_Id) return Boolean;
+   --  True when Op is a primitive operation of an RACW stub type
 
 end Sem_Dist;

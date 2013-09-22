@@ -46,7 +46,6 @@ import gnu.classpath.jdwp.exception.InvalidFieldException;
 import gnu.classpath.jdwp.exception.JdwpException;
 import gnu.classpath.jdwp.exception.JdwpInternalErrorException;
 import gnu.classpath.jdwp.exception.NotImplementedException;
-import gnu.classpath.jdwp.id.ClassReferenceTypeId;
 import gnu.classpath.jdwp.id.ObjectId;
 import gnu.classpath.jdwp.id.ReferenceTypeId;
 import gnu.classpath.jdwp.util.JdwpString;
@@ -61,7 +60,7 @@ import java.nio.ByteBuffer;
 
 /**
  * A class representing the ReferenceType Command Set.
- * 
+ *
  * @author Aaron Luchko <aluchko@redhat.com>
  */
 public class ReferenceTypeCommandSet
@@ -220,7 +219,7 @@ public class ReferenceTypeCommandSet
               {
                 field.setAccessible(true); // Might be a private field
                 Object value = field.get(null);
-                Value val = ValueFactory.createFromObject(value, 
+                Value val = ValueFactory.createFromObject(value,
                                                           field.getType());
                 val.writeTagged(os);
               }
@@ -307,8 +306,8 @@ public class ReferenceTypeCommandSet
   {
     if (!VMVirtualMachine.canGetSourceDebugExtension)
       {
-	String msg = "source debug extension is not supported";
-	throw new NotImplementedException(msg);
+        String msg = "source debug extension is not supported";
+        throw new NotImplementedException(msg);
       }
 
     ReferenceTypeId id = idMan.readReferenceTypeId(bb);

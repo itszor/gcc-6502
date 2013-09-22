@@ -1,11 +1,11 @@
 // -*- C++ -*-
 
-// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+// Copyright (C) 2005-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the terms
 // of the GNU General Public License as published by the Free Software
-// Foundation; either version 2, or (at your option) any later
+// Foundation; either version 3, or (at your option) any later
 // version.
 
 // This library is distributed in the hope that it will be useful, but
@@ -13,20 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 // General Public License for more details.
 
-// You should have received a copy of the GNU General Public License
-// along with this library; see the file COPYING.  If not, write to
-// the Free Software Foundation, 59 Temple Place - Suite 330, Boston,
-// MA 02111-1307, USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free
-// software library without restriction.  Specifically, if other files
-// instantiate templates or use macros or inline functions from this
-// file, or you compile this file and link it with other files to
-// produce an executable, this file does not by itself cause the
-// resulting executable to be covered by the GNU General Public
-// License.  This exception does not however invalidate any other
-// reasons why the executable file might be covered by the GNU General
-// Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 // Copyright (C) 2004 Ami Tavory and Vladimir Dreizin, IBM-HRL.
 
@@ -40,7 +34,7 @@
 // warranty.
 
 /**
- * @file debug_fn_imps.hpp
+ * @file cc_hash_table_map_/debug_fn_imps.hpp
  * Contains implementations of cc_ht_map_'s debug-mode functions.
  */
 
@@ -49,29 +43,31 @@
 PB_DS_CLASS_T_DEC
 void
 PB_DS_CLASS_C_DEC::
-assert_valid() const
+assert_valid(const char* __file, int __line) const
 {
-  debug_base::check_size(m_num_used_e);
-  assert_entry_pointer_array_valid(m_entries);
+  debug_base::check_size(m_num_used_e, __file, __line);
+  assert_entry_pointer_array_valid(m_entries, __file, __line);
 }
 
 PB_DS_CLASS_T_DEC
 void
 PB_DS_CLASS_C_DEC::
-assert_entry_pointer_array_valid(const entry_pointer_array a_p_entries) const
+assert_entry_pointer_array_valid(const entry_pointer_array a_p_entries,
+				 const char* __file, int __line) const
 {
   size_type iterated_num_used_e = 0;
   for (size_type pos = 0; pos < m_num_e; ++pos)
     {
       entry_pointer p_e = a_p_entries[pos];
-      while (p_e != NULL)
+      while (p_e != 0)
         {
 	  ++iterated_num_used_e;
-	  assert_entry_pointer_valid(p_e, traits_base::m_store_extra_indicator);
+	  assert_entry_pointer_valid(p_e, traits_base::m_store_extra_indicator,
+				     __file, __line);
 	  p_e = p_e->m_p_next;
         }
     }
-  _GLIBCXX_DEBUG_ASSERT(iterated_num_used_e == m_num_used_e);
+  PB_DS_DEBUG_VERIFY(iterated_num_used_e == m_num_used_e);
 }
 
 #include <ext/pb_ds/detail/cc_hash_table_map_/debug_store_hash_fn_imps.hpp>

@@ -23,8 +23,12 @@ void foo1(int n) {
 }
 
 void foo2(int n) {
-  goto A;		/* { dg-error "jump into scope of identifier with variably modified type" } */
+  goto A;	/* { dg-error "jump into scope of identifier with variably modified type" } */
   int (*(*bar2)(void))[n];
  A:
   ;
 }
+
+/* Match extra informative notes.  */
+/* { dg-message "note: label '\[^\n'\]*' defined here" "defined" { target *-*-* } 0 } */
+/* { dg-message "note: '\[^\n'\]*' declared here" "declared" { target *-*-* } 0 } */

@@ -1,4 +1,4 @@
-/* SubstringAfterFunction.java -- 
+/* SubstringAfterFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -58,9 +58,9 @@ final class SubstringAfterFunction
   final Expr arg1;
   final Expr arg2;
 
-  SubstringAfterFunction(List args)
+  SubstringAfterFunction(List<Expr> args)
   {
-    this((Expr) args.get(0), (Expr) args.get(1));
+    this(args.get(0), args.get(1));
   }
 
   SubstringAfterFunction(Expr arg1, Expr arg2)
@@ -94,5 +94,5 @@ final class SubstringAfterFunction
   {
     return "substring-after(" + arg1 + "," + arg2 + ")";
   }
-  
+
 }

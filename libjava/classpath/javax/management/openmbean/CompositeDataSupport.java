@@ -109,9 +109,9 @@ public class CompositeDataSupport
   public CompositeDataSupport(CompositeType type, Map<String, ?> items)
     throws OpenDataException
   {
-    this(type, 
-	 items.keySet().toArray(new String[items.size()]),
-	 items.values().toArray());
+    this(type,
+         items.keySet().toArray(new String[items.size()]),
+         items.values().toArray());
   }
 
   /**
@@ -154,29 +154,29 @@ public class CompositeDataSupport
       throw new IllegalArgumentException("The values array is null.");
     if (names.length != values.length)
       throw new IllegalArgumentException("The sizes of the arrays differ.");
-    Set typeKeys = type.keySet();
+    Set<String> typeKeys = type.keySet();
     if (typeKeys.size() != names.length)
       throw new OpenDataException("The number of field names does not match " +
-				  "the type description.");
+                                  "the type description.");
     contents = new TreeMap<String, Object>();
     for (int a = 0; a < names.length; ++a)
       {
-	if (names[a] == null)
-	  throw new IllegalArgumentException("Element " + a + " of the names " +
-					     "array is null.");
-	if (names[a].length() == 0)
-	  throw new IllegalArgumentException("Element " + a + " of the names " +
-					     "array is an empty string.");
-	if (values[a] == null)
-	  throw new IllegalArgumentException("Element " + a + " of the values " +
-					     "array is null.");
-	if (!(typeKeys.contains(names[a])))
-	  throw new OpenDataException("The name, " + names[a] + ", is not a " +
-				      "field in the given type description.");
-	if (!(type.getType(names[a]).isValue(values[a])))
-	  throw new OpenDataException("The value, " + values[a] + ", is not a " +
-				      "valid value for the " + names[a] + " field.");
-	contents.put(names[a], values[a]);
+        if (names[a] == null)
+          throw new IllegalArgumentException("Element " + a + " of the names " +
+                                             "array is null.");
+        if (names[a].length() == 0)
+          throw new IllegalArgumentException("Element " + a + " of the names " +
+                                             "array is an empty string.");
+        if (values[a] == null)
+          throw new IllegalArgumentException("Element " + a + " of the values " +
+                                             "array is null.");
+        if (!(typeKeys.contains(names[a])))
+          throw new OpenDataException("The name, " + names[a] + ", is not a " +
+                                      "field in the given type description.");
+        if (!(type.getType(names[a]).isValue(values[a])))
+          throw new OpenDataException("The value, " + values[a] + ", is not a " +
+                                      "valid value for the " + names[a] + " field.");
+        contents.put(names[a], values[a]);
       }
   }
 
@@ -227,14 +227,12 @@ public class CompositeDataSupport
     CompositeData data = (CompositeData) obj;
     if (!(data.getCompositeType().equals(compositeType)))
       return false;
-    Iterator it = contents.keySet().iterator();
-    while (it.hasNext())
+    for (String key : contents.keySet())
       {
-	String key = (String) it.next();
-	if (!(data.containsKey(key)))
-	  return false;
-	if (!(data.get(key).equals(contents.get(key))))
-	  return false;
+        if (!(data.containsKey(key)))
+          return false;
+        if (!(data.get(key).equals(contents.get(key))))
+          return false;
       }
     return true;
   }
@@ -308,9 +306,8 @@ public class CompositeDataSupport
   public int hashCode()
   {
     int code = compositeType.hashCode();
-    Iterator it = values().iterator();
-    while (it.hasNext())
-      code += it.next().hashCode();
+    for (Object o : contents.values())
+      code += o.hashCode();
     return code;
   }
 
@@ -346,4 +343,3 @@ public class CompositeDataSupport
   }
 
 }
-

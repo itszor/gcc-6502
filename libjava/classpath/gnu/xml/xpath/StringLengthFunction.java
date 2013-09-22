@@ -1,4 +1,4 @@
-/* StringLengthFunction.java -- 
+/* StringLengthFunction.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -55,16 +55,17 @@ final class StringLengthFunction
 
   final Expr arg;
 
-  StringLengthFunction(List args)
+  StringLengthFunction(List<Expr> args)
   {
     this(args.isEmpty() ? null : (Expr) args.get(0));
   }
-  
+
   StringLengthFunction(Expr arg)
   {
     this.arg = arg;
   }
 
+  @Override
   public Object evaluate(Node context, int pos, int len)
   {
     Object val = (arg == null) ? null : arg.evaluate(context, pos, len);
@@ -87,5 +88,5 @@ final class StringLengthFunction
   {
     return (arg == null) ? "string-length()" : "string-length(" + arg + ")";
   }
-  
+
 }

@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package java.security;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.io.Serializable;
 
 /**
@@ -181,20 +183,20 @@ public abstract class Permission implements Guard, Serializable
    */
   public String toString()
   {
-    StringBuffer string = new StringBuffer(); 
-    
+    CPStringBuilder string = new CPStringBuilder();
+
     string = string.append('(');
     string = string.append(getClass().getName());
     string = string.append(' ');
     string = string.append(getName());
-    
+
     if (!(getActions().equals("")))
       {
         string = string.append(' ');
         string = string.append(getActions());
       }
-   
+
     string = string.append(')');
-    return string.toString();     
+    return string.toString();
   }
 } // class Permission

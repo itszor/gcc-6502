@@ -1,11 +1,11 @@
 // Helpers for ostream inserters -*- C++ -*-
 
-// Copyright (C) 2007 Free Software Foundation, Inc.
+// Copyright (C) 2007-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -13,23 +13,18 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
-/** @file ostream_insert.h
+/** @file bits/ostream_insert.h
  *  This is an internal header file, included by other library headers.
- *  You should not attempt to use it directly.
+ *  Do not attempt to use it directly. @headername{ostream}
  */
 
 #ifndef _OSTREAM_INSERT_H
@@ -38,9 +33,11 @@
 #pragma GCC system_header
 
 #include <iosfwd>
-#include <cxxabi-forced.h>
+#include <bits/cxxabi_forced.h>
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _CharT, typename _Traits>
     inline void
@@ -85,7 +82,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
       typename __ostream_type::sentry __cerb(__out);
       if (__cerb)
 	{
-	  try
+	  __try
 	    {
 	      const streamsize __w = __out.width();
 	      if (__w > __n)
@@ -104,12 +101,12 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 		__ostream_write(__out, __s, __n);
 	      __out.width(0);
 	    }
-	  catch(__cxxabiv1::__forced_unwind&)
+	  __catch(__cxxabiv1::__forced_unwind&)
 	    {
 	      __out._M_setstate(__ios_base::badbit);
 	      __throw_exception_again;
 	    }
-	  catch(...)
+	  __catch(...)
 	    { __out._M_setstate(__ios_base::badbit); }
 	}
       return __out;
@@ -117,7 +114,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 
   // Inhibit implicit instantiations for required instantiations,
   // which are defined via explicit instantiations elsewhere.
-  // NB:  This syntax is a GNU extension.
 #if _GLIBCXX_EXTERN_TEMPLATE
   extern template ostream& __ostream_insert(ostream&, const char*, streamsize);
 
@@ -127,6 +123,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
 #endif
 #endif
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace std
 
 #endif /* _OSTREAM_INSERT_H */

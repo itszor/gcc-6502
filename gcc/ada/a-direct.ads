@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 2004-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 2004-2010, Free Software Foundation, Inc.         --
 --                                                                          --
 -- This specification is derived for use with GNAT from AI-00248,  which is --
 -- expected to be a part of a future expected revised Ada Reference Manual. --
@@ -15,21 +15,19 @@
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -106,6 +104,8 @@ package Ada.Directories is
    --  identification of a directory. The exception Use_Error is propagated if
    --  the external environment does not support the creation of a directory
    --  with the given name (in the absence of Name_Error) and form.
+   --
+   --  The Form parameter is ignored
 
    procedure Delete_Directory (Directory : String);
    --  Deletes an existing empty directory with name Directory. The exception
@@ -131,6 +131,8 @@ package Ada.Directories is
    --  The exception Use_Error is propagated if the external environment does
    --  not support the creation of any directories with the given name (in the
    --  absence of Name_Error) and form.
+   --
+   --  The Form parameter is ignored
 
    procedure Delete_Tree (Directory : String);
    --  Deletes an existing directory with name Directory. The directory and
@@ -162,18 +164,68 @@ package Ada.Directories is
      (Source_Name   : String;
       Target_Name   : String;
       Form          : String := "");
-   --  Copies the contents of the existing external file with Source_Name
-   --  to Target_Name. The resulting external file is a duplicate of the source
-   --  external file. The Form can be used to give system-dependent
+   --  Copies the contents of the existing external file with Source_Name to
+   --  Target_Name. The resulting external file is a duplicate of the source
+   --  external file. The Form argument can be used to give system-dependent
    --  characteristics of the resulting external file; the interpretation of
    --  the Form parameter is implementation-defined. Exception Name_Error is
    --  propagated if the string given as Source_Name does not identify an
    --  existing external ordinary or special file or if the string given as
-   --  Target_Name does not allow the identification of an external file.
-   --  The exception Use_Error is propagated if the external environment does
-   --  not support the creating of the file with the name given by Target_Name
-   --  and form given by Form, or copying of the file with the name given by
+   --  Target_Name does not allow the identification of an external file. The
+   --  exception Use_Error is propagated if the external environment does not
+   --  support the creating of the file with the name given by Target_Name and
+   --  form given by Form, or copying of the file with the name given by
    --  Source_Name (in the absence of Name_Error).
+   --
+   --  Interpretation of the Form parameter:
+   --
+   --    The Form parameter is case-insensitive
+   --
+   --    Two fields are recognized in the Form parameter:
+   --      preserve=<value>
+   --      mode=<value>
+   --
+   --      <value> starts immediately after the character '=' and ends with the
+   --      character immediately preceding the next comma (',') or with the
+   --      last character of the parameter.
+   --
+   --      The allowed values for preserve= are:
+   --
+   --        no_attributes:  Do not try to preserve any file attributes. This
+   --                        is the default if no preserve= is found in Form.
+   --
+   --        all_attributes: Try to preserve all file attributes (timestamps,
+   --                        access rights).
+   --
+   --        timestamps:     Preserve the timestamp of the copied file, but not
+   --                        the other file attributes.
+   --
+   --      The allowed values for mode= are:
+   --
+   --        copy:           Only copy if the destination file does not already
+   --                        exist. If it already exists, Copy_File will fail.
+   --
+   --        overwrite:      Copy the file in all cases. Overwrite an already
+   --                        existing destination file. This is the default if
+   --                        no mode= is found in Form.
+   --
+   --        append:         Append the original file to the destination file.
+   --                        If the destination file does not exist, the
+   --                        destination file is a copy of the source file.
+   --                        When mode=append, the field preserve=, if it
+   --                        exists, is not taken into account.
+   --
+   --    If the Form parameter includes one or both of the fields and the value
+   --    or values are incorrect, Copy_File fails with Use_Error.
+   --
+   --    Examples of correct Forms:
+   --       Form => "preserve=no_attributes,mode=overwrite" (the default)
+   --       Form => "mode=append"
+   --       Form => "mode=copy,preserve=all_attributes"
+   --
+   --    Examples of incorrect Forms:
+   --       Form => "preserve=junk"
+   --       Form => "mode=internal,preserve=timestamps"
 
    ----------------------------------------
    -- File and directory name operations --
@@ -317,7 +369,7 @@ package Ada.Directories is
    procedure End_Search (Search : in out Search_Type);
    --  Ends the search represented by Search. After a successful call on
    --  End_Search, the object Search will have no entries available. Note
-   --  that is is not necessary to call End_Search if the call to Start_Search
+   --  that it is not necessary to call End_Search if the call to Start_Search
    --  was unsuccessful and raised an exception (but it is harmless to make
    --  the call in this case).
 

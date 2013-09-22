@@ -2,11 +2,12 @@
    into pointers.  */
 /* Contributed by Ziemowit Laski  <zlaski@apple.com>  */
 /* { dg-do run } */
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 
-#include <objc/Object.h>
 #include <stdlib.h>
+#include "../objc-obj-c++-shared/TestsuiteObject.m"
 
-@interface Func: Object
+@interface Func: TestsuiteObject
 + (int) processNumber:(int)a and:(int)b usingFunction:(int(int,int))func;
 @end
 
@@ -35,3 +36,4 @@ int main(void) {
 
   return 0;
 }
+

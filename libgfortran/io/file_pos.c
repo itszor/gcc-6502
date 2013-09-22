@@ -1,33 +1,30 @@
-/* Copyright (C) 2002-2003, 2005, 2006, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2002-2013 Free Software Foundation, Inc.
    Contributed by Andy Vaught and Janne Blomqvist
 
 This file is part of the GNU Fortran runtime library (libgfortran).
 
 Libgfortran is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2, or (at your option)
+the Free Software Foundation; either version 3, or (at your option)
 any later version.
-
-In addition to the permissions in the GNU General Public License, the
-Free Software Foundation gives you unlimited permission to link the
-compiled version of this file into combinations with other programs,
-and to distribute those combinations without any restriction coming
-from the use of this file.  (The General Public License restrictions
-do apply in other respects; for example, they cover modification of
-the file, and distribution when not linked into a combine
-executable.)
 
 Libgfortran is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with Libgfortran; see the file COPYING.  If not, write to
-the Free Software Foundation, 51 Franklin Street, Fifth Floor,
-Boston, MA 02110-1301, USA.  */
+Under Section 7 of GPL version 3, you are granted additional
+permissions described in the GCC Runtime Library Exception, version
+3.1, as published by the Free Software Foundation.
+
+You should have received a copy of the GNU General Public License and
+a copy of the GCC Runtime Library Exception along with this program;
+see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+<http://www.gnu.org/licenses/>.  */
 
 #include "io.h"
+#include "fbuf.h"
+#include "unix.h"
 #include <string.h>
 
 /* file_pos.c-- Implement the file positioning statements, i.e. BACKSPACE,
@@ -39,24 +36,24 @@ Boston, MA 02110-1301, USA.  */
    record, and we have to sift backwards to find the newline before
    that or the start of the file, whichever comes first.  */
 
-#define READ_CHUNK 4096
+static const int READ_CHUNK = 4096;
 
 static void
 formatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 {
   gfc_offset base;
-  char *p;
-  int n;
+  char p[READ_CHUNK];
+  ssize_t n;
 
-  base = file_position (u->s) - 1;
+  base = stell (u->s) - 1;
 
   do
     {
       n = (base < READ_CHUNK) ? base : READ_CHUNK;
       base -= n;
-
-      p = salloc_r_at (u->s, &n, base);
-      if (p == NULL)
+      if (sseek (u->s, base, SEEK_SET) < 0)
+        goto io_error;
+      if (sread (u->s, p, n) != n)
 	goto io_error;
 
       /* We have moved backwards from the current position, it should
@@ -66,15 +63,14 @@ formatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
       /* There is no memrchr() in the C library, so we have to do it
          ourselves.  */
 
-      n--;
-      while (n >= 0)
+      while (n > 0)
 	{
+          n--;
 	  if (p[n] == '\n')
 	    {
 	      base += n + 1;
 	      goto done;
 	    }
-	  n--;
 	}
 
     }
@@ -82,7 +78,7 @@ formatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 
   /* base is the new pointer.  Seek to it exactly.  */
  done:
-  if (sseek (u->s, base) == FAILURE)
+  if (sseek (u->s, base, SEEK_SET) < 0)
     goto io_error;
   u->last_record--;
   u->endfile = NO_ENDFILE;
@@ -101,12 +97,12 @@ formatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 static void
 unformatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 {
-  gfc_offset m, new;
+  gfc_offset m, slen;
   GFC_INTEGER_4 m4;
   GFC_INTEGER_8 m8;
-  int length, length_read;
+  ssize_t length;
   int continued;
-  char *p;
+  char p[sizeof (GFC_INTEGER_8)];
 
   if (compile_options.record_marker == 0)
     length = sizeof (GFC_INTEGER_4);
@@ -115,15 +111,14 @@ unformatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 
   do
     {
-      length_read = length;
-
-      p = salloc_r_at (u->s, &length_read,
-		       file_position (u->s) - length);
-      if (p == NULL || length_read != length)
-	goto io_error;
+      slen = - (gfc_offset) length;
+      if (sseek (u->s, slen, SEEK_CUR) < 0)
+        goto io_error;
+      if (sread (u->s, p, length) != length)
+        goto io_error;
 
       /* Only GFC_CONVERT_NATIVE and GFC_CONVERT_SWAP are valid here.  */
-      if (u->flags.convert == GFC_CONVERT_NATIVE)
+      if (likely (u->flags.convert == GFC_CONVERT_NATIVE))
 	{
 	  switch (length)
 	    {
@@ -144,15 +139,21 @@ unformatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
 	}
       else
 	{
+	  uint32_t u32;
+	  uint64_t u64;
 	  switch (length)
 	    {
 	    case sizeof(GFC_INTEGER_4):
-	      reverse_memcpy (&m4, p, sizeof (m4));
+	      memcpy (&u32, p, sizeof (u32));
+	      u32 = __builtin_bswap32 (u32);
+	      memcpy (&m4, &u32, sizeof (m4));
 	      m = m4;
 	      break;
 
 	    case sizeof(GFC_INTEGER_8):
-	      reverse_memcpy (&m8, p, sizeof (m8));
+	      memcpy (&u64, p, sizeof (u64));
+	      u64 = __builtin_bswap64 (u64);
+	      memcpy (&m8, &u64, sizeof (m8));
 	      m = m8;
 	      break;
 
@@ -167,10 +168,7 @@ unformatted_backspace (st_parameter_filepos *fpp, gfc_unit *u)
       if (continued)
 	m = -m;
 
-      if ((new = file_position (u->s) - m - 2*length) < 0)
-	new = 0;
-
-      if (sseek (u->s, new) == FAILURE)
+      if (sseek (u->s, -m -2 * length, SEEK_CUR) < 0)
 	goto io_error;
     } while (continued);
 
@@ -209,24 +207,33 @@ st_backspace (st_parameter_filepos *fpp)
       goto done;
     }
 
-    if (u->flags.access == ACCESS_STREAM && u->flags.form == FORM_UNFORMATTED)
-      {
-	generate_error (&fpp->common, LIBERROR_OPTION_CONFLICT,
-			"Cannot BACKSPACE an unformatted stream file");
-	goto done;
-      }
+  if (u->flags.access == ACCESS_STREAM && u->flags.form == FORM_UNFORMATTED)
+    {
+      generate_error (&fpp->common, LIBERROR_OPTION_CONFLICT,
+                      "Cannot BACKSPACE an unformatted stream file");
+      goto done;
+    }
 
+  /* Make sure format buffer is flushed and reset.  */
+  if (u->flags.form == FORM_FORMATTED)
+    {
+      int pos = fbuf_reset (u);
+      if (pos != 0)
+        sseek (u->s, pos, SEEK_CUR);
+    }
+
+  
   /* Check for special cases involving the ENDFILE record first.  */
 
   if (u->endfile == AFTER_ENDFILE)
     {
       u->endfile = AT_ENDFILE;
       u->flags.position = POSITION_APPEND;
-      flush (u->s);
+      sflush (u->s);
     }
   else
     {
-      if (file_position (u->s) == 0)
+      if (stell (u->s) == 0)
 	{
 	  u->flags.position = POSITION_REWIND;
 	  goto done;		/* Common special case */
@@ -243,8 +250,7 @@ st_backspace (st_parameter_filepos *fpp)
 
 	  u->previous_nonadvancing_write = 0;
 
-	  flush (u->s);
-	  struncate (u->s);
+	  unit_truncate (u, stell (u->s), &fpp->common);
 	  u->mode = READING;
         }
 
@@ -253,7 +259,7 @@ st_backspace (st_parameter_filepos *fpp)
       else
 	unformatted_backspace (fpp, u);
 
-      update_position (u);
+      u->flags.position = POSITION_UNSPECIFIED;
       u->endfile = NO_ENDFILE;
       u->current_record = 0;
       u->bytes_left = 0;
@@ -283,8 +289,17 @@ st_endfile (st_parameter_filepos *fpp)
       if (u->flags.access == ACCESS_DIRECT)
 	{
 	  generate_error (&fpp->common, LIBERROR_OPTION_CONFLICT,
-			  "Cannot perform ENDFILE on a file opened"
-			  " for DIRECT access");
+			  "Cannot perform ENDFILE on a file opened "
+			  "for DIRECT access");
+	  goto done;
+	}
+
+      if (u->flags.access == ACCESS_SEQUENTIAL
+      	  && u->endfile == AFTER_ENDFILE)
+	{
+	  generate_error (&fpp->common, LIBERROR_OPTION_CONFLICT,
+			  "Cannot perform ENDFILE on a file already "
+			  "positioned after the EOF marker");
 	  goto done;
 	}
 
@@ -305,13 +320,60 @@ st_endfile (st_parameter_filepos *fpp)
 	  next_record (&dtp, 1);
 	}
 
-      flush (u->s);
-      struncate (u->s);
+      unit_truncate (u, stell (u->s), &fpp->common);
       u->endfile = AFTER_ENDFILE;
-      update_position (u);
-    done:
-      unlock_unit (u);
+      if (0 == stell (u->s))
+        u->flags.position = POSITION_REWIND;
     }
+  else
+    {
+      if (fpp->common.unit < 0)
+	{
+	  generate_error (&fpp->common, LIBERROR_BAD_OPTION,
+			  "Bad unit number in statement");
+	  return;
+	}
+
+      u = find_or_create_unit (fpp->common.unit);
+      if (u->s == NULL)
+	{
+	  /* Open the unit with some default flags.  */
+	  st_parameter_open opp;
+	  unit_flags u_flags;
+
+	  memset (&u_flags, '\0', sizeof (u_flags));
+	  u_flags.access = ACCESS_SEQUENTIAL;
+	  u_flags.action = ACTION_READWRITE;
+
+	  /* Is it unformatted?  */
+	  if (!(fpp->common.flags & (IOPARM_DT_HAS_FORMAT | IOPARM_DT_LIST_FORMAT
+				     | IOPARM_DT_IONML_SET)))
+	    u_flags.form = FORM_UNFORMATTED;
+	  else
+	    u_flags.form = FORM_UNSPECIFIED;
+
+	  u_flags.delim = DELIM_UNSPECIFIED;
+	  u_flags.blank = BLANK_UNSPECIFIED;
+	  u_flags.pad = PAD_UNSPECIFIED;
+	  u_flags.decimal = DECIMAL_UNSPECIFIED;
+	  u_flags.encoding = ENCODING_UNSPECIFIED;
+	  u_flags.async = ASYNC_UNSPECIFIED;
+	  u_flags.round = ROUND_UNSPECIFIED;
+	  u_flags.sign = SIGN_UNSPECIFIED;
+	  u_flags.status = STATUS_UNKNOWN;
+	  u_flags.convert = GFC_CONVERT_NATIVE;
+
+	  opp.common = fpp->common;
+	  opp.common.flags &= IOPARM_COMMON_MASK;
+	  u = new_unit (&opp, u, &u_flags);
+	  if (u == NULL)
+	    return;
+	  u->endfile = AFTER_ENDFILE;
+	}
+    }
+
+  done:
+    unlock_unit (u);
 
   library_end ();
 }
@@ -343,34 +405,22 @@ st_rewind (st_parameter_filepos *fpp)
 
 	  u->previous_nonadvancing_write = 0;
 
-	  /* Flush the buffers.  If we have been writing to the file, the last
-	       written record is the last record in the file, so truncate the
-	       file now.  Reset to read mode so two consecutive rewind
-	       statements do not delete the file contents.  */
-	  flush (u->s);
-	  if (u->mode == WRITING && u->flags.access != ACCESS_STREAM)
-	    struncate (u->s);
+	  fbuf_reset (u);
 
-	  u->mode = READING;
 	  u->last_record = 0;
 
-	  if (file_position (u->s) != 0 && sseek (u->s, 0) == FAILURE)
+	  if (sseek (u->s, 0, SEEK_SET) < 0)
 	    generate_error (&fpp->common, LIBERROR_OS, NULL);
 
-	  /* Handle special files like /dev/null differently.  */
-	  if (!is_special (u->s))
+	  /* Set this for compatibilty with g77 for /dev/null.  */
+	  if (ssize (u->s) == 0)
+	    u->endfile = AT_ENDFILE;
+	  else
 	    {
 	      /* We are rewinding so we are not at the end.  */
 	      u->endfile = NO_ENDFILE;
 	    }
-	  else
-	    {
-	      /* Set this for compatibilty with g77 for /dev/null.  */
-	      if (file_length (u->s) == 0  && file_position (u->s) == 0)
-		u->endfile = AT_ENDFILE;
-	      /* Future refinements on special files can go here.  */
-	    }
-
+	  
 	  u->current_record = 0;
 	  u->strm_pos = 1;
 	  u->read_bad = 0;
@@ -397,7 +447,11 @@ st_flush (st_parameter_filepos *fpp)
   u = find_unit (fpp->common.unit);
   if (u != NULL)
     {
-      flush (u->s);
+      /* Make sure format buffer is flushed.  */
+      if (u->flags.form == FORM_FORMATTED)
+        fbuf_flush (u, u->mode);
+
+      sflush (u->s);
       unlock_unit (u);
     }
   else

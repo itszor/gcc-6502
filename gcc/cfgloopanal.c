@@ -1,5 +1,5 @@
 /* Natural loop analysis code for GNU compiler.
-   Copyright (C) 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2002-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -27,8 +27,13 @@ along with GCC; see the file COPYING3.  If not see
 #include "basic-block.h"
 #include "cfgloop.h"
 #include "expr.h"
-#include "output.h"
 #include "graphds.h"
+#include "params.h"
+
+struct target_cfgloop default_target_cfgloop;
+#if SWITCHABLE_TARGET
+struct target_cfgloop *this_target_cfgloop = &default_target_cfgloop;
+#endif
 
 /* Checks whether BB is executed exactly once in each LOOP iteration.  */
 
@@ -50,26 +55,6 @@ just_once_each_iteration_p (const struct loop *loop, const_basic_block bb)
   return true;
 }
 
-/* Marks the edge E in graph G irreducible if it connects two vertices in the
-   same scc.  */
-
-static void
-check_irred (struct graph *g, struct graph_edge *e)
-{
-  edge real = (edge) e->data;
-
-  /* All edges should lead from a component with higher number to the
-     one with lower one.  */
-  gcc_assert (g->vertices[e->src].component >= g->vertices[e->dest].component);
-
-  if (g->vertices[e->src].component != g->vertices[e->dest].component)
-    return;
-
-  real->flags |= EDGE_IRREDUCIBLE_LOOP;
-  if (flow_bb_inside_loop_p (real->src->loop_father, real->dest))
-    real->src->flags |= BB_IRREDUCIBLE_LOOP;
-}
-
 /* Marks blocks and edges that are part of non-recognized loops; i.e. we
    throw away all latch edges and mark blocks inside any remaining cycle.
    Everything is a bit complicated due to fact we do not want to do this
@@ -82,10 +67,11 @@ check_irred (struct graph *g, struct graph_edge *e)
 #define LOOP_REPR(LOOP) ((LOOP)->num + last_basic_block)
 #define BB_REPR(BB) ((BB)->index + 1)
 
-void
+bool
 mark_irreducible_loops (void)
 {
   basic_block act;
+  struct graph_edge *ge;
   edge e;
   edge_iterator ei;
   int src, dest;
@@ -93,6 +79,8 @@ mark_irreducible_loops (void)
   struct graph *g;
   int num = number_of_loops ();
   struct loop *cloop;
+  bool irred_loop_found = false;
+  int i;
 
   gcc_assert (current_loops != NULL);
 
@@ -140,7 +128,7 @@ mark_irreducible_loops (void)
 	    if (depth == loop_depth (act->loop_father))
 	      cloop = act->loop_father;
 	    else
-	      cloop = VEC_index (loop_p, act->loop_father->superloops, depth);
+	      cloop = (*act->loop_father->superloops)[depth];
 
 	    src = LOOP_REPR (cloop);
 	  }
@@ -152,11 +140,30 @@ mark_irreducible_loops (void)
   graphds_scc (g, NULL);
 
   /* Mark the irreducible loops.  */
-  for_each_edge (g, check_irred);
+  for (i = 0; i < g->n_vertices; i++)
+    for (ge = g->vertices[i].succ; ge; ge = ge->succ_next)
+      {
+	edge real = (edge) ge->data;
+	/* edge E in graph G is irreducible if it connects two vertices in the
+	   same scc.  */
+
+	/* All edges should lead from a component with higher number to the
+	   one with lower one.  */
+	gcc_assert (g->vertices[ge->src].component >= g->vertices[ge->dest].component);
+
+	if (g->vertices[ge->src].component != g->vertices[ge->dest].component)
+	  continue;
+
+	real->flags |= EDGE_IRREDUCIBLE_LOOP;
+	irred_loop_found = true;
+	if (flow_bb_inside_loop_p (real->src->loop_father, real->dest))
+	  real->src->flags |= BB_IRREDUCIBLE_LOOP;
+      }
 
   free_graph (g);
 
   loops_state_set (LOOPS_HAVE_MARKED_IRREDUCIBLE_REGIONS);
+  return irred_loop_found;
 }
 
 /* Counts number of insns inside LOOP.  */
@@ -171,12 +178,14 @@ num_loop_insns (const struct loop *loop)
   for (i = 0; i < loop->num_nodes; i++)
     {
       bb = bbs[i];
-      ninsns++;
-      for (insn = BB_HEAD (bb); insn != BB_END (bb); insn = NEXT_INSN (insn))
-	if (INSN_P (insn))
+      FOR_BB_INSNS (bb, insn)
+	if (NONDEBUG_INSN_P (insn))
 	  ninsns++;
     }
-  free(bbs);
+  free (bbs);
+
+  if (!ninsns)
+    ninsns = 1;	/* To avoid division by zero.  */
 
   return ninsns;
 }
@@ -195,9 +204,9 @@ average_num_loop_insns (const struct loop *loop)
     {
       bb = bbs[i];
 
-      binsns = 1;
-      for (insn = BB_HEAD (bb); insn != BB_END (bb); insn = NEXT_INSN (insn))
-	if (INSN_P (insn))
+      binsns = 0;
+      FOR_BB_INSNS (bb, insn)
+	if (NONDEBUG_INSN_P (insn))
 	  binsns++;
 
       ratio = loop->header->frequency == 0
@@ -205,7 +214,7 @@ average_num_loop_insns (const struct loop *loop)
 	      : (bb->frequency * BB_FREQ_MAX) / loop->header->frequency;
       ninsns += binsns * ratio;
     }
-  free(bbs);
+  free (bbs);
 
   ninsns /= BB_FREQ_MAX;
   if (!ninsns)
@@ -294,7 +303,7 @@ get_loop_level (const struct loop *loop)
 /* Returns estimate on cost of computing SEQ.  */
 
 static unsigned
-seq_cost (const_rtx seq)
+seq_cost (const_rtx seq, bool speed)
 {
   unsigned cost = 0;
   rtx set;
@@ -303,7 +312,7 @@ seq_cost (const_rtx seq)
     {
       set = single_set (seq);
       if (set)
-	cost += rtx_cost (set, SET);
+	cost += set_rtx_cost (set, speed);
       else
 	cost++;
     }
@@ -311,22 +320,12 @@ seq_cost (const_rtx seq)
   return cost;
 }
 
-/* The properties of the target.  */
-
-unsigned target_avail_regs;	/* Number of available registers.  */
-unsigned target_res_regs;	/* Number of registers reserved for temporary
-				   expressions.  */
-unsigned target_reg_cost;	/* The cost for register when there still
-				   is some reserve, but we are approaching
-				   the number of available registers.  */
-unsigned target_spill_cost;	/* The cost for register when we need
-				   to spill.  */
-
 /* Initialize the constants for computing set costs.  */
 
 void
 init_set_costs (void)
 {
+  int speed;
   rtx seq;
   rtx reg1 = gen_raw_REG (SImode, FIRST_PSEUDO_REGISTER);
   rtx reg2 = gen_raw_REG (SImode, FIRST_PSEUDO_REGISTER + 1);
@@ -335,56 +334,89 @@ init_set_costs (void)
   unsigned i;
 
   target_avail_regs = 0;
+  target_clobbered_regs = 0;
   for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
     if (TEST_HARD_REG_BIT (reg_class_contents[GENERAL_REGS], i)
 	&& !fixed_regs[i])
-      target_avail_regs++;
+      {
+	target_avail_regs++;
+	if (call_used_regs[i])
+	  target_clobbered_regs++;
+      }
 
   target_res_regs = 3;
 
-  /* Set up the costs for using extra registers:
+  for (speed = 0; speed < 2; speed++)
+     {
+      crtl->maybe_hot_insn_p = speed;
+      /* Set up the costs for using extra registers:
 
-     1) If not many free registers remain, we should prefer having an
-	additional move to decreasing the number of available registers.
-	(TARGET_REG_COST).
-     2) If no registers are available, we need to spill, which may require
-	storing the old value to memory and loading it back
-	(TARGET_SPILL_COST).  */
+	 1) If not many free registers remain, we should prefer having an
+	    additional move to decreasing the number of available registers.
+	    (TARGET_REG_COST).
+	 2) If no registers are available, we need to spill, which may require
+	    storing the old value to memory and loading it back
+	    (TARGET_SPILL_COST).  */
 
-  start_sequence ();
-  emit_move_insn (reg1, reg2);
-  seq = get_insns ();
-  end_sequence ();
-  target_reg_cost = seq_cost (seq);
+      start_sequence ();
+      emit_move_insn (reg1, reg2);
+      seq = get_insns ();
+      end_sequence ();
+      target_reg_cost [speed] = seq_cost (seq, speed);
 
-  start_sequence ();
-  emit_move_insn (mem, reg1);
-  emit_move_insn (reg2, mem);
-  seq = get_insns ();
-  end_sequence ();
-  target_spill_cost = seq_cost (seq);
+      start_sequence ();
+      emit_move_insn (mem, reg1);
+      emit_move_insn (reg2, mem);
+      seq = get_insns ();
+      end_sequence ();
+      target_spill_cost [speed] = seq_cost (seq, speed);
+    }
+  default_rtl_profile ();
 }
 
 /* Estimates cost of increased register pressure caused by making N_NEW new
    registers live around the loop.  N_OLD is the number of registers live
-   around the loop.  */
+   around the loop.  If CALL_P is true, also take into account that
+   call-used registers may be clobbered in the loop body, reducing the
+   number of available registers before we spill.  */
 
 unsigned
-estimate_reg_pressure_cost (unsigned n_new, unsigned n_old)
+estimate_reg_pressure_cost (unsigned n_new, unsigned n_old, bool speed,
+			    bool call_p)
 {
+  unsigned cost;
   unsigned regs_needed = n_new + n_old;
+  unsigned available_regs = target_avail_regs;
+
+  /* If there is a call in the loop body, the call-clobbered registers
+     are not available for loop invariants.  */
+  if (call_p)
+    available_regs = available_regs - target_clobbered_regs;
 
   /* If we have enough registers, we should use them and not restrict
      the transformations unnecessarily.  */
-  if (regs_needed + target_res_regs <= target_avail_regs)
+  if (regs_needed + target_res_regs <= available_regs)
     return 0;
 
-  /* If we are close to running out of registers, try to preserve them.  */
-  if (regs_needed <= target_avail_regs)
-    return target_reg_cost * n_new;
-  
-  /* If we run out of registers, it is very expensive to add another one.  */
-  return target_spill_cost * n_new;
+  if (regs_needed <= available_regs)
+    /* If we are close to running out of registers, try to preserve
+       them.  */
+    cost = target_reg_cost [speed] * n_new;
+  else
+    /* If we run out of registers, it is very expensive to add another
+       one.  */
+    cost = target_spill_cost [speed] * n_new;
+
+  if (optimize && (flag_ira_region == IRA_REGION_ALL
+		   || flag_ira_region == IRA_REGION_MIXED)
+      && number_of_loops () <= (unsigned) IRA_MAX_LOOPS_NUM)
+    /* IRA regional allocation deals with high register pressure
+       better.  So decrease the cost (to do more accurate the cost
+       calculation for IRA, we need to know how many registers lives
+       through the loop transparently).  */
+    cost /= 2;
+
+  return cost;
 }
 
 /* Sets EDGE_LOOP_EXIT flag for all loop exits.  */
@@ -413,3 +445,73 @@ mark_loop_exit_edges (void)
     }
 }
 
+/* Return exit edge if loop has only one exit that is likely
+   to be executed on runtime (i.e. it is not EH or leading
+   to noreturn call.  */
+
+edge
+single_likely_exit (struct loop *loop)
+{
+  edge found = single_exit (loop);
+  vec<edge> exits;
+  unsigned i;
+  edge ex;
+
+  if (found)
+    return found;
+  exits = get_loop_exit_edges (loop);
+  FOR_EACH_VEC_ELT (exits, i, ex)
+    {
+      if (ex->flags & (EDGE_EH | EDGE_ABNORMAL_CALL))
+	continue;
+      /* The constant of 5 is set in a way so noreturn calls are
+	 ruled out by this test.  The static branch prediction algorithm
+         will not assign such a low probability to conditionals for usual
+         reasons.  */
+      if (profile_status != PROFILE_ABSENT
+	  && ex->probability < 5 && !ex->count)
+	continue;
+      if (!found)
+	found = ex;
+      else
+	{
+	  exits.release ();
+	  return NULL;
+	}
+    }
+  exits.release ();
+  return found;
+}
+
+
+/* Gets basic blocks of a LOOP.  Header is the 0-th block, rest is in dfs
+   order against direction of edges from latch.  Specially, if
+   header != latch, latch is the 1-st block.  */
+
+vec<basic_block>
+get_loop_hot_path (const struct loop *loop)
+{
+  basic_block bb = loop->header;
+  vec<basic_block> path = vNULL;
+  bitmap visited = BITMAP_ALLOC (NULL);
+
+  while (true)
+    {
+      edge_iterator ei;
+      edge e;
+      edge best = NULL;
+
+      path.safe_push (bb);
+      bitmap_set_bit (visited, bb->index);
+      FOR_EACH_EDGE (e, ei, bb->succs)
+        if ((!best || e->probability > best->probability)
+	    && !loop_exit_edge_p (loop, e)
+	    && !bitmap_bit_p (visited, e->dest->index))
+	  best = e;
+      if (!best || best->dest == loop->header)
+	break;
+      bb = best->dest;
+    }
+  BITMAP_FREE (visited);
+  return path;
+}

@@ -1,13 +1,14 @@
+/* { dg-message "undeclared identifier is reported only once" "reminder for mmu_base" { target *-*-* } 0 } */
 typedef BYTE unsigned char;	/* { dg-error "expected" } */
 typedef int item_n;
 typedef int perm_set;
-struct PENT { caddr_t v_addr; };/* { dg-error "expected" } */
+struct PENT { caddr_t v_addr; };/* { dg-error "unknown type name" } */
 typedef struct PENT prec;
 typedef struct PENT *prec_t;
 prec_t mem_hash;
-BYTE *mem_base;			/* { dg-error "expected" } */
+BYTE *mem_base;			/* { dg-error "unknown type name" } */
 struct PTE {
-     BYTE *p_page;		/* { dg-error "expected" } */
+     BYTE *p_page;		/* { dg-error "unknown type name" } */
      perm_set p_perms;
 };
 typedef struct PTE pte;
@@ -24,9 +25,9 @@ int pcount=0;
 
 void
 mmu_walk_find(va)
-caddr_t va;			/* { dg-error "expected" } */
+caddr_t va;			/* { dg-error "unknown type name" } */
 {
-     BYTE *page_addr; /* { dg-error "undeclared|for each function" } */
+     BYTE *page_addr; /* { dg-error "unknown type name" } */
      if (mmu_base[Level1(va)]->valid==0x0) { /* { dg-error "undeclared" } */
 	  l1_base = mmu_base[Level1(va)]->(u.p_tablep) = p_alloc(); /* { dg-error "expected|undeclared" } */
 	  mmu_base[Level1(va)]->valid = 0x3;
@@ -52,10 +53,10 @@ caddr_t va;			/* { dg-error "expected" } */
 void *
 a_translate(va_op, v_addr)
 int va_op;
-caddr_t v_addr;			/* { dg-error "expected" } */
+caddr_t v_addr;			/* { dg-error "unknown type name" } */
 {
      register prec_t bucket;
-     register caddr_t p_addr;	/* { dg-error "expected|undeclared" } */
+     register caddr_t p_addr;	/* { dg-error "unknown type name" } */
      bucket = mem_hash+((((v_addr)>>ITEMBITS))&hash_mask);  /* { dg-error "undeclared" } */
      do {
 	  if (bucket->v_addr == ((v_addr)>>ITEMBITS) {	/* { dg-error "expected|undeclared|no member" } */

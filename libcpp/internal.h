@@ -1,10 +1,9 @@
 /* Part of CPP library.
-   Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
+Free Software Foundation; either version 3, or (at your option) any
 later version.
 
 This program is distributed in the hope that it will be useful,
@@ -13,8 +12,8 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
+along with this program; see the file COPYING3.  If not see
+<http://www.gnu.org/licenses/>.  */
 
 /* This header defines all the internal data structures and functions
    that need to be visible across files.  It should not be used outside
@@ -26,15 +25,15 @@ Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 #include "symtab.h"
 #include "cpp-id-data.h"
 
-#ifndef HAVE_ICONV_H
-#undef HAVE_ICONV
-#endif
-
 #if HAVE_ICONV
 #include <iconv.h>
 #else
 #define HAVE_ICONV 0
 typedef int iconv_t;  /* dummy */
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 struct directive;		/* Deliberately incomplete.  */
@@ -48,6 +47,7 @@ struct cset_converter
 {
   convert_f func;
   iconv_t cd;
+  int width;
 };
 
 #define BITS_PER_CPPCHAR_T (CHAR_BIT * sizeof (cppchar_t))
@@ -66,8 +66,9 @@ struct cset_converter
 
 #define CPP_INCREMENT_LINE(PFILE, COLS_HINT) do { \
     const struct line_maps *line_table = PFILE->line_table; \
-    const struct line_map *map = &line_table->maps[line_table->used-1]; \
-    unsigned int line = SOURCE_LINE (map, line_table->highest_line); \
+    const struct line_map *map = \
+      LINEMAPS_LAST_ORDINARY_MAP (line_table); \
+    linenum_type line = SOURCE_LINE (map, line_table->highest_line); \
     linemap_line_start (PFILE->line_table, line + 1, COLS_HINT); \
   } while (0)
 
@@ -115,7 +116,7 @@ extern unsigned char *_cpp_unaligned_alloc (cpp_reader *, size_t);
 #define BUFF_LIMIT(BUFF) ((BUFF)->limit)
 
 /* #include types.  */
-enum include_type {IT_INCLUDE, IT_INCLUDE_NEXT, IT_IMPORT, IT_CMDLINE};
+enum include_type {IT_INCLUDE, IT_INCLUDE_NEXT, IT_IMPORT, IT_CMDLINE, IT_DEFAULT};
 
 union utoken
 {
@@ -136,6 +137,40 @@ struct tokenrun
 #define LAST(c) ((c)->u.iso.last)
 #define CUR(c) ((c)->u.trad.cur)
 #define RLIMIT(c) ((c)->u.trad.rlimit)
+
+/* This describes some additional data that is added to the macro
+   token context of type cpp_context, when -ftrack-macro-expansion is
+   on.  */
+typedef struct
+{
+  /* The node of the macro we are referring to.  */
+  cpp_hashnode *macro_node;
+  /* This buffer contains an array of virtual locations.  The virtual
+     location at index 0 is the virtual location of the token at index
+     0 in the current instance of cpp_context; similarly for all the
+     other virtual locations.  */
+  source_location *virt_locs;
+  /* This is a pointer to the current virtual location.  This is used
+     to iterate over the virtual locations while we iterate over the
+     tokens they belong to.  */
+  source_location *cur_virt_loc;
+} macro_context;
+
+/* The kind of tokens carried by a cpp_context.  */
+enum context_tokens_kind {
+  /* This is the value of cpp_context::tokens_kind if u.iso.first
+     contains an instance of cpp_token **.  */
+  TOKENS_KIND_INDIRECT,
+  /* This is the value of cpp_context::tokens_kind if u.iso.first
+     contains an instance of cpp_token *.  */
+  TOKENS_KIND_DIRECT,
+  /* This is the value of cpp_context::tokens_kind when the token
+     context contains tokens resulting from macro expansion.  In that
+     case struct cpp_context::macro points to an instance of struct
+     macro_context.  This is used only when the
+     -ftrack-macro-expansion flag is on.  */
+  TOKENS_KIND_EXTENDED
+};
 
 typedef struct cpp_context cpp_context;
 struct cpp_context
@@ -166,11 +201,24 @@ struct cpp_context
      When the context is popped, the buffer is released.  */
   _cpp_buff *buff;
 
-  /* For a macro context, the macro node, otherwise NULL.  */
-  cpp_hashnode *macro;
+  /* If tokens_kind is TOKEN_KIND_EXTENDED, then (as we thus are in a
+     macro context) this is a pointer to an instance of macro_context.
+     Otherwise if tokens_kind is *not* TOKEN_KIND_EXTENDED, then, if
+     we are in a macro context, this is a pointer to an instance of
+     cpp_hashnode, representing the name of the macro this context is
+     for.  If we are not in a macro context, then this is just NULL.
+     Note that when tokens_kind is TOKEN_KIND_EXTENDED, the memory
+     used by the instance of macro_context pointed to by this member
+     is de-allocated upon de-allocation of the instance of struct
+     cpp_context.  */
+  union
+  {
+    macro_context *mc;
+    cpp_hashnode *macro;
+  } c;
 
-  /* True if utoken element is token, else ptoken.  */
-  bool direct_p;
+  /* This determines the type of tokens held by this context.  */
+  enum context_tokens_kind tokens_kind;
 };
 
 struct lexer_state
@@ -239,7 +287,8 @@ struct _cpp_line_note
 
   /* Type of note.  The 9 'from' trigraph characters represent those
      trigraphs, '\\' an escaped newline, ' ' an escaped newline with
-     intervening space, and anything else is invalid.  */
+     intervening space, 0 represents a note that has already been handled,
+     and anything else is invalid.  */
   unsigned int type;
 };
 
@@ -252,6 +301,8 @@ struct cpp_buffer
 
   const unsigned char *buf;        /* Entire character buffer.  */
   const unsigned char *rlimit;     /* Writable byte at end of file.  */
+  const unsigned char *to_free;	   /* Pointer that should be freed when
+				      popping the buffer.  */
 
   _cpp_line_note *notes;           /* Array of notes.  */
   unsigned int cur_note;           /* Next note to process.  */
@@ -304,6 +355,26 @@ struct cpp_buffer
   struct cset_converter input_cset_desc;
 };
 
+/* The list of saved macros by push_macro pragma.  */
+struct def_pragma_macro {
+  /* Chain element to previous saved macro.  */
+  struct def_pragma_macro *next;
+  /* Name of the macro.  */
+  char *name;
+  /* The stored macro content.  */
+  unsigned char *definition;
+
+  /* Definition line number.  */
+  source_location line;
+  /* If macro defined in system header.  */
+  unsigned int syshdr   : 1;
+  /* Nonzero if it has been expanded or had its existence tested.  */
+  unsigned int used     : 1;
+
+  /* Mark if we save an undefined macro.  */
+  unsigned int is_undef : 1;
+};
+
 /* A cpp_reader encapsulates the "state" of a pre-processor run.
    Applying cpp_get_token repeatedly yields a stream of pre-processor
    tokens.  Usually, there is only one cpp_reader object active.  */
@@ -343,9 +414,13 @@ struct cpp_reader
      macro invocation.  */
   source_location invocation_location;
 
-  /* True if this call to cpp_get_token should consider setting
-     invocation_location.  */
-  bool set_invocation_location;
+  /* Nonzero if we are about to expand a macro.  Note that if we are
+     really expanding a macro, the function macro_of_context returns
+     the macro being expanded and this flag is set to false.  Client
+     code should use the function in_macro_expansion_p to know if we
+     are either about to expand a macro, or are actually expanding
+     one.  */
+  bool about_to_expand_macro_p;
 
   /* Search paths for include files.  */
   struct cpp_dir *quote_include;	/* "" */
@@ -387,9 +462,6 @@ struct cpp_reader
   /* Nonzero prevents the lexer from re-using the token runs.  */
   unsigned int keep_tokens;
 
-  /* Error counter for exit code.  */
-  unsigned int errors;
-
   /* Buffer to hold macro definition string.  */
   unsigned char *macro_buffer;
   unsigned int macro_buffer_len;
@@ -397,6 +469,18 @@ struct cpp_reader
   /* Descriptor for converting from the source character set to the
      execution character set.  */
   struct cset_converter narrow_cset_desc;
+
+  /* Descriptor for converting from the source character set to the
+     UTF-8 execution character set.  */
+  struct cset_converter utf8_cset_desc;
+
+  /* Descriptor for converting from the source character set to the
+     UTF-16 execution character set.  */
+  struct cset_converter char16_cset_desc;
+
+  /* Descriptor for converting from the source character set to the
+     UTF-32 execution character set.  */
+  struct cset_converter char32_cset_desc;
 
   /* Descriptor for converting from the source character set to the
      wide execution character set.  */
@@ -462,6 +546,16 @@ struct cpp_reader
 
   /* Next value of __COUNTER__ macro. */
   unsigned int counter;
+
+  /* Table of comments, when state.save_comments is true.  */
+  cpp_comment_table comments;
+
+  /* List of saved macros by push_macro.  */
+  struct def_pragma_macro *pushed_macros;
+
+  /* If non-null, the lexer will use this location for the next token
+     instead of getting a location from the linemap.  */
+  source_location *forced_token_location_p;
 };
 
 /* Character classes.  Based on the more primitive macros in safe-ctype.h.
@@ -499,8 +593,8 @@ cpp_in_system_header (cpp_reader *pfile)
 {
   return pfile->buffer ? pfile->buffer->sysp : 0;
 }
-#define CPP_PEDANTIC(PF) CPP_OPTION (PF, pedantic)
-#define CPP_WTRADITIONAL(PF) CPP_OPTION (PF, warn_traditional)
+#define CPP_PEDANTIC(PF) CPP_OPTION (PF, cpp_pedantic)
+#define CPP_WTRADITIONAL(PF) CPP_OPTION (PF, cpp_warn_traditional)
 
 static inline int cpp_in_primary_file (cpp_reader *);
 static inline int
@@ -508,10 +602,6 @@ cpp_in_primary_file (cpp_reader *pfile)
 {
   return pfile->line_table->depth == 1;
 }
-
-/* In errors.c  */
-extern int _cpp_begin_message (cpp_reader *, int,
-			       source_location, unsigned int);
 
 /* In macro.c */
 extern void _cpp_free_definition (cpp_hashnode *);
@@ -527,15 +617,16 @@ extern const unsigned char *_cpp_builtin_macro_text (cpp_reader *,
 extern int _cpp_warn_if_unused_macro (cpp_reader *, cpp_hashnode *, void *);
 extern void _cpp_push_token_context (cpp_reader *, cpp_hashnode *,
 				     const cpp_token *, unsigned int);
+extern void _cpp_backup_tokens_direct (cpp_reader *, unsigned int);
 
 /* In identifiers.c */
-extern void _cpp_init_hashtable (cpp_reader *, hash_table *);
+extern void _cpp_init_hashtable (cpp_reader *, cpp_hash_table *);
 extern void _cpp_destroy_hashtable (cpp_reader *);
 
 /* In files.c */
 typedef struct _cpp_file _cpp_file;
 extern _cpp_file *_cpp_find_file (cpp_reader *, const char *, cpp_dir *,
-				  bool, int);
+				  bool, int, bool);
 extern bool _cpp_find_failed (_cpp_file *);
 extern void _cpp_mark_file_once_only (cpp_reader *, struct _cpp_file *);
 extern void _cpp_fake_include (cpp_reader *, const char *);
@@ -546,13 +637,15 @@ extern int _cpp_compare_file_date (cpp_reader *, const char *, int);
 extern void _cpp_report_missing_guards (cpp_reader *);
 extern void _cpp_init_files (cpp_reader *);
 extern void _cpp_cleanup_files (cpp_reader *);
-extern void _cpp_pop_file_buffer (cpp_reader *, struct _cpp_file *);
+extern void _cpp_pop_file_buffer (cpp_reader *, struct _cpp_file *,
+				  const unsigned char *);
 extern bool _cpp_save_file_entries (cpp_reader *pfile, FILE *f);
 extern bool _cpp_read_file_entries (cpp_reader *, FILE *);
+extern const char *_cpp_get_file_name (_cpp_file *);
 extern struct stat *_cpp_get_file_stat (_cpp_file *);
 
 /* In expr.c */
-extern bool _cpp_parse_expr (cpp_reader *);
+extern bool _cpp_parse_expr (cpp_reader *, bool);
 extern struct op *_cpp_expand_op_stack (cpp_reader *);
 
 /* In lex.c */
@@ -565,9 +658,13 @@ extern const cpp_token *_cpp_lex_token (cpp_reader *);
 extern cpp_token *_cpp_lex_direct (cpp_reader *);
 extern int _cpp_equiv_tokens (const cpp_token *, const cpp_token *);
 extern void _cpp_init_tokenrun (tokenrun *, unsigned int);
+extern cpp_hashnode *_cpp_lex_identifier (cpp_reader *, const char *);
+extern int _cpp_remaining_tokens_num_in_context (cpp_context *);
+extern void _cpp_init_lexer (void);
 
 /* In init.c.  */
 extern void _cpp_maybe_push_include_file (cpp_reader *);
+extern const char *cpp_named_operator2name (enum cpp_ttype type);
 
 /* In directives.c */
 extern int _cpp_test_assertion (cpp_reader *, unsigned int *);
@@ -579,7 +676,7 @@ extern int _cpp_do__Pragma (cpp_reader *);
 extern void _cpp_init_directives (cpp_reader *);
 extern void _cpp_init_internal_pragmas (cpp_reader *);
 extern void _cpp_do_file_change (cpp_reader *, enum lc_reason, const char *,
-				 unsigned int, unsigned int);
+				 linenum_type, unsigned int);
 extern void _cpp_pop_buffer (cpp_reader *);
 
 /* In directives.c */
@@ -635,7 +732,7 @@ extern cppchar_t _cpp_valid_ucn (cpp_reader *, const unsigned char **,
 extern void _cpp_destroy_iconv (cpp_reader *);
 extern unsigned char *_cpp_convert_input (cpp_reader *, const char *,
 					  unsigned char *, size_t, size_t,
-					  off_t *);
+					  const unsigned char **, off_t *);
 extern const char *_cpp_default_encoding (void);
 extern cpp_hashnode * _cpp_interpret_identifier (cpp_reader *pfile,
 						 const unsigned char *id,
@@ -650,8 +747,8 @@ static inline int ustrcmp (const unsigned char *, const unsigned char *);
 static inline int ustrncmp (const unsigned char *, const unsigned char *,
 			    size_t);
 static inline size_t ustrlen (const unsigned char *);
-static inline unsigned char *uxstrdup (const unsigned char *);
-static inline unsigned char *ustrchr (const unsigned char *, int);
+static inline const unsigned char *uxstrdup (const unsigned char *);
+static inline const unsigned char *ustrchr (const unsigned char *, int);
 static inline int ufputs (const unsigned char *, FILE *);
 
 /* Use a const char for the second parameter since it is usually a literal.  */
@@ -681,16 +778,16 @@ ustrlen (const unsigned char *s1)
   return strlen ((const char *)s1);
 }
 
-static inline unsigned char *
+static inline const unsigned char *
 uxstrdup (const unsigned char *s1)
 {
-  return (unsigned char *) xstrdup ((const char *)s1);
+  return (const unsigned char *) xstrdup ((const char *)s1);
 }
 
-static inline unsigned char *
+static inline const unsigned char *
 ustrchr (const unsigned char *s1, int c)
 {
-  return (unsigned char *) strchr ((const char *)s1, c);
+  return (const unsigned char *) strchr ((const char *)s1, c);
 }
 
 static inline int
@@ -698,5 +795,79 @@ ufputs (const unsigned char *s, FILE *f)
 {
   return fputs ((const char *)s, f);
 }
+
+  /* In line-map.c.  */
+
+/* Create a macro map.  A macro map encodes source locations of tokens
+   that are part of a macro replacement-list, at a macro expansion
+   point. See the extensive comments of struct line_map and struct
+   line_map_macro, in line-map.h.
+
+   This map shall be created when the macro is expanded. The map
+   encodes the source location of the expansion point of the macro as
+   well as the "original" source location of each token that is part
+   of the macro replacement-list. If a macro is defined but never
+   expanded, it has no macro map.  SET is the set of maps the macro
+   map should be part of.  MACRO_NODE is the macro which the new macro
+   map should encode source locations for.  EXPANSION is the location
+   of the expansion point of MACRO. For function-like macros
+   invocations, it's best to make it point to the closing parenthesis
+   of the macro, rather than the the location of the first character
+   of the macro.  NUM_TOKENS is the number of tokens that are part of
+   the replacement-list of MACRO.  */
+const struct line_map *linemap_enter_macro (struct line_maps *,
+					    struct cpp_hashnode*,
+					    source_location,
+					    unsigned int);
+
+/* Create and return a virtual location for a token that is part of a
+   macro expansion-list at a macro expansion point.  See the comment
+   inside struct line_map_macro to see what an expansion-list exactly
+   is.
+
+   A call to this function must come after a call to
+   linemap_enter_macro.
+
+   MAP is the map into which the source location is created.  TOKEN_NO
+   is the index of the token in the macro replacement-list, starting
+   at number 0.
+
+   ORIG_LOC is the location of the token outside of this macro
+   expansion.  If the token comes originally from the macro
+   definition, it is the locus in the macro definition; otherwise it
+   is a location in the context of the caller of this macro expansion
+   (which is a virtual location or a source location if the caller is
+   itself a macro expansion or not).
+
+   MACRO_DEFINITION_LOC is the location in the macro definition,
+   either of the token itself or of a macro parameter that it
+   replaces.  */
+source_location linemap_add_macro_token (const struct line_map *,
+					 unsigned int,
+					 source_location,
+					 source_location);
+
+/* Return the source line number corresponding to source location
+   LOCATION.  SET is the line map set LOCATION comes from.  If
+   LOCATION is the location of token that is part of the
+   expansion-list of a macro expansion return the line number of the
+   macro expansion point.  */
+int linemap_get_expansion_line (struct line_maps *,
+				source_location);
+
+/* Return the path of the file corresponding to source code location
+   LOCATION.
+
+   If LOCATION is the location of a token that is part of the
+   replacement-list of a macro expansion return the file path of the
+   macro expansion point.
+
+   SET is the line map set LOCATION comes from.  */
+const char* linemap_get_expansion_filename (struct line_maps *,
+					    source_location);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ! LIBCPP_INTERNAL_H */

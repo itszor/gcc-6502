@@ -1,6 +1,5 @@
 /* Java(TM) language-specific utility routines.
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007 Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -30,11 +29,8 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "tm.h"
 #include "tree.h"
 #include "input.h"
-#include "rtl.h"
-#include "expr.h"
 #include "java-tree.h"
 #include "jcf.h"
-#include "toplev.h"
 #include "langhooks.h"
 #include "langhooks-def.h"
 #include "flags.h"
@@ -45,15 +41,19 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "tree-dump.h"
 #include "opts.h"
 #include "options.h"
+#include "target.h"
 
 static bool java_init (void);
 static void java_finish (void);
-static unsigned int java_init_options (unsigned int, const char **);
+static unsigned int java_option_lang_mask (void);
+static void java_init_options_struct (struct gcc_options *);
+static void java_init_options (unsigned int, struct cl_decoded_option *);
 static bool java_post_options (const char **);
 
-static int java_handle_option (size_t scode, const char *arg, int value);
+static bool java_handle_option (size_t, const char *, int, int, location_t,
+				const struct cl_option_handlers *);
 static void put_decl_string (const char *, int);
-static void put_decl_node (tree);
+static void put_decl_node (tree, int);
 static void java_print_error_function (diagnostic_context *, const char *,
 				       diagnostic_info *);
 static int merge_init_test_initialization (void * *, void *);
@@ -61,58 +61,21 @@ static int inline_init_test_initialization (void * *, void *);
 static bool java_dump_tree (void *, tree);
 static void dump_compound_expr (dump_info_p, tree);
 static bool java_decl_ok_for_sibcall (const_tree);
-static tree java_get_callee_fndecl (const_tree);
-static void java_clear_binding_stack (void);
 
 static enum classify_record java_classify_record (tree type);
+
+static tree java_eh_personality (void);
 
 #ifndef TARGET_OBJECT_SUFFIX
 # define TARGET_OBJECT_SUFFIX ".o"
 #endif
 
-/* Table indexed by tree code giving a string containing a character
-   classifying the tree code.  Possibilities are
-   t, d, s, c, r, <, 1 and 2.  See java/java-tree.def for details.  */
-
-#define DEFTREECODE(SYM, NAME, TYPE, LENGTH) TYPE,
-
-const enum tree_code_class tree_code_type[] = {
-#include "tree.def"
-  tcc_exceptional,
-#include "java-tree.def"
-};
-#undef DEFTREECODE
-
-/* Table indexed by tree code giving number of expression
-   operands beyond the fixed part of the node structure.
-   Not used for types or decls.  */
-
-#define DEFTREECODE(SYM, NAME, TYPE, LENGTH) LENGTH,
-
-const unsigned char tree_code_length[] = {
-#include "tree.def"
-  0,
-#include "java-tree.def"
-};
-#undef DEFTREECODE
-
-/* Names of tree components.
-   Used for printing out the tree and error messages.  */
-#define DEFTREECODE(SYM, NAME, TYPE, LEN) NAME,
-
-const char *const tree_code_name[] = {
-#include "tree.def"
-  "@@dummy",
-#include "java-tree.def"
-};
-#undef DEFTREECODE
-
 /* Table of machine-independent attributes.  */
 const struct attribute_spec java_attribute_table[] =
 {
  { "nonnull",                0, -1, false, true, true,
-			      NULL },
-  { NULL,                     0, 0, false, false, false, NULL }
+			      NULL, false },
+  { NULL,                     0, 0, false, false, false, NULL, false }
 };
 
 /* Used to avoid printing error messages with bogus function
@@ -150,8 +113,7 @@ static int dependency_tracking = 0;
 #define DEPEND_TARGET_SET 4
 #define DEPEND_FILE_ALREADY_SET 8
 
-struct language_function GTY(())
-{
+struct GTY(()) language_function {
   int unused;
 };
 
@@ -161,6 +123,10 @@ struct language_function GTY(())
 #define LANG_HOOKS_INIT java_init
 #undef LANG_HOOKS_FINISH
 #define LANG_HOOKS_FINISH java_finish
+#undef LANG_HOOKS_OPTION_LANG_MASK
+#define LANG_HOOKS_OPTION_LANG_MASK java_option_lang_mask
+#undef LANG_HOOKS_INIT_OPTIONS_STRUCT
+#define LANG_HOOKS_INIT_OPTIONS_STRUCT java_init_options_struct
 #undef LANG_HOOKS_INIT_OPTIONS
 #define LANG_HOOKS_INIT_OPTIONS java_init_options
 #undef LANG_HOOKS_HANDLE_OPTION
@@ -169,14 +135,14 @@ struct language_function GTY(())
 #define LANG_HOOKS_POST_OPTIONS java_post_options
 #undef LANG_HOOKS_PARSE_FILE
 #define LANG_HOOKS_PARSE_FILE java_parse_file
-#undef LANG_HOOKS_MARK_ADDRESSABLE
-#define LANG_HOOKS_MARK_ADDRESSABLE java_mark_addressable
 #undef LANG_HOOKS_DUP_LANG_SPECIFIC_DECL
 #define LANG_HOOKS_DUP_LANG_SPECIFIC_DECL java_dup_lang_specific_decl
 #undef LANG_HOOKS_DECL_PRINTABLE_NAME
 #define LANG_HOOKS_DECL_PRINTABLE_NAME lang_printable_name
 #undef LANG_HOOKS_PRINT_ERROR_FUNCTION
 #define LANG_HOOKS_PRINT_ERROR_FUNCTION	java_print_error_function
+#undef LANG_HOOKS_WRITE_GLOBALS
+#define LANG_HOOKS_WRITE_GLOBALS java_write_globals
 
 #undef LANG_HOOKS_TYPE_FOR_MODE
 #define LANG_HOOKS_TYPE_FOR_MODE java_type_for_mode
@@ -194,27 +160,29 @@ struct language_function GTY(())
 #undef LANG_HOOKS_DECL_OK_FOR_SIBCALL
 #define LANG_HOOKS_DECL_OK_FOR_SIBCALL java_decl_ok_for_sibcall
 
-#undef LANG_HOOKS_GET_CALLEE_FNDECL
-#define LANG_HOOKS_GET_CALLEE_FNDECL java_get_callee_fndecl
-
-#undef LANG_HOOKS_CLEAR_BINDING_STACK
-#define LANG_HOOKS_CLEAR_BINDING_STACK java_clear_binding_stack
-
 #undef LANG_HOOKS_SET_DECL_ASSEMBLER_NAME
 #define LANG_HOOKS_SET_DECL_ASSEMBLER_NAME java_mangle_decl
 
 #undef LANG_HOOKS_ATTRIBUTE_TABLE
 #define LANG_HOOKS_ATTRIBUTE_TABLE java_attribute_table
 
+#undef LANG_HOOKS_EH_PERSONALITY
+#define LANG_HOOKS_EH_PERSONALITY java_eh_personality
+
+#undef LANG_HOOKS_EH_USE_CXA_END_CLEANUP
+#define LANG_HOOKS_EH_USE_CXA_END_CLEANUP  true
+
 /* Each front end provides its own.  */
-const struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
+struct lang_hooks lang_hooks = LANG_HOOKS_INITIALIZER;
 
 /*
  * process java-specific compiler command-line options
- * return 0, but do not complain if the option is not recognized.
+ * return false, but do not complain if the option is not recognized.
  */
-static int
-java_handle_option (size_t scode, const char *arg, int value)
+static bool
+java_handle_option (size_t scode, const char *arg, int value,
+		    int kind ATTRIBUTE_UNUSED, location_t loc ATTRIBUTE_UNUSED,
+		    const struct cl_option_handlers *handlers ATTRIBUTE_UNUSED)
 {
   enum opt_code code = (enum opt_code) scode;
 
@@ -262,7 +230,7 @@ java_handle_option (size_t scode, const char *arg, int value)
       flag_wall = value;
       /* When -Wall given, enable -Wunused.  We do this because the C
 	 compiler does it, and people expect it.  */
-      set_Wunused (value);
+      warn_unused = value;
       break;
 
     case OPT_fenable_assertions_:
@@ -295,7 +263,6 @@ java_handle_option (size_t scode, const char *arg, int value)
 
     case OPT_faux_classpath:
     case OPT_fclasspath_:
-    case OPT_fCLASSPATH_:
       jcf_path_classpath_arg (arg);
       break;
 
@@ -305,7 +272,7 @@ java_handle_option (size_t scode, const char *arg, int value)
 
     case OPT_fdump_:
       if (!dump_switch_p (arg))
-	return 0;
+	return false;
       break;
 
     case OPT_fencoding_:
@@ -334,7 +301,7 @@ java_handle_option (size_t scode, const char *arg, int value)
       gcc_unreachable ();
     }
 
-  return 1;
+  return true;
 }
 
 /* Global open file.  */
@@ -393,17 +360,20 @@ put_decl_string (const char *str, int len)
       else
 	{
 	  decl_buflen *= 2;
-	  decl_buf = xrealloc (decl_buf, decl_buflen);
+	  decl_buf = XRESIZEVAR (char, decl_buf, decl_buflen);
 	}
     }
   strcpy (decl_buf + decl_bufpos, str);
   decl_bufpos += len;
 }
 
-/* Append to decl_buf a printable name for NODE. */
+/* Append to decl_buf a printable name for NODE.
+   Depending on VERBOSITY, more information about NODE
+   is printed. Read the comments of decl_printable_name in
+   langhooks.h for more.  */
 
 static void
-put_decl_node (tree node)
+put_decl_node (tree node, int verbosity)
 {
   int was_pointer = 0;
   if (TREE_CODE (node) == POINTER_TYPE)
@@ -415,17 +385,34 @@ put_decl_node (tree node)
     {
       if (TREE_CODE (node) == FUNCTION_DECL)
 	{
+	  if (verbosity == 0 && DECL_NAME (node))
+	  /* We have been instructed to just print the bare name
+	     of the function.  */
+	    {
+	      put_decl_node (DECL_NAME (node), 0);
+	      return;
+	    }
+
 	  /* We want to print the type the DECL belongs to. We don't do
 	     that when we handle constructors. */
 	  if (! DECL_CONSTRUCTOR_P (node)
-	      && ! DECL_ARTIFICIAL (node) && DECL_CONTEXT (node))
+	      && ! DECL_ARTIFICIAL (node) && DECL_CONTEXT (node)
+              /* We want to print qualified DECL names only
+                 if verbosity is higher than 1.  */
+              && verbosity >= 1)
 	    {
-	      put_decl_node (TYPE_NAME (DECL_CONTEXT (node)));
+	      put_decl_node (TREE_CODE (DECL_CONTEXT (node)) == FUNCTION_DECL
+			     ? DECL_CONTEXT (node)
+			     : TYPE_NAME (DECL_CONTEXT (node)),
+                               verbosity);
 	      put_decl_string (".", 1);
 	    }
 	  if (! DECL_CONSTRUCTOR_P (node))
-	    put_decl_node (DECL_NAME (node));
-	  if (TREE_TYPE (node) != NULL_TREE)
+	    put_decl_node (DECL_NAME (node), verbosity);
+	  if (TREE_TYPE (node) != NULL_TREE
+              /* We want to print function parameters only if verbosity
+                 is higher than 2.  */
+              && verbosity >= 2)
 	    {
 	      int i = 0;
 	      tree args = TYPE_ARG_TYPES (TREE_TYPE (node));
@@ -436,19 +423,22 @@ put_decl_node (tree node)
 		{
 		  if (i > 0)
 		    put_decl_string (",", 1);
-		  put_decl_node (TREE_VALUE (args));
+		  put_decl_node (TREE_VALUE (args), verbosity);
 		}
 	      put_decl_string (")", 1);
 	    }
 	}
       else
-	put_decl_node (DECL_NAME (node));
+	put_decl_node (DECL_NAME (node), verbosity);
     }
   else if (TYPE_P (node) && TYPE_NAME (node) != NULL_TREE)
     {
-      if (TREE_CODE (node) == RECORD_TYPE && TYPE_ARRAY_P (node))
+      if (TREE_CODE (node) == RECORD_TYPE && TYPE_ARRAY_P (node)
+          /* Print detailed array information only if verbosity is higher
+            than 2.  */
+          && verbosity >= 2)
 	{
-	  put_decl_node (TYPE_ARRAY_ELEMENT (node));
+	  put_decl_node (TYPE_ARRAY_ELEMENT (node), verbosity);
 	  put_decl_string("[]", 2);
 	}
       else if (node == promoted_byte_type_node)
@@ -462,7 +452,7 @@ put_decl_node (tree node)
       else if (node == void_type_node && was_pointer)
 	put_decl_string ("null", 4);
       else
-	put_decl_node (TYPE_NAME (node));
+	put_decl_node (TYPE_NAME (node), verbosity);
     }
   else if (TREE_CODE (node) == IDENTIFIER_NODE)
     put_decl_string (IDENTIFIER_POINTER (node), IDENTIFIER_LENGTH (node));
@@ -479,10 +469,7 @@ const char *
 lang_printable_name (tree decl, int v)
 {
   decl_bufpos = 0;
-  if (v == 0 && TREE_CODE (decl) == FUNCTION_DECL)
-    put_decl_node (DECL_NAME (decl));
-  else
-    put_decl_node (decl);
+  put_decl_node (decl, v);
   put_decl_string ("", 1);
   return decl_buf;
 }
@@ -546,29 +533,40 @@ lang_init_source (int level)
 }
 
 static unsigned int
-java_init_options (unsigned int argc ATTRIBUTE_UNUSED,
-		   const char **argv ATTRIBUTE_UNUSED)
+java_option_lang_mask (void)
 {
-  flag_bounds_check = 1;
-  flag_exceptions = 1;
-  flag_non_call_exceptions = 1;
+  return CL_Java;
+}
+
+/* Initialize options structure OPTS.  */
+
+static void
+java_init_options_struct (struct gcc_options *opts)
+{
+  opts->x_flag_bounds_check = 1;
+  opts->x_flag_exceptions = 1;
+  opts->x_flag_non_call_exceptions = 1;
 
   /* In Java floating point operations never trap.  */
-  flag_trapping_math = 0;
+  opts->x_flag_trapping_math = 0;
+  opts->frontend_set_flag_trapping_math = true;
 
   /* In Java arithmetic overflow always wraps around.  */
-  flag_wrapv = 1;
+  opts->x_flag_wrapv = 1;
 
   /* Java requires left-to-right evaluation of subexpressions.  */
-  flag_evaluation_order = 1;
+  opts->x_flag_evaluation_order = 1;
 
-  /* Unit at a time is disabled for Java because it is considered
-     too expensive.  */
-  no_unit_at_a_time_default = 1;
+  /* Java catches NULL pointer exceptions, thus we can not necessarily
+     rely on a pointer having a non-NULL value after a dereference.  */
+  opts->x_flag_delete_null_pointer_checks = 0;
+}
 
+static void
+java_init_options (unsigned int decoded_options_count ATTRIBUTE_UNUSED,
+		   struct cl_decoded_option *decoded_options ATTRIBUTE_UNUSED)
+{
   jcf_path_init ();
-
-  return CL_Java;
 }
 
 /* Post-switch processing.  */
@@ -577,11 +575,12 @@ java_post_options (const char **pfilename)
 {
   const char *filename = *pfilename;
 
-  /* Use tree inlining.  */
-  if (!flag_no_inline)
-    flag_no_inline = 1;
-  if (flag_inline_functions)
-    flag_inline_trees = 2;
+  /* Excess precision other than "fast" requires front-end
+     support.  */
+  if (flag_excess_precision_cmdline == EXCESS_PRECISION_STANDARD
+      && TARGET_FLT_EVAL_METHOD_NON_DEFAULT)
+    sorry ("-fexcess-precision=standard for Java");
+  flag_excess_precision_cmdline = EXCESS_PRECISION_FAST;
 
   /* An absolute requirement: if we're not using indirect dispatch, we
      must always verify everything.  */
@@ -605,13 +604,13 @@ java_post_options (const char **pfilename)
       filename = "stdin";
 
       if (dependency_tracking)
-	error ("can't do dependency tracking with input from stdin");
+	error ("can%'t do dependency tracking with input from stdin");
     }
   else
     {
       if (dependency_tracking)
 	{
-	  char *dot;
+	  const char *dot;
 
 	  /* If the target is set and the output filename is set, then
 	     there's no processing to do here.  Otherwise we must
@@ -621,7 +620,7 @@ java_post_options (const char **pfilename)
 	    {
 	      dot = strrchr (filename, '.');
 	      if (dot == NULL)
-		error ("couldn't determine target name for dependency tracking");
+		error ("couldn%'t determine target name for dependency tracking");
 	      else
 		{
 		  char *buf = XNEWVEC (char, dot - filename +
@@ -655,10 +654,8 @@ java_post_options (const char **pfilename)
 	    }
 	}
     }
-#ifdef USE_MAPPED_LOCATION
   linemap_add (line_table, LC_ENTER, false, filename, 0);
   linemap_add (line_table, LC_RENAME, false, "<built-in>", 0);
-#endif
 
   /* Initialize the compiler back end.  */
   return false;
@@ -898,65 +895,7 @@ static bool
 java_decl_ok_for_sibcall (const_tree decl)
 {
   return (decl != NULL && DECL_CONTEXT (decl) == output_class
-	  && DECL_INLINE (decl));
-}
-
-/* Given a call_expr, try to figure out what its target might be.  In
-   the case of an indirection via the atable, search for the decl.  If
-   the decl is external, we return NULL.  If we don't, the optimizer
-   will replace the indirection with a direct call, which undoes the
-   purpose of the atable indirection.  */
-static tree
-java_get_callee_fndecl (const_tree call_expr)
-{
-  tree method, table, element, atable_methods;
-
-  HOST_WIDE_INT index;
-
-  /* FIXME: This is disabled because we end up passing calls through
-     the PLT, and we do NOT want to do that.  */
-  return NULL;
-
-  if (TREE_CODE (call_expr) != CALL_EXPR)
-    return NULL;
-  method = CALL_EXPR_FN (call_expr);
-  STRIP_NOPS (method);
-  if (TREE_CODE (method) != ARRAY_REF)
-    return NULL;
-  table = TREE_OPERAND (method, 0);
-  if (! DECL_LANG_SPECIFIC(table)
-      || !DECL_OWNER (table)
-      || TYPE_ATABLE_DECL (DECL_OWNER (table)) != table)
-    return NULL;
-
-  atable_methods = TYPE_ATABLE_METHODS (DECL_OWNER (table));
-  index = TREE_INT_CST_LOW (TREE_OPERAND (method, 1));
-
-  /* FIXME: Replace this for loop with a hash table lookup.  */
-  for (element = atable_methods; element; element = TREE_CHAIN (element))
-    {
-      if (index == 1)
-	{
-	  tree purpose = TREE_PURPOSE (element);
-	  if (TREE_CODE (purpose) == FUNCTION_DECL
-	      && ! DECL_EXTERNAL (purpose))
-	    return purpose;
-	  else
-	    return NULL;
-	}
-      --index;
-    }
-
-  return NULL;
-}
-
-
-/* Clear the binding stack.  */
-static void
-java_clear_binding_stack (void)
-{
-  while (!global_bindings_p ())
-    poplevel (0, 0, 0);
+          && !DECL_UNINLINABLE (decl));
 }
 
 static enum classify_record
@@ -965,12 +904,20 @@ java_classify_record (tree type)
   if (! CLASS_P (type))
     return RECORD_IS_STRUCT;
 
-  /* ??? GDB does not support DW_TAG_interface_type as of December,
-     2007.  Re-enable this at a later time.  */
-  if (0 && CLASS_INTERFACE (TYPE_NAME (type)))
+  if (CLASS_INTERFACE (TYPE_NAME (type)))
     return RECORD_IS_INTERFACE;
 
   return RECORD_IS_CLASS;
+}
+
+static GTY(()) tree java_eh_personality_decl;
+
+static tree
+java_eh_personality (void)
+{
+  if (!java_eh_personality_decl)
+    java_eh_personality_decl = build_personality_function ("gcj");
+  return java_eh_personality_decl;
 }
 
 #include "gt-java-lang.h"

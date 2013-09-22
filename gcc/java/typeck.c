@@ -1,6 +1,5 @@
 /* Handle types for the GNU compiler for the Java(TM) language.
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005, 2007
-   Free Software Foundation, Inc.
+   Copyright (C) 1996-2013 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -27,15 +26,13 @@ The Free Software Foundation is independent of Sun Microsystems, Inc.  */
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
-#include "tm.h"
 #include "tree.h"
-#include "real.h"
 #include "obstack.h"
 #include "flags.h"
 #include "java-tree.h"
 #include "jcf.h"
 #include "convert.h"
-#include "toplev.h"
+#include "diagnostic-core.h"
 #include "ggc.h"
 
 static tree convert_ieee_real_to_integer (tree, tree);
@@ -131,8 +128,7 @@ convert (tree type, tree expr)
       if (type == char_type_node || type == promoted_char_type_node)
 	return fold_convert (type, expr);
       if ((really_constant_p (expr) || ! flag_unsafe_math_optimizations)
-	  && TREE_CODE (TREE_TYPE (expr)) == REAL_TYPE
-	  && TARGET_FLOAT_FORMAT == IEEE_FLOAT_FORMAT)
+	  && TREE_CODE (TREE_TYPE (expr)) == REAL_TYPE)
 	return convert_ieee_real_to_integer (type, expr);
       else
 	{
@@ -194,71 +190,6 @@ java_type_for_size (unsigned bits, int unsignedp)
   return 0;
 }
 
-/* Mark EXP saying that we need to be able to take the
-   address of it; it should not be allocated in a register.
-   Value is true if successful.  */
-
-bool
-java_mark_addressable (tree exp)
-{
-  tree x = exp;
-  while (1)
-    switch (TREE_CODE (x))
-      {
-      case ADDR_EXPR:
-      case COMPONENT_REF:
-      case ARRAY_REF:
-      case REALPART_EXPR:
-      case IMAGPART_EXPR:
-	x = TREE_OPERAND (x, 0);
-	break;
-
-      case TRUTH_ANDIF_EXPR:
-      case TRUTH_ORIF_EXPR:
-      case COMPOUND_EXPR:
-	x = TREE_OPERAND (x, 1);
-	break;
-
-      case COND_EXPR:
-	return java_mark_addressable (TREE_OPERAND (x, 1))
-	  && java_mark_addressable (TREE_OPERAND (x, 2));
-
-      case CONSTRUCTOR:
-	TREE_ADDRESSABLE (x) = 1;
-	return true;
-
-      case INDIRECT_REF:
-	/* We sometimes add a cast *(TYPE*)&FOO to handle type and mode
-	   incompatibility problems.  Handle this case by marking FOO.  */
-	if (TREE_CODE (TREE_OPERAND (x, 0)) == NOP_EXPR
-	    && TREE_CODE (TREE_OPERAND (TREE_OPERAND (x, 0), 0)) == ADDR_EXPR)
-	  {
-	    x = TREE_OPERAND (TREE_OPERAND (x, 0), 0);
-	    break;
-	  }
-	if (TREE_CODE (TREE_OPERAND (x, 0)) == ADDR_EXPR)
-	  {
-	    x = TREE_OPERAND (x, 0);
-	    break;
-	  }
-	return true;
-
-      case VAR_DECL:
-      case CONST_DECL:
-      case PARM_DECL:
-      case RESULT_DECL:
-      case FUNCTION_DECL:
-	TREE_ADDRESSABLE (x) = 1;
-#if 0  /* poplevel deals with this now.  */
-	if (DECL_CONTEXT (x) == 0)
-	  TREE_ADDRESSABLE (DECL_ASSEMBLER_NAME (x)) = 1;
-#endif
-	/* drops through */
-      default:
-	return true;
-    }
-}
-
 /* Thorough checking of the arrayness of TYPE.  */
 
 int
@@ -278,7 +209,7 @@ java_array_type_length (tree array_type)
   tree arfld;
   if (TREE_CODE (array_type) == POINTER_TYPE)
     array_type = TREE_TYPE (array_type);
-  arfld = TREE_CHAIN (TREE_CHAIN (TYPE_FIELDS (array_type)));
+  arfld = DECL_CHAIN (DECL_CHAIN (TYPE_FIELDS (array_type)));
   if (arfld != NULL_TREE)
     {
       tree index_type = TYPE_DOMAIN (TREE_TYPE (arfld));
@@ -348,7 +279,7 @@ build_java_array_type (tree element_type, HOST_WIDE_INT length)
       strcpy (suffix, "[]");
     TYPE_NAME (t) 
       = TYPE_STUB_DECL (t)
-      = build_decl (TYPE_DECL,
+      = build_decl (input_location, TYPE_DECL,
 		    identifier_subst (el_name, "", '.', '.', suffix),
                              t);
     TYPE_DECL_SUPPRESS_DEBUG (TYPE_STUB_DECL (t)) = true;
@@ -361,7 +292,8 @@ build_java_array_type (tree element_type, HOST_WIDE_INT length)
   TYPE_ARRAY_ELEMENT (t) = element_type;
 
   /* Add length pseudo-field. */
-  fld = build_decl (FIELD_DECL, get_identifier ("length"), int_type_node);
+  fld = build_decl (input_location,
+		    FIELD_DECL, get_identifier ("length"), int_type_node);
   TYPE_FIELDS (t) = fld;
   DECL_CONTEXT (fld) = t;
   FIELD_PUBLIC (fld) = 1;
@@ -369,9 +301,10 @@ build_java_array_type (tree element_type, HOST_WIDE_INT length)
   TREE_READONLY (fld) = 1;
 
   atype = build_prim_array_type (element_type, length);
-  arfld = build_decl (FIELD_DECL, get_identifier ("data"), atype);
+  arfld = build_decl (input_location,
+		      FIELD_DECL, get_identifier ("data"), atype);
   DECL_CONTEXT (arfld) = t;
-  TREE_CHAIN (fld) = arfld;
+  DECL_CHAIN (fld) = arfld;
   DECL_ALIGN (arfld) = TYPE_ALIGN (element_type);
 
   /* We could layout_class, but that loads java.lang.Object prematurely.
@@ -691,11 +624,11 @@ lookup_java_method (tree searched_class, tree method_name,
 		    method_signature, build_java_signature);
 }
 
-/* Return true iff CLASS (or its ancestors) has a method METHOD_NAME.  */
+/* Return true iff KLASS (or its ancestors) has a method METHOD_NAME.  */
 int
-has_method (tree class, tree method_name)
+has_method (tree klass, tree method_name)
 {
-  return lookup_do (class, SEARCH_INTERFACE,
+  return lookup_do (klass, SEARCH_INTERFACE,
 		    method_name, NULL_TREE,
 		    build_null_signature) != NULL_TREE;
 }
@@ -709,7 +642,7 @@ shallow_find_method (tree searched_class, int flags, tree method_name,
 {
   tree method;
   for (method = TYPE_METHODS (searched_class);
-       method != NULL_TREE;  method = TREE_CHAIN (method))
+       method != NULL_TREE;  method = DECL_CHAIN (method))
     {
       tree method_sig = (*signature_builder) (TREE_TYPE (method));
       if (DECL_NAME (method) == method_name && method_sig == signature)
@@ -844,7 +777,7 @@ tree
 lookup_java_constructor (tree clas, tree method_signature)
 {
   tree method = TYPE_METHODS (clas);
-  for ( ; method != NULL_TREE;  method = TREE_CHAIN (method))
+  for ( ; method != NULL_TREE;  method = DECL_CHAIN (method))
     {
       tree method_sig = build_java_signature (TREE_TYPE (method));
       if (DECL_CONSTRUCTOR_P (method) && method_sig == method_signature)

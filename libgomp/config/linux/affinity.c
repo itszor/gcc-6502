@@ -1,29 +1,26 @@
-/* Copyright (C) 2006, 2007 Free Software Foundation, Inc.
+/* Copyright (C) 2006-2013 Free Software Foundation, Inc.
    Contributed by Jakub Jelinek <jakub@redhat.com>.
 
    This file is part of the GNU OpenMP Library (libgomp).
 
    Libgomp is free software; you can redistribute it and/or modify it
-   under the terms of the GNU Lesser General Public License as published by
-   the Free Software Foundation; either version 2.1 of the License, or
-   (at your option) any later version.
+   under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3, or (at your option)
+   any later version.
 
    Libgomp is distributed in the hope that it will be useful, but WITHOUT ANY
    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-   FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+   FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
    more details.
 
-   You should have received a copy of the GNU Lesser General Public License 
-   along with libgomp; see the file COPYING.LIB.  If not, write to the
-   Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
-   MA 02110-1301, USA.  */
+   Under Section 7 of GPL version 3, you are granted additional
+   permissions described in the GCC Runtime Library Exception, version
+   3.1, as published by the Free Software Foundation.
 
-/* As a special exception, if you link this library with other files, some
-   of which are compiled with GCC, to produce an executable, this library
-   does not by itself cause the resulting executable to be covered by the
-   GNU General Public License.  This exception does not however invalidate
-   any other reasons why the executable file might be covered by the GNU
-   General Public License.  */
+   You should have received a copy of the GNU General Public License and
+   a copy of the GCC Runtime Library Exception along with this program;
+   see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+   <http://www.gnu.org/licenses/>.  */
 
 /* This is a Linux specific implementation of a CPU affinity setting.  */
 
@@ -31,22 +28,20 @@
 #define _GNU_SOURCE 1
 #endif
 #include "libgomp.h"
-#include <sched.h>
+#include "proc.h"
 #include <stdlib.h>
 #include <unistd.h>
 
 #ifdef HAVE_PTHREAD_AFFINITY_NP
 
 static unsigned int affinity_counter;
-#ifndef HAVE_SYNC_BUILTINS
-static gomp_mutex_t affinity_lock;
-#endif
 
 void
 gomp_init_affinity (void)
 {
-  cpu_set_t cpuset;
+  cpu_set_t cpuset, cpusetnew;
   size_t idx, widx;
+  unsigned long cpus = 0;
 
   if (pthread_getaffinity_np (pthread_self (), sizeof (cpuset), &cpuset))
     {
@@ -57,10 +52,37 @@ gomp_init_affinity (void)
       return;
     }
 
-  for (widx = idx = 0; idx < gomp_cpu_affinity_len; idx++)
-    if (gomp_cpu_affinity[idx] < CPU_SETSIZE
-        && CPU_ISSET (gomp_cpu_affinity[idx], &cpuset))
-      gomp_cpu_affinity[widx++] = gomp_cpu_affinity[idx];
+  CPU_ZERO (&cpusetnew);
+  if (gomp_cpu_affinity_len == 0)
+    {
+      unsigned long count = gomp_cpuset_popcount (&cpuset);
+      if (count >= 65536)
+	count = 65536;
+      gomp_cpu_affinity = malloc (count * sizeof (unsigned short));
+      if (gomp_cpu_affinity == NULL)
+	{
+	  gomp_error ("not enough memory to store CPU affinity list");
+	  return;
+	}
+      for (widx = idx = 0; widx < count && idx < 65536; idx++)
+	if (CPU_ISSET (idx, &cpuset))
+	  {
+	    cpus++;
+	    gomp_cpu_affinity[widx++] = idx;
+	  }
+    }
+  else
+    for (widx = idx = 0; idx < gomp_cpu_affinity_len; idx++)
+      if (gomp_cpu_affinity[idx] < CPU_SETSIZE
+	  && CPU_ISSET (gomp_cpu_affinity[idx], &cpuset))
+	{
+	  if (! CPU_ISSET (gomp_cpu_affinity[idx], &cpusetnew))
+	    {
+	      cpus++;
+	      CPU_SET (gomp_cpu_affinity[idx], &cpusetnew);
+	    }
+	  gomp_cpu_affinity[widx++] = gomp_cpu_affinity[idx];
+	}
 
   if (widx == 0)
     {
@@ -72,13 +94,12 @@ gomp_init_affinity (void)
     }
 
   gomp_cpu_affinity_len = widx;
+  if (cpus < gomp_available_cpus)
+    gomp_available_cpus = cpus;
   CPU_ZERO (&cpuset);
   CPU_SET (gomp_cpu_affinity[0], &cpuset);
   pthread_setaffinity_np (pthread_self (), sizeof (cpuset), &cpuset);
   affinity_counter = 1;
-#ifndef HAVE_SYNC_BUILTINS
-  gomp_mutex_init (&affinity_lock);
-#endif
 }
 
 void
@@ -87,13 +108,7 @@ gomp_init_thread_affinity (pthread_attr_t *attr)
   unsigned int cpu;
   cpu_set_t cpuset;
 
-#ifdef HAVE_SYNC_BUILTINS
-  cpu = __sync_fetch_and_add (&affinity_counter, 1);
-#else
-  gomp_mutex_lock (&affinity_lock);
-  cpu = affinity_counter++;
-  gomp_mutex_unlock (&affinity_lock);
-#endif
+  cpu = __atomic_fetch_add (&affinity_counter, 1, MEMMODEL_RELAXED);
   cpu %= gomp_cpu_affinity_len;
   CPU_ZERO (&cpuset);
   CPU_SET (gomp_cpu_affinity[cpu], &cpuset);

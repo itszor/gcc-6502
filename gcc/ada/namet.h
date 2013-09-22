@@ -6,7 +6,7 @@
  *                                                                          *
  *                              C Header File                               *
  *                                                                          *
- *            Copyright (C) 1992-2007, Free Software Foundation, Inc.       *
+ *            Copyright (C) 1992-2012, Free Software Foundation, Inc.       *
  *                                                                          *
  * GNAT is free software;  you can  redistribute it  and/or modify it under *
  * terms of the  GNU General Public License as published  by the Free Soft- *
@@ -24,7 +24,12 @@
  ****************************************************************************/
 
 /* This is the C file that corresponds to the Ada package specification
-   Namet. It was created manually from files namet.ads and namet.adb.  */
+   Namet.  It was created manually from files namet.ads and namet.adb.
+   Some subprograms from Sinput are also made acessable here.  */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Structure defining a names table entry.  */
 
@@ -85,7 +90,7 @@ Get_Decoded_Name_String (Name_Id Id)
 
 /* Like Get_Decoded_Name_String, but the result has all qualification and
    package body entity suffixes stripped, and also all letters are upper
-   cased.  This is used fo rbuilding the enumeration literal table. */
+   cased.  This is used for building the enumeration literal table. */
 
 extern void casing__set_all_upper_case (void);
 
@@ -107,7 +112,8 @@ extern char *Spec_Filename, *Body_Filename;
 #define Is_Non_Ada_Error exp_ch11__is_non_ada_error
 extern Boolean Is_Non_Ada_Error (Entity_Id);
 
-/* Here are some functions in sinput.adb we call from a-trans.c.  */
+/* Here are some functions in sinput.adb we call from trans.c.  */
+
 typedef Nat Source_File_Index;
 typedef Int Logical_Line_Number;
 typedef Int Column_Number;
@@ -127,3 +133,7 @@ extern Source_File_Index Get_Source_File_Index (Source_Ptr);
 extern Logical_Line_Number Get_Logical_Line_Number (Source_Ptr);
 extern Column_Number Get_Column_Number (Source_Ptr);
 extern Source_Ptr Instantiation (Source_File_Index);
+
+#ifdef __cplusplus
+}
+#endif

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1995-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1995-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -50,22 +48,20 @@
 --  be used by other predefined packages. User access to this package is via
 --  a renaming of this package in GNAT.OS_Lib (file g-os_lib.ads).
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 with System;
 with System.Strings;
 
 package System.OS_Lib is
-   pragma Elaborate_Body (OS_Lib);
+   pragma Preelaborate;
 
    -----------------------
    -- String Operations --
    -----------------------
 
    --  These are reexported from package Strings (which was introduced to
-   --  avoid different packages declarting different types unnecessarily).
+   --  avoid different packages declaring different types unnecessarily).
    --  See package System.Strings for details.
 
    subtype String_Access is Strings.String_Access;
@@ -149,9 +145,9 @@ package System.OS_Lib is
       Hour   : out Hour_Type;
       Minute : out Minute_Type;
       Second : out Second_Type);
-   --  Analogous to the Split routine in Ada.Calendar, takes an OS_Time
-   --  and provides a representation of it as a set of component parts,
-   --  to be interpreted as a date point in UTC.
+   --  Analogous to the Split routine in Ada.Calendar, takes an OS_Time and
+   --  provides a representation of it as a set of component parts, to be
+   --  interpreted as a date point in UTC.
 
    ----------------
    -- File Stuff --
@@ -178,7 +174,7 @@ package System.OS_Lib is
    --  File descriptors for standard input output files
 
    Invalid_FD : constant File_Descriptor := -1;
-   --  File descriptor returned when error in opening/creating file;
+   --  File descriptor returned when error in opening/creating file
 
    type Mode is (Binary, Text);
    for Mode'Size use Integer'Size;
@@ -207,8 +203,9 @@ package System.OS_Lib is
      (Name  : String;
       Fmode : Mode) return File_Descriptor;
    --  Creates new file with given name for writing, returning file descriptor
-   --  for subsequent use in Write calls. File descriptor returned is
-   --  Invalid_FD if file cannot be successfully created.
+   --  for subsequent use in Write calls. If the file already exists, it is
+   --  overwritten. File descriptor returned is Invalid_FD if file cannot be
+   --  successfully created.
 
    function Create_Output_Text_File (Name : String) return File_Descriptor;
    --  Creates new text file with given name suitable to redirect standard
@@ -238,20 +235,37 @@ package System.OS_Lib is
    --  mode parameter is provided. Since this is a temporary file, there is no
    --  point in doing text translation on it.
    --
-   --  On some OSes, the maximum number of temp files that can be created with
-   --  this procedure may be limited. When the maximum is reached, this
-   --  procedure returns Invalid_FD. On some OSes, there may be a race
-   --  condition between processes trying to create temp files at the same
-   --  time in the same directory using this procedure.
+   --  On some operating systems, the maximum number of temp files that can be
+   --  created with this procedure may be limited. When the maximum is reached,
+   --  this procedure returns Invalid_FD. On some operating systems, there may
+   --  be a race condition between processes trying to create temp files at the
+   --  same time in the same directory using this procedure.
 
    procedure Create_Temp_File
      (FD   : out File_Descriptor;
       Name : out String_Access);
    --  Create and open for writing a temporary file in the current working
    --  directory. The name of the file and the File Descriptor are returned.
-   --  No mode parameter is provided. Since this is a temporary file, there is
-   --  no point in doing text translation on it. It is the responsibility of
-   --  the caller to deallocate the access value returned in Name.
+   --  It is the responsibility of the caller to deallocate the access value
+   --  returned in Name.
+   --
+   --  The file is opened in binary mode (no text translation).
+   --
+   --  This procedure will always succeed if the current working directory is
+   --  writable. If the current working directory is not writable, then
+   --  Invalid_FD is returned for the file descriptor and null for the Name.
+   --  There is no race condition problem between processes trying to create
+   --  temp files at the same time in the same directory.
+
+   procedure Create_Temp_Output_File
+     (FD   : out File_Descriptor;
+      Name : out String_Access);
+   --  Create and open for writing a temporary file in the current working
+   --  directory suitable to redirect standard output. The name of the file and
+   --  the File Descriptor are returned. It is the responsibility of the caller
+   --  to deallocate the access value returned in Name.
+   --
+   --  The file is opened in text mode
    --
    --  This procedure will always succeed if the current working directory is
    --  writable. If the current working directory is not writable, then
@@ -307,7 +321,7 @@ package System.OS_Lib is
       Append);
       --  If the target file exists, the contents of the source file is
       --  appended at the end. Otherwise the source file is just copied. The
-      --  time stamps and other file attributes are are preserved if the
+      --  time stamps and other file attributes are preserved if the
       --  destination file does not exist.
 
    type Attribute is
@@ -329,7 +343,7 @@ package System.OS_Lib is
    --  effect of "cp -p" on Unix systems, and None corresponds to the typical
    --  effect of "cp" on Unix systems.
 
-   --  Note: Time_Stamps and Full are not supported on VMS and VxWorks
+   --  Note: Time_Stamps and Full are not supported on VMS and VxWorks 5
 
    procedure Copy_File
      (Name     : String;
@@ -357,7 +371,7 @@ package System.OS_Lib is
    --  furthermore Dest must be writable. Success will be set to True if the
    --  operation was successful and False otherwise.
    --
-   --  Note: this procedure is not supported on VMS and VxWorks. On these
+   --  Note: this procedure is not supported on VMS and VxWorks 5. On these
    --  platforms, Success is always set to False.
 
    function Read
@@ -472,6 +486,14 @@ package System.OS_Lib is
    --  not actually be readable due to some other process having exclusive
    --  access.
 
+   function Is_Executable_File (Name : String) return Boolean;
+   --  Determines if the given string, Name, is the name of an existing file
+   --  that is executable. Returns True if so, False otherwise. Note that this
+   --  function simply interrogates the file attributes (e.g. using the C
+   --  function stat), so it does not indicate a situation in which a file may
+   --  not actually be readable due to some other process having exclusive
+   --  access.
+
    function Is_Writable_File (Name : String) return Boolean;
    --  Determines if the given string, Name, is the name of an existing file
    --  that is writable. Returns True if so, False otherwise. Note that this
@@ -490,27 +512,38 @@ package System.OS_Lib is
    --  span file systems and may refer to directories.
 
    procedure Set_Writable (Name : String);
-   --  Change the permissions on the named file to make it writable
-   --  for its owner.
+   --  Change permissions on the named file to make it writable for its owner
 
-   procedure Set_Read_Only (Name : String);
-   --  Change the permissions on the named file to make it non-writable
-   --  for its owner.
+   procedure Set_Non_Writable (Name : String);
+   --  Change permissions on the named file to make it non-writable for its
+   --  owner. The readable and executable permissions are not modified.
+
+   procedure Set_Read_Only (Name : String) renames Set_Non_Writable;
+   --  This renaming is provided for backwards compatibility with previous
+   --  versions. The use of Set_Non_Writable is preferred (clearer name).
 
    procedure Set_Executable (Name : String);
-   --  Change the permissions on the named file to make it executable
-   --  for its owner.
+   --  Change permissions on the named file to make it executable for its owner
+
+   procedure Set_Readable (Name : String);
+   --  Change permissions on the named file to make it readable for its
+   --  owner.
+
+   procedure Set_Non_Readable (Name : String);
+   --  Change permissions on the named file to make it non-readable for
+   --  its owner. The writable and executable permissions are not
+   --  modified.
 
    function Locate_Exec_On_Path
      (Exec_Name : String) return String_Access;
    --  Try to locate an executable whose name is given by Exec_Name in the
-   --  directories listed in the environment Path. If the Exec_Name doesn't
+   --  directories listed in the environment Path. If the Exec_Name does not
    --  have the executable suffix, it will be appended before the search.
-   --  Otherwise works like Locate_Regular_File below.
-   --  If the executable is not found, null is returned.
+   --  Otherwise works like Locate_Regular_File below. If the executable is
+   --  not found, null is returned.
    --
-   --  Note that this function allocates some memory for the returned value.
-   --  This memory needs to be deallocated after use.
+   --  Note that this function allocates memory for the returned value. This
+   --  memory needs to be deallocated after use.
 
    function Locate_Regular_File
      (File_Name : String;
@@ -536,10 +569,9 @@ package System.OS_Lib is
    --  the heap and should be freed after use to avoid storage leaks.
 
    function Get_Target_Debuggable_Suffix return String_Access;
-   --  Return the target debuggable suffix convention. Usually this is the
-   --  same as the convention for Get_Executable_Suffix. The result is
-   --  allocated on the heap and should be freed after use to avoid storage
-   --  leaks.
+   --  Return the target debuggable suffix convention. Usually this is the same
+   --  as the convention for Get_Executable_Suffix. The result is allocated on
+   --  the heap and should be freed after use to avoid storage leaks.
 
    function Get_Executable_Suffix return String_Access;
    --  Return the executable suffix convention. The result is allocated on the
@@ -608,6 +640,7 @@ package System.OS_Lib is
    function Is_Regular_File (Name : C_File_Name) return Boolean;
    function Is_Directory (Name : C_File_Name) return Boolean;
    function Is_Readable_File (Name : C_File_Name) return Boolean;
+   function Is_Executable_File (Name : C_File_Name) return Boolean;
    function Is_Writable_File (Name : C_File_Name) return Boolean;
    function Is_Symbolic_Link (Name : C_File_Name) return Boolean;
 
@@ -655,9 +688,8 @@ package System.OS_Lib is
    --  (notably Unix systems) a simple file name may also work (if the
    --  executable can be located in the path).
    --
-   --  "Spawn" should be avoided in tasking applications, since there are
-   --  subtle interactions between creating a process and signals/locks
-   --  that can cause troubles.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
    --
    --  Note: Arguments in Args that contain spaces and/or quotes such as
    --  "--GCC=gcc -v" or "--GCC=""gcc -v""" are not portable across all
@@ -675,7 +707,8 @@ package System.OS_Lib is
    --
    --  This function will always set Success to False under VxWorks and other
    --  similar operating systems which have no notion of the concept of
-   --  dynamically executable file.
+   --  dynamically executable file. Otherwise Success is set True if the exit
+   --  status of the spawned process is zero.
 
    function Spawn
      (Program_Name : String;
@@ -684,7 +717,8 @@ package System.OS_Lib is
    --  by the operating system, or -1 under VxWorks and any other similar
    --  operating systems which have no notion of separately spawnable programs.
    --
-   --  "Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
 
    procedure Spawn
      (Program_Name           : String;
@@ -697,15 +731,16 @@ package System.OS_Lib is
    --  Standard Error output is also redirected.
    --  Return_Code is set to the status code returned by the operating system
    --
-   --  "Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
 
    procedure Spawn
-     (Program_Name  : String;
-      Args          : Argument_List;
-      Output_File   : String;
-      Success       : out Boolean;
-      Return_Code   : out Integer;
-      Err_To_Out    : Boolean := True);
+     (Program_Name : String;
+      Args         : Argument_List;
+      Output_File  : String;
+      Success      : out Boolean;
+      Return_Code  : out Integer;
+      Err_To_Out   : Boolean := True);
    --  Similar to the procedure above, but saves the output of the command to
    --  a file with the name Output_File.
    --
@@ -714,7 +749,8 @@ package System.OS_Lib is
    --  will be set to the status code returned by the operating system.
    --  Otherwise, Return_Code is undefined.
    --
-   --  "Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
 
    type Process_Id is private;
    --  A private type used to identify a process activated by the following
@@ -735,7 +771,8 @@ package System.OS_Lib is
    --  returned. Parameters are to be used as in Spawn. If Invalid_Pid is
    --  returned the program could not be spawned.
    --
-   --  "Non_Blocking_Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
    --
    --  This function will always return Invalid_Pid under VxWorks, since there
    --  is no notion of executables under this OS.
@@ -750,7 +787,8 @@ package System.OS_Lib is
    --  Standard Error output is also redirected. Invalid_Pid is returned
    --  if the program could not be spawned successfully.
    --
-   --  "Non_Blocking_Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
    --
    --  This function will always return Invalid_Pid under VxWorks, since there
    --  is no notion of executables under this OS.
@@ -768,7 +806,8 @@ package System.OS_Lib is
    --  file could not be created or if the program could not be spawned
    --  successfully.
    --
-   --  "Non_Blocking_Spawn" should not be used in tasking applications.
+   --  Spawning processes from tasking programs is not recommended. See
+   --  "NOTE: Spawn in tasking programs" below.
    --
    --  This function will always return Invalid_Pid under VxWorks, since there
    --  is no notion of executables under this OS.
@@ -793,6 +832,71 @@ package System.OS_Lib is
    --  Argument_List. Note that the result is allocated on the heap, and must
    --  be freed by the programmer (when it is no longer needed) to avoid
    --  memory leaks.
+
+   -------------------------------------
+   -- NOTE: Spawn in Tasking Programs --
+   -------------------------------------
+
+   --  Spawning processes in tasking programs using the above Spawn and
+   --  Non_Blocking_Spawn subprograms is not recommended, because there are
+   --  subtle interactions between creating a process and signals/locks that
+   --  can cause trouble. These issues are not specific to Ada; they depend
+   --  primarily on the operating system.
+
+   --  If you need to spawn processes in a tasking program, you will need to
+   --  understand the semantics of your operating system, and you are likely to
+   --  write non-portable code, because operating systems differ in this area.
+
+   --  The Spawn and Non_Blocking_Spawn subprograms call the following
+   --  operating system functions:
+
+   --     On Windows: spawnvp (blocking) or CreateProcess (non-blocking)
+
+   --     On Solaris: fork1, followed in the child process by execv
+
+   --     On other Unix-like systems, and on VMS: fork, followed in the child
+   --     process by execv.
+
+   --     On vxworks, nucleus, and RTX, spawning of processes is not supported
+
+   --  For details, look at the functions __gnat_portable_spawn and
+   --  __gnat_portable_no_block_spawn in adaint.c.
+
+   --  You should read the operating-system-specific documentation for the
+   --  above functions, paying special attention to subtle interactions with
+   --  threading, signals, locks, and file descriptors. Most of the issues are
+   --  related to the fact that on Unix, there is a window of time between fork
+   --  and execv; Windows does not have this problem, because spawning is done
+   --  in a single operation.
+
+   --  On Posix-compliant systems, such as Linux, fork duplicates just the
+   --  calling thread. (On Solaris, fork1 is the Posix-compliant version of
+   --  fork.)
+
+   --  You should avoid using signals while spawning. This includes signals
+   --  used internally by the Ada run-time system, such as timer signals used
+   --  to implement delay statements.
+
+   --  It is best to spawn any subprocesses very early, before the parent
+   --  process creates tasks, locks, or installs signal handlers. Certainly
+   --  avoid doing simultaneous spawns from multiple threads of the same
+   --  process.
+
+   --  There is no problem spawning a subprocess that uses tasking: the
+   --  problems are caused only by tasking in the parent.
+
+   --  If the parent is using tasking, and needs to spawn subprocesses at
+   --  arbitrary times, one technique is for the parent to spawn (very early)
+   --  a particular spawn-manager subprocess whose job is to spawn other
+   --  processes. The spawn-manager must avoid tasking. The parent sends
+   --  messages to the spawn-manager requesting it to spawn processes, using
+   --  whatever inter-process communication mechanism you like, such as
+   --  sockets.
+
+   --  In short, mixing spawning of subprocesses with tasking is a tricky
+   --  business, and should be avoided if possible, but if it is necessary,
+   --  the above guidelines should be followed, and you should beware of
+   --  portability problems.
 
    -------------------
    -- Miscellaneous --
@@ -864,7 +968,9 @@ private
    pragma Import (C, Directory_Separator, "__gnat_dir_separator");
    pragma Import (C, Current_Time, "__gnat_current_time");
 
-   type OS_Time is new Long_Integer;
+   type OS_Time is
+     range -(2 ** (Standard'Address_Size - Integer'(1))) ..
+           +(2 ** (Standard'Address_Size - Integer'(1)) - 1);
    --  Type used for timestamps in the compiler. This type is used to hold
    --  time stamps, but may have a different representation than C's time_t.
    --  This type needs to match the declaration of OS_Time in adaint.h.
@@ -875,7 +981,7 @@ private
    --  bootstrap path problems. To be changed later ???
 
    Invalid_Time : constant OS_Time := -1;
-   --  This value should match the return valud by __gnat_file_time_*
+   --  This value should match the return value from __gnat_file_time_*
 
    pragma Inline ("<");
    pragma Inline (">");

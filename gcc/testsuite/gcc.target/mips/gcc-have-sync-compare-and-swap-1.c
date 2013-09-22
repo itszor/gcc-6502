@@ -1,15 +1,15 @@
 /* { dg-do preprocess } */
-/* { dg-mips-options "-mips2" } */
+/* { dg-options "isa>=2 -mgp32" } */
 
-#ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
+#ifndef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
 #error nonono
 #endif
 
-#ifdef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
+#ifndef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2
 #error nonono
 #endif
 
-#if defined (__GCC_HAVE_SYNC_COMPARE_AND_SWAP_4) == defined (__mips16)
+#ifndef __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4
 #error nonono
 #endif
 

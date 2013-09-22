@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -45,6 +45,7 @@ with Rident;   use Rident;
 with Snames;
 with Switch;   use Switch;
 with Switch.B; use Switch.B;
+with Table;
 with Targparm; use Targparm;
 with Types;    use Types;
 
@@ -80,6 +81,16 @@ procedure Gnatbind is
    L_Switch_Seen : Boolean := False;
 
    Mapping_File : String_Ptr := null;
+
+   package Closure_Sources is new Table.Table
+     (Table_Component_Type => File_Name_Type,
+      Table_Index_Type     => Natural,
+      Table_Low_Bound      => 1,
+      Table_Initial        => 10,
+      Table_Increment      => 100,
+      Table_Name           => "Gnatbind.Closure_Sources");
+   --  Table to record the sources in the closure, to avoid duplications. Used
+   --  only with switch -R.
 
    function Gnatbind_Supports_Auto_Init return Boolean;
    --  Indicates if automatic initialization of elaboration procedure
@@ -132,80 +143,134 @@ procedure Gnatbind is
       --  should not be listed.
 
       No_Restriction_List : constant array (All_Restrictions) of Boolean :=
-        (No_Exception_Propagation => True,
+        (No_Allocators_After_Elaboration => True,
+         --  This involves run-time conditions not checkable at compile time
+
+         No_Anonymous_Allocators         => True,
+         --  Premature, since we have not implemented this yet
+
+         No_Exception_Propagation        => True,
          --  Modifies code resulting in different exception semantics
 
-         No_Exceptions            => True,
+         No_Exceptions                   => True,
          --  Has unexpected Suppress (All_Checks) effect
 
-         No_Implicit_Conditionals => True,
+         No_Implicit_Conditionals        => True,
          --  This could modify and pessimize generated code
 
-         No_Implicit_Dynamic_Code => True,
+         No_Implicit_Dynamic_Code        => True,
          --  This could modify and pessimize generated code
 
-         No_Implicit_Loops        => True,
+         No_Implicit_Loops               => True,
          --  This could modify and pessimize generated code
 
-         No_Recursion             => True,
+         No_Recursion                    => True,
          --  Not checkable at compile time
 
-         No_Reentrancy            => True,
+         No_Reentrancy                   => True,
          --  Not checkable at compile time
 
-         Max_Entry_Queue_Length    => True,
+         Max_Entry_Queue_Length           => True,
          --  Not checkable at compile time
 
-         Max_Storage_At_Blocking  => True,
+         Max_Storage_At_Blocking         => True,
          --  Not checkable at compile time
 
-         others => False);
+         others                          => False);
 
       Additional_Restrictions_Listed : Boolean := False;
       --  Set True if we have listed header for restrictions
+
+      function Restriction_Could_Be_Set (R : Restriction_Id) return Boolean;
+      --  Returns True if the given restriction can be listed as an additional
+      --  restriction that could be set.
+
+      ------------------------------
+      -- Restriction_Could_Be_Set --
+      ------------------------------
+
+      function Restriction_Could_Be_Set (R : Restriction_Id) return Boolean is
+         CR : Restrictions_Info renames Cumulative_Restrictions;
+
+      begin
+         case R is
+
+            --  Boolean restriction
+
+            when All_Boolean_Restrictions =>
+
+               --  The condition for listing a boolean restriction as an
+               --  additional restriction that could be set is that it is
+               --  not violated by any unit, and not already set.
+
+               return CR.Violated (R) = False and then CR.Set (R) = False;
+
+            --  Parameter restriction
+
+            when All_Parameter_Restrictions =>
+
+               --  If the restriction is violated and the level of violation is
+               --  unknown, the restriction can definitely not be listed.
+
+               if CR.Violated (R) and then CR.Unknown (R) then
+                  return False;
+
+               --  We can list the restriction if it is not set
+
+               elsif not CR.Set (R) then
+                  return True;
+
+               --  We can list the restriction if is set to a greater value
+               --  than the maximum value known for the violation.
+
+               else
+                  return CR.Value (R) > CR.Count (R);
+               end if;
+
+            --  No other values for R possible
+
+            when others =>
+               raise Program_Error;
+
+         end case;
+      end Restriction_Could_Be_Set;
+
+   --  Start of processing for List_Applicable_Restrictions
 
    begin
       --  Loop through restrictions
 
       for R in All_Restrictions loop
-         if not No_Restriction_List (R) then
-
-            --  We list a restriction if it is not violated, or if
-            --  it is violated but the violation count is exactly known.
-
-            if Cumulative_Restrictions.Violated (R) = False
-              or else (R in All_Parameter_Restrictions
-                       and then
-                         Cumulative_Restrictions.Unknown (R) = False)
-            then
-               if not Additional_Restrictions_Listed then
-                  Write_Eol;
-                  Write_Line
-                    ("The following additional restrictions may be" &
-                     " applied to this partition:");
-                  Additional_Restrictions_Listed := True;
-               end if;
-
-               Write_Str ("pragma Restrictions (");
-
-               declare
-                  S : constant String := Restriction_Id'Image (R);
-               begin
-                  Name_Len := S'Length;
-                  Name_Buffer (1 .. Name_Len) := S;
-               end;
-
-               Set_Casing (Mixed_Case);
-               Write_Str (Name_Buffer (1 .. Name_Len));
-
-               if R in All_Parameter_Restrictions then
-                  Write_Str (" => ");
-                  Write_Int (Int (Cumulative_Restrictions.Count (R)));
-               end if;
-
-               Write_Str (");");
+         if not No_Restriction_List (R)
+            and then Restriction_Could_Be_Set (R)
+         then
+            if not Additional_Restrictions_Listed then
                Write_Eol;
+               Write_Line
+                 ("The following additional restrictions may be" &
+                  " applied to this partition:");
+               Additional_Restrictions_Listed := True;
             end if;
+
+            Write_Str ("pragma Restrictions (");
+
+            declare
+               S : constant String := Restriction_Id'Image (R);
+            begin
+               Name_Len := S'Length;
+               Name_Buffer (1 .. Name_Len) := S;
+            end;
+
+            Set_Casing (Mixed_Case);
+            Write_Str (Name_Buffer (1 .. Name_Len));
+
+            if R in All_Parameter_Restrictions then
+               Write_Str (" => ");
+               Write_Int (Int (Cumulative_Restrictions.Count (R)));
+            end if;
+
+            Write_Str (");");
+            Write_Eol;
          end if;
       end loop;
    end List_Applicable_Restrictions;
@@ -317,7 +382,7 @@ procedure Gnatbind is
                then
                   null;
 
-               --  Invalid -S switch, let Switch give error, set defalut of IN
+               --  Invalid -S switch, let Switch give error, set default of IN
 
                else
                   Scan_Binder_Switches (Argv);
@@ -404,12 +469,11 @@ procedure Gnatbind is
    end Scan_Bind_Arg;
 
    procedure Check_Version_And_Help is
-      new Check_Version_And_Help_G (Bindusg.Display);
+     new Check_Version_And_Help_G (Bindusg.Display);
 
 --  Start of processing for Gnatbind
 
 begin
-
    --  Set default for Shared_Libgnat option
 
    declare
@@ -481,9 +545,7 @@ begin
 
    --  Test for trailing -o switch
 
-   if Opt.Output_File_Name_Present
-     and then not Output_File_Name_Seen
-   then
+   if Opt.Output_File_Name_Present and then not Output_File_Name_Seen then
       Fail ("output file name missing after -o");
    end if;
 
@@ -493,30 +555,17 @@ begin
       Bindusg.Display;
    end if;
 
-   --  Check that the Ada binder file specified has extension .adb and that
-   --  the C binder file has extension .c
+   --  Check that the binder file specified has extension .adb
 
-   if Opt.Output_File_Name_Present
-     and then Output_File_Name_Seen
-   then
+   if Opt.Output_File_Name_Present and then Output_File_Name_Seen then
       Check_Extensions : declare
          Length : constant Natural := Output_File_Name'Length;
          Last   : constant Natural := Output_File_Name'Last;
-
       begin
-         if Ada_Bind_File then
-            if Length <= 4
-              or else Output_File_Name (Last - 3 .. Last) /= ".adb"
-            then
-               Fail ("output file name should have .adb extension");
-            end if;
-
-         else
-            if Length <= 2
-              or else Output_File_Name (Last - 1 .. Last) /= ".c"
-            then
-               Fail ("output file name should have .c extension");
-            end if;
+         if Length <= 4
+           or else Output_File_Name (Last - 3 .. Last) /= ".adb"
+         then
+            Fail ("output file name should have .adb extension");
          end if;
       end Check_Extensions;
    end if;
@@ -524,13 +573,11 @@ begin
    Osint.Add_Default_Search_Dirs;
 
    --  Carry out package initializations. These are initializations which
-   --  might logically be performed at elaboration time, but Namet at least
-   --  can't be done that way (because it is used in the Compiler), and we
-   --  decide to be consistent. Like elaboration, the order in which these
-   --  calls are made is in some cases important.
+   --  might logically be performed at elaboration time, and we decide to be
+   --  consistent. Like elaboration, the order in which these calls are made
+   --  is in some cases important.
 
    Csets.Initialize;
-   Namet.Initialize;
    Snames.Initialize;
 
    --  Acquire target parameters
@@ -623,11 +670,12 @@ begin
 
          begin
             Id := Scan_ALI
-                    (F             => Main_Lib_File,
-                     T             => Text,
-                     Ignore_ED     => False,
-                     Err           => False,
-                     Ignore_Errors => Debug_Flag_I);
+                    (F                => Main_Lib_File,
+                     T                => Text,
+                     Ignore_ED        => False,
+                     Err              => False,
+                     Ignore_Errors    => Debug_Flag_I,
+                     Directly_Scanned => True);
          end;
 
          Free (Text);
@@ -678,16 +726,38 @@ begin
          Free (Text);
       end if;
 
-      --  Acquire all information in ALI files that have been read in
+      --  Load ALIs for all dependent units
 
       for Index in ALIs.First .. ALIs.Last loop
-         Read_ALI (Index);
+         Read_Withed_ALIs (Index);
       end loop;
 
       --  Quit if some file needs compiling
 
       if No_Object_Specified then
          raise Unrecoverable_Error;
+      end if;
+
+      --  Output list of ALI files in closure
+
+      if Output_ALI_List then
+         if ALI_List_Filename /= null then
+            Set_List_File (ALI_List_Filename.all);
+         end if;
+
+         for Index in ALIs.First .. ALIs.Last loop
+            declare
+               Full_Afile : constant File_Name_Type :=
+                              Find_File (ALIs.Table (Index).Afile, Library);
+            begin
+               Write_Name (Full_Afile);
+               Write_Eol;
+            end;
+         end loop;
+
+         if ALI_List_Filename /= null then
+            Close_List_File;
+         end if;
       end if;
 
       --  Build source file table from the ALI files we have read in
@@ -709,8 +779,20 @@ begin
         and then ALIs.Table (ALIs.First).Main_Program = None
         and then not No_Main_Subprogram
       then
-         Error_Msg_File_1 := Main_Lib_File;
-         Error_Msg ("{ does not contain a unit that can be a main program");
+         Get_Name_String
+           (Units.Table (ALIs.Table (ALIs.First).First_Unit).Uname);
+
+         declare
+            Unit_Name : String := Name_Buffer (1 .. Name_Len - 2);
+         begin
+            To_Mixed (Unit_Name);
+            Get_Name_String (ALIs.Table (ALIs.First).Sfile);
+            Add_Str_To_Name_Buffer (":1: ");
+            Add_Str_To_Name_Buffer (Unit_Name);
+            Add_Str_To_Name_Buffer (" cannot be used as a main program");
+            Write_Line (Name_Buffer (1 .. Name_Len));
+            Errors_Detected := Errors_Detected + 1;
+         end;
       end if;
 
       --  Perform consistency and correctness checks
@@ -766,33 +848,89 @@ begin
             --  sources) if -R was used.
 
             if List_Closure then
-               if not Zero_Formatting then
-                  Write_Eol;
-                  Write_Str ("REFERENCED SOURCES");
-                  Write_Eol;
-               end if;
+               List_Closure_Display : declare
+                  Source : File_Name_Type;
 
-               for J in reverse Elab_Order.First .. Elab_Order.Last loop
+                  function Put_In_Sources (S : File_Name_Type) return Boolean;
+                  --  Check if S is already in table Sources and put in Sources
+                  --  if it is not. Return False if the source is already in
+                  --  Sources, and True if it is added.
 
-                  --  Do not include the sources of the runtime
+                  --------------------
+                  -- Put_In_Sources --
+                  --------------------
 
-                  if not Is_Internal_File_Name
-                           (Units.Table (Elab_Order.Table (J)).Sfile)
-                  then
-                     if not Zero_Formatting then
-                        Write_Str ("   ");
-                     end if;
+                  function Put_In_Sources
+                    (S : File_Name_Type) return Boolean is
+                  begin
+                     for J in 1 .. Closure_Sources.Last loop
+                        if Closure_Sources.Table (J) = S then
+                           return False;
+                        end if;
+                     end loop;
 
-                     Write_Str
-                       (Get_Name_String
-                          (Units.Table (Elab_Order.Table (J)).Sfile));
+                     Closure_Sources.Append (S);
+                     return True;
+                  end Put_In_Sources;
+
+               --  Start of processing for List_Closure_Display
+
+               begin
+                  Closure_Sources.Init;
+
+                  if not Zero_Formatting then
+                     Write_Eol;
+                     Write_Str ("REFERENCED SOURCES");
                      Write_Eol;
                   end if;
-               end loop;
 
-               if not Zero_Formatting then
-                  Write_Eol;
-               end if;
+                  for J in reverse Elab_Order.First .. Elab_Order.Last loop
+                     Source := Units.Table (Elab_Order.Table (J)).Sfile;
+
+                     --  Do not include the sources of the runtime and do not
+                     --  include the same source several times.
+
+                     if Put_In_Sources (Source)
+                       and then not Is_Internal_File_Name (Source)
+                     then
+                        if not Zero_Formatting then
+                           Write_Str ("   ");
+                        end if;
+
+                        Write_Str (Get_Name_String (Source));
+                        Write_Eol;
+                     end if;
+                  end loop;
+
+                  --  Subunits do not appear in the elaboration table because
+                  --  they are subsumed by their parent units, but we need to
+                  --  list them for other tools. For now they are listed after
+                  --  other files, rather than right after their parent, since
+                  --  there is no easy link between the elaboration table and
+                  --  the ALIs table ??? As subunits may appear repeatedly in
+                  --  the list, if the parent unit appears in the context of
+                  --  several units in the closure, duplicates are suppressed.
+
+                  for J in Sdep.First .. Sdep.Last loop
+                     Source := Sdep.Table (J).Sfile;
+
+                     if Sdep.Table (J).Subunit_Name /= No_Name
+                       and then Put_In_Sources (Source)
+                       and then not Is_Internal_File_Name (Source)
+                     then
+                        if not Zero_Formatting then
+                           Write_Str ("   ");
+                        end if;
+
+                        Write_Str (Get_Name_String (Source));
+                        Write_Eol;
+                     end if;
+                  end loop;
+
+                  if not Zero_Formatting then
+                     Write_Eol;
+                  end if;
+               end List_Closure_Display;
             end if;
          end if;
       end if;
@@ -823,5 +961,4 @@ begin
 
       null;
    end if;
-
 end Gnatbind;

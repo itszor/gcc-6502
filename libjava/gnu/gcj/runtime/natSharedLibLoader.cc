@@ -1,6 +1,6 @@
 // natSharedLibLoader.cc - Implementation of SharedLibHelper native methods.
 
-/* Copyright (C) 2001, 2003, 2004, 2005, 2006  Free Software Foundation
+/* Copyright (C) 2001, 2003, 2004, 2005, 2006, 2010  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -119,11 +119,14 @@ gnu::gcj::runtime::SharedLibHelper::hasResource (jstring name)
 #endif
 }
 
+#ifdef HAVE_DLOPEN
+extern gnu::gcj::Core *_Jv_create_core (_Jv_core_chain *node, jstring name);
+#endif
+
 gnu::gcj::Core *
 gnu::gcj::runtime::SharedLibHelper::findCore (jstring name)
 {
 #ifdef HAVE_DLOPEN
-  extern gnu::gcj::Core *_Jv_create_core (_Jv_core_chain *node, jstring name);
   ensureInit();
   return _Jv_create_core ((_Jv_core_chain *) core_chain, name);
 #else

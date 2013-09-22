@@ -1,6 +1,6 @@
 // jvm.h - Header file for private implementation information. -*- c++ -*-
 
-/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007  Free Software Foundation
+/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -265,6 +265,7 @@ private:
 				      jclass, jclass *);
   static _Jv_Field *find_field(jclass, jclass, jclass *, _Jv_Utf8Const *,
 			       _Jv_Utf8Const *);
+  static void check_loading_constraints (_Jv_Method *, jclass, jclass);
   static void prepare_constant_time_tables(jclass);
   static jshort get_interfaces(jclass, _Jv_ifaces *);
   static void link_symbol_table(jclass);
@@ -307,6 +308,9 @@ private:
     s = signature;
   }  
 
+  static _Jv_Mutex_t resolve_mutex;
+  static void init (void) __attribute__((constructor));
+
 public:
 
   static bool has_field_p (jclass, _Jv_Utf8Const *);
@@ -324,6 +328,27 @@ public:
 					     _Jv_Utf8Const *,
 					     bool check_perms = true);
   static void layout_vtable_methods(jclass);
+
+  static jbyte read_cpool_entry (_Jv_word *data,
+				 const _Jv_Constants *const pool,
+				 int index)
+  {
+    _Jv_MutexLock (&resolve_mutex);
+    jbyte tags = pool->tags[index];
+    *data = pool->data[index];
+    _Jv_MutexUnlock (&resolve_mutex);
+    return tags;
+  }
+
+  static void write_cpool_entry (_Jv_word data, jbyte tags,
+				 _Jv_Constants *pool,
+				 int index)
+  {
+    _Jv_MutexLock (&resolve_mutex);
+    pool->data[index] = data;
+    pool->tags[index] = tags;
+    _Jv_MutexUnlock (&resolve_mutex);
+  }
 };
 
 /* Type of pointer used as finalizer.  */
@@ -556,6 +581,9 @@ extern void _Jv_CallAnyMethodA (jobject obj,
 				jvalue *result,
 				jboolean is_jni_call = true,
 				jclass iface = NULL);
+
+extern void _Jv_CheckOrCreateLoadingConstraint (jclass,
+						java::lang::ClassLoader *);
 
 extern jobject _Jv_NewMultiArray (jclass, jint ndims, jint* dims)
   __attribute__((__malloc__));

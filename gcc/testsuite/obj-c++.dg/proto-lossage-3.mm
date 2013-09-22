@@ -2,9 +2,13 @@
    a protocol with no instance/class methods respectively.
    Problem report and original fix by richard@brainstorm.co.uk.  */
 /* { dg-do run } */
-#include <objc/objc.h>
-#include <objc/Object.h>
+/* { dg-xfail-run-if "Needs OBJC2 ABI" { *-*-darwin* && { lp64 && { ! objc2 } } } { "-fnext-runtime" } { "" } } */
 #include <objc/Protocol.h>
+#include "../objc-obj-c++-shared/runtime.h"
+
+@interface MyClass
+- name;
+@end
 
 @protocol NoInstanceMethods
 + testMethod;
@@ -17,9 +21,9 @@
 int
 main()
 {
-[@protocol(NoInstanceMethods) descriptionForInstanceMethod: @selector(name)];
-[@protocol(NoInstanceMethods) descriptionForClassMethod: @selector(name)];
-[@protocol(NoClassMethods) descriptionForInstanceMethod: @selector(name)];
-[@protocol(NoClassMethods) descriptionForClassMethod: @selector(name)];
+protocol_getMethodDescription (@protocol(NoInstanceMethods), @selector(name), YES, YES);
+protocol_getMethodDescription (@protocol(NoInstanceMethods), @selector(name), YES, NO);
+protocol_getMethodDescription (@protocol(NoClassMethods), @selector(name), YES, YES);
+protocol_getMethodDescription (@protocol(NoClassMethods), @selector(name), YES, NO);
 return 0;
 }

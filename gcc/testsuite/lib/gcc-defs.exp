@@ -1,4 +1,4 @@
-# Copyright (C) 2001, 2003, 2004, 2007 Free Software Foundation, Inc.
+# Copyright (C) 2001-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with GCC; see the file COPYING3.  If not see
 # <http://www.gnu.org/licenses/>.
+
+load_lib target-libpath.exp
 
 load_lib wrapper.exp
 
@@ -48,6 +50,11 @@ proc ${tool}_check_compile {testcase option objname gcc_output} {
     }
 
     set gcc_output [prune_warnings $gcc_output]
+
+    if { [info proc ${tool}-dg-prune] != "" } {
+	global target_triplet
+	set gcc_output [${tool}-dg-prune $target_triplet $gcc_output]
+    }
 
     set unsupported_message [${tool}_check_unsupported_p $gcc_output]
     if { $unsupported_message != "" } {
@@ -150,6 +157,10 @@ proc ${tool}_check_unsupported_p { output } {
     if [regexp "(^|\n)\[^\n\]*: region \[^\n\]* is full" $output] {
 	return "memory full"
     }
+    if { [istarget spu-*-*] && \
+	     [string match "*exceeds local store*" $output] } {
+	return "memory full"
+    }
     return ""
 }
 
@@ -169,6 +180,28 @@ if { [info procs runtest_file_p] == "" } then {
 	    }
 	}
 	return 1
+    }
+}
+
+# Like dg-options, but adds to the default options rather than replacing them.
+
+proc dg-additional-options { args } {
+    upvar dg-extra-tool-flags extra-tool-flags
+
+    if { [llength $args] > 3 } {
+	error "[lindex $args 0]: too many arguments"
+	return
+    }
+
+    if { [llength $args] >= 3 } {
+	switch [dg-process-target [lindex $args 2]] {
+	    "S" { eval lappend extra-tool-flags [lindex $args 1] }
+	    "N" { }
+	    "F" { error "[lindex $args 0]: `xfail' not allowed here" }
+	    "P" { error "[lindex $args 0]: `xfail' not allowed here" }
+	}
+    } else {
+	eval lappend extra-tool-flags [lindex $args 1]
     }
 }
 
@@ -239,9 +272,10 @@ proc gcc-set-multilib-library-path { compiler } {
     }
 
     set libpath ":${rootme}"
+    set options [lrange $compiler 1 end]
     set compiler [lindex $compiler 0]
     if { [is_remote host] == 0 && [which $compiler] != 0 } {
-	foreach i "[exec $compiler --print-multi-lib]" {
+	foreach i "[eval exec $compiler $options --print-multi-lib]" {
 	    set mldir ""
 	    regexp -- "\[a-z0-9=_/\.-\]*;" $i mldir
 	    set mldir [string trimright $mldir "\;@"]

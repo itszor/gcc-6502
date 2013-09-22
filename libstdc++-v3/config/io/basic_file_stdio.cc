@@ -1,12 +1,11 @@
 // Wrapper of C-language FILE struct -*- C++ -*-
 
-// Copyright (C) 2000, 2001, 2002, 2003, 2004, 2006, 2007
-// Free Software Foundation, Inc.
+// Copyright (C) 2000-2013 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2, or (at your option)
+// Free Software Foundation; either version 3, or (at your option)
 // any later version.
 
 // This library is distributed in the hope that it will be useful,
@@ -14,19 +13,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// You should have received a copy of the GNU General Public License along
-// with this library; see the file COPYING.  If not, write to the Free
-// Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,
-// USA.
+// Under Section 7 of GPL version 3, you are granted additional
+// permissions described in the GCC Runtime Library Exception, version
+// 3.1, as published by the Free Software Foundation.
 
-// As a special exception, you may use this file as part of a free software
-// library without restriction.  Specifically, if other files instantiate
-// templates or use macros or inline functions from this file, or you compile
-// this file and link it with other files to produce an executable, this
-// file does not by itself cause the resulting executable to be covered by
-// the GNU General Public License.  This exception does not however
-// invalidate any other reasons why the executable file might be covered by
-// the GNU General Public License.
+// You should have received a copy of the GNU General Public License and
+// a copy of the GCC Runtime Library Exception along with this program;
+// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+// <http://www.gnu.org/licenses/>.
 
 //
 // ISO C++ 14882: 27.8  File-based streams
@@ -184,10 +178,12 @@ namespace
 } // anonymous namespace
 
 
-_GLIBCXX_BEGIN_NAMESPACE(std)
+namespace std _GLIBCXX_VISIBILITY(default)
+{
+_GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Definitions for __basic_file<char>.
-  __basic_file<char>::__basic_file(__c_lock* /*__lock*/) 
+  __basic_file<char>::__basic_file(__c_lock* /*__lock*/) throw()
   : _M_cfile(NULL), _M_cfile_created(false) { }
 
   __basic_file<char>::~__basic_file()
@@ -215,7 +211,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   }
   
   __basic_file<char>*
-  __basic_file<char>::sys_open(int __fd, ios_base::openmode __mode)
+  __basic_file<char>::sys_open(int __fd, ios_base::openmode __mode) throw ()
   {
     __basic_file* __ret = NULL;
     const char* __c_mode = fopen_mode(__mode);
@@ -252,15 +248,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   }
   
   bool 
-  __basic_file<char>::is_open() const 
+  __basic_file<char>::is_open() const throw ()
   { return _M_cfile != 0; }
   
   int 
-  __basic_file<char>::fd() 
+  __basic_file<char>::fd() throw ()
   { return fileno(_M_cfile); }
   
   __c_file*
-  __basic_file<char>::file() 
+  __basic_file<char>::file() throw ()
   { return _M_cfile; }
   
   __basic_file<char>* 
@@ -320,7 +316,7 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   }
 
   streamoff
-  __basic_file<char>::seekoff(streamoff __off, ios_base::seekdir __way)
+  __basic_file<char>::seekoff(streamoff __off, ios_base::seekdir __way) throw ()
   {
 #ifdef _GLIBCXX_USE_LFS
     return lseek64(this->fd(), __off, __way);
@@ -339,17 +335,15 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
   streamsize
   __basic_file<char>::showmanyc()
   {
+#ifndef _GLIBCXX_NO_IOCTL
 #ifdef FIONREAD
     // Pipes and sockets.    
-#ifdef _GLIBCXX_FIONREAD_TAKES_OFF_T
-    off_t __num = 0;
-#else
     int __num = 0;
-#endif
     int __r = ioctl(this->fd(), FIONREAD, &__num);
     if (!__r && __num >= 0)
       return __num; 
-#endif    
+#endif
+#endif
 
 #ifdef _GLIBCXX_HAVE_POLL
     // Cheap test.
@@ -381,5 +375,6 @@ _GLIBCXX_BEGIN_NAMESPACE(std)
     return 0;
   }
 
-_GLIBCXX_END_NAMESPACE
+_GLIBCXX_END_NAMESPACE_VERSION
+} // namespace
 

@@ -1,6 +1,6 @@
 // natClassLoader.cc - Implementation of java.lang.ClassLoader native methods.
 
-/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006  Free Software Foundation
+/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2008  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -41,6 +41,7 @@ details.  */
 #include <java/lang/StringBuffer.h>
 #include <java/io/Serializable.h>
 #include <java/lang/Cloneable.h>
+#include <java/lang/ref/WeakReference.h>
 #include <java/util/HashMap.h>
 #include <gnu/gcj/runtime/BootClassLoader.h>
 #include <gnu/gcj/runtime/SystemClassLoader.h>
@@ -143,7 +144,21 @@ _Jv_RegisterInitiatingLoader (jclass klass, java::lang::ClassLoader *loader)
       // them later.
       return;
     }
-  loader->loadedClasses->put(klass->name->toString(), klass);
+
+  JvSynchronize sync (loader->loadingConstraints);
+
+  using namespace java::lang::ref;
+
+  jstring name = klass->getName();
+  WeakReference *ref = (WeakReference *) loader->loadingConstraints->get (name);
+  if (ref)
+    {
+      jclass constraint = (jclass) ref->get();
+      if (constraint && constraint != klass)
+	throw new java::lang::LinkageError(JvNewStringLatin1("loading constraint violated"));
+    }
+  loader->loadingConstraints->put(name, new WeakReference(klass));
+  loader->loadedClasses->put(name, klass);
 }
 
 // If we found an error while defining an interpreted class, we must
@@ -154,6 +169,46 @@ _Jv_UnregisterInitiatingLoader (jclass klass, java::lang::ClassLoader *loader)
   if (! loader)
     loader = java::lang::VMClassLoader::bootLoader;
   loader->loadedClasses->remove(klass->name->toString());
+}
+
+// Check a loading constraint.  In particular check that, if there is
+// a constraint for the name of KLASS in LOADER, that it maps to
+// KLASS.  If there is no such constraint, make a new one.  If the
+// constraint is violated, throw an exception.  Do nothing for
+// primitive types.
+void
+_Jv_CheckOrCreateLoadingConstraint (jclass klass,
+				    java::lang::ClassLoader *loader)
+{
+  // Strip arrays.
+  while (klass->isArray())
+    klass = klass->getComponentType();
+  // Ignore primitive types.
+  if (klass->isPrimitive())
+    return;
+
+  if (! loader)
+    loader = java::lang::VMClassLoader::bootLoader;
+  jstring name = klass->getName();
+
+  JvSynchronize sync (loader->loadingConstraints);
+
+  using namespace java::lang::ref;
+
+  WeakReference *ref = (WeakReference *) loader->loadingConstraints->get (name);
+  if (ref)
+    {
+      jclass constraint = (jclass) ref->get();
+      if (constraint)
+	{
+	  if (klass != constraint)
+	    throw new java::lang::LinkageError(JvNewStringLatin1("loading constraint violated"));
+	  // Otherwise, all is ok.
+	  return;
+	}
+    }
+  // No constraint (or old constraint GC'd).  Make a new one.
+  loader->loadingConstraints->put(name, new WeakReference(klass));
 }
 
 
@@ -324,6 +379,15 @@ _Jv_RegisterClassHookDefault (jclass klass)
   // it.
   if (! klass->engine)
     klass->engine = &_Jv_soleCompiledEngine;
+
+  /* FIXME:  Way back before the dawn of time, we overloaded the
+     SYNTHETIC class access modifier to mean INTERPRETED.  This was a
+     Bad Thing, but it didn't matter then because classes were never
+     marked synthetic.  However, it is possible to redeem the
+     situation: _Jv_RegisterClassHookDefault is only called from
+     compiled classes, so we clear the INTERPRETED flag.  This is a
+     kludge!  */
+  klass->accflags &= ~java::lang::reflect::Modifier::INTERPRETED;
 
   if (system_class_list != SYSTEM_LOADER_INITIALIZED)
     {

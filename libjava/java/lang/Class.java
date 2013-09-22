@@ -1075,22 +1075,27 @@ public final class Class<T>
    */
   public String getSimpleName()
   {
-    StringBuffer sb = new StringBuffer();
-    Class klass = this;
-    int arrayCount = 0;
-    while (klass.isArray())
-      {
-	klass = klass.getComponentType();
-	++arrayCount;
-      }
-    if (! klass.isAnonymousClass())
-      {
-	String fullName = klass.getName();
-	sb.append(fullName, fullName.lastIndexOf(".") + 1, fullName.length());
-      }
-    while (arrayCount-- > 0)
-      sb.append("[]");
-    return sb.toString();
+    if (isAnonymousClass())
+      return "";
+    if (isArray())
+      return getComponentType().getSimpleName() + "[]";
+
+    String fullName = getName();
+    Class enclosingClass = getEnclosingClass();
+    if (enclosingClass == null)
+      // It's a top level class.
+      return fullName.substring(fullName.lastIndexOf(".") + 1);
+
+    fullName = fullName.substring(enclosingClass.getName().length());
+
+    // We've carved off the enclosing class name; now we must have '$'
+    // followed optionally by digits, followed by the class name.
+    int pos = 1;
+    while (Character.isDigit(fullName.charAt(pos)))
+      ++pos;
+    fullName = fullName.substring(pos);
+
+    return fullName;
   }
 
   /**

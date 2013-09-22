@@ -38,7 +38,6 @@ exception statement from your version.  */
 
 package gnu.javax.net.ssl.provider;
 
-import gnu.java.security.x509.X500DistinguishedName;
 import gnu.javax.net.ssl.provider.Extension.Value;
 
 import java.io.PrintWriter;
@@ -52,7 +51,7 @@ import javax.security.auth.x500.X500Principal;
 
 /**
  * The trusted authorities hello extension.
- * 
+ *
  * <pre>
 struct {
   TrustedAuthority trusted_authorities_list&lt;0..2^16-1&gt;;
@@ -74,7 +73,7 @@ enum {
 } IdentifierType;
 
 opaque DistinguishedName&lt;1..2^16-1&gt;;</pre>
- * 
+ *
  * @author csm
  */
 public class TrustedAuthorities extends Value
@@ -86,19 +85,19 @@ public class TrustedAuthorities extends Value
   {
     this.buffer = buffer.duplicate().order(ByteOrder.BIG_ENDIAN);
   }
-  
+
   // XXX really implement Builder.
-  
+
   public int length()
   {
     return 2 + (buffer.getShort(0) & 0xFFFF);
   }
-  
+
   public ByteBuffer buffer()
   {
     return (ByteBuffer) buffer.duplicate().limit(length());
   }
-  
+
   public int size()
   {
     int len = buffer.getShort(0) & 0xFFFF;
@@ -129,12 +128,12 @@ public class TrustedAuthorities extends Value
       }
     throw new IndexOutOfBoundsException();
   }
-  
+
   public String toString()
   {
     return toString(null);
   }
-  
+
   public String toString(String prefix)
   {
     StringWriter str = new StringWriter();
@@ -150,21 +149,21 @@ public class TrustedAuthorities extends Value
     out.print("} TrustedAuthorities;");
     return str.toString();
   }
-  
+
   public Iterator<TrustedAuthority> iterator()
   {
     return new AuthoritiesIterator();
   }
-  
+
   public class AuthoritiesIterator implements Iterator<TrustedAuthority>
   {
     private int index;
-    
+
     public AuthoritiesIterator()
     {
       index = 0;
     }
-    
+
     public TrustedAuthority next() throws NoSuchElementException
     {
       try
@@ -176,12 +175,12 @@ public class TrustedAuthorities extends Value
           throw new NoSuchElementException();
         }
     }
-    
+
     public boolean hasNext()
     {
       return index < size();
     }
-    
+
     public void remove()
     {
       throw new UnsupportedOperationException();
@@ -191,12 +190,12 @@ public class TrustedAuthorities extends Value
   public static class TrustedAuthority implements Constructed
   {
     private final ByteBuffer buffer;
-    
+
     public TrustedAuthority(final ByteBuffer buffer)
     {
       this.buffer = buffer;
     }
-    
+
     public int length()
     {
       switch (type().getValue())
@@ -208,7 +207,7 @@ public class TrustedAuthorities extends Value
       }
       throw new IllegalArgumentException("unknown authority type");
     }
-    
+
     public byte[] sha1Hash()
     {
       IdentifierType t = type();
@@ -219,7 +218,7 @@ public class TrustedAuthorities extends Value
       ((ByteBuffer) buffer.duplicate().position(1)).get(b);
       return b;
     }
-    
+
     public X500Principal name()
     {
       int len = buffer.getShort(1) & 0xFFFF;
@@ -227,7 +226,7 @@ public class TrustedAuthorities extends Value
       ((ByteBuffer) buffer.duplicate().position(3)).get(b);
       return new X500Principal(b);
     }
-    
+
     public IdentifierType type()
     {
       switch (buffer.get(0))
@@ -237,15 +236,15 @@ public class TrustedAuthorities extends Value
         case 2: return IdentifierType.X509_NAME;
         case 3: return IdentifierType.CERT_SHA1_HASH;
       }
-      
+
       throw new IllegalArgumentException("invalid IdentifierType");
     }
-    
+
     public String toString()
     {
       return toString(null);
     }
-    
+
     public String toString(String prefix)
     {
       StringWriter str = new StringWriter();
@@ -266,7 +265,7 @@ public class TrustedAuthorities extends Value
           out.print(Util.toHexString(sha1Hash(), ':'));
           out.println(";");
           break;
-          
+
         case 2:
           if (prefix != null) out.print(prefix);
           out.print("  name = ");
@@ -278,18 +277,18 @@ public class TrustedAuthorities extends Value
       return str.toString();
     }
   }
-  
+
   public static enum IdentifierType
   {
     PRE_AGREED (0), KEY_SHA1_HASH (1), X509_NAME (2), CERT_SHA1_HASH (3);
-    
+
     private final int value;
-    
+
     private IdentifierType(final int value)
     {
       this.value = value;
     }
-    
+
     public int getValue()
     {
       return value;

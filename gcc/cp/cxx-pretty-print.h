@@ -1,5 +1,5 @@
 /* Interface for the GNU C++ pretty-printer.
-   Copyright (C) 2003, 2004, 2005, 2007 Free Software Foundation, Inc.
+   Copyright (C) 2003-2013 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@integrable-solutions.net>
 
 This file is part of GCC.
@@ -21,7 +21,7 @@ along with GCC; see the file COPYING3.  If not see
 #ifndef GCC_CXX_PRETTY_PRINT_H
 #define GCC_CXX_PRETTY_PRINT_H
 
-#include "c-pretty-print.h"
+#include "c-family/c-pretty-print.h"
 
 #undef pp_c_base
 #define pp_c_base(PP) (&(PP)->c_base)
@@ -57,6 +57,7 @@ typedef struct
 #define pp_cxx_semicolon(PP)		pp_c_semicolon (pp_c_base (PP))
 #define pp_cxx_complement(PP)		pp_c_complement (pp_c_base (PP))
 
+#define pp_cxx_ws_string(PP, I)		pp_c_ws_string (pp_c_base (PP), I)
 #define pp_cxx_identifier(PP, I)	pp_c_identifier (pp_c_base (PP), I)
 #define pp_cxx_tree_identifier(PP, T) \
   pp_c_tree_identifier (pp_c_base (PP), T)
@@ -72,5 +73,7 @@ void pp_cxx_canonical_template_parameter (cxx_pretty_printer *, tree);
 void pp_cxx_trait_expression (cxx_pretty_printer *, tree);
 void pp_cxx_va_arg_expression (cxx_pretty_printer *, tree);
 void pp_cxx_offsetof_expression (cxx_pretty_printer *, tree);
+void pp_cxx_userdef_literal (cxx_pretty_printer *, tree);
+
 
 #endif /* GCC_CXX_PRETTY_PRINT_H */

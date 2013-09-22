@@ -1,5 +1,5 @@
 /* FormatBuffer.java -- General interface to build attributed strings.
-   Copyright (C) 2004 Free Software Foundation, Inc.
+   Copyright (C) 2004, 2012 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -7,7 +7,7 @@ GNU Classpath is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2, or (at your option)
 any later version.
- 
+
 GNU Classpath is distributed in the hope that it will be useful, but
 WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -37,19 +37,22 @@ exception statement from your version. */
 package gnu.java.text;
 
 import java.text.AttributedCharacterIterator;
-import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.text.AttributedCharacterIterator.Attribute;
 
 /**
  * This interface describes a modifiable buffer which contains attributed
  * characters. The implementation may or may not implements attributes. It
- * aims to greatly simplify and clarify the implementation of java.text 
+ * aims to greatly simplify and clarify the implementation of java.text
  * formatters. The buffer may be appended or have its tail cut. It may also
  * be completely cleant up.
  *
  * @author Guilhem Lavaux <guilhem@kaffe.org>
  * @date April 10, 2004
  */
-public interface FormatBuffer 
+public interface FormatBuffer
 {
   /**
    * This method appends a simple string to the buffer. This part of
@@ -67,19 +70,19 @@ public interface FormatBuffer
    * @param s The string to append to the buffer.
    * @param attr Attribute to use for the string in the buffer.
    */
-  public void append(String s, AttributedCharacterIterator.Attribute attr);
+  public void append(String s, Attribute attr);
 
   /**
    * This method appends a simple string to the buffer. This part of
    * the buffer will be attributed using the specified ranges and attributes.
-   * To have an example on how to specify ranges see {@link gnu.java.text.FormatCharacterIterator}. 
-   * 
+   * To have an example on how to specify ranges see {@link gnu.java.text.FormatCharacterIterator}.
+   *
    * @param s The string to append to the buffer.
    * @param ranges The ranges describing how the attributes should be applied
    * to the string.
    * @param attrs The attributes of the string in the buffer.
    */
-  public void append(String s, int[] ranges, HashMap[] attrs);
+  public void append(String s, int[] ranges, List<Map<Attribute,Object>> attrs);
 
   /**
    * This method appends a simple char to the buffer. This part of
@@ -97,7 +100,7 @@ public interface FormatBuffer
    * @param c The character to append to the buffer.
    * @param attr Attribute to use for the character in the buffer.
    */
-  public void append(char c, AttributedCharacterIterator.Attribute attr);
+  public void append(char c, Attribute attr);
 
   /**
    * This method changes the current default attribute for the next string
@@ -105,14 +108,14 @@ public interface FormatBuffer
    *
    * @param attr The attribute which will be used by default.
    */
-  public void setDefaultAttribute(AttributedCharacterIterator.Attribute attr);
+  public void setDefaultAttribute(Attribute attr);
 
   /**
    * This method returns the current default attribute for the buffer.
    *
    * @return The default attribute for the buffer.
    */
-  public AttributedCharacterIterator.Attribute getDefaultAttribute();
+  public Attribute getDefaultAttribute();
 
   /**
    * This method cuts the last characters of the buffer. The number of
@@ -121,7 +124,7 @@ public interface FormatBuffer
    * @param length Number of characters to cut at the end of the buffer.
    */
   public void cutTail(int length);
-  
+
   /**
    * This method resets completely the buffer.
    */

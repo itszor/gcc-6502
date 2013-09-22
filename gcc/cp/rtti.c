@@ -1,7 +1,5 @@
 /* RunTime Type Identification
-   Copyright (C) 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
-   2005, 2006, 2007, 2008
-   Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
    Mostly written by Jason Merrill (jason@cygnus.com).
 
 This file is part of GCC.
@@ -22,17 +20,15 @@ along with GCC; see the file COPYING3.  If not see
 
 #include "config.h"
 #include "system.h"
+#include "intl.h"
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
 #include "cp-tree.h"
 #include "flags.h"
-#include "output.h"
-#include "assert.h"
-#include "toplev.h"
 #include "convert.h"
 #include "target.h"
-#include "c-pragma.h"
+#include "c-family/c-pragma.h"
 
 /* C++ returns type information to the user in struct type_info
    objects. We also use type information to implement dynamic_cast and
@@ -64,8 +60,7 @@ along with GCC; see the file COPYING3.  If not see
    translation, when we are emitting the type info objects.  */
 
 /* Auxiliary data we hold for each type_info derived object we need.  */
-typedef struct tinfo_s GTY (())
-{
+typedef struct GTY (()) tinfo_s {
   tree type;  /* The RECORD_TYPE for this type_info object */
 
   tree vtable; /* The VAR_DECL of the vtable.  Only filled at end of
@@ -75,8 +70,6 @@ typedef struct tinfo_s GTY (())
 		 the type_info derived type.  */
 } tinfo_s;
 
-DEF_VEC_O(tinfo_s);
-DEF_VEC_ALLOC_O(tinfo_s,gc);
 
 typedef enum tinfo_kind
 {
@@ -94,20 +87,25 @@ typedef enum tinfo_kind
   /* ...		   abi::__vmi_type_info<I> */
 } tinfo_kind;
 
+/* Helper macro to get maximum scalar-width of pointer or of the 'long'-type.
+   This of interest for llp64 targets.  */
+#define LONGPTR_T \
+  integer_types[(POINTER_SIZE <= TYPE_PRECISION (integer_types[itk_long]) \
+		 ? itk_long : itk_long_long)]
+
 /* A vector of all tinfo decls that haven't yet been emitted.  */
-VEC(tree,gc) *unemitted_tinfo_decls;
+vec<tree, va_gc> *unemitted_tinfo_decls;
 
 /* A vector of all type_info derived types we need.  The first few are
    fixed and created early. The remainder are for multiple inheritance
    and are generated as needed. */
-static GTY (()) VEC(tinfo_s,gc) *tinfo_descs;
+static GTY (()) vec<tinfo_s, va_gc> *tinfo_descs;
 
-static tree ifnonnull (tree, tree);
-static tree tinfo_name (tree);
-static tree build_dynamic_cast_1 (tree, tree);
+static tree ifnonnull (tree, tree, tsubst_flags_t);
+static tree tinfo_name (tree, bool);
+static tree build_dynamic_cast_1 (tree, tree, tsubst_flags_t);
 static tree throw_bad_cast (void);
 static tree throw_bad_typeid (void);
-static tree get_tinfo_decl_dynamic (tree);
 static tree get_tinfo_ptr (tree);
 static bool typeid_ok_p (void);
 static int qualifier_flags (tree);
@@ -116,7 +114,7 @@ static tree tinfo_base_init (tinfo_s *, tree);
 static tree generic_initializer (tinfo_s *, tree);
 static tree ptr_initializer (tinfo_s *, tree);
 static tree ptm_initializer (tinfo_s *, tree);
-static tree class_initializer (tinfo_s *, tree, tree);
+static tree class_initializer (tinfo_s *, tree, unsigned, ...);
 static void create_pseudo_type_info (int, const char *, ...);
 static tree get_pseudo_ti_init (tree, unsigned);
 static unsigned get_pseudo_ti_index (tree);
@@ -129,13 +127,13 @@ static void
 push_abi_namespace (void)
 {
   push_nested_namespace (abi_node);
-  push_visibility ("default");
+  push_visibility ("default", 2);
 }
 
 static void
 pop_abi_namespace (void)
 {
-  pop_visibility ();
+  pop_visibility (2);
   pop_nested_namespace (abi_node);
 }
 
@@ -155,10 +153,10 @@ init_rtti_processing (void)
 			     /*tag_scope=*/ts_current, false);
   pop_namespace ();
   const_type_info_type_node
-    = build_qualified_type (type_info_type, TYPE_QUAL_CONST);
+    = cp_build_qualified_type (type_info_type, TYPE_QUAL_CONST);
   type_info_ptr_type = build_pointer_type (const_type_info_type_node);
 
-  unemitted_tinfo_decls = VEC_alloc (tree, gc, 124);
+  vec_alloc (unemitted_tinfo_decls, 124);
 
   create_tinfo_types ();
 }
@@ -188,12 +186,13 @@ build_headof (tree exp)
   index = build_int_cst (NULL_TREE,
 			 -2 * TARGET_VTABLE_DATA_ENTRY_DISTANCE);
 
-  offset = build_vtbl_ref (build_indirect_ref (exp, NULL), index);
+  offset = build_vtbl_ref (cp_build_indirect_ref (exp, RO_NULL, 
+                                                  tf_warning_or_error), 
+                           index);
 
-  type = build_qualified_type (ptr_type_node,
-			       cp_type_quals (TREE_TYPE (exp)));
-  return build2 (POINTER_PLUS_EXPR, type, exp,
-		 convert_to_integer (sizetype, offset));
+  type = cp_build_qualified_type (ptr_type_node,
+				  cp_type_quals (TREE_TYPE (exp)));
+  return fold_build_pointer_plus (exp, offset);
 }
 
 /* Get a bad_cast node for the program to throw...
@@ -205,10 +204,10 @@ throw_bad_cast (void)
 {
   tree fn = get_identifier ("__cxa_bad_cast");
   if (!get_global_value_if_present (fn, &fn))
-    fn = push_throw_library_fn (fn, build_function_type (ptr_type_node,
-							 void_list_node));
+    fn = push_throw_library_fn (fn, build_function_type_list (ptr_type_node,
+							      NULL_TREE));
 
-  return build_cxx_call (fn, 0, NULL);
+  return build_cxx_call (fn, 0, NULL, tf_warning_or_error);
 }
 
 /* Return an expression for "__cxa_bad_typeid()".  The expression
@@ -223,11 +222,11 @@ throw_bad_typeid (void)
       tree t;
 
       t = build_reference_type (const_type_info_type_node);
-      t = build_function_type (t, void_list_node);
+      t = build_function_type_list (t, NULL_TREE);
       fn = push_throw_library_fn (fn, t);
     }
 
-  return build_cxx_call (fn, 0, NULL);
+  return build_cxx_call (fn, 0, NULL, tf_warning_or_error);
 }
 
 /* Return an lvalue expression whose type is "const std::type_info"
@@ -236,7 +235,7 @@ throw_bad_typeid (void)
    otherwise return the static type of the expression.  */
 
 static tree
-get_tinfo_decl_dynamic (tree exp)
+get_tinfo_decl_dynamic (tree exp, tsubst_flags_t complain)
 {
   tree type;
   tree t;
@@ -244,14 +243,18 @@ get_tinfo_decl_dynamic (tree exp)
   if (error_operand_p (exp))
     return error_mark_node;
 
+  exp = resolve_nondeduced_context (exp);
+
   /* peel back references, so they match.  */
   type = non_reference (TREE_TYPE (exp));
 
   /* Peel off cv qualifiers.  */
   type = TYPE_MAIN_VARIANT (type);
 
-  if (CLASS_TYPE_P (type))
-    type = complete_type_or_else (type, exp);
+  /* For UNKNOWN_TYPEs call complete_type_or_else to get diagnostics.  */
+  if (CLASS_TYPE_P (type) || type == unknown_type_node
+      || type == init_list_type_node)
+    type = complete_type_or_maybe_complain (type, exp, complain);
 
   if (!type)
     return error_mark_node;
@@ -272,7 +275,7 @@ get_tinfo_decl_dynamic (tree exp)
     /* Otherwise return the type_info for the static type of the expr.  */
     t = get_tinfo_ptr (TYPE_MAIN_VARIANT (type));
 
-  return build_indirect_ref (t, NULL);
+  return cp_build_indirect_ref (t, RO_NULL, complain);
 }
 
 static bool
@@ -292,8 +295,7 @@ typeid_ok_p (void)
       return false;
     }
 
-  pseudo_type_info
-    = VEC_index (tinfo_s, tinfo_descs, TK_TYPE_INFO_TYPE)->type;
+  pseudo_type_info = (*tinfo_descs)[TK_TYPE_INFO_TYPE].type;
   type_info_type = TYPE_MAIN_VARIANT (const_type_info_type_node);
 
   /* Make sure abi::__type_info_pseudo has the same alias set
@@ -311,9 +313,9 @@ typeid_ok_p (void)
    an lvalue of type "const std::type_info".  */
 
 tree
-build_typeid (tree exp)
+build_typeid (tree exp, tsubst_flags_t complain)
 {
-  tree cond = NULL_TREE;
+  tree cond = NULL_TREE, initial_expr = exp;
   int nonnull = 0;
 
   if (exp == error_mark_node || !typeid_ok_p ())
@@ -322,17 +324,23 @@ build_typeid (tree exp)
   if (processing_template_decl)
     return build_min (TYPEID_EXPR, const_type_info_type_node, exp);
 
+  /* FIXME when integrating with c_fully_fold, mark
+     resolves_to_fixed_type_p case as a non-constant expression.  */
   if (TREE_CODE (exp) == INDIRECT_REF
       && TREE_CODE (TREE_TYPE (TREE_OPERAND (exp, 0))) == POINTER_TYPE
       && TYPE_POLYMORPHIC_P (TREE_TYPE (exp))
       && ! resolves_to_fixed_type_p (exp, &nonnull)
       && ! nonnull)
     {
+      /* So we need to look into the vtable of the type of exp.
+         This is an lvalue use of expr then.  */
+      exp = mark_lvalue_use (exp);
       exp = stabilize_reference (exp);
-      cond = cp_convert (boolean_type_node, TREE_OPERAND (exp, 0));
+      cond = cp_convert (boolean_type_node, TREE_OPERAND (exp, 0),
+			 complain);
     }
 
-  exp = get_tinfo_decl_dynamic (exp);
+  exp = get_tinfo_decl_dynamic (exp, complain);
 
   if (exp == error_mark_node)
     return error_mark_node;
@@ -343,20 +351,36 @@ build_typeid (tree exp)
 
       exp = build3 (COND_EXPR, TREE_TYPE (exp), cond, exp, bad);
     }
+  else
+    mark_type_use (initial_expr);
 
   return exp;
 }
 
-/* Generate the NTBS name of a type.  */
+/* Generate the NTBS name of a type.  If MARK_PRIVATE, put a '*' in front so that
+   comparisons will be done by pointer rather than string comparison.  */
 static tree
-tinfo_name (tree type)
+tinfo_name (tree type, bool mark_private)
 {
   const char *name;
+  int length;
   tree name_string;
 
   name = mangle_type_string (type);
-  name_string = fix_string_type (build_string (strlen (name) + 1, name));
-  return name_string;
+  length = strlen (name);
+
+  if (mark_private)
+    {
+      /* Inject '*' at beginning of name to force pointer comparison.  */
+      char* buf = (char*) XALLOCAVEC (char, length + 2);
+      buf[0] = '*';
+      memcpy (buf + 1, name, length + 1);
+      name_string = build_string (length + 2, buf);
+    }
+  else
+    name_string = build_string (length + 1, name);
+
+  return fix_string_type (name_string);
 }
 
 /* Return a VAR_DECL for the internal ABI defined type_info object for
@@ -381,6 +405,8 @@ get_tinfo_decl (tree type)
     type = build_function_type (TREE_TYPE (type),
 				TREE_CHAIN (TYPE_ARG_TYPES (type)));
 
+  type = complete_type (type);
+
   /* For a class type, the variable is cached in the type node
      itself.  */
   if (CLASS_TYPE_P (type))
@@ -396,7 +422,7 @@ get_tinfo_decl (tree type)
   if (!d)
     {
       int ix = get_pseudo_ti_index (type);
-      tinfo_s *ti = VEC_index (tinfo_s, tinfo_descs, ix);
+      tinfo_s *ti = &(*tinfo_descs)[ix];
 
       d = build_lang_decl (VAR_DECL, name, ti->type);
       SET_DECL_ASSEMBLER_NAME (d, name);
@@ -418,7 +444,7 @@ get_tinfo_decl (tree type)
 	CLASSTYPE_TYPEINFO_VAR (TYPE_MAIN_VARIANT (type)) = d;
 
       /* Add decl to the global array of tinfo decls.  */
-      VEC_safe_push (tree, gc, unemitted_tinfo_decls, d);
+      vec_safe_push (unemitted_tinfo_decls, d);
     }
 
   return d;
@@ -440,7 +466,7 @@ get_tinfo_ptr (tree type)
 /* Return the type_info object for TYPE.  */
 
 tree
-get_typeid (tree type)
+get_typeid (tree type, tsubst_flags_t complain)
 {
   if (type == error_mark_node || !typeid_ok_p ())
     return error_mark_node;
@@ -457,25 +483,28 @@ get_typeid (tree type)
      that is the operand of typeid are always ignored.  */
   type = TYPE_MAIN_VARIANT (type);
 
-  if (CLASS_TYPE_P (type))
-    type = complete_type_or_else (type, NULL_TREE);
+  /* For UNKNOWN_TYPEs call complete_type_or_else to get diagnostics.  */
+  if (CLASS_TYPE_P (type) || type == unknown_type_node
+      || type == init_list_type_node)
+    type = complete_type_or_maybe_complain (type, NULL_TREE, complain);
 
   if (!type)
     return error_mark_node;
 
-  return build_indirect_ref (get_tinfo_ptr (type), NULL);
+  return cp_build_indirect_ref (get_tinfo_ptr (type), RO_NULL, complain);
 }
 
 /* Check whether TEST is null before returning RESULT.  If TEST is used in
    RESULT, it must have previously had a save_expr applied to it.  */
 
 static tree
-ifnonnull (tree test, tree result)
+ifnonnull (tree test, tree result, tsubst_flags_t complain)
 {
   return build3 (COND_EXPR, TREE_TYPE (result),
 		 build2 (EQ_EXPR, boolean_type_node, test,
-			 cp_convert (TREE_TYPE (test), integer_zero_node)),
-		 cp_convert (TREE_TYPE (result), integer_zero_node),
+			 cp_convert (TREE_TYPE (test), nullptr_node,
+				     complain)),
+		 cp_convert (TREE_TYPE (result), nullptr_node, complain),
 		 result);
 }
 
@@ -483,10 +512,10 @@ ifnonnull (tree test, tree result)
    paper.  */
 
 static tree
-build_dynamic_cast_1 (tree type, tree expr)
+build_dynamic_cast_1 (tree type, tree expr, tsubst_flags_t complain)
 {
   enum tree_code tc = TREE_CODE (type);
-  tree exprtype = TREE_TYPE (expr);
+  tree exprtype;
   tree dcast_fn;
   tree old_expr = expr;
   const char *errstr = NULL;
@@ -503,72 +532,79 @@ build_dynamic_cast_1 (tree type, tree expr)
 	break;
       /* Fall through.  */
     case REFERENCE_TYPE:
-      if (! IS_AGGR_TYPE (TREE_TYPE (type)))
+      if (! MAYBE_CLASS_TYPE_P (TREE_TYPE (type)))
 	{
-	  errstr = "target is not pointer or reference to class";
+	  errstr = _("target is not pointer or reference to class");
 	  goto fail;
 	}
       if (!COMPLETE_TYPE_P (complete_type (TREE_TYPE (type))))
 	{
-	  errstr = "target is not pointer or reference to complete type";
+	  errstr = _("target is not pointer or reference to complete type");
 	  goto fail;
 	}
       break;
 
     default:
-      errstr = "target is not pointer or reference";
+      errstr = _("target is not pointer or reference");
       goto fail;
     }
 
   if (tc == POINTER_TYPE)
     {
+      expr = decay_conversion (expr, complain);
+      exprtype = TREE_TYPE (expr);
+
       /* If T is a pointer type, v shall be an rvalue of a pointer to
 	 complete class type, and the result is an rvalue of type T.  */
 
+      expr = mark_rvalue_use (expr);
+
       if (TREE_CODE (exprtype) != POINTER_TYPE)
 	{
-	  errstr = "source is not a pointer";
+	  errstr = _("source is not a pointer");
 	  goto fail;
 	}
-      if (! IS_AGGR_TYPE (TREE_TYPE (exprtype)))
+      if (! MAYBE_CLASS_TYPE_P (TREE_TYPE (exprtype)))
 	{
-	  errstr = "source is not a pointer to class";
+	  errstr = _("source is not a pointer to class");
 	  goto fail;
 	}
       if (!COMPLETE_TYPE_P (complete_type (TREE_TYPE (exprtype))))
 	{
-	  errstr = "source is a pointer to incomplete type";
+	  errstr = _("source is a pointer to incomplete type");
 	  goto fail;
 	}
     }
   else
     {
-      exprtype = build_reference_type (exprtype);
+      expr = mark_lvalue_use (expr);
+
+      exprtype = build_reference_type (TREE_TYPE (expr));
 
       /* T is a reference type, v shall be an lvalue of a complete class
 	 type, and the result is an lvalue of the type referred to by T.  */
 
-      if (! IS_AGGR_TYPE (TREE_TYPE (exprtype)))
+      if (! MAYBE_CLASS_TYPE_P (TREE_TYPE (exprtype)))
 	{
-	  errstr = "source is not of class type";
+	  errstr = _("source is not of class type");
 	  goto fail;
 	}
       if (!COMPLETE_TYPE_P (complete_type (TREE_TYPE (exprtype))))
 	{
-	  errstr = "source is of incomplete class type";
+	  errstr = _("source is of incomplete class type");
 	  goto fail;
 	}
 
       /* Apply trivial conversion T -> T& for dereferenced ptrs.  */
       expr = convert_to_reference (exprtype, expr, CONV_IMPLICIT,
-				   LOOKUP_NORMAL, NULL_TREE);
+				   LOOKUP_NORMAL, NULL_TREE, complain);
     }
 
   /* The dynamic_cast operator shall not cast away constness.  */
   if (!at_least_as_qualified_p (TREE_TYPE (type),
 				TREE_TYPE (exprtype)))
     {
-      errstr = "conversion casts away constness";
+      errstr = _("conversion casts away constness");
       goto fail;
     }
 
@@ -578,12 +614,12 @@ build_dynamic_cast_1 (tree type, tree expr)
     tree binfo;
 
     binfo = lookup_base (TREE_TYPE (exprtype), TREE_TYPE (type),
-			 ba_check, NULL);
+			 ba_check, NULL, complain);
 
     if (binfo)
       {
 	expr = build_base_path (PLUS_EXPR, convert_from_reference (expr),
-				binfo, 0);
+				binfo, 0, complain);
 	if (TREE_CODE (exprtype) == POINTER_TYPE)
 	  expr = rvalue (expr);
 	return expr;
@@ -609,7 +645,7 @@ build_dynamic_cast_1 (tree type, tree expr)
 	  expr1 = build_headof (expr);
 	  if (TREE_TYPE (expr1) != type)
 	    expr1 = build1 (NOP_EXPR, type, expr1);
-	  return ifnonnull (expr, expr1);
+	  return ifnonnull (expr, expr1, complain);
 	}
       else
 	{
@@ -626,8 +662,9 @@ build_dynamic_cast_1 (tree type, tree expr)
 		  && TREE_CODE (TREE_TYPE (old_expr)) == RECORD_TYPE)
 		{
 		  tree expr = throw_bad_cast ();
-		  warning (0, "dynamic_cast of %q#D to %q#T can never succeed",
-			   old_expr, type);
+                  if (complain & tf_warning)
+                    warning (0, "dynamic_cast of %q#D to %q#T can never succeed",
+                             old_expr, type);
 		  /* Bash it to the expected type.  */
 		  TREE_TYPE (expr) = type;
 		  return expr;
@@ -640,8 +677,9 @@ build_dynamic_cast_1 (tree type, tree expr)
 	      if (TREE_CODE (op) == VAR_DECL
 		  && TREE_CODE (TREE_TYPE (op)) == RECORD_TYPE)
 		{
-		  warning (0, "dynamic_cast of %q#D to %q#T can never succeed",
-			   op, type);
+                  if (complain & tf_warning)
+                    warning (0, "dynamic_cast of %q#D to %q#T can never succeed",
+                             op, type);
 		  retval = build_int_cst (type, 0);
 		  return retval;
 		}
@@ -650,7 +688,8 @@ build_dynamic_cast_1 (tree type, tree expr)
 	  /* Use of dynamic_cast when -fno-rtti is prohibited.  */
 	  if (!flag_rtti)
 	    {
-	      error ("%<dynamic_cast%> not permitted with -fno-rtti");
+              if (complain & tf_error)
+                error ("%<dynamic_cast%> not permitted with -fno-rtti");
 	      return error_mark_node;
 	    }
 
@@ -658,10 +697,10 @@ build_dynamic_cast_1 (tree type, tree expr)
 	  static_type = TYPE_MAIN_VARIANT (TREE_TYPE (exprtype));
 	  td2 = get_tinfo_decl (target_type);
 	  mark_used (td2);
-	  td2 = build_unary_op (ADDR_EXPR, td2, 0);
+	  td2 = cp_build_addr_expr (td2, complain);
 	  td3 = get_tinfo_decl (static_type);
 	  mark_used (td3);
-	  td3 = build_unary_op (ADDR_EXPR, td3, 0);
+	  td3 = cp_build_addr_expr (td3, complain);
 
 	  /* Determine how T and V are related.  */
 	  boff = dcast_base_hint (static_type, target_type);
@@ -671,7 +710,7 @@ build_dynamic_cast_1 (tree type, tree expr)
 
 	  expr1 = expr;
 	  if (tc == REFERENCE_TYPE)
-	    expr1 = build_unary_op (ADDR_EXPR, expr1, 0);
+	    expr1 = cp_build_addr_expr (expr1, complain);
 
 	  elems[0] = expr1;
 	  elems[1] = td3;
@@ -691,21 +730,19 @@ build_dynamic_cast_1 (tree type, tree expr)
 				    /*tag_scope=*/ts_current, false);
 
 	      tinfo_ptr = build_pointer_type
-		(build_qualified_type
+		(cp_build_qualified_type
 		 (tinfo_ptr, TYPE_QUAL_CONST));
 	      name = "__dynamic_cast";
-	      tmp = tree_cons
-		(NULL_TREE, const_ptr_type_node, tree_cons
-		 (NULL_TREE, tinfo_ptr, tree_cons
-		  (NULL_TREE, tinfo_ptr, tree_cons
-		   (NULL_TREE, ptrdiff_type_node, void_list_node))));
-	      tmp = build_function_type (ptr_type_node, tmp);
+	      tmp = build_function_type_list (ptr_type_node,
+					      const_ptr_type_node,
+					      tinfo_ptr, tinfo_ptr,
+					      ptrdiff_type_node, NULL_TREE);
 	      dcast_fn = build_library_fn_ptr (name, tmp);
-	      DECL_IS_PURE (dcast_fn) = 1;
+	      DECL_PURE_P (dcast_fn) = 1;
 	      pop_abi_namespace ();
 	      dynamic_cast_node = dcast_fn;
 	    }
-	  result = build_cxx_call (dcast_fn, 4, elems);
+	  result = build_cxx_call (dcast_fn, 4, elems, complain);
 
 	  if (tc == REFERENCE_TYPE)
 	    {
@@ -713,27 +750,32 @@ build_dynamic_cast_1 (tree type, tree expr)
 	      tree neq;
 
 	      result = save_expr (result);
-	      neq = c_common_truthvalue_conversion (result);
-	      return build3 (COND_EXPR, type, neq, result, bad);
+	      neq = cp_truthvalue_conversion (result);
+	      return cp_convert (type,
+				 build3 (COND_EXPR, TREE_TYPE (result),
+					 neq, result, bad), complain);
 	    }
 
 	  /* Now back to the type we want from a void*.  */
-	  result = cp_convert (type, result);
-	  return ifnonnull (expr, result);
+	  result = cp_convert (type, result, complain);
+	  return ifnonnull (expr, result, complain);
 	}
     }
   else
-    errstr = "source type is not polymorphic";
+    errstr = _("source type is not polymorphic");
 
  fail:
-  error ("cannot dynamic_cast %qE (of type %q#T) to type %q#T (%s)",
-	 expr, exprtype, type, errstr);
+  if (complain & tf_error)
+    error ("cannot dynamic_cast %qE (of type %q#T) to type %q#T (%s)",
+           old_expr, TREE_TYPE (old_expr), type, errstr);
   return error_mark_node;
 }
 
 tree
-build_dynamic_cast (tree type, tree expr)
+build_dynamic_cast (tree type, tree expr, tsubst_flags_t complain)
 {
+  tree r;
+
   if (type == error_mark_node || expr == error_mark_node)
     return error_mark_node;
 
@@ -744,9 +786,12 @@ build_dynamic_cast (tree type, tree expr)
       return convert_from_reference (expr);
     }
 
-  return convert_from_reference (build_dynamic_cast_1 (type, expr));
+  r = convert_from_reference (build_dynamic_cast_1 (type, expr, complain));
+  if (r != error_mark_node)
+    maybe_warn_about_useless_cast (type, expr, complain);
+  return r;
 }
-
+
 /* Return the runtime bit mask encoding the qualifiers of TYPE.  */
 
 static int
@@ -771,7 +816,7 @@ static bool
 target_incomplete_p (tree type)
 {
   while (true)
-    if (TYPE_PTRMEM_P (type))
+    if (TYPE_PTRDATAMEM_P (type))
       {
 	if (!COMPLETE_TYPE_P (TYPE_PTRMEM_CLASS_TYPE (type)))
 	  return true;
@@ -824,18 +869,18 @@ involves_incomplete_p (tree type)
 static tree
 tinfo_base_init (tinfo_s *ti, tree target)
 {
-  tree init = NULL_TREE;
+  tree init;
   tree name_decl;
   tree vtable_ptr;
+  vec<constructor_elt, va_gc> *v;
 
   {
-    tree name_name;
+    tree name_name, name_string;
 
     /* Generate the NTBS array variable.  */
     tree name_type = build_cplus_array_type
-		     (build_qualified_type (char_type_node, TYPE_QUAL_CONST),
+		     (cp_build_qualified_type (char_type_node, TYPE_QUAL_CONST),
 		     NULL_TREE);
-    tree name_string = tinfo_name (target);
 
     /* Determine the name of the variable -- and remember with which
        type it is associated.  */
@@ -852,6 +897,7 @@ tinfo_base_init (tinfo_s *ti, tree target)
     DECL_TINFO_P (name_decl) = 1;
     set_linkage_according_to_type (target, name_decl);
     import_export_decl (name_decl);
+    name_string = tinfo_name (target, !TREE_PUBLIC (name_decl));
     DECL_INITIAL (name_decl) = name_string;
     mark_used (name_decl);
     pushdecl_top_level_and_finish (name_decl, name_string);
@@ -876,11 +922,11 @@ tinfo_base_init (tinfo_s *ti, tree target)
 	}
 
       vtable_ptr = get_vtable_decl (real_type, /*complete=*/1);
-      vtable_ptr = build_unary_op (ADDR_EXPR, vtable_ptr, 0);
+      vtable_ptr = cp_build_addr_expr (vtable_ptr, tf_warning_or_error);
 
       /* We need to point into the middle of the vtable.  */
-      vtable_ptr = build2
-	(POINTER_PLUS_EXPR, TREE_TYPE (vtable_ptr), vtable_ptr,
+      vtable_ptr = fold_build_pointer_plus
+	(vtable_ptr,
 	 size_binop (MULT_EXPR,
 		     size_int (2 * TARGET_VTABLE_DATA_ENTRY_DISTANCE),
 		     TYPE_SIZE_UNIT (vtable_entry_type)));
@@ -888,15 +934,14 @@ tinfo_base_init (tinfo_s *ti, tree target)
       ti->vtable = vtable_ptr;
     }
 
-  init = tree_cons (NULL_TREE, vtable_ptr, init);
+  vec_alloc (v, 2);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, vtable_ptr);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
+			  decay_conversion (name_decl, tf_warning_or_error));
 
-  init = tree_cons (NULL_TREE, decay_conversion (name_decl), init);
-
-  init = build_constructor_from_list (NULL_TREE, nreverse (init));
+  init = build_constructor (init_list_type_node, v);
   TREE_CONSTANT (init) = 1;
-  TREE_INVARIANT (init) = 1;
   TREE_STATIC (init) = 1;
-  init = tree_cons (NULL_TREE, init, NULL_TREE);
 
   return init;
 }
@@ -910,9 +955,8 @@ generic_initializer (tinfo_s *ti, tree target)
 {
   tree init = tinfo_base_init (ti, target);
 
-  init = build_constructor_from_list (NULL_TREE, init);
+  init = build_constructor_single (init_list_type_node, NULL_TREE, init);
   TREE_CONSTANT (init) = 1;
-  TREE_INVARIANT (init) = 1;
   TREE_STATIC (init) = 1;
   return init;
 }
@@ -928,17 +972,18 @@ ptr_initializer (tinfo_s *ti, tree target)
   tree to = TREE_TYPE (target);
   int flags = qualifier_flags (to);
   bool incomplete = target_incomplete_p (to);
+  vec<constructor_elt, va_gc> *v;
+  vec_alloc (v, 3);
 
   if (incomplete)
     flags |= 8;
-  init = tree_cons (NULL_TREE, build_int_cst (NULL_TREE, flags), init);
-  init = tree_cons (NULL_TREE,
-		    get_tinfo_ptr (TYPE_MAIN_VARIANT (to)),
-		    init);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, init);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, build_int_cst (NULL_TREE, flags));
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
+                          get_tinfo_ptr (TYPE_MAIN_VARIANT (to)));
 
-  init = build_constructor_from_list (NULL_TREE, nreverse (init));
+  init = build_constructor (init_list_type_node, v);
   TREE_CONSTANT (init) = 1;
-  TREE_INVARIANT (init) = 1;
   TREE_STATIC (init) = 1;
   return init;
 }
@@ -956,39 +1001,46 @@ ptm_initializer (tinfo_s *ti, tree target)
   tree klass = TYPE_PTRMEM_CLASS_TYPE (target);
   int flags = qualifier_flags (to);
   bool incomplete = target_incomplete_p (to);
+  vec<constructor_elt, va_gc> *v;
+  vec_alloc (v, 4);
 
   if (incomplete)
     flags |= 0x8;
   if (!COMPLETE_TYPE_P (klass))
     flags |= 0x10;
-  init = tree_cons (NULL_TREE, build_int_cst (NULL_TREE, flags), init);
-  init = tree_cons (NULL_TREE,
-		    get_tinfo_ptr (TYPE_MAIN_VARIANT (to)),
-		    init);
-  init = tree_cons (NULL_TREE,
-		    get_tinfo_ptr (klass),
-		    init);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, init);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, build_int_cst (NULL_TREE, flags));
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE,
+                          get_tinfo_ptr (TYPE_MAIN_VARIANT (to)));
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, get_tinfo_ptr (klass));
 
-  init = build_constructor_from_list (NULL_TREE, nreverse (init));
+  init = build_constructor (init_list_type_node, v);
   TREE_CONSTANT (init) = 1;
-  TREE_INVARIANT (init) = 1;
   TREE_STATIC (init) = 1;
   return init;
 }
 
 /* Return the CONSTRUCTOR expr for a type_info of class TYPE.
    TI provides information about the particular __class_type_info derivation,
-   which adds hint flags and TRAIL initializers to the type_info base.  */
+   which adds hint flags and N extra initializers to the type_info base.  */
 
 static tree
-class_initializer (tinfo_s *ti, tree target, tree trail)
+class_initializer (tinfo_s *ti, tree target, unsigned n, ...)
 {
   tree init = tinfo_base_init (ti, target);
+  va_list extra_inits;
+  unsigned i;
+  vec<constructor_elt, va_gc> *v;
+  vec_alloc (v, n+1);
 
-  TREE_CHAIN (init) = trail;
-  init = build_constructor_from_list (NULL_TREE, init);
+  CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, init);
+  va_start (extra_inits, n);
+  for (i = 0; i < n; i++)
+    CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, va_arg (extra_inits, tree));
+  va_end (extra_inits);
+
+  init = build_constructor (init_list_type_node, v);
   TREE_CONSTANT (init) = 1;
-  TREE_INVARIANT (init) = 1;
   TREE_STATIC (init) = 1;
   return init;
 }
@@ -1012,7 +1064,11 @@ typeinfo_in_lib_p (tree type)
     case BOOLEAN_TYPE:
     case REAL_TYPE:
     case VOID_TYPE:
+    case NULLPTR_TYPE:
       return true;
+
+    case LANG_TYPE:
+      /* fall through.  */
 
     default:
       return false;
@@ -1025,7 +1081,7 @@ typeinfo_in_lib_p (tree type)
 static tree
 get_pseudo_ti_init (tree type, unsigned tk_index)
 {
-  tinfo_s *ti = VEC_index (tinfo_s, tinfo_descs, tk_index);
+  tinfo_s *ti = &(*tinfo_descs)[tk_index];
 
   gcc_assert (at_eof);
   switch (tk_index)
@@ -1043,17 +1099,16 @@ get_pseudo_ti_init (tree type, unsigned tk_index)
       return generic_initializer (ti, type);
 
     case TK_CLASS_TYPE:
-      return class_initializer (ti, type, NULL_TREE);
+      return class_initializer (ti, type, 0);
 
     case TK_SI_CLASS_TYPE:
       {
 	tree base_binfo = BINFO_BASE_BINFO (TYPE_BINFO (type), 0);
 	tree tinfo = get_tinfo_ptr (BINFO_TYPE (base_binfo));
-	tree base_inits = tree_cons (NULL_TREE, tinfo, NULL_TREE);
 
 	/* get_tinfo_ptr might have reallocated the tinfo_descs vector.  */
-	ti = VEC_index (tinfo_s, tinfo_descs, tk_index);
-	return class_initializer (ti, type, base_inits);
+	ti = &(*tinfo_descs)[tk_index];
+	return class_initializer (ti, type, 1, tinfo);
       }
 
     default:
@@ -1062,23 +1117,27 @@ get_pseudo_ti_init (tree type, unsigned tk_index)
 		    | (CLASSTYPE_DIAMOND_SHAPED_P (type) << 1));
 	tree binfo = TYPE_BINFO (type);
 	int nbases = BINFO_N_BASE_BINFOS (binfo);
-	VEC(tree,gc) *base_accesses = BINFO_BASE_ACCESSES (binfo);
-	tree offset_type = integer_types[itk_long];
+	vec<tree, va_gc> *base_accesses = BINFO_BASE_ACCESSES (binfo);
+	tree offset_type = LONGPTR_T;
 	tree base_inits = NULL_TREE;
 	int ix;
+	vec<constructor_elt, va_gc> *init_vec = NULL;
+	constructor_elt *e;
 
 	gcc_assert (tk_index >= TK_FIXED);
 
+	vec_safe_grow (init_vec, nbases);
 	/* Generate the base information initializer.  */
 	for (ix = nbases; ix--;)
 	  {
 	    tree base_binfo = BINFO_BASE_BINFO (binfo, ix);
-	    tree base_init = NULL_TREE;
+	    tree base_init;
 	    int flags = 0;
 	    tree tinfo;
 	    tree offset;
+	    vec<constructor_elt, va_gc> *v;
 
-	    if (VEC_index (tree, base_accesses, ix) == access_public_node)
+	    if ((*base_accesses)[ix] == access_public_node)
 	      flags |= 2;
 	    tinfo = get_tinfo_ptr (BINFO_TYPE (base_binfo));
 	    if (BINFO_VIRTUAL_P (base_binfo))
@@ -1093,29 +1152,28 @@ get_pseudo_ti_init (tree type, unsigned tk_index)
 
 	    /* Combine offset and flags into one field.  */
 	    offset = fold_convert (offset_type, offset);
-	    offset = fold_build2 (LSHIFT_EXPR, offset_type, offset,
+	    offset = fold_build2_loc (input_location,
+				  LSHIFT_EXPR, offset_type, offset,
 				  build_int_cst (offset_type, 8));
-	    offset = fold_build2 (BIT_IOR_EXPR, offset_type, offset,
+	    offset = fold_build2_loc (input_location,
+				  BIT_IOR_EXPR, offset_type, offset,
 				  build_int_cst (offset_type, flags));
-	    base_init = tree_cons (NULL_TREE, offset, base_init);
-	    base_init = tree_cons (NULL_TREE, tinfo, base_init);
-	    base_init = build_constructor_from_list (NULL_TREE, base_init);
-	    base_inits = tree_cons (NULL_TREE, base_init, base_inits);
+	    vec_alloc (v, 2);
+	    CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, tinfo);
+	    CONSTRUCTOR_APPEND_ELT (v, NULL_TREE, offset);
+	    base_init = build_constructor (init_list_type_node, v);
+	    e = &(*init_vec)[ix];
+	    e->index = NULL_TREE;
+	    e->value = base_init;
 	  }
-	base_inits = build_constructor_from_list (NULL_TREE, base_inits);
-	base_inits = tree_cons (NULL_TREE, base_inits, NULL_TREE);
-	/* Prepend the number of bases.  */
-	base_inits = tree_cons (NULL_TREE,
-				build_int_cst (NULL_TREE, nbases),
-				base_inits);
-	/* Prepend the hint flags.  */
-	base_inits = tree_cons (NULL_TREE,
-				build_int_cst (NULL_TREE, hint),
-				base_inits);
+	base_inits = build_constructor (init_list_type_node, init_vec);
 
 	/* get_tinfo_ptr might have reallocated the tinfo_descs vector.  */
-	ti = VEC_index (tinfo_s, tinfo_descs, tk_index);
-	return class_initializer (ti, type, base_inits);
+	ti = &(*tinfo_descs)[tk_index];
+	return class_initializer (ti, type, 3,
+				  build_int_cst (NULL_TREE, hint),
+				  build_int_cst (NULL_TREE, nbases),
+				  base_inits);
       }
     }
 }
@@ -1155,23 +1213,23 @@ create_pseudo_type_info (int tk, const char *real_name, ...)
     sprintf (pseudo_name + strlen (pseudo_name), "%d", tk - TK_FIXED);
 
   /* First field is the pseudo type_info base class.  */
-  fields = build_decl (FIELD_DECL, NULL_TREE,
-		       VEC_index (tinfo_s, tinfo_descs,
-				  TK_TYPE_INFO_TYPE)->type);
+  fields = build_decl (input_location,
+		       FIELD_DECL, NULL_TREE,
+		       (*tinfo_descs)[TK_TYPE_INFO_TYPE].type);
 
   /* Now add the derived fields.  */
   while ((field_decl = va_arg (ap, tree)))
     {
-      TREE_CHAIN (field_decl) = fields;
+      DECL_CHAIN (field_decl) = fields;
       fields = field_decl;
     }
 
   /* Create the pseudo type.  */
-  pseudo_type = make_aggr_type (RECORD_TYPE);
+  pseudo_type = make_class_type (RECORD_TYPE);
   finish_builtin_struct (pseudo_type, pseudo_name, fields, NULL_TREE);
   CLASSTYPE_AS_BASE (pseudo_type) = pseudo_type;
 
-  ti = VEC_index (tinfo_s, tinfo_descs, tk);
+  ti = &(*tinfo_descs)[tk];
   ti->type = cp_build_qualified_type (pseudo_type, TYPE_QUAL_CONST);
   ti->name = get_identifier (real_name);
   ti->vtable = NULL_TREE;
@@ -1236,12 +1294,12 @@ get_pseudo_ti_index (tree type)
       else
 	{
 	  tree binfo = TYPE_BINFO (type);
-	  VEC(tree,gc) *base_accesses = BINFO_BASE_ACCESSES (binfo);
+	  vec<tree, va_gc> *base_accesses = BINFO_BASE_ACCESSES (binfo);
 	  tree base_binfo = BINFO_BASE_BINFO (binfo, 0);
 	  int num_bases = BINFO_N_BASE_BINFOS (binfo);
 
 	  if (num_bases == 1
-	      && VEC_index (tree, base_accesses, 0) == access_public_node
+	      && (*base_accesses)[0] == access_public_node
 	      && !BINFO_VIRTUAL_P (base_binfo)
 	      && integer_zerop (BINFO_OFFSET (base_binfo)))
 	    {
@@ -1255,16 +1313,16 @@ get_pseudo_ti_index (tree type)
 	      tree array_domain, base_array;
 
 	      ix = TK_FIXED + num_bases;
-	      if (VEC_length (tinfo_s, tinfo_descs) <= ix)
+	      if (vec_safe_length (tinfo_descs) <= ix)
 		{
 		  /* too short, extend.  */
-		  unsigned len = VEC_length (tinfo_s, tinfo_descs);
+		  unsigned len = vec_safe_length (tinfo_descs);
 
-		  VEC_safe_grow (tinfo_s, gc, tinfo_descs, ix + 1);
-		  while (VEC_iterate (tinfo_s, tinfo_descs, len++, ti))
+		  vec_safe_grow (tinfo_descs, ix + 1);
+		  while (tinfo_descs->iterate (len++, &ti))
 		    ti->type = ti->vtable = ti->name = NULL_TREE;
 		}
-	      else if (VEC_index (tinfo_s, tinfo_descs, ix)->type)
+	      else if ((*tinfo_descs)[ix].type)
 		/* already created.  */
 		break;
 
@@ -1276,17 +1334,18 @@ get_pseudo_ti_index (tree type)
 		array_domain = build_index_type (size_int (num_bases - 1));
 	      else
 		array_domain = build_index_type (size_int (num_bases));
-	      base_array =
-		build_array_type (VEC_index (tinfo_s, tinfo_descs,
-					     TK_BASE_TYPE)->type,
-				  array_domain);
+	      base_array = build_array_type ((*tinfo_descs)[TK_BASE_TYPE].type,
+					     array_domain);
 
 	      push_abi_namespace ();
 	      create_pseudo_type_info
 		(ix, "__vmi_class_type_info",
-		 build_decl (FIELD_DECL, NULL_TREE, integer_type_node),
-		 build_decl (FIELD_DECL, NULL_TREE, integer_type_node),
-		 build_decl (FIELD_DECL, NULL_TREE, base_array),
+		 build_decl (input_location,
+			     FIELD_DECL, NULL_TREE, integer_type_node),
+		 build_decl (input_location,
+			     FIELD_DECL, NULL_TREE, integer_type_node),
+		 build_decl (input_location,
+			     FIELD_DECL, NULL_TREE, base_array),
 		 NULL);
 	      pop_abi_namespace ();
 	      break;
@@ -1309,7 +1368,7 @@ create_tinfo_types (void)
 
   gcc_assert (!tinfo_descs);
 
-  VEC_safe_grow (tinfo_s, gc, tinfo_descs, TK_FIXED);
+  vec_safe_grow (tinfo_descs, TK_FIXED);
 
   push_abi_namespace ();
 
@@ -1318,15 +1377,17 @@ create_tinfo_types (void)
   {
     tree field, fields;
 
-    field = build_decl (FIELD_DECL, NULL_TREE, const_ptr_type_node);
+    field = build_decl (BUILTINS_LOCATION,
+			FIELD_DECL, NULL_TREE, const_ptr_type_node);
     fields = field;
 
-    field = build_decl (FIELD_DECL, NULL_TREE, const_string_type_node);
-    TREE_CHAIN (field) = fields;
+    field = build_decl (BUILTINS_LOCATION,
+			FIELD_DECL, NULL_TREE, const_string_type_node);
+    DECL_CHAIN (field) = fields;
     fields = field;
 
-    ti = VEC_index (tinfo_s, tinfo_descs, TK_TYPE_INFO_TYPE);
-    ti->type = make_aggr_type (RECORD_TYPE);
+    ti = &(*tinfo_descs)[TK_TYPE_INFO_TYPE];
+    ti->type = make_class_type (RECORD_TYPE);
     ti->vtable = NULL_TREE;
     ti->name = NULL_TREE;
     finish_builtin_struct (ti->type, "__type_info_pseudo",
@@ -1347,7 +1408,8 @@ create_tinfo_types (void)
   /* Single public non-virtual base class. Add pointer to base class.
      This is really a descendant of __class_type_info.  */
   create_pseudo_type_info (TK_SI_CLASS_TYPE, "__si_class_type_info",
-	    build_decl (FIELD_DECL, NULL_TREE, type_info_ptr_type),
+	    build_decl (BUILTINS_LOCATION,
+			FIELD_DECL, NULL_TREE, type_info_ptr_type),
 	    NULL);
 
   /* Base class internal helper. Pointer to base type, offset to base,
@@ -1355,16 +1417,18 @@ create_tinfo_types (void)
   {
     tree field, fields;
 
-    field = build_decl (FIELD_DECL, NULL_TREE, type_info_ptr_type);
+    field = build_decl (BUILTINS_LOCATION,
+			FIELD_DECL, NULL_TREE, type_info_ptr_type);
     fields = field;
 
-    field = build_decl (FIELD_DECL, NULL_TREE, integer_types[itk_long]);
-    TREE_CHAIN (field) = fields;
+    field = build_decl (BUILTINS_LOCATION,
+			FIELD_DECL, NULL_TREE, LONGPTR_T);
+    DECL_CHAIN (field) = fields;
     fields = field;
 
-    ti = VEC_index (tinfo_s, tinfo_descs, TK_BASE_TYPE);
+    ti = &(*tinfo_descs)[TK_BASE_TYPE];
 
-    ti->type = make_aggr_type (RECORD_TYPE);
+    ti->type = make_class_type (RECORD_TYPE);
     ti->vtable = NULL_TREE;
     ti->name = NULL_TREE;
     finish_builtin_struct (ti->type, "__base_class_type_info_pseudo",
@@ -1375,8 +1439,10 @@ create_tinfo_types (void)
      and pointer to the pointed to type.  This is really a descendant of
      __pbase_type_info.  */
   create_pseudo_type_info (TK_POINTER_TYPE, "__pointer_type_info",
-       build_decl (FIELD_DECL, NULL_TREE, integer_type_node),
-       build_decl (FIELD_DECL, NULL_TREE, type_info_ptr_type),
+       build_decl (BUILTINS_LOCATION, 
+		   FIELD_DECL, NULL_TREE, integer_type_node),
+       build_decl (BUILTINS_LOCATION,
+		   FIELD_DECL, NULL_TREE, type_info_ptr_type),
        NULL);
 
   /* Pointer to member data type_info.  Add qualifications flags,
@@ -1384,9 +1450,12 @@ create_tinfo_types (void)
      This is really a descendant of __pbase_type_info.  */
   create_pseudo_type_info (TK_POINTER_MEMBER_TYPE,
        "__pointer_to_member_type_info",
-	build_decl (FIELD_DECL, NULL_TREE, integer_type_node),
-	build_decl (FIELD_DECL, NULL_TREE, type_info_ptr_type),
-	build_decl (FIELD_DECL, NULL_TREE, type_info_ptr_type),
+	build_decl (BUILTINS_LOCATION,
+		    FIELD_DECL, NULL_TREE, integer_type_node),
+	build_decl (BUILTINS_LOCATION,
+		    FIELD_DECL, NULL_TREE, type_info_ptr_type),
+	build_decl (BUILTINS_LOCATION,
+		    FIELD_DECL, NULL_TREE, type_info_ptr_type),
 	NULL);
 
   pop_abi_namespace ();
@@ -1401,17 +1470,22 @@ create_tinfo_types (void)
 void
 emit_support_tinfos (void)
 {
+  /* Dummy static variable so we can put nullptr in the array; it will be
+     set before we actually start to walk the array.  */
   static tree *const fundamentals[] =
   {
     &void_type_node,
     &boolean_type_node,
-    &wchar_type_node,
+    &wchar_type_node, &char16_type_node, &char32_type_node,
     &char_type_node, &signed_char_type_node, &unsigned_char_type_node,
     &short_integer_type_node, &short_unsigned_type_node,
     &integer_type_node, &unsigned_type_node,
     &long_integer_type_node, &long_unsigned_type_node,
     &long_long_integer_type_node, &long_long_unsigned_type_node,
+    &int128_integer_type_node, &int128_unsigned_type_node,
     &float_type_node, &double_type_node, &long_double_type_node,
+    &dfloat32_type_node, &dfloat64_type_node, &dfloat128_type_node,
+    &nullptr_type_node,
     0
   };
   int ix;
@@ -1434,10 +1508,12 @@ emit_support_tinfos (void)
       tree types[3];
       int i;
 
+      if (bltn == NULL_TREE)
+	continue;
       types[0] = bltn;
       types[1] = build_pointer_type (bltn);
-      types[2] = build_pointer_type (build_qualified_type (bltn,
-							   TYPE_QUAL_CONST));
+      types[2] = build_pointer_type (cp_build_qualified_type (bltn,
+							      TYPE_QUAL_CONST));
 
       for (i = 0; i < 3; ++i)
 	{
@@ -1512,7 +1588,7 @@ emit_tinfo_decl (tree decl)
       init = get_pseudo_ti_init (type, get_pseudo_ti_index (type));
       DECL_INITIAL (decl) = init;
       mark_used (decl);
-      finish_decl (decl, init, NULL_TREE);
+      cp_finish_decl (decl, init, false, NULL_TREE, 0);
       return true;
     }
   else

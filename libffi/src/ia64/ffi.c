@@ -1,6 +1,7 @@
 /* -----------------------------------------------------------------------
-   ffi.c - Copyright (c) 1998, 2007 Red Hat, Inc.
+   ffi.c - Copyright (c) 1998, 2007, 2008, 2012 Red Hat, Inc.
 	   Copyright (c) 2000 Hewlett Packard Company
+	   Copyright (c) 2011 Anthony Green
    
    IA64 Foreign Function Interface 
 
@@ -15,13 +16,14 @@
    The above copyright notice and this permission notice shall be included
    in all copies or substantial portions of the Software.
 
-   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND, EXPRESS
-   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-   IN NO EVENT SHALL CYGNUS SOLUTIONS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-   OTHER DEALINGS IN THE SOFTWARE.
+   THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
    ----------------------------------------------------------------------- */
 
 #include <ffi.h>
@@ -224,7 +226,7 @@ ffi_prep_cif_machdep(ffi_cif *cif)
   int flags;
 
   /* Adjust cif->bytes to include space for the bits of the ia64_args frame
-     that preceeds the integer register portion.  The estimate that the 
+     that precedes the integer register portion.  The estimate that the
      generic bits did for the argument space required is good enough for the
      integer component.  */
   cif->bytes += offsetof(struct ia64_args, gp_regs[0]);
@@ -269,10 +271,10 @@ ffi_prep_cif_machdep(ffi_cif *cif)
   return FFI_OK;
 }
 
-extern int ffi_call_unix (struct ia64_args *, PTR64, void (*)(), UINT64);
+extern int ffi_call_unix (struct ia64_args *, PTR64, void (*)(void), UINT64);
 
 void
-ffi_call(ffi_cif *cif, void (*fn)(), void *rvalue, void **avalue)
+ffi_call(ffi_cif *cif, void (*fn)(void), void *rvalue, void **avalue)
 {
   struct ia64_args *stack;
   long i, avn, gpcount, fpcount;
@@ -323,13 +325,17 @@ ffi_call(ffi_cif *cif, void (*fn)(), void *rvalue, void **avalue)
 	case FFI_TYPE_FLOAT:
 	  if (gpcount < 8 && fpcount < 8)
 	    stf_spill (&stack->fp_regs[fpcount++], *(float *)avalue[i]);
-	  stack->gp_regs[gpcount++] = *(UINT32 *)avalue[i];
+	  {
+	    UINT32 tmp;
+	    memcpy (&tmp, avalue[i], sizeof (UINT32));
+	    stack->gp_regs[gpcount++] = tmp;
+	  }
 	  break;
 
 	case FFI_TYPE_DOUBLE:
 	  if (gpcount < 8 && fpcount < 8)
 	    stf_spill (&stack->fp_regs[fpcount++], *(double *)avalue[i]);
-	  stack->gp_regs[gpcount++] = *(UINT64 *)avalue[i];
+	  memcpy (&stack->gp_regs[gpcount++], avalue[i], sizeof (UINT64));
 	  break;
 
 	case FFI_TYPE_LONGDOUBLE:
@@ -424,7 +430,8 @@ ffi_prep_closure_loc (ffi_closure* closure,
   struct ffi_ia64_trampoline_struct *tramp;
   struct ia64_fd *fd;
 
-  FFI_ASSERT (cif->abi == FFI_UNIX);
+  if (cif->abi != FFI_UNIX)
+    return FFI_BAD_ABI;
 
   tramp = (struct ffi_ia64_trampoline_struct *)closure->tramp;
   fd = (struct ia64_fd *)(void *)ffi_closure_unix;

@@ -1,4 +1,4 @@
-/* XIncludeFilter.java -- 
+/* XIncludeFilter.java --
    Copyright (C) 2005  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -51,11 +51,10 @@ import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
-import javax.xml.stream.util.ReaderDelegate;
+import javax.xml.stream.util.StreamReaderDelegate;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
@@ -82,7 +81,7 @@ import org.xml.sax.SAXException;
  * @author <a href='mailto:dog@gnu.org'>Chris Burdess</a>
  */
 class XIncludeFilter
-  extends ReaderDelegate
+  extends StreamReaderDelegate
 {
 
   static final String XINCLUDE_NS_URI = "http://www.w3.org/2001/XInclude";
@@ -108,7 +107,7 @@ class XIncludeFilter
   HashSet seen = new HashSet();
   boolean backtracking;
   boolean lookahead;
-  
+
   Reader includedText;
   char[] buf;
   int len = -1;
@@ -500,7 +499,7 @@ class XIncludeFilter
             return event;
           case XPathResult.NUMBER_TYPE:
             double nval = result.getNumberValue();
-            String ntext = new Double(nval).toString();
+            String ntext = Double.toString(nval);
             buf = ntext.toCharArray();
             len = buf.length;
             result = null;
@@ -678,7 +677,7 @@ class XIncludeFilter
     String base = (String) getParent().getProperty("gnu.xml.stream.baseURI");
     return (base == null) ? systemId : base;
   }
-  
+
   boolean includeResource(String href, String parse, String xpointer,
                           String encoding, String accept,
                           String acceptLanguage)
@@ -701,7 +700,7 @@ class XIncludeFilter
             walker = null;
             current = null;
             backtracking = false;
-            
+
             URLConnection connection = getURLConnection(href, accept,
                                                         acceptLanguage);
             InputStream in = connection.getInputStream();
@@ -928,5 +927,5 @@ class XIncludeFilter
       }
     return null;
   }
-  
+
 }

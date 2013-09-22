@@ -37,7 +37,7 @@ module testmod
   interface
     subroutine other(x,y)
       import ! { dg-error "Fortran 2003: IMPORT statement" }
-      type(modType) :: y ! { dg-error "not been declared within the interface" }
+      type(modType) :: y ! { dg-error "is being used before it is defined" }
       real(kind)    :: x ! { dg-error "has not been declared" }
     end subroutine
   end interface
@@ -56,13 +56,13 @@ program foo
   interface
     subroutine bar(x,y)
       import ! { dg-error "Fortran 2003: IMPORT statement" }
-      type(myType) :: x ! { dg-error "not been declared within the interface" }
+      type(myType) :: x ! { dg-error "is being used before it is defined" }
       integer(dp)  :: y ! { dg-error "has not been declared" }
     end subroutine bar
     subroutine test(x)
       import :: myType3 ! { dg-error "Fortran 2003: IMPORT statement" }
       import myType3 ! { dg-error "Fortran 2003: IMPORT statement" }
-      type(myType3) :: x ! { dg-error "not been declared within the interface" }
+      type(myType3) :: x ! { dg-error "is being used before it is defined" }
     end subroutine test
   end interface
 
@@ -77,4 +77,3 @@ program foo
   call test(z) ! { dg-error "Type mismatch in argument" }
   if(z%i /= 1) call abort()
 end program foo
-! { dg-final { cleanup-modules "testmod" } }

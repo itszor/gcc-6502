@@ -3,11 +3,11 @@
 #include <stdarg.h>
 #include "tree-vect.h"
 
-#define N 12
+#define N 24
 
 struct s{
   int m;
-  int n[N][N][N];
+  int n[N/6][N/6][N];
 };
 
 struct test1{
@@ -64,6 +64,6 @@ int main (void)
           
 /* { dg-final { scan-tree-dump-times "vectorized 1 loops" 1 "vect" } } */
 /* { dg-final { scan-tree-dump-times "Vectorizing an unaligned access" 0 "vect" } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" {target vector_alignment_reachable } } } */
-/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 1 "vect" {target {! vector_alignment_reachable} } } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using peeling" 1 "vect" {target { vector_alignment_reachable} } } } */
+/* { dg-final { scan-tree-dump-times "Alignment of access forced using versioning" 1 "vect" {target {{! vector_alignment_reachable} && {! vect_hw_misalign} } } } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */

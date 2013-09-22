@@ -15,12 +15,13 @@ int foo (void);
 typedef int (*f_ptr_t1) (void);
 typedef void (*f_ptr_t2) (int);
 
-void bar (f_ptr_t1);		// { dg-error "" } 
-void bar (f_ptr_t2);		// { dg-error "" } 
+void bar (f_ptr_t1);		// { dg-message "note" } 
+void bar (f_ptr_t2);		// { dg-message "note" } 
 
 void function ()
 {
-  bar (foo);			// { dg-error "" } ambiguous
+  bar (foo);			// { dg-error "ambiguous" }
+  // { dg-message "candidate" "candidate note" { target *-*-* } 23 }
 }
 
 int main () { return 0; }

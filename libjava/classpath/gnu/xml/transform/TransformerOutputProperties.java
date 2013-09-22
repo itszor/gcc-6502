@@ -1,4 +1,4 @@
-/* TransformerOutputProperties.java -- 
+/* TransformerOutputProperties.java --
    Copyright (C) 2004 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -52,7 +54,7 @@ import javax.xml.transform.OutputKeys;
 class TransformerOutputProperties
   extends Properties
 {
-  
+
   final Properties defaultProperties;
   final Stylesheet stylesheet;
   boolean dirty;
@@ -95,7 +97,7 @@ class TransformerOutputProperties
         defaultProperties.put(OutputKeys.DOCTYPE_SYSTEM,
                               stylesheet.outputSystemId);
       }
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     for (Iterator i = stylesheet.outputCdataSectionElements.iterator();
          i.hasNext(); )
       {
@@ -168,7 +170,7 @@ class TransformerOutputProperties
       "yes".equals(getProperty(OutputKeys.STANDALONE));
     stylesheet.outputPublicId = getProperty(OutputKeys.DOCTYPE_PUBLIC);
     stylesheet.outputSystemId = getProperty(OutputKeys.DOCTYPE_SYSTEM);
-    StringTokenizer st = 
+    StringTokenizer st =
       new StringTokenizer(getProperty(OutputKeys.CDATA_SECTION_ELEMENTS));
     Collection acc = new LinkedHashSet();
     while (st.hasMoreTokens())
@@ -182,4 +184,3 @@ class TransformerOutputProperties
   }
 
 }
-

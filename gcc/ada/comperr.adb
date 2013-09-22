@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -23,27 +23,30 @@
 --                                                                          --
 ------------------------------------------------------------------------------
 
---  This package contains routines called when a fatal internal compiler
---  error is detected. Calls to these routines cause termination of the
---  current compilation with appropriate error output.
+--  This package contains routines called when a fatal internal compiler error
+--  is detected. Calls to these routines cause termination of the current
+--  compilation with appropriate error output.
 
 with Atree;    use Atree;
 with Debug;    use Debug;
 with Errout;   use Errout;
-with Fname;    use Fname;
 with Gnatvsn;  use Gnatvsn;
 with Lib;      use Lib;
 with Namet;    use Namet;
+with Opt;      use Opt;
 with Osint;    use Osint;
 with Output;   use Output;
+with Sinfo;    use Sinfo;
 with Sinput;   use Sinput;
 with Sprint;   use Sprint;
 with Sdefault; use Sdefault;
+with Targparm; use Targparm;
 with Treepr;   use Treepr;
 with Types;    use Types;
 
 with Ada.Exceptions; use Ada.Exceptions;
 
+with System.OS_Lib;     use System.OS_Lib;
 with System.Soft_Links; use System.Soft_Links;
 
 package body Comperr is
@@ -111,6 +114,44 @@ package body Comperr is
       end if;
 
       Abort_In_Progress := True;
+
+      --  Generate a "standard" error message instead of a bug box in case of
+      --  .NET compiler, since we do not support all constructs of the
+      --  language. Of course ideally, we should detect this before bombing
+      --  on e.g. an assertion error, but in practice most of these bombs
+      --  are due to a legitimate case of a construct not being supported (in
+      --  a sense they all are, since for sure we are not supporting something
+      --  if we bomb!) By giving this message, we provide a more reasonable
+      --  practical interface, since giving scary bug boxes on unsupported
+      --  features is definitely not helpful.
+
+      --  Similarly if we are generating SCIL, an error message is sufficient
+      --  instead of generating a bug box.
+
+      --  Note that the call to Error_Msg_N below sets Serious_Errors_Detected
+      --  to 1, so we use the regular mechanism below in order to display a
+      --  "compilation abandoned" message and exit, so we still know we have
+      --  this case (and -gnatdk can still be used to get the bug box).
+
+      if (VM_Target = CLI_Target or else CodePeer_Mode)
+        and then Serious_Errors_Detected = 0
+        and then not Debug_Flag_K
+        and then Sloc (Current_Error_Node) > No_Location
+      then
+         if VM_Target = CLI_Target then
+            Error_Msg_N
+              ("unsupported construct in this context",
+               Current_Error_Node);
+         else
+            Error_Msg_N ("cannot generate 'S'C'I'L", Current_Error_Node);
+         end if;
+      end if;
+
+      --  If we are in CodePeer mode, we must also delete SCIL files
+
+      if CodePeer_Mode then
+         Delete_SCIL_Files;
+      end if;
 
       --  If any errors have already occurred, then we guess that the abort
       --  may well be caused by previous errors, and we don't make too much
@@ -369,26 +410,19 @@ package body Comperr is
          Write_Line ("Note that list may not be accurate in some cases, ");
          Write_Line ("so please double check that the problem can still ");
          Write_Line ("be reproduced with the set of files listed.");
+         Write_Line ("Consider also -gnatd.n switch (see debug.adb).");
          Write_Eol;
 
-         for U in Main_Unit .. Last_Unit loop
-            begin
-               if not Is_Internal_File_Name
-                        (File_Name (Source_Index (U)))
-               then
-                  Write_Name (Full_File_Name (Source_Index (U)));
-                  Write_Eol;
-               end if;
+         begin
+            Dump_Source_File_Names;
 
-            --  No point in double bug box if we blow up trying to print
-            --  the list of file names! Output informative msg and quit.
+         --  If we blow up trying to print the list of file names, just output
+         --  informative msg and continue.
 
-            exception
-               when others =>
-                  Write_Str ("list may be incomplete");
-                  exit;
-            end;
-         end loop;
+         exception
+            when others =>
+               Write_Str ("list may be incomplete");
+         end;
 
          Write_Eol;
          Set_Standard_Output;
@@ -397,8 +431,113 @@ package body Comperr is
          Source_Dump;
          raise Unrecoverable_Error;
       end if;
-
    end Compiler_Abort;
+
+   -----------------------
+   -- Delete_SCIL_Files --
+   -----------------------
+
+   procedure Delete_SCIL_Files is
+      Main      : Node_Id;
+      Unit_Name : Node_Id;
+
+      Success : Boolean;
+      pragma Unreferenced (Success);
+
+      procedure Decode_Name_Buffer;
+      --  Replace "__" by "." in Name_Buffer, and adjust Name_Len accordingly
+
+      ------------------------
+      -- Decode_Name_Buffer --
+      ------------------------
+
+      procedure Decode_Name_Buffer is
+         J : Natural;
+         K : Natural;
+
+      begin
+         J := 1;
+         K := 0;
+         while J <= Name_Len loop
+            K := K + 1;
+
+            if J < Name_Len
+              and then Name_Buffer (J) = '_'
+              and then Name_Buffer (J + 1) = '_'
+            then
+               Name_Buffer (K) := '.';
+               J := J + 1;
+            else
+               Name_Buffer (K) := Name_Buffer (J);
+            end if;
+
+            J := J + 1;
+         end loop;
+
+         Name_Len := K;
+      end Decode_Name_Buffer;
+
+   --  Start of processing for Delete_SCIL_Files
+
+   begin
+      --  If parsing was not successful, no Main_Unit is available, so return
+      --  immediately.
+
+      if Main_Source_File = No_Source_File then
+         return;
+      end if;
+
+      --  Retrieve unit name, and remove old versions of SCIL/<unit>.scil and
+      --  SCIL/<unit>__body.scil, ditto for .scilx files.
+
+      Main := Unit (Cunit (Main_Unit));
+
+      case Nkind (Main) is
+         when N_Subprogram_Body | N_Package_Declaration =>
+            Unit_Name := Defining_Unit_Name (Specification (Main));
+
+         when N_Package_Body =>
+            Unit_Name := Corresponding_Spec (Main);
+
+         when N_Package_Renaming_Declaration =>
+            Unit_Name := Defining_Unit_Name (Main);
+
+         --  No SCIL file generated for generic package declarations
+
+         when N_Generic_Package_Declaration =>
+            return;
+
+         --  Should never happen, but can be ignored in production
+
+         when others =>
+            pragma Assert (False);
+            return;
+      end case;
+
+      case Nkind (Unit_Name) is
+         when N_Defining_Identifier =>
+            Get_Name_String (Chars (Unit_Name));
+
+         when N_Defining_Program_Unit_Name =>
+            Get_Name_String (Chars (Defining_Identifier (Unit_Name)));
+            Decode_Name_Buffer;
+
+         --  Should never happen, but can be ignored in production
+
+         when others =>
+            pragma Assert (False);
+            return;
+      end case;
+
+      Delete_File
+        ("SCIL/" & Name_Buffer (1 .. Name_Len) & ".scil", Success);
+      Delete_File
+        ("SCIL/" & Name_Buffer (1 .. Name_Len) & ".scilx", Success);
+      Delete_File
+        ("SCIL/" & Name_Buffer (1 .. Name_Len) & "__body.scil", Success);
+      Delete_File
+        ("SCIL/" & Name_Buffer (1 .. Name_Len) & "__body.scilx", Success);
+   end Delete_SCIL_Files;
 
    -----------------
    -- Repeat_Char --

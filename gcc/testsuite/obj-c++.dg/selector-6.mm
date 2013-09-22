@@ -1,7 +1,7 @@
 /* { dg-options "" } */
 /* { dg-do compile } */
 
-#include <objc/Object.h>
+#include <objc/objc.h>
 
 int main()
 {

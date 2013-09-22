@@ -2,6 +2,13 @@
 # symbols in libgcj.so.
 
 {
-  global: Jv*; _Jv_*; __gcj_personality_v0; __gcj_personality_sj0; _Z*;
-  local: *;
+  global:
+    Jv*;
+    _Jv_*;
+    __gcj_personality_v0;
+    __gcj_personality_sj0;
+    __gcj_personality_seh0;
+    _Z*;
+  local:
+    *;
 };

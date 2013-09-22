@@ -1,4 +1,4 @@
-/* ElementNode.java -- 
+/* ElementNode.java --
    Copyright (C) 2004,2006 Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -37,6 +37,8 @@ exception statement from your version. */
 
 package gnu.xml.transform;
 
+import gnu.java.lang.CPStringBuilder;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -66,7 +68,7 @@ final class ElementNode
   final String uas;
   final Node source;
   final Collection elementExcludeResultPrefixes;
-  
+
   ElementNode(TemplateNode name,
               TemplateNode namespace, String uas, Node source)
   {
@@ -132,7 +134,7 @@ final class ElementNode
           namespaceValue = null;
       }
     else
-      {    
+      {
         String prefix = getPrefix(nameValue);
         if (XMLConstants.XMLNS_ATTRIBUTE.equals(prefix))
           {
@@ -167,7 +169,7 @@ final class ElementNode
               }
           }
       }
-    
+
     // Create element
     Element element = (namespaceValue != null) ?
       doc.createElementNS(namespaceValue, nameValue) :
@@ -235,10 +237,10 @@ final class ElementNode
       return true;
     return super.references(var);
   }
-  
+
   public String toString()
   {
-    StringBuffer buf = new StringBuffer("element");
+    CPStringBuilder buf = new CPStringBuilder("element");
     buf.append('[');
     buf.append("name=");
     if (namespace != null)
@@ -255,5 +257,5 @@ final class ElementNode
     buf.append(']');
     return buf.toString();
   }
-  
+
 }

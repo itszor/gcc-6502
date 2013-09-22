@@ -39,7 +39,6 @@ exception statement from your version. */
 
 package gnu.classpath.jdwp.event.filters;
 
-import gnu.classpath.jdwp.JdwpConstants;
 import gnu.classpath.jdwp.event.Event;
 import gnu.classpath.jdwp.exception.InvalidThreadException;
 import gnu.classpath.jdwp.id.ThreadId;
@@ -52,9 +51,9 @@ import gnu.classpath.jdwp.id.ThreadId;
  * This "filter" is not really a filter. It is simply a way to communicate
  * stepping information in a convenient way between the JDWP backend and
  * the virtual machine.
- * 
+ *
  * Consequently, this "filter" always matches.
- * 
+ *
  * @author Keith Seitz  (keiths@redhat.com)
  */
 public class StepFilter

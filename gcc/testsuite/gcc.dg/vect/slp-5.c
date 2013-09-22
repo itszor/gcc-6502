@@ -1,7 +1,6 @@
 /* { dg-require-effective-target vect_int } */
 
 #include <stdarg.h>
-#include <stdio.h>
 #include "tree-vect.h"
 
 #define N 16 
@@ -15,7 +14,7 @@ main1 ()
   unsigned short ia[N];
   unsigned int ib[N*2];
 
-  /* Not SLPable for now: multiple types with SLP of the smaller type.  */
+  /* Multiple types with SLP of the smaller type.  */
   for (i = 0; i < N; i++)
     {
       out[i*8] = in[i*8];
@@ -121,8 +120,7 @@ int main (void)
   return 0;
 }
 
-/* { dg-final { scan-tree-dump-times "vectorized 3 loops" 1 "vect" { target { vect_strided } } } } */
-/* { dg-final { scan-tree-dump-times "vectorized 2 loops" 1 "vect" { target  { ! { vect_strided } } } } } */
-/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 2 "vect"  } } */
+/* { dg-final { scan-tree-dump-times "vectorized 3 loops" 1 "vect" } } */
+/* { dg-final { scan-tree-dump-times "vectorizing stmts using SLP" 3 "vect"  } } */
 /* { dg-final { cleanup-tree-dump "vect" } } */
   

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -35,6 +33,7 @@ with System.Img_LLU;        use System.Img_LLU;
 with System.Img_Uns;        use System.Img_Uns;
 with System.Powten_Table;   use System.Powten_Table;
 with System.Unsigned_Types; use System.Unsigned_Types;
+with System.Float_Control;
 
 package body System.Img_Real is
 
@@ -87,7 +86,7 @@ package body System.Img_Real is
       pragma Assert (S'First = 1);
 
    begin
-      --  Decide wether a blank should be prepended before the call to
+      --  Decide whether a blank should be prepended before the call to
       --  Set_Image_Real. We generate a blank for positive values, and
       --  also for positive zeroes. For negative zeroes, we generate a
       --  space only if Signed_Zeroes is True (the RM only permits the
@@ -145,14 +144,6 @@ package body System.Img_Real is
       Aft  : Natural;
       Exp  : Natural)
    is
-      procedure Reset;
-      pragma Import (C, Reset, "__gnat_init_float");
-      --  We import the floating-point processor reset routine so that we can
-      --  be sure the floating-point processor is properly set for conversion
-      --  calls (see description of Reset in GNAT.Float_Control (g-flocon.ads).
-      --  This is notably need on Windows, where calls to the operating system
-      --  randomly reset the processor into 64-bit mode.
-
       NFrac : constant Natural := Natural'Max (Aft, 1);
       Sign  : Character;
       X     : aliased Long_Long_Float;
@@ -234,7 +225,7 @@ package body System.Img_Real is
 
             loop
                XP := X * Powten (Maxpow);
-               exit when XP >= Powten (S - 1) or Scale < -Maxscaling;
+               exit when XP >= Powten (S - 1) or else Scale < -Maxscaling;
                X := XP;
                Scale := Scale - Maxpow;
             end loop;
@@ -304,7 +295,7 @@ package body System.Img_Real is
 
             loop
                XP := X / Powten (Maxpow);
-               exit when XP < Powten (S) or Scale > Maxscaling;
+               exit when XP < Powten (S) or else Scale > Maxscaling;
                X := XP;
                Scale := Scale + Maxpow;
             end loop;
@@ -478,7 +469,13 @@ package body System.Img_Real is
    --  Start of processing for Set_Image_Real
 
    begin
-      Reset;
+      --  We call the floating-point processor reset routine so that we can
+      --  be sure the floating-point processor is properly set for conversion
+      --  calls. This is notably need on Windows, where calls to the operating
+      --  system randomly reset the processor into 64-bit mode.
+
+      System.Float_Control.Reset;
+
       Scale := 0;
 
       --  Deal with invalid values first,

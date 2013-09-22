@@ -66,6 +66,7 @@ public class _DynEnumStub
   /**
    * The purpose and value of this field are not documented.
    */
+  @SuppressWarnings("rawtypes") // Needed for API compatibility
   public static final Class _opsClass = DynEnumOperations.class;
 
   /**
@@ -124,7 +125,7 @@ public class _DynEnumStub
   {
     throw new MARSHAL(_DynAnyStub.NOT_APPLICABLE);
   }
-  
+
   /**
    * The remote call of DynAny methods is not possible.
    *

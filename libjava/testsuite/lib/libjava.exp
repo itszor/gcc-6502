@@ -1,4 +1,5 @@
-# Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006, 2007 Free Software Foundation
+# Copyright (C) 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2006, 2007, 2011
+# Free Software Foundation
 
 proc load_gcc_lib { filename } {
     global srcdir
@@ -6,6 +7,7 @@ proc load_gcc_lib { filename } {
 }
 
 load_lib libgloss.exp
+load_lib dg.exp
 load_gcc_lib target-libpath.exp
 
 # GCJ_UNDER_TEST is the compiler under test.
@@ -145,6 +147,13 @@ proc libjava_init { args } {
     setenv LC_ALL C
     setenv LANG C
 
+    # Many hosts now default to a non-ASCII C locale, however, so
+    # they can set a charset encoding here if they need.
+    if { [ishost "*-*-cygwin*"] } {
+      setenv LC_ALL C.ASCII
+      setenv LANG C.ASCII
+    }
+
     if { $libjava_initialized == 1 } { return; }
 
     if ![info exists GCJ_UNDER_TEST] {
@@ -202,6 +211,8 @@ proc libjava_init { args } {
 
     if { [istarget "*-*-darwin*"] } {
 	set so_extension "dylib"
+    } elseif { [istarget "*-*-cygwin*"] || [istarget "*-*-mingw*"] } {
+	set so_extension "dll"
     } else {
 	set so_extension "so"
     }
@@ -422,14 +433,15 @@ proc libjava_arguments {{mode compile}} {
     # Avoid libtool wrapper scripts when possible.
     # but not if libtool warnings results in FAILs
     if {$mode == "link"} {
-	if {! [istarget "*-*-cygwin*"] && ! [istarget "*-*-mingw*"] } {
+	if {! [istarget "*-*-cygwin*"] && ! [istarget "*-*-mingw*"]
+	    && ! [istarget "*-*-darwin*"] } { 
 	    lappend args "additional_flags=-no-install"
 	}
 	if { [istarget "*-*-darwin*"] } {
 	    lappend args "additional_flags=-bind_at_load"
 	    lappend args "additional_flags=-multiply_defined suppress"
 	}
-	if { [istarget "*-*-darwin9*"] } {
+	if { [istarget "*-*-darwin9*"] || [istarget "*-*-darwin1*"] || [istarget "*-*-darwin2*"] } {
 	    lappend args "additional_flags=-Wl,-allow_stack_execute"
 	}
 

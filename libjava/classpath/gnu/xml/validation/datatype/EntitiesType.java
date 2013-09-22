@@ -1,4 +1,4 @@
-/* EntitiesType.java -- 
+/* EntitiesType.java --
    Copyright (C) 2006  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
@@ -36,6 +36,8 @@ obligated to do so.  If you do not wish to do so, delete this
 exception statement from your version. */
 
 package gnu.xml.validation.datatype;
+
+import gnu.java.lang.CPStringBuilder;
 
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
@@ -75,7 +77,7 @@ final class EntitiesType
     throws DatatypeException
   {
     super.checkValid(value, context);
-    StringBuffer buf = new StringBuffer();
+    CPStringBuilder buf = new CPStringBuilder();
     int len = value.length();
     for (int i = 0; i < len; i++)
       {
@@ -102,6 +104,5 @@ final class EntitiesType
   {
     return true;
   }
-  
-}
 
+}

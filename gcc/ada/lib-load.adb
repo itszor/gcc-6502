@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2012, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -169,14 +169,14 @@ package body Lib.Load is
              Chars => Chars (Selector_Name (Name (With_Node))));
          Du_Name :=
            Make_Defining_Program_Unit_Name (No_Location,
-             Name => New_Copy_Tree (Prefix (Name (With_Node))),
+             Name => Copy_Separate_Tree (Prefix (Name (With_Node))),
              Defining_Identifier => Cunit_Entity);
 
          Set_Is_Child_Unit (Cunit_Entity);
 
          End_Lab :=
            Make_Designator (No_Location,
-             Name => New_Copy_Tree (Prefix (Name (With_Node))),
+             Name => Copy_Separate_Tree (Prefix (Name (With_Node))),
              Identifier => New_Occurrence_Of (Cunit_Entity, No_Location));
       end if;
 
@@ -214,17 +214,20 @@ package body Lib.Load is
         Expected_Unit    => Spec_Name,
         Fatal_Error      => True,
         Generate_Code    => False,
+        Has_Allocator    => False,
         Has_RACW         => False,
         Is_Compiler_Unit => False,
         Ident_String     => Empty,
         Loading          => False,
         Main_Priority    => Default_Main_Priority,
+        Main_CPU         => Default_Main_CPU,
         Munit_Index      => 0,
         Serial_Number    => 0,
         Source_Index     => No_Source_File,
         Unit_File_Name   => Get_File_Name (Spec_Name, Subunit => False),
         Unit_Name        => Spec_Name,
-        Version          => 0);
+        Version          => 0,
+        OA_Setting       => 'O');
 
       Set_Comes_From_Source_Default (Save_CS);
       Set_Error_Posted (Cunit_Entity);
@@ -317,17 +320,20 @@ package body Lib.Load is
            Expected_Unit    => No_Unit_Name,
            Fatal_Error      => False,
            Generate_Code    => False,
+           Has_Allocator    => False,
            Has_RACW         => False,
            Is_Compiler_Unit => False,
            Ident_String     => Empty,
            Loading          => True,
            Main_Priority    => Default_Main_Priority,
+           Main_CPU         => Default_Main_CPU,
            Munit_Index      => 0,
            Serial_Number    => 0,
            Source_Index     => Main_Source_File,
            Unit_File_Name   => Fname,
            Unit_Name        => No_Unit_Name,
-           Version          => Version);
+           Version          => Version,
+           OA_Setting       => 'O');
       end if;
    end Load_Main_Source;
 
@@ -342,7 +348,8 @@ package body Lib.Load is
       Subunit           : Boolean;
       Corr_Body         : Unit_Number_Type := No_Unit;
       Renamings         : Boolean          := False;
-      With_Node         : Node_Id          := Empty) return Unit_Number_Type
+      With_Node         : Node_Id          := Empty;
+      PMES              : Boolean          := False) return Unit_Number_Type
    is
       Calling_Unit : Unit_Number_Type;
       Uname_Actual : Unit_Name_Type;
@@ -350,12 +357,31 @@ package body Lib.Load is
       Unump        : Unit_Number_Type;
       Fname        : File_Name_Type;
       Src_Ind      : Source_File_Index;
+      Save_PMES    : constant Boolean := Parsing_Main_Extended_Source;
 
-   --  Start of processing for Load_Unit
+      Save_Cunit_Restrictions : constant Save_Cunit_Boolean_Restrictions :=
+                                  Cunit_Boolean_Restrictions_Save;
+      --  Save current restrictions for restore at end
 
    begin
+      Parsing_Main_Extended_Source := PMES;
+
+      --  Initialize restrictions to config restrictions for unit to load if
+      --  it is part of the main extended source, otherwise reset them.
+
+      --  Note: it's a bit odd but PMES is False for subunits, which is why
+      --  we have the OR here. Should be investigated some time???
+
+      if PMES or Subunit then
+         Restore_Config_Cunit_Boolean_Restrictions;
+      else
+         Reset_Cunit_Boolean_Restrictions;
+      end if;
+
       --  If renamings are allowed and we have a child unit name, then we
       --  must first load the parent to deal with finding the real name.
+      --  Retain the with_clause that names the child, so that if it is
+      --  limited, the parent is loaded under the same condition.
 
       if Renamings and then Is_Child_Name (Load_Name) then
          Unump :=
@@ -364,9 +390,11 @@ package body Lib.Load is
               Required   => Required,
               Subunit    => False,
               Renamings  => True,
-              Error_Node => Error_Node);
+              Error_Node => Error_Node,
+              With_Node  => With_Node);
 
          if Unump = No_Unit then
+            Parsing_Main_Extended_Source := Save_PMES;
             return No_Unit;
          end if;
 
@@ -378,9 +406,25 @@ package body Lib.Load is
               New_Child
                 (Load_Name, Get_Unit_Name (Name (Unit (Cunit (Unump)))));
 
+            --  If the load is for a with_clause, for visibility purposes both
+            --  the renamed entity and renaming one must be available in the
+            --  current unit: the renamed one in order to retrieve the child
+            --  unit, and the original one because it may be used as a prefix
+            --  in the body of the current unit. We add an explicit with_clause
+            --  for the original parent so that the renaming declaration is
+            --  properly loaded and analyzed.
+
+            if Present (With_Node) then
+               Insert_After (With_Node,
+                 Make_With_Clause (Sloc (With_Node),
+                   Name => Copy_Separate_Tree (Prefix (Name (With_Node)))));
+            end if;
+
             --  Save the renaming entity, to establish its visibility when
             --  installing the context. The implicit with is on this entity,
-            --  not on the package it renames.
+            --  not on the package it renames. This is somewhat redundant given
+            --  the with_clause just created, but it simplifies subsequent
+            --  expansion of the current with_clause. Optimizable ???
 
             if Nkind (Error_Node) = N_With_Clause
               and then Nkind (Name (Error_Node)) = N_Selected_Component
@@ -391,7 +435,7 @@ package body Lib.Load is
                begin
                   while Nkind (Par) = N_Selected_Component
                     and then Chars (Selector_Name (Par)) /=
-                      Chars (Cunit_Entity (Unump))
+                             Chars (Cunit_Entity (Unump))
                   loop
                      Par := Prefix (Par);
                   end loop;
@@ -508,7 +552,6 @@ package body Lib.Load is
       --  See if we already have an entry for this unit
 
       Unum := Main_Unit;
-
       while Unum <= Units.Last loop
          exit when Uname_Actual = Units.Table (Unum).Unit_Name;
          Unum := Unum + 1;
@@ -548,10 +591,12 @@ package body Lib.Load is
                   end if;
 
                   Write_Dependency_Chain;
-                  return No_Unit;
+                  Unum := No_Unit;
+                  goto Done;
 
                else
-                  return No_Unit;
+                  Unum := No_Unit;
+                  goto Done;
                end if;
             end if;
          end loop;
@@ -596,7 +641,8 @@ package body Lib.Load is
                Load_Stack.Decrement_Last;
             end if;
 
-            return No_Unit;
+            Unum := No_Unit;
+            goto Done;
          end if;
 
          if Debug_Flag_L then
@@ -606,7 +652,7 @@ package body Lib.Load is
          end if;
 
          Load_Stack.Decrement_Last;
-         return Unum;
+         goto Done;
 
       --  Unit is not already in table, so try to open the file
 
@@ -637,27 +683,40 @@ package body Lib.Load is
               Expected_Unit    => Uname_Actual,
               Fatal_Error      => False,
               Generate_Code    => False,
+              Has_Allocator    => False,
               Has_RACW         => False,
               Is_Compiler_Unit => False,
               Ident_String     => Empty,
               Loading          => True,
               Main_Priority    => Default_Main_Priority,
+              Main_CPU         => Default_Main_CPU,
               Munit_Index      => 0,
               Serial_Number    => 0,
               Source_Index     => Src_Ind,
               Unit_File_Name   => Fname,
               Unit_Name        => Uname_Actual,
-              Version          => Source_Checksum (Src_Ind));
+              Version          => Source_Checksum (Src_Ind),
+              OA_Setting       => 'O');
 
             --  Parse the new unit
 
             declare
-               Save_Index : constant Nat := Multiple_Unit_Index;
+               Save_Index : constant Nat     := Multiple_Unit_Index;
+               Save_PMES  : constant Boolean := Parsing_Main_Extended_Source;
+
             begin
                Multiple_Unit_Index := Get_Unit_Index (Uname_Actual);
                Units.Table (Unum).Munit_Index := Multiple_Unit_Index;
                Initialize_Scanner (Unum, Source_Index (Unum));
+
+               if Calling_Unit = Main_Unit and then Subunit then
+                  Parsing_Main_Extended_Source := True;
+               end if;
+
                Discard_List (Par (Configuration_Pragmas => False));
+
+               Parsing_Main_Extended_Source := Save_PMES;
+
                Multiple_Unit_Index := Save_Index;
                Set_Loading (Unum, False);
             end;
@@ -674,7 +733,8 @@ package body Lib.Load is
                Error_Msg
                  ("\incorrect spec in file { must be removed first!",
                   Load_Msg_Sloc);
-               return No_Unit;
+               Unum := No_Unit;
+               goto Done;
             end if;
 
             --  If loaded unit had a fatal error, then caller inherits it!
@@ -688,7 +748,10 @@ package body Lib.Load is
             --  Remove load stack entry and return the entry in the file table
 
             Load_Stack.Decrement_Last;
-            return Unum;
+
+            --  All done, return unit number
+
+            goto Done;
 
          --  Case of file not found
 
@@ -708,17 +771,17 @@ package body Lib.Load is
                   --  it may very likely be the case that there is also pragma
                   --  Restriction forbidding its usage. This is typically the
                   --  case when building a configurable run time, where the
-                  --  usage of certain run-time units units is restricted by
-                  --  means of both the corresponding pragma Restriction (such
-                  --  as No_Calendar), and by not including the unit. Hence,
-                  --  we check whether this predefined unit is forbidden, so
-                  --  that the message about the restriction violation is
-                  --  generated, if needed.
+                  --  usage of certain run-time units is restricted by means
+                  --  of both the corresponding pragma Restriction (such as
+                  --  No_Calendar), and by not including the unit. Hence, we
+                  --  check whether this predefined unit is forbidden, so that
+                  --  the message about the restriction violation is generated,
+                  --  if needed.
 
                   Check_Restricted_Unit (Load_Name, Error_Node);
 
                   Error_Msg_Unit_1 := Uname_Actual;
-                  Error_Msg
+                  Error_Msg -- CODEFIX
                     ("$$ is not a predefined library unit", Load_Msg_Sloc);
 
                else
@@ -742,10 +805,42 @@ package body Lib.Load is
                Units.Decrement_Last;
             end if;
 
-            return No_Unit;
+            Unum := No_Unit;
+            goto Done;
          end if;
       end if;
+
+      --  Here to exit, with result in Unum
+
+      <<Done>>
+      Parsing_Main_Extended_Source := Save_PMES;
+      Cunit_Boolean_Restrictions_Restore (Save_Cunit_Restrictions);
+      return Unum;
    end Load_Unit;
+
+   --------------------------
+   -- Make_Child_Decl_Unit --
+   --------------------------
+
+   procedure Make_Child_Decl_Unit (N : Node_Id) is
+      Unit_Decl : constant Node_Id := Library_Unit (N);
+
+   begin
+      Units.Increment_Last;
+      Units.Table (Units.Last) := Units.Table (Get_Cunit_Unit_Number (N));
+      Units.Table (Units.Last).Unit_Name :=
+        Get_Spec_Name (Unit_Name (Get_Cunit_Unit_Number (N)));
+      Units.Table (Units.Last).Cunit := Unit_Decl;
+      Units.Table (Units.Last).Cunit_Entity  :=
+        Defining_Identifier
+          (Defining_Unit_Name (Specification (Unit (Unit_Decl))));
+
+      --  The library unit created for of a child subprogram unit plays no
+      --  role in code generation and binding, so label it accordingly.
+
+      Units.Table (Units.Last).Generate_Code := False;
+      Set_Has_No_Elaboration_Code (Unit_Decl);
+   end Make_Child_Decl_Unit;
 
    ------------------------
    -- Make_Instance_Unit --
@@ -760,17 +855,30 @@ package body Lib.Load is
    --  declaration has been attached to a new compilation unit node, and
    --  code will have to be generated for it.
 
-   procedure Make_Instance_Unit (N : Node_Id) is
+   procedure Make_Instance_Unit (N : Node_Id; In_Main : Boolean) is
       Sind : constant Source_File_Index := Source_Index (Main_Unit);
+
    begin
       Units.Increment_Last;
-      Units.Table (Units.Last)               := Units.Table (Main_Unit);
-      Units.Table (Units.Last).Cunit         := Library_Unit (N);
-      Units.Table (Units.Last).Generate_Code := True;
-      Units.Table (Main_Unit).Cunit          := N;
-      Units.Table (Main_Unit).Unit_Name      :=
-        Get_Body_Name (Unit_Name (Get_Cunit_Unit_Number (Library_Unit (N))));
-      Units.Table (Main_Unit).Version        := Source_Checksum (Sind);
+
+      if In_Main then
+         Units.Table (Units.Last)               := Units.Table (Main_Unit);
+         Units.Table (Units.Last).Cunit         := Library_Unit (N);
+         Units.Table (Units.Last).Generate_Code := True;
+         Units.Table (Main_Unit).Cunit          := N;
+         Units.Table (Main_Unit).Unit_Name      :=
+           Get_Body_Name
+             (Unit_Name (Get_Cunit_Unit_Number (Library_Unit (N))));
+         Units.Table (Main_Unit).Version        := Source_Checksum (Sind);
+
+      else
+         --  Duplicate information from instance unit, for the body. The unit
+         --  node N has been rewritten as a body, but it was placed in the
+         --  units table when first loaded as a declaration.
+
+         Units.Table (Units.Last) := Units.Table (Get_Cunit_Unit_Number (N));
+         Units.Table (Units.Last).Cunit := Library_Unit (N);
+      end if;
    end Make_Instance_Unit;
 
    ------------------------
@@ -785,11 +893,10 @@ package body Lib.Load is
       Bunit : constant Node_Id := Cunit (Body_Unit);
 
    begin
-      --  The spec is irrelevant if the body is a subprogram body, and the
-      --  spec is other than a subprogram spec or generic subprogram spec.
-      --  Note that the names must be the same, we don't need to check that,
-      --  because we already know that from the fact that the file names are
-      --  the same.
+      --  The spec is irrelevant if the body is a subprogram body, and the spec
+      --  is other than a subprogram spec or generic subprogram spec. Note that
+      --  the names must be the same, we don't need to check that, because we
+      --  already know that from the fact that the file names are the same.
 
       return
          Nkind (Unit (Bunit)) = N_Subprogram_Body

@@ -1,5 +1,5 @@
 // { dg-do compile }
-// { dg-options "-O" }
+// { dg-options "-O2" }
 // { dg-final { scan-assembler "xyzzy" } }
 
 struct S { S(); virtual void xyzzy(); };

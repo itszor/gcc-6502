@@ -281,7 +281,7 @@ which is responsible for the specified class.
 @item @code{forName(String, boolean, ClassLoader)} -- The VM should create a
 @code{Class} instance corresponding to the named class.  As noted in
 @ref{VM Hooks}, the internal content of the instance is the
-responsibility of the VM.  The supplied class loader is recorded as that
+responsibility of the VM@.  The supplied class loader is recorded as that
 which loaded the class, and the boolean specifies whether or not to
 run the class initializer.
 @item @code{isArray(Class)} -- Another property test, corresponding to a
@@ -393,7 +393,7 @@ supplied class.
 loader.
 @item @code{getPrimitiveClass(char)} -- The VM should provide a @code{Class}
 implementation for one of the primitive classes.  The supplied character
-matches the JNI code for the primitive class e.g. `B' for byte and
+matches the JNI code for the primitive class e.g.@: `B' for byte and
 `Z' for boolean.
 @end itemize
 @item Java Methods
@@ -419,7 +419,7 @@ The method should return a map converting package names to boolean status
 values.  The stub implementation provides an empty map.
 @item @code{classAssertionStatus()} -- Same as the last, but for classes.
 @item @code{getSystemClassLoader()} -- The default calls @code{ClassLoader}
-to create a new auxillary class loader with a system and extension class
+to create a new auxiliary class loader with a system and extension class
 loader.  The VM may wish to replace it if it wishes to supply its own custom
 system class loader.
 @end itemize
@@ -485,7 +485,7 @@ making a VM implementation optional.
 @subsection @code{java.lang.VMThrowable}
 @code{VMThrowable} is used to hold the VM state of a throwable, created either
 when a @code{Throwable} is created or the @code{fillInStackTrace()} method is
-called (i.e. when the actual stack trace is needed, as a lot of exceptions are
+called (i.e., when the actual stack trace is needed, as a lot of exceptions are
 never actually used).  The actual class has two @code{native} methods,
 one (@code{fillInStackTrace()}) being a method of the class used to obtain
 instances, and the other an instance method, @code{getStackTrace()}.
@@ -526,10 +526,8 @@ compiler, and is specific to the compiler implementation.
 of doubles.
 
 @itemize @bullet
-@item @code{doubleToLongBits(double)} -- Converts the double to the IEEE 754
-bit layout, collapsing NaNs to @code{0x7ff8000000000000L}.
-@item @code{doubleToRawLongBits(double)} -- Same as the above, but preserves
-NaNs.
+@item @code{doubleToRawLongBits(double)} -- Converts the double to the IEEE 754
+bit layout, preserving NaNs.
 @item @code{longBitsToDouble(long)} -- This is the inverse of the last method,
 preserving NaNs so that the output of one can be fed into the other without
 data loss.
@@ -552,10 +550,8 @@ implementation optional.
 @code{VMFloat} provides native support for the conversion of floats.
 
 @itemize @bullet
-@item @code{floatToIntBits(float)} -- Converts the float to the IEEE 754
-bit layout, collapsing NaNs to @code{0x7fc00000}.
-@item @code{floatToRawIntBits(float)} -- Same as the above, but preserves
-NaNs.
+@item @code{floatToRawIntBits(float)} -- Converts the float to the IEEE 754
+bit layout, preserving NaNs.
 @item @code{intBitsToFloat(int)} -- This is the inverse of the last method,
 preserving NaNs so that the output of one can be fed into the other without
 data loss.
@@ -633,7 +629,7 @@ running the finalization process at exit.
 returning an integer which is non-zero for success.  Nothing happens if the
 file has already been loaded.
 @item @code{mapLibraryName(String)} -- The VM should map the system-independent
-library name supplied to the platform-dependent equivalent (e.g. a @code{.so}
+library name supplied to the platform-dependent equivalent (e.g.@: a @code{.so}
 or @code{.dll} file)
 @end itemize
 
@@ -701,7 +697,7 @@ throw an appropriate exception.
 @item @code{suspend()} -- The thread should be suspended until resumed.
 @item @code{resume()} -- The thread should be resumed from its suspended state.
 This pair of methods are deprecated, due to the possibility of a deadlock
-occuring when a thread with locks is suspended.
+occurring when a thread with locks is suspended.
 @item @code{nativeSetPriority(int)} -- Called by @code{setPriority}
 to allow the setting to flow down to the native thread.
 @item @code{nativeStop(Throwable)} -- The VM should stop the thread abnormally
@@ -736,7 +732,7 @@ The @code{VMMath} class provides a series of native methods
 for some of the mathematical functions present in @code{java.lang.Math}.
 Classpath provides a default implementation of these which maps the
 functions to those provided by @code{fdlibm}.  VM implementors are welcome
-to replace this with more efficent implementations, as long as the accuracy
+to replace this with more efficient implementations, as long as the accuracy
 contract of these methods, specified in @code{java.lang.Math}, is maintained.
 
 @itemize @bullet
@@ -962,7 +958,7 @@ a directory.
 @itemize @bullet
 @item @code{canWriteDirectory(File)} -- Checks that the directory can be
 written to, by trying to create a temporary file in it.
-@item @code{listRoots()} -- Returns the root of a GNU filesystem i.e. `/'
+@item @code{listRoots()} -- Returns the root of a GNU filesystem, i.e.@: `/'
 in an array.
 @item @code{isHidden(String)} -- Checks whether the file starts with `.',
 which is how files are hidden on UNIX-style systems.
@@ -1247,7 +1243,7 @@ by a specific class loader.
 @end itemize
 
 Instrumentation allows to modify the bytecode of a class before it gets read
-by the VM. In GNU Classpath, the @code{ClassLoader.defineClass} method calls
+by the VM@. In GNU Classpath, the @code{ClassLoader.defineClass} method calls
 the @code{VMClassLoader.defineClassWithTransformers} method which first checks
 if @code{VMClassLoader.instrumenter} is @code{null}. If it's the case, it
 directly calls @code{VMClassLoader.defineClass}. If it's not the case, the
@@ -1257,11 +1253,11 @@ object and returns a new bytecode array. Then, it calls the
 @code{VMClassLoader.defineClass} method with this new bytecode array.
 
 The second use of instrumentation is to redefine a class after it has been
-loaded by the VM. This is done in the Java application by calling the
+loaded by the VM@. This is done in the Java application by calling the
 @code{Instrumentation.redefineClasses} method of the standard interface on
 a @code{Instrumentation} object. The @code{InstrumentationImpl.redefineClasses}
 method calls the @code{VMInstrumentationImpl.redefineClasses} native method
-which must be implemented by the VM. The implementation should call the
+which must be implemented by the VM@. The implementation should call the
 @code{InstrumentationImpl.callTransformers} method.
 
 @node gnu.java.lang.management, java.lang.management, gnu.java.lang, Classpath Hooks
@@ -1304,7 +1300,7 @@ arguments, excluding those that are directed at the
 this to be a native method.
 @item @code{(getName())} -- The VM developer should choose
 an appropriate name for the virtual machine.  This name can
-be instance-specific e.g. it can include things like the
+be instance-specific e.g.@: it can include things like the
 process identifier or host name of the machine, which only
 apply to the current running instance.  Thus, the intention is
 that this name refers to the entity that the other information
@@ -1540,7 +1536,7 @@ interface, and is supported by VM functionality in the form of
 @code{gnu.java.lang.management.VMMemoryPoolMXBeanImpl}.  Providing
 this interface requires implementing a number of methods for each supported
 pool.  These return statistics on memory usage, and, optionally, allows
-monitoring of when memory usage exceedes a preset threshold.
+monitoring of when memory usage exceeds a preset threshold.
 
 Optional support is determined by the following properties:
 
@@ -1611,7 +1607,7 @@ memory pools that the manager maintains.  A default implementation
 which scans the results of @code{getMemoryManagerNames()} for each
 pool is provided.
 @item @code{(isValid(String))} -- Returns true if the specified
-manager is still valid i.e. it is still in use by the virtual machine.
+manager is still valid, i.e., it is still in use by the virtual machine.
 @end itemize
 
 @node gnu.java.lang.management.VMGarbageCollectorMXBeanImpl,,gnu.java.lang.management.VMMemoryManagerMXBeanImpl,gnu.java.lang.management
@@ -1739,7 +1735,7 @@ The following issues are of note;
 The GNU Classpath implementation of @code{java.lang.Class} provides an
 object for storing the internal state of the class maintained by the VM.
 This is the only known place where this matters.  The class is
-constructed with this data by the VM.  Some VMs do not create the
+constructed with this data by the VM@.  Some VMs do not create the
 @code{Class} object at the point where the class is defined; instead,
 they wait until a @code{Class} object is actually used.
 
@@ -1913,14 +1909,14 @@ mechanism.
 @i{Green threads 1}: Green threads are threads scheduled by the VM,
 typically by switching swapping registers. In early VMs green threads
 were seen as advantageous as they didn't require the operating system
-to resechedule, save and swap all of a threads registers. The green
+to reschedule, save and swap all of a threads registers. The green
 thread 1 model switches thread on an externally created event, such as
 a timer interrupt. An example of a VM using this approach is Kaffe
 configured with its jthreads model.
 @item
 @i{Green threads 2}: The essential difference with this model is to
 not switch threads on an event, but at fixed points in the code being
-executed by the VM. Points chosen could be backward branches (loops)
+executed by the VM@. Points chosen could be backward branches (loops)
 or method calls. This approach can be advantageous to nonconservative
 garbage collectors, as non-running threads would be at known points
 and can have fixed register maps. It can also reduce the number of
@@ -1937,7 +1933,7 @@ model.
 An example of the problem of mixing threading models is:
 @itemize @bullet
 @item
-A Java thread calls a native method. The native method aquires a lock.
+A Java thread calls a native method. The native method acquires a lock.
 @item
 The native method calls back into the VM.
 @item
@@ -1946,7 +1942,7 @@ An event triggers the VM to reschedule the currently running thread.
 A new VM thread, executing on the same underlying native thread, calls
 a native method.
 @item
-The native method tries to aquire the lock already aquired earlier. As
+The native method tries to acquire the lock already acquired earlier. As
 the lock is busy the thread waits and allows the operating system to
 reschedule native threads.
 @item
@@ -1976,7 +1972,7 @@ and swap Java threads off of that native thread. The VM can't,
 however, swap two blocked native threads that are potentially
 deadlocking each other on a lock. The lock will be associated with the
 native thread. To prevent this from happening the VM must hijack
-functions that operate on locks. This is done by redifining the lock
+functions that operate on locks. This is done by redefining the lock
 functions inside the VM and configuring the linker so that it uses the
 VMs symbol in preference to that of the external thread support
 library. The VM's lock function can then reschedule Java threads if it
@@ -1989,7 +1985,7 @@ must wait for the lock.
 As of GNU Classpath 0.15 a system property named @code{gnu.classpath.boot.library.path}
 can be set by the VM to specify the directories which contain GNU Classpath's native
 libraries. Usually this value is given at configuration time and is then hardcoded
-in the VM. However for development purposes it is handy to switch to another installation
+in the VM@. However for development purposes it is handy to switch to another installation
 by overriding the properties' value on the command line.
 
 A VM that does not support this feature can simply ignore the property.

@@ -1,4 +1,4 @@
-#   Copyright (C) 1997, 2001, 2007 Free Software Foundation, Inc.
+#   Copyright (C) 1997-2013 Free Software Foundation, Inc.
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,24 +34,35 @@ proc clean-gcov { testcase } {
 #
 # verify-lines -- check that line counts are as expected
 #
-# TESTCASE is the name of the test.
+# TESTNAME is the name of the test, including unique flags.
+# TESTCASE is the name of the test file.
 # FILE is the name of the gcov output file.
 #
-proc verify-lines { testcase file } {
+proc verify-lines { testname testcase file } {
     #send_user "verify-lines\n"
+    global subdir
+
     set failed 0
     set fd [open $file r]
     while { [gets $fd line] >= 0 } {
         # We want to match both "-" and "#####" as count as well as numbers,
         # since we want to detect lines that shouldn't be marked as covered.
-	if [regexp "^ *(\[^:]*): *(\[0-9\\-#]+):.*count\\((\[0-9\\-#]+)\\)" \
-		"$line" all is n shouldbe] {
+	if [regexp "^ *(\[^:]*): *(\[0-9\\-#]+):.*count\\((\[0-9\\-#=]+)\\)(.*)" \
+		"$line" all is n shouldbe rest] {
+	    if [regexp "^ *{(.*)}" $rest all xfailed] {
+		switch [dg-process-target $xfailed] {
+		    "N" { continue }
+		    "F" { setup_xfail "*-*-*" }
+		}
+	    }
 	    if { $is == "" } {
-		fail "$n:no data available for this line"
+		fail "$testname line $n: no data available"
 		incr failed
 	    } elseif { $is != $shouldbe } {
-		fail "$n:is $is:should be $shouldbe"
+		fail "$testname line $n: is $is:should be $shouldbe"
 		incr failed
+	    } else {
+		pass "$testname count for line $n"
 	    }
 	}
     }
@@ -62,7 +73,8 @@ proc verify-lines { testcase file } {
 #
 # verify-branches -- check that branch percentages are as expected
 #
-# TESTCASE is the name of the test.
+# TESTNAME is the name of the test, including unique flags.
+# TESTCASE is the name of the test file.
 # FILE is the name of the gcov output file.
 #
 # Checks are based on comments in the source file.  This means to look for
@@ -77,8 +89,9 @@ proc verify-lines { testcase file } {
 # branch instructions.  Don't check for branches that might be
 # optimized away or replaced with predicated instructions.
 #
-proc verify-branches { testcase file } {
+proc verify-branches { testname testcase file } {
     #send_user "verify-branches\n"
+
     set failed 0
     set shouldbe ""
     set fd [open $file r]
@@ -90,7 +103,7 @@ proc verify-branches { testcase file } {
 	    if [regexp "branch\\((\[0-9 \]+)\\)" "$line" all new_shouldbe] {
 		# All percentages in the current list should have been seen.
 		if {[llength $shouldbe] != 0} {
-		    fail "$n: expected branch percentages not found: $shouldbe"
+		    fail "$testname line $n: expected branch percentages not found: $shouldbe"
 		    incr failed
 		    set shouldbe ""
 		}
@@ -108,14 +121,14 @@ proc verify-branches { testcase file } {
 	    } elseif [regexp "branch +\[0-9\]+ taken (-\[0-9\]+)%" "$line" \
 			all taken] {
 		# Percentages should never be negative.
-		fail "$n: negative percentage: $taken"
+		fail "$testname line $n: negative percentage: $taken"
 		incr failed
 	    } elseif [regexp "branch +\[0-9\]+ taken (\[0-9\]+)%" "$line" \
 			all taken] {
 		#send_user "$n: taken = $taken\n"
 		# Percentages should never be greater than 100.
 		if {$taken > 100} {
-		    fail "$n: percentage greater than 100: $taken"
+		    fail "$testname line $n: branch percentage greater than 100: $taken"
 		    incr failed
 		}
 		if {$taken > 50} {
@@ -130,7 +143,7 @@ proc verify-branches { testcase file } {
 	    } elseif [regexp "branch\\(end\\)" "$line"] {
 		# All percentages in the list should have been seen by now.
 		if {[llength $shouldbe] != 0} {
-		    fail "$n: expected branch percentages not found: $shouldbe"
+		    fail "$testname line n: expected branch percentages not found: $shouldbe"
 		    incr failed
 		}
 		set shouldbe ""
@@ -139,7 +152,7 @@ proc verify-branches { testcase file } {
     }
     # All percentages in the list should have been seen.
     if {[llength $shouldbe] != 0} {
-	fail "$n: expected branch percentages not found: $shouldbe"
+	fail "$testname line $n: expected branch percentages not found: $shouldbe"
 	incr failed
     }
     close $fd
@@ -149,7 +162,8 @@ proc verify-branches { testcase file } {
 #
 # verify-calls -- check that call return percentages are as expected
 #
-# TESTCASE is the name of the test.
+# TESTNAME is the name of the test, including unique flags.
+# TESTCASE is the name of the test file.
 # FILE is the name of the gcov output file.
 #
 # Checks are based on comments in the source file.  This means to look for
@@ -164,8 +178,9 @@ proc verify-branches { testcase file } {
 # call instructions.  Don't check for calls that are inserted by the
 # compiler or that might be inlined.
 #
-proc verify-calls { testcase file } {
+proc verify-calls { testname testcase file } {
     #send_user "verify-calls\n"
+
     set failed 0
     set shouldbe ""
     set fd [open $file r]
@@ -177,7 +192,7 @@ proc verify-calls { testcase file } {
 	    if [regexp "returns\\((\[0-9 \]+)\\)" "$line" all new_shouldbe] {
 		# All percentages in the current list should have been seen.
 		if {[llength $shouldbe] != 0} {
-		    fail "$n: expected return percentages not found: $shouldbe"
+		    fail "$testname line $n: expected return percentages not found: $shouldbe"
 		    incr failed
 		    set shouldbe ""
 		}
@@ -186,7 +201,7 @@ proc verify-calls { testcase file } {
 	    } elseif [regexp "call +\[0-9\]+ returned (-\[0-9\]+)%" "$line" \
 			all returns] {
 		# Percentages should never be negative.
-		fail "$n: negative percentage: $returns"
+		fail "$testname line $n: negative percentage: $returns"
 		incr failed
 	    } elseif [regexp "call +\[0-9\]+ returned (\[0-9\]+)%" "$line" \
 			all returns] {
@@ -203,7 +218,7 @@ proc verify-calls { testcase file } {
 	    } elseif [regexp "returns\\(end\\)" "$line"] {
 		# All percentages in the list should have been seen by now.
 		if {[llength $shouldbe] != 0} {
-		    fail "$n: expected return percentages not found: $shouldbe"
+		    fail "$testname line $n: expected return percentages not found: $shouldbe"
 		    incr failed
 		}
 		set shouldbe ""
@@ -212,7 +227,7 @@ proc verify-calls { testcase file } {
     }
     # All percentages in the list should have been seen.
     if {[llength $shouldbe] != 0} {
-	fail "$n: expected return percentages not found: $shouldbe"
+	fail "$testname line $n: expected return percentages not found: $shouldbe"
 	incr failed
     }
     close $fd
@@ -230,33 +245,39 @@ proc run-gcov { args } {
     global GCOV
     global srcdir subdir
 
-    set gcov_args [lindex $args end]
-
+    set gcov_args ""
     set gcov_verify_calls 0
     set gcov_verify_branches 0
-    set gcov_execute_xfail ""
-    set gcov_verify_xfail ""
+    set xfailed 0
 
     foreach a $args {
 	if { $a == "calls" } {
 	  set gcov_verify_calls 1
 	} elseif { $a == "branches" } {
 	  set gcov_verify_branches 1
+	} elseif { $gcov_args == "" } {
+	    set gcov_args $a
+	} else {
+	    switch [dg-process-target $a] {
+		"N" { return }
+		"F" { set xfailed 1 }
+	    }
 	}
     }
 
-    # Extract the test name from the arguments.
-    set testcase [lindex $gcov_args end]
+    set testname [testname-for-summary]
 
-    if { $gcov_execute_xfail != "" } {
-	eval setup_xfail [split $gcov_execute_xfail]
-    }
+    # Extract the test file name from the arguments.
+    set testcase [lindex $gcov_args end]
 
     verbose "Running $GCOV $testcase" 2
     set testcase [remote_download host $testcase]
     set result [remote_exec host $GCOV $gcov_args]
     if { [lindex $result 0] != 0 } {
-	fail "$subdir/$testcase gcov failed: [lindex $result 1]"
+	if { $xfailed } {
+	    setup_xfail "*-*-*"
+	}
+	fail "$testname gcov failed: [lindex $result 1]"
 	clean-gcov $testcase
 	return
     }
@@ -264,28 +285,27 @@ proc run-gcov { args } {
     # Get the gcov output file after making sure it exists.
     set files [glob -nocomplain $testcase.gcov]
     if { $files == "" } {
-        fail "$subdir/$testcase gcov failed: $testcase.gcov does not exist"
+	if { $xfailed } {
+	    setup_xfail "*-*-*"
+	}
+        fail "$testname gcov failed: $testcase.gov does not exist"
         clean-gcov $testcase
         return
     }
     remote_upload host $testcase.gcov $testcase.gcov
 
-    if { $gcov_verify_xfail != "" } {
-	eval setup_xfail [split $gcov_verify_xfail]
-    }
-
     # Check that line execution counts are as expected.
-    set lfailed [verify-lines $testcase $testcase.gcov]
+    set lfailed [verify-lines $testname $testcase $testcase.gcov]
 
     # If requested via the .x file, check that branch and call information
     # is correct.
     if { $gcov_verify_branches } {
-	set bfailed [verify-branches $testcase $testcase.gcov]
+	set bfailed [verify-branches $testname $testcase $testcase.gcov]
     } else {
 	set bfailed 0
     }
     if { $gcov_verify_calls } {
-	set cfailed [verify-calls $testcase $testcase.gcov]
+	set cfailed [verify-calls $testname $testcase $testcase.gcov]
     } else {
 	set cfailed 0
     }
@@ -293,10 +313,13 @@ proc run-gcov { args } {
     # Report whether the gcov test passed or failed.  If there were
     # multiple failures then the message is a summary.
     set tfailed [expr $lfailed + $bfailed + $cfailed]
+    if { $xfailed } {
+	setup_xfail "*-*-*"
+    }
     if { $tfailed > 0 } {
-	fail "$subdir/$testcase gcov: $lfailed failures in line counts, $bfailed in branch percentages, $cfailed in return percentages"
+	fail "$testname gcov: $lfailed failures in line counts, $bfailed in branch percentages, $cfailed in return percentages"
     } else {
-	pass "$subdir/$testcase gcov"
+	pass "$testname gcov"
 	clean-gcov $testcase
     }
 }

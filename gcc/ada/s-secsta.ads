@@ -6,34 +6,30 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2007, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2011, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
 --                                                                          --
 ------------------------------------------------------------------------------
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 with System.Storage_Elements;
 
@@ -51,17 +47,17 @@ package System.Secondary_Stack is
       Size : Natural := Default_Secondary_Stack_Size);
    --  Initialize the secondary stack with a main stack of the given Size.
    --
-   --  If System.Parameters.Sec_Stack_Ratio equals Dynamic, Stk is really an
-   --  OUT parameter that will be allocated on the heap. Then all further
+   --  If System.Parameters.Sec_Stack_Percentage equals Dynamic, Stk is really
+   --  an OUT parameter that will be allocated on the heap. Then all further
    --  allocations which do not overflow the main stack will not generate
    --  dynamic (de)allocation calls. If the main Stack overflows, a new
    --  chuck of at least the same size will be allocated and linked to the
    --  previous chunk.
    --
-   --  Otherwise (Sec_Stack_Ratio between 0 and 100), Stk is an IN parameter
-   --  that is already pointing to a Stack_Id. The secondary stack in this case
-   --  is fixed, and any attempt to allocated more than the initial size will
-   --  result in a Storage_Error being raised.
+   --  Otherwise (Sec_Stack_Percentage between 0 and 100), Stk is an IN
+   --  parameter that is already pointing to a Stack_Id. The secondary stack
+   --  in this case is fixed, and any attempt to allocate more than the initial
+   --  size will result in a Storage_Error being raised.
    --
    --  Note: the reason that Stk is passed is that SS_Init is called before
    --  the proper interface is established to obtain the address of the
@@ -87,6 +83,7 @@ package System.Secondary_Stack is
    procedure SS_Release (M : Mark_Id);
    --  Restore the state of the stack corresponding to the mark M. If an
    --  additional chunk have been allocated, it will never be freed during a
+   --  ??? missing comment here
 
    function SS_Get_Max return Long_Long_Integer;
    --  Return maximum used space in storage units for the current secondary

@@ -6,25 +6,23 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---                     Copyright (C) 1995-2007, AdaCore                     --
+--                     Copyright (C) 1995-2011, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
--- ware  Foundation;  either version 2,  or (at your option) any later ver- --
+-- ware  Foundation;  either version 3,  or (at your option) any later ver- --
 -- sion.  GNAT is distributed in the hope that it will be useful, but WITH- --
 -- OUT ANY WARRANTY;  without even the  implied warranty of MERCHANTABILITY --
--- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
--- for  more details.  You should have  received  a copy of the GNU General --
--- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
--- Boston, MA 02110-1301, USA.                                              --
+-- or FITNESS FOR A PARTICULAR PURPOSE.                                     --
 --                                                                          --
--- As a special exception,  if other files  instantiate  generics from this --
--- unit, or you link  this unit with other files  to produce an executable, --
--- this  unit  does not  by itself cause  the resulting  executable  to  be --
--- covered  by the  GNU  General  Public  License.  This exception does not --
--- however invalidate  any other reasons why  the executable file  might be --
--- covered by the  GNU Public License.                                      --
+-- As a special exception under Section 7 of GPL version 3, you are granted --
+-- additional permissions described in the GCC Runtime Library Exception,   --
+-- version 3.1, as published by the Free Software Foundation.               --
+--                                                                          --
+-- You should have received a copy of the GNU General Public License and    --
+-- a copy of the GCC Runtime Library Exception along with this program;     --
+-- see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see    --
+-- <http://www.gnu.org/licenses/>.                                          --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -39,9 +37,7 @@
 --  The Static_HTable package provides a more complex interface that allows
 --  complete control over allocation.
 
-pragma Warnings (Off);
 pragma Compiler_Unit;
-pragma Warnings (On);
 
 package System.HTable is
    pragma Preelaborate;
@@ -82,7 +78,7 @@ package System.HTable is
 
       function Get (K : Key) return Element;
       --  Returns the Element associated with a key or No_Element if the
-      --  given key has not associated element
+      --  given key has no associated element.
 
       procedure Remove (K : Key);
       --  Removes the latest inserted element pointer associated with the
@@ -90,14 +86,30 @@ package System.HTable is
 
       function Get_First return Element;
       --  Returns No_Element if the HTable is empty, otherwise returns one
-      --  non specified element. There is no guarantee that 2 calls to this
+      --  non specified element. There is no guarantee that two calls to this
       --  function will return the same element.
 
       function Get_Next return Element;
       --  Returns a non-specified element that has not been returned by the
       --  same function since the last call to Get_First or No_Element if
-      --  there is no such element. If there is no call to 'Set' in between
+      --  there is no such element. If there is no call to Set in between
       --  Get_Next calls, all the elements of the HTable will be traversed.
+
+      procedure Get_First (K : in out Key; E : out Element);
+      --  This version of the iterator returns a key/element pair. A non-
+      --  specified entry is returned, and there is no guarantee that two
+      --  calls to this procedure will return the same element. If the table
+      --  is empty, E is set to No_Element, and K is unchanged, otherwise
+      --  K and E are set to the first returned entry.
+
+      procedure Get_Next (K : in out Key; E : out Element);
+      --  This version of the iterator returns a key/element pair. It returns
+      --  a non-specified element that has not been returned since the last
+      --  call to Get_First. If there is no remaining element, then E is set
+      --  to No_Element, and the value in K is unchanged, otherwise K and E
+      --  are set to the next entry. If there is no call to Set in between
+      --  Get_Next calls, all the elements of the HTable will be traversed.
+
    end Simple_HTable;
 
    -------------------
@@ -171,19 +183,27 @@ package System.HTable is
       --  Returns the latest inserted element pointer with the given Key
       --  or null if none.
 
+      function Present (K : Key) return Boolean;
+      --  True if an element whose Get_Key is K is in the table
+
+      function Set_If_Not_Present (E : Elmt_Ptr) return Boolean;
+      --  If Present (Get_Key (E)), returns False. Otherwise, does Set (E), and
+      --  then returns True. Present (Get_Key (E)) is always True afterward,
+      --  and the result True indicates E is newly Set.
+
       procedure Remove (K : Key);
       --  Removes the latest inserted element pointer associated with the
       --  given key if any, does nothing if none.
 
       function Get_First return Elmt_Ptr;
       --  Returns Null_Ptr if the HTable is empty, otherwise returns one
-      --  non specified element. There is no guarantee that 2 calls to this
+      --  non specified element. There is no guarantee that two calls to this
       --  function will return the same element.
 
       function Get_Next return Elmt_Ptr;
       --  Returns a non-specified element that has not been returned by the
       --  same function since the last call to Get_First or Null_Ptr if
-      --  there is no such element or Get_First has bever been called. If
+      --  there is no such element or Get_First has never been called. If
       --  there is no call to 'Set' in between Get_Next calls, all the
       --  elements of the HTable will be traversed.
 

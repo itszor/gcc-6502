@@ -1,6 +1,5 @@
 /* Definitions of target machine for GNU compiler, for HP PA-RISC
-   Copyright (C) 1995, 1996, 1997, 2000, 2001, 2002, 2003, 2004,
-   2007 Free Software Foundation, Inc.
+   Copyright (C) 1995-2013 Free Software Foundation, Inc.
    Contributed by Tim Moore (moore@defmacro.cs.utah.edu)
 
 This file is part of GCC.
@@ -38,16 +37,18 @@ along with GCC; see the file COPYING3.  If not see
 	builtin_define ("__hpux__");					\
 	builtin_define ("__unix");					\
 	builtin_define ("__unix__");					\
+	builtin_define ("__STDC_EXT__");				\
 	if (c_dialect_cxx ())						\
 	  {								\
 	    builtin_define ("_HPUX_SOURCE");				\
+	    builtin_define ("_REENTRANT");				\
 	    builtin_define ("_INCLUDE_LONGLONG");			\
-	    builtin_define ("__STDC_EXT__");				\
 	    builtin_define ("__STDCPP__");				\
 	  }								\
 	else if (!flag_iso)						\
 	  {								\
 	    builtin_define ("_HPUX_SOURCE");				\
+	    builtin_define ("_REENTRANT");				\
 	    if (preprocessing_trad_p ())				\
 	      {								\
 		builtin_define ("hp9000s800");				\
@@ -58,8 +59,6 @@ along with GCC; see the file COPYING3.  If not see
 		builtin_define ("_PWB");				\
 		builtin_define ("PWB");					\
 	      }								\
-	    else							\
-	      builtin_define ("__STDC_EXT__");				\
 	  }								\
 	if (flag_pa_unix >= 1995)					\
 	  {								\
@@ -86,21 +85,23 @@ along with GCC; see the file COPYING3.  If not see
 #define LINK_SPEC \
   "%{!mpa-risc-1-0:%{!march=1.0:%{static:-L/lib/pa1.1 -L/usr/lib/pa1.1 }}}\
    %{!shared:%{p:-L/lib/libp %{!static:\
-     %nWarning: consider linking with `-static' as system libraries with\n\
+     %nwarning: consider linking with '-static' as system libraries with\n\
      %n  profiling support are only provided in archive format}}}\
    %{!shared:%{pg:-L/lib/libp %{!static:\
-     %nWarning: consider linking with `-static' as system libraries with\n\
+     %nwarning: consider linking with '-static' as system libraries with\n\
      %n  profiling support are only provided in archive format}}}\
+   %{!shared:%{!static:%{rdynamic:-E}}}\
    -z %{mlinker-opt:-O} %{!shared:-u main}\
    %{static:-a archive} %{shared:-b}"
 #else
 #define LINK_SPEC \
   "%{!shared:%{p:-L/lib/libp %{!static:\
-     %nWarning: consider linking with `-static' as system libraries with\n\
+     %nwarning: consider linking with '-static' as system libraries with\n\
      %n  profiling support are only provided in archive format}}}\
    %{!shared:%{pg:-L/lib/libp %{!static:\
-     %nWarning: consider linking with `-static' as system libraries with\n\
+     %nwarning: consider linking with '-static' as system libraries with\n\
      %n  profiling support are only provided in archive format}}}\
+   %{!shared:%{!static:%{rdynamic:-E}}}\
    -z %{mlinker-opt:-O} %{!shared:-u main}\
    %{static:-a archive} %{shared:-b}"
 #endif
@@ -111,7 +112,7 @@ along with GCC; see the file COPYING3.  If not see
   "%{!shared:\
      %{!p:%{!pg:\
        %{!threads:-lc %{static:%{!nolibdld:-a shared -ldld -a archive -lc}}}\
-       %{threads:-lcma -lc_r}}}\
+       %{threads:-lcma -lc}}}\
      %{p:%{!pg:-lc %{static:%{!nolibdld:-a shared -ldld -a archive -lc}}}}\
      %{pg:-lc %{static:%{!nolibdld:-a shared -ldld -a archive -lc}}}}"
 

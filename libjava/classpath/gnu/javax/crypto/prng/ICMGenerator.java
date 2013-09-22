@@ -1,4 +1,4 @@
-/* ICMGenerator.java -- 
+/* ICMGenerator.java --
    Copyright (C) 2001, 2002, 2006 Free Software Foundation, Inc.
 
 This file is a part of GNU Classpath.
@@ -263,6 +263,15 @@ public class ICMGenerator
     // C[0] = (s * (256^BLOCK_INDEX_LENGTH) + r) modulo (256^BLOCK_LENGTH)
     C0 = segmentNdx.multiply(TWO_FIFTY_SIX.pow(blockNdxLength))
                    .add(r).modPow(BigInteger.ONE, counterRange);
+    try
+      {
+        fillBlock();
+      }
+    catch (LimitReachedException impossible)
+      {
+        throw (InternalError)
+          new InternalError().initCause(impossible);
+      }
   }
 
   public void fillBlock() throws LimitReachedException

@@ -23,12 +23,12 @@ int main() {
   h<&A::i>();
   g<&B::f>(); // { dg-error "" } 
   h<&B::j>(); // { dg-error "" } 
-  g<(void (A::*)()) &A::f>(); // { dg-error "" } 
-  h<(int A::*) &A::i>(); // { dg-error "" } 
-  g<(void (A::*)()) &B::f>(); // { dg-error "" } 
+  g<(void (A::*)()) &A::f>(); // { dg-error "" "" { xfail c++11 } }
+  h<(int A::*) &A::i>(); // { dg-error "" "" { xfail c++11 } }
+  g<(void (A::*)()) &B::f>(); // { dg-error "" "" { xfail { c++11 && { aarch64*-*-* arm*-*-* mips*-*-* } } } }
   h<(int A::*) &B::j>(); // { dg-error "" } 
-  g<(void (A::*)()) 0>(); // { dg-error "" } 
-  h<(int A::*) 0>(); // { dg-error "" } 
+  g<(void (A::*)()) 0>(); // { dg-error "" "" { target c++98 } }
+  h<(int A::*) 0>(); // { dg-error "" "" { target c++98 } }
 
   return 0;
 }

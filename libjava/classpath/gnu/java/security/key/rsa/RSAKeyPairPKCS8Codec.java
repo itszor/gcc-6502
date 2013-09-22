@@ -1,5 +1,5 @@
 /* RSAKeyPairPKCS8Codec.java -- PKCS#8 Encoding/Decoding handler
-   Copyright (C) 2006 Free Software Foundation, Inc.
+   Copyright (C) 2006, 2010  Free Software Foundation, Inc.
 
 This file is part of GNU Classpath.
 
@@ -64,7 +64,9 @@ import java.util.logging.Logger;
 public class RSAKeyPairPKCS8Codec
     implements IKeyPairCodec
 {
-  private static final Logger log = Logger.getLogger(RSAKeyPairPKCS8Codec.class.getName());
+  private static final Logger log = Configuration.DEBUG ?
+                Logger.getLogger(RSAKeyPairPKCS8Codec.class.getName()) : null;
+
   private static final OID RSA_ALG_OID = new OID(Registry.RSA_OID_STRING);
 
   // implicit 0-arguments constructor
@@ -116,7 +118,7 @@ public class RSAKeyPairPKCS8Codec
    *     coefficient             INTEGER, -- (inverse of q) mod p
    *   }
    * </pre>
-   * 
+   *
    * @return the DER encoded form of the ASN.1 representation of the
    *         <i>PrivateKeyInfo</i> field for an RSA {@link PrivateKey}..
    * @throw InvalidParameterException if an error occurs during the marshalling
@@ -251,7 +253,7 @@ public class RSAKeyPairPKCS8Codec
         der = new DERReader(pkBytes);
         DERValue derRSAPrivateKey = der.read();
         DerUtil.checkIsConstructed(derRSAPrivateKey, "Wrong RSAPrivateKey field");
-        
+
         val = der.read();
         DerUtil.checkIsBigInteger(val, "Wrong RSAPrivateKey Version field");
         version = (BigInteger) val.getValue();
