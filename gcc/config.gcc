@@ -938,6 +938,8 @@ case ${target} in
 esac
 
 case ${target} in
+6502-*-*)
+	;;
 aarch64*-*-elf | aarch64*-*-fuchsia* | aarch64*-*-rtems*)
 	tm_file="${tm_file} dbxelf.h elfos.h newlib-stdint.h"
 	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-elf-raw.h"
@@ -3704,6 +3706,9 @@ fi
 
 supported_defaults=
 case "${target}" in
+	6502-*-*)
+		supported_defaults="cpu"
+		;;
 	aarch64*-*-*)
 		supported_defaults="abi cpu cpu_64 arch arch_64 tune tune_64"
 		if test x$with_cpu_64 != x && test x$with_cpu = x; then

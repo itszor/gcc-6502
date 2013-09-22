@@ -287,8 +287,8 @@ typedef int CUMULATIVE_ARGS;
 #undef WORD_REGISTER_OPERATIONS
 #define MOVE_MAX			2
 
-#define Pmode				PSImode
+#define Pmode				HImode
 #define FUNCTION_MODE			QImode
-#define CASE_VECTOR_MODE		PSImode
+#define CASE_VECTOR_MODE		HImode
 
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1

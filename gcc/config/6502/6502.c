@@ -21,8 +21,6 @@
 #include "recog.h"
 #include "ggc.h"
 #include "except.h"
-#include "c-pragma.h"
-#include "integrate.h"
 #include "tm_p.h"
 #include "target.h"
 #include "target-def.h"
