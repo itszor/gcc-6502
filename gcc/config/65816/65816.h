@@ -1,4 +1,15 @@
-/* Storage layout.  */
+/*****************************************************************************
+ * Run-time target.
+ *****************************************************************************/
+
+#define TARGET_CPU_CPP_BUILTINS()		\
+  do {						\
+    builtin_define ("__65816__");		\
+  } while (0)
+
+/*****************************************************************************
+ * Storage layout.
+ *****************************************************************************/
 
 #define BITS_BIG_ENDIAN			0
 #define BYTES_BIG_ENDIAN		0
@@ -18,7 +29,9 @@
 #define FUNCTION_BOUNDARY		8
 #define PARM_BOUNDARY			8
 
-/* Layout of source language data types.  */
+/*****************************************************************************
+ * Layout of source language data types.
+ *****************************************************************************/
 
 #define INT_TYPE_SIZE			16
 #define LONG_TYPE_SIZE			32
@@ -30,7 +43,9 @@
 
 #define DEFAULT_SIGNED_CHAR		0
 
-/* Registers.  */
+/*****************************************************************************
+ * Registers.
+ *****************************************************************************/
 
 /* 0 : C  [A : B]
    1 : X
@@ -54,7 +69,9 @@
 
 #define MODES_TIEABLE_P(MODE1, MODE2) 1
 
-/* Register classes.  */
+/*****************************************************************************
+ * Register classes.
+ *****************************************************************************/
 
 enum reg_class
 {
@@ -121,7 +138,9 @@ enum reg_class
   ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1)	\
    / UNITS_PER_WORD)
 
-/* Stack layout/calling conventions.  */
+/*****************************************************************************
+ * Stack layout/calling conventions.
+ *****************************************************************************/
 
 #define STACK_GROWS_DOWNWARDS		1
 
@@ -130,6 +149,8 @@ enum reg_class
 #define STACK_PUSH_CODE			POST_DEC
 #define FRAME_GROWS_DOWNWARDS		0
 #define STARTING_FRAME_OFFSET		0
+
+#define FIRST_PARM_OFFSET(FNDECL)	0
 
 /* Registers accessing stack frame.  */
 
@@ -142,6 +163,10 @@ enum reg_class
 
 #define FRAME_POINTER_REQUIRED		1
 
+/* Utterly bogus!  Maybe define ELIMINABLE_REGS instead.  */
+
+#define INITIAL_FRAME_POINTER_OFFSET(DEPTH_VAR)	4
+
 /* Passing function arguments on the stack.  */
 
 #define PUSH_ARGS 1
@@ -151,6 +176,10 @@ enum reg_class
 #define FUNCTION_ARG_REGNO_P(REGNO)	0
 
 #define FUNCTION_VALUE_REGNO_P(REGNO)	0
+
+/* Scalar return.  */
+
+#define LIBCALL_VALUE(MODE)		0
 
 /* Dummy definition.  */
 
@@ -164,13 +193,23 @@ typedef int CUMULATIVE_ARGS;
 #define FUNCTION_ARG_ADVANCE(CUM, MODE, TYPE, NAMED) \
   do { } while (0)
 
+/* Profiling.  */
+
+#define FUNCTION_PROFILER(FILE, LABELNO) \
+  do { /* Unimplemented.  */ } while (0)
+
 /*****************************************************************************
  * Trampolines.
  *****************************************************************************/
 
 #define TRAMPOLINE_SIZE			0
 
-/* Section: Addressing modes.  */
+#define INITIALIZE_TRAMPOLINE(ADDR, FNADDR, STATIC_CHAIN) \
+  do { /* Unimplemented.  */ } while (0)
+
+/*****************************************************************************
+ * Addressing modes.
+ *****************************************************************************/
 
 #define CONSTANT_ADDRESS_P(X) CONSTANT_P (X)
 
@@ -186,12 +225,16 @@ typedef int CUMULATIVE_ARGS;
   if (wdc65816_mode_dependent_address_p (ADDR))		\
     goto LABEL;
 
-/* Costs.  */
+/*****************************************************************************
+ * Costs.
+ *****************************************************************************/
 
 /* Note: depends on whether we can optimise mode switches.  */
 #define SLOW_BYTE_ACCESS		1
 
-/* Assembler format.  */
+/*****************************************************************************
+ * Assembler format.
+ *****************************************************************************/
 
 #define ASM_APP_OFF			""
 #define ASM_APP_ON			""
@@ -199,8 +242,7 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL, PREFIX, NUM) \
   sprintf (LABEL, "*.%s%u", PREFIX, (unsigned) (NUM))
 
-
-/* Assembler format : Instruction Output.  */
+/* Instruction Output.  */
 
 #define REGISTER_NAMES			\
   { "a", "x", "y", "d", "s" }
@@ -211,7 +253,31 @@ typedef int CUMULATIVE_ARGS;
 #define PRINT_OPERAND_ADDRESS(STREAM, X) \
   wdc65816_print_operand_address ((STREAM), (X))
 
-/* Misc.  */
+#define ASM_OUTPUT_ALIGN(STREAM, POWER) \
+  fprintf ((STREAM), ".align %d", (POWER))
+
+/* Output of uninitialized variables.  */
+
+#define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)		\
+  do {								\
+    fprintf ((STREAM), "; .common");				\
+    assemble_name ((STREAM), (NAME));				\
+  } while (0)
+
+#define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
+  do {								\
+    fprintf ((STREAM), "; .local");				\
+    assemble_name ((STREAM), (NAME));				\
+  } while (0)
+
+#define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
+  do {								\
+    fprintf ((STREAM), ".dsb %d,$00", (int) (NBYTES));		\
+  } while (0)
+
+/*****************************************************************************
+ * Misc.
+ *****************************************************************************/
 
 #define HAS_LONG_COND_BRANCH		0
 #define HAS_LONG_UNCOND_BRANCH		1

@@ -30,6 +30,11 @@
 #include "langhooks.h"
 #include "df.h"
 
+static void wdc65816_asm_globalize_label (FILE *, const char *);
+
+#undef TARGET_ASM_GLOBALIZE_LABEL
+#define TARGET_ASM_GLOBALIZE_LABEL wdc65816_asm_globalize_label
+
 struct gcc_target targetm = TARGET_INITIALIZER;
 
 void
@@ -60,4 +65,10 @@ wdc65816_mode_dependent_address_p (rtx x)
 {
   /* Another big lie!  */
   return 0;
+}
+
+static void
+wdc65816_asm_globalize_label (FILE *stream, const char *name)
+{
+  fprintf (stream, "; .globl %s", name);
 }

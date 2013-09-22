@@ -19,3 +19,8 @@
   "An integer 0-65535."
   (and (match_code "const_int")
        (match_test "ival >= 0 && ival <= 65535")))
+
+(define_memory_constraint "U"
+  "A constant mem."
+  (and (match_code "mem")
+       (match_test "CONSTANT_P (XEXP (op, 0))")))
