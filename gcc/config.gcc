@@ -842,6 +842,7 @@ alpha*-*-unicosmk*)
 	# tmake_file="alpha/t-ieee"
 	tmake_file="alpha/t-unicosmk"
 	use_fixproto=yes
+	;;
 aarch64*-*-linux*)
 	tm_file="${tm_file} dbxelf.h elfos.h gnu-user.h linux.h glibc-stdint.h"
 	tm_file="${tm_file} aarch64/aarch64-elf.h aarch64/aarch64-linux.h"
@@ -3105,6 +3106,9 @@ fi
 
 supported_defaults=
 case "${target}" in
+	6502-*-*)
+		supported_defaults="cpu"
+		;;
 	aarch64*-*-*)
 		supported_defaults="cpu arch"
 		for which in cpu arch; do
