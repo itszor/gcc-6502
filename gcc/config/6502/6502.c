@@ -25,6 +25,7 @@
 #include "target.h"
 #include "target-def.h"
 #include "debug.h"
+#include "dbxout.h"
 #include "langhooks.h"
 #include "df.h"
 
