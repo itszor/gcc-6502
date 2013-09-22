@@ -4,7 +4,7 @@
 
 #define TARGET_CPU_CPP_BUILTINS()		\
   do {						\
-    builtin_define ("__65816__");		\
+    builtin_define ("__6502__");		\
   } while (0)
 
 /*****************************************************************************
@@ -220,11 +220,11 @@ typedef int CUMULATIVE_ARGS;
 /*#define LEGITIMATE_CONSTANT_P(X)	1*/
 
 #define GO_IF_LEGITIMATE_ADDRESS(MODE, X, LABEL)	\
-  if (wdc65816_legitimate_address_p ((MODE), (X)))	\
+  if (m65x_legitimate_address_p ((MODE), (X)))	\
     goto LABEL;
 
 /*#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)	\
-  if (wdc65816_mode_dependent_address_p (ADDR))		\
+  if (m65x_mode_dependent_address_p (ADDR))		\
     goto LABEL;*/
 
 /*****************************************************************************
@@ -250,10 +250,10 @@ typedef int CUMULATIVE_ARGS;
   { "a", "x", "y", "d", "s" }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
-  wdc65816_print_operand ((STREAM), (X), (CODE))
+  m65x_print_operand ((STREAM), (X), (CODE))
 
 #define PRINT_OPERAND_ADDRESS(STREAM, X) \
-  wdc65816_print_operand_address ((STREAM), (X))
+  m65x_print_operand_address ((STREAM), (X))
 
 #define ASM_OUTPUT_ALIGN(STREAM, POWER) \
   fprintf ((STREAM), ".align %d", (POWER))
