@@ -1,12 +1,10 @@
-(define_register_constraint "A" "ACCUMULATOR_REG")
+(define_register_constraint "A" "HARD_ACCUM_REG")
 
-(define_register_constraint "x" "X_REG")
+(define_register_constraint "x" "HARD_X_REG")
 
-(define_register_constraint "y" "Y_REG")
+(define_register_constraint "y" "HARD_Y_REG")
 
 (define_register_constraint "d" "INDEX_REGS")
-
-(define_register_constraint "D" "DIRECT_REG")
 
 (define_register_constraint "S" "STACK_REG")
 
@@ -19,6 +17,21 @@
   "An integer 0-65535."
   (and (match_code "const_int")
        (match_test "ival >= 0 && ival <= 65535")))
+
+(define_constraint "K"
+  "The integer 1."
+  (and (match_code "const_int")
+       (match_test "ival == 1")))
+
+(define_constraint "L"
+  "The integer -1."
+  (and (match_code "const_int")
+       (match_test "ival == -1")))
+
+(define_constraint "M"
+  "An integer -255-0."
+  (and (match_code "const_int")
+       (match_test "ival >= -255 && ival <= 0")))
 
 (define_memory_constraint "U"
   "A constant mem."
