@@ -36,33 +36,101 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 {
   switch (code)
     {
+    case 'h':
+      gcc_assert (REG_P (x));
+      asm_fprintf (stream, "%r", REGNO (x) + 1);
+      break;
+
     default:
-      ;
+      switch (GET_CODE (x))
+        {
+	case REG:
+	  asm_fprintf (stream, "%r", REGNO (x));
+	  break;
+	  
+	case MEM:
+	  output_address (XEXP (x, 0));
+	  break;
+	
+	default:
+	  output_addr_const (stream, x);
+	}
     }
 }
 
 void
 m65x_print_operand_address (FILE *stream, rtx x)
 {
+  switch (GET_CODE (x))
+    {
+    case PLUS:
+      asm_fprintf (stream, "<foo>+<bar>");
+      break;
 
+    case REG:
+      asm_fprintf (stream, "(%r)", REGNO (x));
+      break;
+
+    default:
+      output_addr_const (stream, x);
+    }
+}
+
+static bool
+m65x_address_register_p (rtx x, int strict_p)
+{
+  int regno;
+
+  if (!REG_P (x))
+    return false;
+  
+  regno = REGNO (x);
+  
+  if (strict_p)
+    return (regno >= FIRST_ARG_REGISTER && regno <= LAST_ZP_REGISTER);
+  
+  return (regno >= FIRST_ARG_REGISTER && regno <= LAST_ZP_REGISTER)
+	 || regno >= FIRST_PSEUDO_REGISTER;
 }
 
 static bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (CONSTANT_P (x))
-    return 1;
+    return true;
   
   if (!strict && REG_P (x))
-    return 1;
+    return true;
 
   if (strict)
     {
-      if (REG_P (x) && REGNO (x) < FIRST_PSEUDO_REGISTER)
-        return 1;
+      if (m65x_address_register_p (x, strict))
+        return true;
+
+      if (GET_CODE (x) == PLUS)
+        {
+	  if (m65x_address_register_p (XEXP (x, 0), strict)
+	      && GET_CODE (XEXP (x, 1)) == CONST_INT
+	      && INTVAL (XEXP (x, 1)) >= 0
+	      && INTVAL (XEXP (x, 1)) < 256)
+	    return true;
+
+#if 0
+	  if (m65x_address_register_p (XEXP (x, 0), strict)
+	      && REG_P (XEXP (x, 1))
+	      && REGNO (XEXP (x, 1)) == HARD_Y_REGNUM)
+	    return true;
+	  
+	  if (CONSTANT_P (XEXP (x, 0))
+	      && REG_P (XEXP (x, 1))
+	      && (REGNO (XEXP (x, 1)) == HARD_X_REGNUM
+		  || REGNO (XEXP (x, 1)) == HARD_Y_REGNUM))
+	    return true;
+#endif
+	}
     }
 
-  return 0;
+  return false;
 }
 
 int
@@ -101,19 +169,109 @@ m65x_function_value (const_tree ret_type, const_tree fn_decl_or_type,
   
   mode = TYPE_MODE (ret_type);
   
-  return gen_rtx_REG (mode, 0);
+  return gen_rtx_REG (mode, ACC_REGNUM);
 }
 
 static rtx
 m65x_libcall_value (enum machine_mode mode, const_rtx fun)
 {
-  return gen_rtx_REG (mode, 0);
+  return gen_rtx_REG (mode, ACC_REGNUM);
 }
 
 static void
 m65x_asm_globalize_label (FILE *stream, const char *name)
 {
-  fprintf (stream, "; .globl %s", name);
+  fprintf (stream, "\t.export %s\n", name);
+}
+
+static void
+m65x_asm_named_section (const char *name, unsigned int flags ATTRIBUTE_UNUSED,
+			tree decl ATTRIBUTE_UNUSED)
+{
+  fprintf (asm_out_file, "\t.segment \"%s\"\n", name);
+}
+
+static section *
+m65x_asm_function_section (tree decl ATTRIBUTE_UNUSED,
+			   enum node_frequency freq ATTRIBUTE_UNUSED,
+			   bool startup ATTRIBUTE_UNUSED,
+			   bool exit ATTRIBUTE_UNUSED)
+{
+  /* We could actually put startup code in a different segment, but not yet.  */
+  return get_named_text_section (decl, "CODE", NULL);
+}
+
+bool
+m65x_hard_regno_mode_ok (int regno, enum machine_mode mode ATTRIBUTE_UNUSED)
+{
+  /* For the "hard" registers, force values to have the actual LSB in the hard
+     register.  */
+  if (regno < 12)
+    return (regno % 4) == 0;
+  else
+    return true;
+}
+
+static reg_class_t
+m65x_spill_class (reg_class_t klass, enum machine_mode mode)
+{
+  switch (klass)
+    {
+    case HARD_ACCUM_REG:
+    case HARD_X_REG:
+    case HARD_Y_REG:
+      return GENERAL_REGS;
+    
+    default:
+      return NO_REGS;
+    }
+}
+
+static reg_class_t
+m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
+		       enum machine_mode reload_mode,
+		       secondary_reload_info *sri)
+{
+  if (reload_mode == HImode)
+    {
+      if (in_p)
+        {
+	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
+	  switch (reload_class)
+	    {
+	    case ARG_REGS:
+	    case CALLEE_SAVED_REGS:
+	    case GENERAL_REGS:
+	      sri->icode = CODE_FOR_reload_inhi;
+	      return NO_REGS;
+	    
+	    case HARD_ACCUM_REG:
+	      fprintf (stderr, "secondary reload accumulator! (in) x=\n");
+	      debug_rtx (x);
+	      return HARD_REGS;
+	    }
+	}
+      else
+        {
+	  /* Copy register in RELOAD_CLASS to X.  */
+	  switch (reload_class)
+	    {
+	    case ARG_REGS:
+	    case CALLEE_SAVED_REGS:
+	    case GENERAL_REGS:
+	      sri->icode = CODE_FOR_reload_outhi;
+	      return NO_REGS;
+	    
+	    case HARD_ACCUM_REG:
+	      fprintf (stderr, "secondary reload accumulator! (out) x=\n");
+	      debug_rtx (x);
+	      sri->icode = CODE_FOR_reload_outhi_acc;
+	      return NO_REGS;
+	    }
+	}
+    }
+
+  return NO_REGS;
 }
 
 #undef TARGET_FUNCTION_ARG
@@ -130,6 +288,21 @@ m65x_asm_globalize_label (FILE *stream, const char *name)
 
 #undef TARGET_LEGITIMATE_ADDRESS_P
 #define TARGET_LEGITIMATE_ADDRESS_P m65x_legitimate_address_p
+
+#undef TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P
+#define TARGET_SMALL_REGISTER_CLASSES_FOR_MODE_P hook_bool_mode_true
+
+#undef TARGET_SPILL_CLASS
+#define TARGET_SPILL_CLASS m65x_spill_class
+
+// #undef TARGET_SECONDARY_RELOAD
+// #define TARGET_SECONDARY_RELOAD m65x_secondary_reload
+
+#undef TARGET_ASM_NAMED_SECTION
+#define TARGET_ASM_NAMED_SECTION m65x_asm_named_section
+
+#undef TARGET_ASM_FUNCTION_SECTION
+#define TARGET_ASM_FUNCTION_SECTION m65x_asm_function_section
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
 #define TARGET_ASM_GLOBALIZE_LABEL m65x_asm_globalize_label
