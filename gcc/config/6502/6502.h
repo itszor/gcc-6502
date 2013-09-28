@@ -203,7 +203,7 @@ enum reg_class
 #define INDEX_REG_CLASS	HARD_INDEX_REGS
 
 #define REGNO_OK_FOR_BASE_P(NUM) \
-  ((NUM) >= FIRST_ARG_REGISTER && (NUM) <= LAST_ZP_REGISTER)
+  ((NUM) >= FIRST_ZP_REGISTER && (NUM) <= LAST_ZP_REGISTER)
 
 #define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == X_REGNUM || (NUM) == Y_REGNUM)
 
@@ -308,6 +308,10 @@ typedef int CUMULATIVE_ARGS;
  *****************************************************************************/
 
 #define SLOW_BYTE_ACCESS		0
+
+/* Calling functions via a register is disastrous.  */
+
+#define NO_FUNCTION_CSE
 
 /*****************************************************************************
  * Assembler format.
