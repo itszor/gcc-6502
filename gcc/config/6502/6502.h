@@ -61,60 +61,76 @@
    11 : yh3 (zp)
    12 : sp/lo (zp)
    13 : sp/hi (zp)
-   14 : a0 (argument regs)
-   15 : a1
-   16 : a2
-   17 : a3
-   18 : a4
-   19 : a5
-   20 : a6
-   21 : a7
-   22 : s0 (callee-saved regs)
-   23 : s1
-   24 : s2
-   25 : s3
-   26 : s4
-   27 : s5
-   28 : s6
-   29 : s7
+   14 : fp/lo (zp)
+   15 : fp/hi (zp)
+   16 : a0 (argument regs)
+   17 : a1
+   18 : a2
+   19 : a3
+   20 : a4
+   21 : a5
+   22 : a6
+   23 : a7
+   24 : s0 (callee-saved regs)
+   25 : s1
+   26 : s2
+   27 : s3
+   28 : s4
+   29 : s5
+   30 : s6
+   31 : s7
+   32 : virtual FP/lo
+   33 : virtual FP/hi
+   34 : virtual AP/lo
+   35 : virtual AP/hi
 */
 
 #define ACC_REGNUM 0
 #define X_REGNUM 4
 #define Y_REGNUM 8
 #define SP_REGNUM 12
-#define FIRST_ARG_REGISTER 14
-#define FIRST_CALLER_SAVED 22
+#define FP_REGNUM 14
+#define FIRST_ARG_REGISTER 16
+#define LAST_ARG_REGISTER (FIRST_ARG_REGISTER + 7)
+#define FIRST_CALLER_SAVED 24
+#define LAST_CALLER_SAVED (FIRST_CALLER_SAVED + 7)
+#define FIRST_ZP_REGISTER SP_REGNUM
+#define LAST_ZP_REGISTER LAST_CALLER_SAVED
 
-#define FIXED_REGISTERS \
-  { 0, 0, 0, 0, 0, 0, 0, 0, \
-    0, 0, 0, 0, 1, 1, \
-    /* arg regs.  */ \
-    0, 0, 0, 0, 0, 0, 0, 0, \
-    /* callee-saved regs.  */ \
-    0, 0, 0, 0, 0, 0, 0, 0 }
+#define FIXED_REGISTERS		\
+  { 0, 0, 0, 0, 0, 0, 0, 0,	\
+    0, 0, 0, 0, 1, 1, 1, 1,	\
+    /* arg regs.  */		\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    /* callee-saved regs.  */	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    /* fp, ap regs.  */		\
+    1, 1, 1, 1 }
 
-#define CALL_USED_REGISTERS \
-  { 1, 1, 1, 1, 1, 1, 1, 1, \
-    1, 1, 1, 1, 1, 1, \
-    /* arg regs.  */ \
-    1, 1, 1, 1, 1, 1, 1, 1, \
-    /* callee-saved regs.  */ \
-    0, 0, 0, 0, 0, 0, 0, 0 }
+#define CALL_USED_REGISTERS	\
+  { 1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    /* arg regs.  */		\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    /* callee-saved regs.  */	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    /* fp, ap regs.  */		\
+    1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 30
+#define FIRST_PSEUDO_REGISTER 36
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
-    8, 9, 10, 11, 12, 13, \
-    14, 15, 16, 17, 18, 19, 20, 21, \
-    22, 23, 24, 25, 26, 27, 28, 29 }
+    8, 9, 10, 11, 12, 13, 14, 15, \
+    16, 17, 18, 19, 20, 21, 22, 23, \
+    24, 25, 26, 27, 28, 29, 30, 31, \
+    32, 33, 34, 35 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE)		\
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1)	\
-   / UNITS_PER_WORD)
+  (GET_MODE_SIZE (MODE))
 
-#define HARD_REGNO_MODE_OK(REGNO, MODE) 1
+#define HARD_REGNO_MODE_OK(REGNO, MODE) \
+  m65x_hard_regno_mode_ok ((REGNO), (MODE))
 
 #define MODES_TIEABLE_P(MODE1, MODE2) 1
 
@@ -126,12 +142,10 @@ enum reg_class
 {
   NO_REGS,
   HARD_ACCUM_REG,
-  ACCUMULATOR_REGS,
   HARD_X_REG,
-  X_REGS,
   HARD_Y_REG,
-  Y_REGS,
-  INDEX_REGS,
+  HARD_INDEX_REGS,
+  HARD_REGS,
   STACK_REG,
   ARG_REGS,
   CALLEE_SAVED_REGS,
@@ -146,12 +160,10 @@ enum reg_class
 {				\
   "NO_REGS",			\
   "HARD_ACCUM_REG",		\
-  "ACCUMULATOR_REGS",		\
   "HARD_X_REG",			\
-  "X_REGS",			\
   "HARD_Y_REG",			\
-  "Y_REGS",			\
-  "INDEX_REGS",			\
+  "HARD_INDEX_REGS",		\
+  "HARD_REGS",			\
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
@@ -161,47 +173,50 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  0x00000000,			\
-  0x00000001,			\
-  0x0000000f,			\
-  0x00000010,			\
-  0x000000f0,			\
-  0x00000100,			\
-  0x00000f00,			\
-  0x00000ff0,			\
-  0x00003000,			\
-  0x003fc000,			\
-  0x3fc00000,			\
-  0x3fffcfff,			\
-  0x3fffffff			\
+  { 0x00000000,	0x0 },		\
+  { 0x0000000f,	0x0 },		\
+  { 0x000000f0,	0x0 },		\
+  { 0x00000f00,	0x0 },		\
+  { 0x00000ff0,	0x0 },		\
+  { 0x00000fff,	0x0 },		\
+  { 0x0000f000,	0x0 },		\
+  { 0x00ff0000,	0x0 },		\
+  { 0xff000000,	0x0 },		\
+  { 0xfffff000,	0x0 },		\
+  { 0xffffffff, 0xf },		\
 }
 
-#define REGNO_REG_CLASS(REGNO)				\
-  ((REGNO) == 0 ? HARD_ACCUM_REG :			\
-   (REGNO) >= 0 && (REGNO) <= 3 ? ACCUMULATOR_REGS :	\
-   (REGNO) == 4 ? HARD_X_REG :				\
-   (REGNO) >= 4 && (REGNO) <= 7 ? X_REGS :		\
-   (REGNO) == 8 ? HARD_Y_REG : 				\
-   (REGNO) >= 8 && (REGNO) <= 11 ? Y_REGS :		\
-   (REGNO) >= 12 && (REGNO) <= 13 ? STACK_REG :		\
-   (REGNO) >= 14 && (REGNO) <= 21 ? ARG_REGS :		\
-   (REGNO) >= 22 && (REGNO) <= 29 ? CALLEE_SAVED_REGS :	\
-   NO_REGS)
+#define REGNO_REG_CLASS(REGNO)						\
+  ((REGNO) >= ACC_REGNUM && (REGNO) < (ACC_REGNUM + 4)			\
+    ? HARD_ACCUM_REG :							\
+   (REGNO) >= X_REGNUM && (REGNO) < (X_REGNUM + 4) ? HARD_X_REG :	\
+   (REGNO) >= Y_REGNUM && (REGNO) < (Y_REGNUM + 4) ? HARD_Y_REG : 	\
+   (REGNO) >= SP_REGNUM && (REGNO) <= (SP_REGNUM + 4) ? STACK_REG :	\
+   (REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER	\
+     ? ARG_REGS :							\
+   (REGNO) >= FIRST_CALLER_SAVED && (REGNO) <= LAST_CALLER_SAVED	\
+     ? CALLEE_SAVED_REGS :						\
+   (REGNO) >= FIRST_ZP_REGISTER && (REGNO) <= LAST_ZP_REGISTER		\
+     ? GENERAL_REGS : NO_REGS)
 
-#define BASE_REG_CLASS	NO_REGS
-#define INDEX_REG_CLASS	INDEX_REGS
+#define BASE_REG_CLASS	GENERAL_REGS
+#define INDEX_REG_CLASS	HARD_INDEX_REGS
 
-#define REGNO_OK_FOR_BASE_P(NUM) ((NUM) == 3 || (NUM) == 4)
+#define REGNO_OK_FOR_BASE_P(NUM) \
+  ((NUM) >= FIRST_ARG_REGISTER && (NUM) <= LAST_ZP_REGISTER)
 
-#define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == 1 || (NUM) == 2)
+#define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == X_REGNUM || (NUM) == Y_REGNUM)
 
 #define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
 
 /*#define SMALL_REGISTER_CLASSES		1*/
 
 #define CLASS_MAX_NREGS(CLASS, MODE)		\
-  ((GET_MODE_SIZE (MODE) + UNITS_PER_WORD - 1)	\
-   / UNITS_PER_WORD)
+  (GET_MODE_SIZE (MODE))
+
+#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, M) \
+  (((CLASS1) == HARD_X_REG && (CLASS2) == HARD_Y_REG) \
+   || (CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG)
 
 /*****************************************************************************
  * Stack layout/calling conventions.
@@ -219,28 +234,33 @@ enum reg_class
 
 /* Registers accessing stack frame.  */
 
-#define STACK_POINTER_REGNUM		4
-#define FRAME_POINTER_REGNUM		3
-/* FIXME: Trouble?  */
-#define ARG_POINTER_REGNUM		3
+#define STACK_POINTER_REGNUM		SP_REGNUM
+#define FRAME_POINTER_REGNUM		32
+#define ARG_POINTER_REGNUM		34
 
 /* Eliminating frame pointer/arg pointer.  */
 
-/*#define FRAME_POINTER_REQUIRED		1*/
+#define ELIMINABLE_REGS					\
+  { { ARG_POINTER_REGNUM, STACK_POINTER_REGNUM },	\
+    { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },	\
+    { ARG_POINTER_REGNUM, FP_REGNUM },			\
+    { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM },	\
+    { FRAME_POINTER_REGNUM, FP_REGNUM } }
 
-/* Utterly bogus!  Maybe define ELIMINABLE_REGS instead.  */
+/* FIXME: This needs fixing.  */
 
-#define INITIAL_FRAME_POINTER_OFFSET(DEPTH_VAR)	4
+#define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)	\
+  do { (OFFSET) = 0; } while (0)
 
 /* Passing function arguments on the stack.  */
 
-#define PUSH_ARGS 1
-#define PUSH_ROUNDING(BYTES) (BYTES)
-/*#define RETURN_POPS_ARGS(FUNDECL, FUNTYPE, STACKSIZE) 0*/
+#define PUSH_ARGS 0
 
-#define FUNCTION_ARG_REGNO_P(REGNO)	0
+#define FUNCTION_ARG_REGNO_P(REGNO) \
+  ((REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER)
 
-#define FUNCTION_VALUE_REGNO_P(REGNO)	0
+#define FUNCTION_VALUE_REGNO_P(REGNO) \
+  ((REGNO) >= ACC_REGNUM && (REGNO) < (ACC_REGNUM + 4))
 
 /* Scalar return.  */
 
@@ -287,8 +307,7 @@ typedef int CUMULATIVE_ARGS;
  * Costs.
  *****************************************************************************/
 
-/* Note: depends on whether we can optimise mode switches.  */
-#define SLOW_BYTE_ACCESS		1
+#define SLOW_BYTE_ACCESS		0
 
 /*****************************************************************************
  * Assembler format.
@@ -307,9 +326,10 @@ typedef int CUMULATIVE_ARGS;
     "a", "ah", "ah2", "ah3",				\
     "x", "xh", "xh2", "xh3",				\
     "y", "yh", "yh2", "yh3",				\
-    "sp", "?sp",					\
+    "sp", "?sp", "fp", "?fp",				\
     "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",	\
-    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7"	\
+    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",	\
+    "?vfpl", "?vfph", "?vapl", "?vaph"			\
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
@@ -320,6 +340,11 @@ typedef int CUMULATIVE_ARGS;
 
 #define ASM_OUTPUT_ALIGN(STREAM, POWER) \
   fprintf ((STREAM), ".align %d", (POWER))
+
+#define ASM_FPRINTF_EXTENSIONS(FILE, ARGS, P)		\
+  case 'r':						\
+    fputs (reg_names [va_arg (ARGS, int)], FILE);	\
+    break;
 
 /* Output of uninitialized variables.  */
 
@@ -339,6 +364,10 @@ typedef int CUMULATIVE_ARGS;
   do {								\
     fprintf ((STREAM), ".dsb %d,$00", (int) (NBYTES));		\
   } while (0)
+
+/* Prevent emission of call to __main.  */
+
+#define HAS_INIT_SECTION
 
 /*****************************************************************************
  * Misc.
