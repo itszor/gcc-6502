@@ -109,10 +109,12 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 
       if (GET_CODE (x) == PLUS)
         {
+	  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+
 	  if (m65x_address_register_p (XEXP (x, 0), strict)
 	      && GET_CODE (XEXP (x, 1)) == CONST_INT
 	      && INTVAL (XEXP (x, 1)) >= 0
-	      && INTVAL (XEXP (x, 1)) < 256)
+	      && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
 	    return true;
 
 #if 0
@@ -237,6 +239,36 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       if (in_p)
         {
 	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
+	  if (MEM_P (x)
+	      && GET_CODE (XEXP (x, 0)) == PLUS
+	      && REG_P (XEXP (XEXP (x, 0), 0))
+	      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
+	      && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
+	    {
+	      if (reload_class == HARD_ACCUM_REG)
+	        {
+		  /* We can only do (zp),y addressing mode for the accumulator
+		     reg.  */
+		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
+		  return NO_REGS;
+		}
+	      else if (reload_class == ARG_REGS
+		       || reload_class == CALLEE_SAVED_REGS
+		       || reload_class == GENERAL_REGS)
+		{
+		  /* Actually it helps a little to copy things direct to ZP
+		     registers too.  */
+		  sri->icode = CODE_FOR_reload_inhi_reg_indy;
+		  return NO_REGS;
+		}
+	      else
+	        return HARD_ACCUM_REG;
+	    }
+	}
+#if 0
+      if (in_p)
+        {
+	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
 	  switch (reload_class)
 	    {
 	    case ARG_REGS:
@@ -269,6 +301,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	      return NO_REGS;
 	    }
 	}
+#endif
     }
 
   return NO_REGS;
@@ -295,8 +328,8 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 #undef TARGET_SPILL_CLASS
 #define TARGET_SPILL_CLASS m65x_spill_class
 
-// #undef TARGET_SECONDARY_RELOAD
-// #define TARGET_SECONDARY_RELOAD m65x_secondary_reload
+#undef TARGET_SECONDARY_RELOAD
+#define TARGET_SECONDARY_RELOAD m65x_secondary_reload
 
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION m65x_asm_named_section

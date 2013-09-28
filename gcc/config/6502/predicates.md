@@ -7,6 +7,38 @@
   return REGNO (op) == ACC_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER;
 })
 
+(define_predicate "x_reg_operand"
+  (match_code "reg,subreg")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  return (REGNO (op) == X_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+})
+
+(define_predicate "y_reg_operand"
+  (match_code "reg,subreg")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  return (REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+})
+
+(define_predicate "index_reg_operand"
+  (ior (match_operand 0 "x_reg_operand")
+       (match_operand 0 "y_reg_operand")))
+
+(define_predicate "hard_reg_operand"
+  (match_code "reg,subreg")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  return (REGNO (op) == ACC_REGNUM || REGNO (op) == X_REGNUM
+	  || REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+})
+
 (define_predicate "reg_or_acc_operand"
   (ior (match_operand 0 "accumulator_operand")
        (match_operand 0 "register_operand")))
