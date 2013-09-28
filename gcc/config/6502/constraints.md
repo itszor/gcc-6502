@@ -4,7 +4,9 @@
 
 (define_register_constraint "y" "HARD_Y_REG")
 
-(define_register_constraint "d" "INDEX_REGS")
+(define_register_constraint "j" "HARD_INDEX_REGS")
+
+(define_register_constraint "h" "HARD_REGS")
 
 (define_register_constraint "S" "STACK_REG")
 
