@@ -66,7 +66,7 @@
 })
 
 (define_predicate "movhi_src_operand"
-  (match_code "reg,subreg,const_int,mem")
+  (match_code "reg,subreg,const_int,mem,const")
 {
   int regno;
 
@@ -75,6 +75,14 @@
 
   if (GET_CODE (op) == CONST_INT)
     return true;
+  
+  if (GET_CODE (op) == CONST)
+    {
+      op = XEXP (op, 0);
+      return ((GET_CODE (op) == PLUS && GET_CODE (XEXP (op, 0)) == SYMBOL_REF
+	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
+	      || GET_CODE (op) == SYMBOL_REF);
+    }
   
   regno = REGNO (op);
   
