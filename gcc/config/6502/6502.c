@@ -86,11 +86,10 @@ m65x_address_register_p (rtx x, int strict_p)
   
   regno = REGNO (x);
   
-  if (strict_p)
-    return (regno >= FIRST_ARG_REGISTER && regno <= LAST_ZP_REGISTER);
+  if (!strict_p && regno >= FIRST_PSEUDO_REGISTER)
+    return true;
   
-  return (regno >= FIRST_ARG_REGISTER && regno <= LAST_ZP_REGISTER)
-	 || regno >= FIRST_PSEUDO_REGISTER;
+  return (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER);
 }
 
 static bool
@@ -99,37 +98,31 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
   if (CONSTANT_P (x))
     return true;
   
-  if (!strict && REG_P (x))
+  if (m65x_address_register_p (x, strict))
     return true;
 
-  if (strict)
+  if (GET_CODE (x) == PLUS)
     {
-      if (m65x_address_register_p (x, strict))
-        return true;
+      HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
 
-      if (GET_CODE (x) == PLUS)
-        {
-	  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
-
-	  if (m65x_address_register_p (XEXP (x, 0), strict)
-	      && GET_CODE (XEXP (x, 1)) == CONST_INT
-	      && INTVAL (XEXP (x, 1)) >= 0
-	      && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
-	    return true;
+      if (m65x_address_register_p (XEXP (x, 0), strict)
+	  && GET_CODE (XEXP (x, 1)) == CONST_INT
+	  && INTVAL (XEXP (x, 1)) >= 0
+	  && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+	return true;
 
 #if 0
-	  if (m65x_address_register_p (XEXP (x, 0), strict)
-	      && REG_P (XEXP (x, 1))
-	      && REGNO (XEXP (x, 1)) == HARD_Y_REGNUM)
-	    return true;
-	  
-	  if (CONSTANT_P (XEXP (x, 0))
-	      && REG_P (XEXP (x, 1))
-	      && (REGNO (XEXP (x, 1)) == HARD_X_REGNUM
-		  || REGNO (XEXP (x, 1)) == HARD_Y_REGNUM))
-	    return true;
+      if (m65x_address_register_p (XEXP (x, 0), strict)
+	  && REG_P (XEXP (x, 1))
+	  && REGNO (XEXP (x, 1)) == HARD_Y_REGNUM)
+	return true;
+
+      if (CONSTANT_P (XEXP (x, 0))
+	  && REG_P (XEXP (x, 1))
+	  && (REGNO (XEXP (x, 1)) == HARD_X_REGNUM
+	      || REGNO (XEXP (x, 1)) == HARD_Y_REGNUM))
+	return true;
 #endif
-	}
     }
 
   return false;
@@ -240,10 +233,12 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
         {
 	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
 	  if (MEM_P (x)
-	      && GET_CODE (XEXP (x, 0)) == PLUS
-	      && REG_P (XEXP (XEXP (x, 0), 0))
-	      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
-	      && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
+	      && ((GET_CODE (XEXP (x, 0)) == PLUS
+		   && REG_P (XEXP (XEXP (x, 0), 0))
+		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
+		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
+		  /*|| (REG_P (XEXP (x, 0))
+		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))*/))
 	    {
 	      if (reload_class == HARD_ACCUM_REG)
 	        {
@@ -252,9 +247,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
 		  return NO_REGS;
 		}
-	      else if (reload_class == ARG_REGS
-		       || reload_class == CALLEE_SAVED_REGS
-		       || reload_class == GENERAL_REGS)
+	      else if (ZP_REG_CLASS_P (reload_class))
 		{
 		  /* Actually it helps a little to copy things direct to ZP
 		     registers too.  */
@@ -262,46 +255,39 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  return NO_REGS;
 		}
 	      else
+	        {
+		  fprintf (stderr, "other (%d)\n", reload_class);
+	          return HARD_ACCUM_REG;
+		}
+	    }
+	  
+	  if (REG_P (x) && REGNO (x) == ACC_REGNUM
+	      && ZP_REG_CLASS_P (reload_class))
+	    {
+	      sri->icode = CODE_FOR_reload_inhi_zp_acc;
+	      return NO_REGS;
+	    }
+	}
+      else /* !in_p.  */
+        {
+	  /* A register of class RELOAD_CLASS needs to be copied to X.  */
+	  if (MEM_P (x)
+	      && ((GET_CODE (XEXP (x, 0)) == PLUS
+		   && REG_P (XEXP (XEXP (x, 0), 0))
+		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
+		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
+		  /*|| (REG_P (XEXP (x, 0))
+		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))*/))
+	    {
+	      if (reload_class == HARD_ACCUM_REG)
+	        {
+		  sri->icode = CODE_FOR_reload_outhi_acc_indy;
+		  return NO_REGS;
+		}
+	      else
 	        return HARD_ACCUM_REG;
 	    }
 	}
-#if 0
-      if (in_p)
-        {
-	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
-	  switch (reload_class)
-	    {
-	    case ARG_REGS:
-	    case CALLEE_SAVED_REGS:
-	    case GENERAL_REGS:
-	      sri->icode = CODE_FOR_reload_inhi;
-	      return NO_REGS;
-	    
-	    case HARD_ACCUM_REG:
-	      fprintf (stderr, "secondary reload accumulator! (in) x=\n");
-	      debug_rtx (x);
-	      return HARD_REGS;
-	    }
-	}
-      else
-        {
-	  /* Copy register in RELOAD_CLASS to X.  */
-	  switch (reload_class)
-	    {
-	    case ARG_REGS:
-	    case CALLEE_SAVED_REGS:
-	    case GENERAL_REGS:
-	      sri->icode = CODE_FOR_reload_outhi;
-	      return NO_REGS;
-	    
-	    case HARD_ACCUM_REG:
-	      fprintf (stderr, "secondary reload accumulator! (out) x=\n");
-	      debug_rtx (x);
-	      sri->icode = CODE_FOR_reload_outhi_acc;
-	      return NO_REGS;
-	    }
-	}
-#endif
     }
 
   return NO_REGS;
