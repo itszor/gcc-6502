@@ -218,6 +218,10 @@ enum reg_class
   (((CLASS1) == HARD_X_REG && (CLASS2) == HARD_Y_REG) \
    || (CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG)
 
+#define ZP_REG_CLASS_P(CLASS) \
+  ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
+   || (CLASS) == GENERAL_REGS || (CLASS) == STACK_REG)
+
 /*****************************************************************************
  * Stack layout/calling conventions.
  *****************************************************************************/
