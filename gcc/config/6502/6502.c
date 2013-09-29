@@ -41,6 +41,17 @@ m65x_print_operand (FILE *stream, rtx x, int code)
       asm_fprintf (stream, "%r", REGNO (x) + 1);
       break;
 
+    case 'R':
+      gcc_assert (REG_P (x));
+      switch (REGNO (x))
+	{
+	case ACC_REGNUM: asm_fprintf (stream, "a"); break;
+	case X_REGNUM: asm_fprintf (stream, "x"); break;
+	case Y_REGNUM: asm_fprintf (stream, "y"); break;
+	default: gcc_unreachable ();
+	}
+      break;
+
     default:
       switch (GET_CODE (x))
         {
@@ -196,6 +207,34 @@ m65x_asm_function_section (tree decl ATTRIBUTE_UNUSED,
   return get_named_text_section (decl, "CODE", NULL);
 }
 
+static section *
+m65x_asm_select_section (tree exp ATTRIBUTE_UNUSED,
+			 int reloc ATTRIBUTE_UNUSED,
+			 unsigned HOST_WIDE_INT align ATTRIBUTE_UNUSED)
+{
+  const char *sname;
+  
+  switch (categorize_decl_for_section (exp, reloc))
+    {
+    case SECCAT_BSS:
+      sname = "BSS";
+      break;
+    
+    case SECCAT_RODATA:
+      sname = "RODATA";
+      break;
+    
+    case SECCAT_DATA:
+      sname = "DATA";
+      break;
+    
+    default:
+      sname = "UNKNOWN";
+    }
+  
+  return get_named_section (exp, sname, reloc);
+}
+
 bool
 m65x_hard_regno_mode_ok (int regno, enum machine_mode mode ATTRIBUTE_UNUSED)
 {
@@ -273,15 +312,6 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
 		  return NO_REGS;
 		}
-#if 0
-	      else if (ZP_REG_CLASS_P (reload_class))
-		{
-		  /* Actually it helps a little to copy things direct to ZP
-		     registers too.  */
-		  sri->icode = CODE_FOR_reload_inhi_reg_indy;
-		  return NO_REGS;
-		}
-#endif
 	      else if (reload_class == HARD_Y_REG)
 	        /* We're trying to load Y, so we can't use Y as scratch.  This
 		   will use the movhi_ldy_indy pattern.  */
@@ -289,13 +319,6 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	      else
 	        return HARD_ACCUM_REG;
 	    }
-	  
-	  /*if (REG_P (x) && REGNO (x) == ACC_REGNUM
-	      && ZP_REG_CLASS_P (reload_class))
-	    {
-	      sri->icode = CODE_FOR_reload_inhi_zp_acc;
-	      return NO_REGS;
-	    }*/
 	}
       else /* !in_p.  */
         {
@@ -320,6 +343,25 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		return NO_REGS;
 	      else
 	        return HARD_ACCUM_REG;
+	    }
+	  
+	  /* Storing hard register RELOAD_CLASS to a constant memory X.  Any
+	     other hard register can be used as a scratch.  */
+	  if (MEM_P (x) && CONSTANT_P (XEXP (x, 0))
+	      && HARD_REG_CLASS_P (reload_class))
+	    {
+	      sri->icode = CODE_FOR_reload_outhi_hardreg_abs;
+	      return NO_REGS;
+	    }
+	  
+	  /* We can do constant memory->memory moves if we have a scratch
+	     register.  This might not work!  If not we can use the peephole2
+	     trick instead.  */
+	  if (MEM_P (x) && CONSTANT_P (XEXP (x, 0))
+	      && reload_class == NO_REGS)
+	    {
+	      sri->icode = CODE_FOR_reload_outhi_noreg_abs;
+	      return NO_REGS;
 	    }
 	}
     }
@@ -356,6 +398,9 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 
 #undef TARGET_ASM_FUNCTION_SECTION
 #define TARGET_ASM_FUNCTION_SECTION m65x_asm_function_section
+
+#undef TARGET_ASM_SELECT_SECTION
+#define TARGET_ASM_SELECT_SECTION m65x_asm_select_section
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
 #define TARGET_ASM_GLOBALIZE_LABEL m65x_asm_globalize_label

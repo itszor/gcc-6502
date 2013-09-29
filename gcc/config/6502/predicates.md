@@ -86,3 +86,24 @@
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
+
+(define_predicate "const_mem_operand"
+  (and (match_code "mem")
+       (match_test "CONSTANT_P (XEXP (op, 0))")))
+
+(define_predicate "zp_reg_operand"
+  (match_code "reg,subreg")
+{
+  int regno;
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  regno = REGNO (op);
+  
+  return (regno >= FIRST_PSEUDO_REGISTER || REGNO_OK_FOR_BASE_P (regno));
+})
+
+(define_predicate "zp_reg_or_const_mem_operand"
+  (ior (match_operand 0 "zp_reg_operand")
+       (match_operand 0 "const_mem_operand")))

@@ -218,6 +218,11 @@ enum reg_class
   (((CLASS1) == HARD_X_REG && (CLASS2) == HARD_Y_REG) \
    || (CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG)
 
+#define HARD_REG_CLASS_P(CLASS)					\
+  ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\
+   || (CLASS) == HARD_Y_REG || (CLASS) == HARD_INDEX_REGS	\
+   || (CLASS) == HARD_REGS)
+
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
    || (CLASS) == GENERAL_REGS || (CLASS) == STACK_REG)
@@ -358,19 +363,20 @@ typedef int CUMULATIVE_ARGS;
 
 #define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
-    fprintf ((STREAM), "; .common");				\
+    fprintf ((STREAM), "\t.global ");				\
     assemble_name ((STREAM), (NAME));				\
+    fprintf ((STREAM), "\n%s:\n\t.res %d\n", (NAME), (SIZE));	\
   } while (0)
 
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
-    fprintf ((STREAM), "; .local");				\
     assemble_name ((STREAM), (NAME));				\
+    fprintf ((STREAM), "\n");					\
   } while (0)
 
 #define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
   do {								\
-    fprintf ((STREAM), ".dsb %d,$00", (int) (NBYTES));		\
+    fprintf ((STREAM), ".res %d,$00\n", (int) (NBYTES));	\
   } while (0)
 
 /* Prevent emission of call to __main.  */
