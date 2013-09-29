@@ -222,11 +222,37 @@ m65x_spill_class (reg_class_t klass, enum machine_mode mode)
     }
 }
 
+static const char * __attribute__ ((used))
+m65x_reg_class_name (reg_class_t c)
+{
+  switch (c)
+    {
+    case NO_REGS: return "NO_REGS";
+    case HARD_ACCUM_REG: return "HARD_ACCUM_REG";
+    case HARD_X_REG: return "HARD_X_REG";
+    case HARD_Y_REG: return "HARD_Y_REG";
+    case HARD_INDEX_REGS: return "HARD_INDEX_REGS";
+    case HARD_REGS: return "HARD_REGS";
+    case STACK_REG: return "STACK_REG";
+    case ARG_REGS: return "ARG_REGS";
+    case CALLEE_SAVED_REGS: return "CALLEE_SAVED_REGS";
+    case GENERAL_REGS: return "GENERAL_REGS";
+    case ALL_REGS: return "ALL_REGS";
+    default: gcc_unreachable ();
+    }
+  
+  return NULL;
+}
+
 static reg_class_t
 m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		       enum machine_mode reload_mode,
 		       secondary_reload_info *sri)
 {
+  fprintf (stderr, "reload-%s x, class=%s\n", in_p ? "in" : "out",
+	   m65x_reg_class_name (reload_class));
+  debug_rtx (x);
+
   if (reload_mode == HImode)
     {
       if (in_p)
@@ -237,8 +263,8 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		   && REG_P (XEXP (XEXP (x, 0), 0))
 		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
 		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-		  /*|| (REG_P (XEXP (x, 0))
-		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))*/))
+		  || (REG_P (XEXP (x, 0))
+		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
 	    {
 	      if (reload_class == HARD_ACCUM_REG)
 	        {
@@ -247,6 +273,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
 		  return NO_REGS;
 		}
+#if 0
 	      else if (ZP_REG_CLASS_P (reload_class))
 		{
 		  /* Actually it helps a little to copy things direct to ZP
@@ -254,19 +281,21 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_inhi_reg_indy;
 		  return NO_REGS;
 		}
+#endif
+	      else if (reload_class == HARD_Y_REG)
+	        /* We're trying to load Y, so we can't use Y as scratch.  This
+		   will use the movhi_ldy_indy pattern.  */
+	        return NO_REGS;
 	      else
-	        {
-		  fprintf (stderr, "other (%d)\n", reload_class);
-	          return HARD_ACCUM_REG;
-		}
+	        return HARD_ACCUM_REG;
 	    }
 	  
-	  if (REG_P (x) && REGNO (x) == ACC_REGNUM
+	  /*if (REG_P (x) && REGNO (x) == ACC_REGNUM
 	      && ZP_REG_CLASS_P (reload_class))
 	    {
 	      sri->icode = CODE_FOR_reload_inhi_zp_acc;
 	      return NO_REGS;
-	    }
+	    }*/
 	}
       else /* !in_p.  */
         {
@@ -276,14 +305,19 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		   && REG_P (XEXP (XEXP (x, 0), 0))
 		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
 		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-		  /*|| (REG_P (XEXP (x, 0))
-		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))*/))
+		  || (REG_P (XEXP (x, 0))
+		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
 	    {
 	      if (reload_class == HARD_ACCUM_REG)
 	        {
 		  sri->icode = CODE_FOR_reload_outhi_acc_indy;
 		  return NO_REGS;
 		}
+	      else if (reload_class == HARD_Y_REG)
+		/* This is a bit of a problem, we're trying to store Y, so
+		   we can't use Y as scratch.  This will use the inefficient
+		   movhi_sty_indy pattern.  */
+		return NO_REGS;
 	      else
 	        return HARD_ACCUM_REG;
 	    }
