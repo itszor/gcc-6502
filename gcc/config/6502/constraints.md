@@ -35,6 +35,16 @@
   (and (match_code "const_int")
        (match_test "ival >= -255 && ival <= 0")))
 
+(define_constraint "N"
+  "An integer 1-16."
+  (and (match_code "const_int")
+       (match_test "ival >= 1 && ival <= 16")))
+
+(define_constraint "O"
+  "An integer which is hard to right-shift 16-bit values by."
+  (and (match_code "const_int")
+       (match_test "ival == 5 || ival == 6")))
+
 (define_memory_constraint "U"
   "A constant mem."
   (and (match_code "mem")

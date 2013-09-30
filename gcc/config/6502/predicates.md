@@ -115,3 +115,11 @@
 (define_predicate "zp_reg_or_const_mem_operand"
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
+
+(define_predicate "shifthi_amount"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) >= 1 && INTVAL (op) <= 16")))
+
+(define_predicate "shifthi_rt_byteswap"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 5 || INTVAL (op) == 6")))
