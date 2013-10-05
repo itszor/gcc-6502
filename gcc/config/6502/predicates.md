@@ -39,10 +39,6 @@
 	  || REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
-(define_predicate "reg_or_acc_operand"
-  (ior (match_operand 0 "accumulator_operand")
-       (match_operand 0 "register_operand")))
-
 (define_predicate "movhi_dst_operand"
   (match_code "reg,subreg,mem")
 {
@@ -66,11 +62,14 @@
 })
 
 (define_predicate "movhi_src_operand"
-  (match_code "reg,subreg,const_int,mem,const")
+  (match_code "reg,subreg,const_int,mem,label_ref,const")
 {
   int regno;
 
   if (MEM_P (op))
+    return true;
+
+  if (GET_CODE (op) == LABEL_REF)
     return true;
 
   if (GET_CODE (op) == CONST_INT)
@@ -112,6 +111,10 @@
   return (regno >= FIRST_PSEUDO_REGISTER || REGNO_OK_FOR_BASE_P (regno));
 })
 
+(define_predicate "zp_reg_or_acc_operand"
+  (ior (match_operand 0 "accumulator_operand")
+       (match_operand 0 "zp_reg_operand")))
+
 (define_predicate "zp_reg_or_const_mem_operand"
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
@@ -123,3 +126,6 @@
 (define_predicate "shifthi_rt_byteswap"
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 5 || INTVAL (op) == 6")))
+
+(define_special_predicate "himode_comparison"
+  (match_code "eq,ne,gtu,geu,gt,ge"))

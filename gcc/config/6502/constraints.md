@@ -35,15 +35,40 @@
   (and (match_code "const_int")
        (match_test "ival >= -255 && ival <= 0")))
 
-(define_constraint "N"
+(define_constraint "Ns"
   "An integer 1-16."
   (and (match_code "const_int")
        (match_test "ival >= 1 && ival <= 16")))
 
-(define_constraint "O"
+(define_constraint "Nr"
+  "A right-shift amount that needs no scratch register (1-4, 7-16)."
+  (and (match_code "const_int")
+       (match_test "ival >= 1 && ival <= 16 && ival != 5 && ival != 6")))
+
+(define_constraint "Nc"
   "An integer which is hard to right-shift 16-bit values by."
   (and (match_code "const_int")
        (match_test "ival == 5 || ival == 6")))
+
+(define_constraint "Nl"
+  "A left-shift amount that needs no scratch register (1-5, 7-16)."
+  (and (match_code "const_int")
+       (match_test "ival >= 1 && ival <= 16 && ival != 6")))
+
+(define_constraint "Nx"
+  "The integer 6."
+  (and (match_code "const_int")
+       (match_test "ival == 6")))
+
+(define_constraint "Na"
+  "Arithmetic right-shift amounts which need a scratch reg (1-14)."
+  (and (match_code "const_int")
+       (match_test "ival >= 1 && ival <= 14")))
+
+(define_constraint "Nb"
+  "The integers 15 or 16."
+  (and (match_code "const_int")
+       (match_test "ival == 15 || ival == 16")))
 
 (define_memory_constraint "U"
   "A constant mem."
