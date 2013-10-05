@@ -52,6 +52,17 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	}
       break;
 
+    case 'C':
+      gcc_assert (REG_P (x));
+      switch (REGNO (x))
+        {
+	case ACC_REGNUM: asm_fprintf (stream, "cmp"); break;
+	case X_REGNUM: asm_fprintf (stream, "cpx"); break;
+	case Y_REGNUM: asm_fprintf (stream, "cpy"); break;
+	default: gcc_unreachable ();
+	}
+      break;
+
     default:
       switch (GET_CODE (x))
         {
@@ -106,7 +117,7 @@ m65x_address_register_p (rtx x, int strict_p)
 static bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
-  if (CONSTANT_P (x))
+  if (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF)
     return true;
   
   if (m65x_address_register_p (x, strict))
@@ -288,9 +299,11 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		       enum machine_mode reload_mode,
 		       secondary_reload_info *sri)
 {
+#if 0
   fprintf (stderr, "reload-%s x, class=%s\n", in_p ? "in" : "out",
 	   m65x_reg_class_name (reload_class));
   debug_rtx (x);
+#endif
 
   if (reload_mode == HImode)
     {
