@@ -30,6 +30,11 @@
   (and (match_code "const_int")
        (match_test "ival == -1")))
 
+(define_constraint "z"
+  "The integer zero."
+  (and (match_code "const_int")
+       (match_test "ival == 0")))
+
 (define_constraint "M"
   "An integer -255-0."
   (and (match_code "const_int")
