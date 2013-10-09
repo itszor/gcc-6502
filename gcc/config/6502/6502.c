@@ -52,6 +52,15 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	}
       break;
 
+    case 'B':
+      switch (GET_CODE (x))
+        {
+	case EQ: asm_fprintf (stream, "beq"); break;
+	case NE: asm_fprintf (stream, "bne"); break;
+	default: gcc_unreachable ();
+	}
+      break;
+
     case 'C':
       gcc_assert (REG_P (x));
       switch (REGNO (x))
@@ -247,14 +256,30 @@ m65x_asm_select_section (tree exp ATTRIBUTE_UNUSED,
 }
 
 bool
-m65x_hard_regno_mode_ok (int regno, enum machine_mode mode ATTRIBUTE_UNUSED)
+m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
 {
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+
+  if (modesize == 1)
+    return true;
+
   /* For the "hard" registers, force values to have the actual LSB in the hard
-     register.  */
+     register for greater-than-byte-size modes.  */
   if (regno < 12)
     return (regno % 4) == 0;
   else
     return true;
+}
+
+/* Model the accumulator, X and Y registers as able to hold any value up to 32
+   bits in size.  */
+
+HOST_WIDE_INT
+m65x_hard_regno_nregs (int regno, enum machine_mode mode)
+{
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  
+  return modesize;
 }
 
 static reg_class_t
@@ -286,6 +311,7 @@ m65x_reg_class_name (reg_class_t c)
     case STACK_REG: return "STACK_REG";
     case ARG_REGS: return "ARG_REGS";
     case CALLEE_SAVED_REGS: return "CALLEE_SAVED_REGS";
+    case CC_REGS: return "CC_REGS";
     case GENERAL_REGS: return "GENERAL_REGS";
     case ALL_REGS: return "ALL_REGS";
     default: gcc_unreachable ();
