@@ -129,3 +129,33 @@
 
 (define_special_predicate "himode_comparison"
   (match_code "eq,ne,gtu,geu,gt,ge"))
+
+(define_special_predicate "qimode_comparison"
+  (match_code "eq,ne"))
+
+(define_predicate "qimode_src_operand"
+  (match_code "reg,subreg,const_int,mem,label_ref,const")
+{
+  int regno;
+  
+  if (MEM_P (op) || GET_CODE (op) == LABEL_REF || GET_CODE (op) == CONST_INT)
+    return true;
+  
+  if (GET_CODE (op) == CONST)
+    {
+      op = XEXP (op, 0);
+      return ((GET_CODE (op) == PLUS && GET_CODE (XEXP (op, 0)) == SYMBOL_REF
+	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
+	      || GET_CODE (op) == SYMBOL_REF);
+    }
+  
+  regno = REGNO (op);
+  
+  return regno == ACC_REGNUM
+	 || regno == X_REGNUM
+	 || regno == Y_REGNUM
+  	 || (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER)
+	 || regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM
+	 || regno >= FIRST_PSEUDO_REGISTER;
+})

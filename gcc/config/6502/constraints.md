@@ -1,12 +1,20 @@
-(define_register_constraint "A" "HARD_ACCUM_REG")
+(define_register_constraint "Ah" "HARD_ACCUM_REG")
+(define_register_constraint "As" "SOFT_ACCUM_REGS")
+(define_register_constraint "Ac" "ACCUM_REGS")
 
-(define_register_constraint "x" "HARD_X_REG")
+(define_register_constraint "xh" "HARD_X_REG")
+(define_register_constraint "xs" "SOFT_X_REGS")
+(define_register_constraint "xc" "X_REGS")
 
-(define_register_constraint "y" "HARD_Y_REG")
+(define_register_constraint "yh" "HARD_Y_REG")
+(define_register_constraint "ys" "SOFT_Y_REGS")
+(define_register_constraint "yc" "Y_REGS")
 
-(define_register_constraint "j" "HARD_INDEX_REGS")
+(define_register_constraint "jh" "HARD_INDEX_REGS")
+(define_register_constraint "jc" "INDEX_REGS")
 
-(define_register_constraint "h" "HARD_REGS")
+(define_register_constraint "hh" "HARD_REGS")
+(define_register_constraint "hc" "HARDISH_REGS")
 
 (define_register_constraint "S" "STACK_REG")
 
