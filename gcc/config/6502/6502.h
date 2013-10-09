@@ -83,6 +83,10 @@
    33 : virtual FP/hi
    34 : virtual AP/lo
    35 : virtual AP/hi
+   36 : virtual CC reg. CCMODE is always 4 bytes!
+   37: "
+   38: "
+   39: "
 */
 
 #define ACC_REGNUM 0
@@ -96,6 +100,11 @@
 #define LAST_CALLER_SAVED (FIRST_CALLER_SAVED + 7)
 #define FIRST_ZP_REGISTER SP_REGNUM
 #define LAST_ZP_REGISTER LAST_CALLER_SAVED
+#define CC_REGNUM 36
+
+#define IS_ZP_REGNUM(X)						\
+  (((X) < 12 && (((X) % 4) != 0))				\
+   || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER))
 
 #define FIXED_REGISTERS		\
   { 0, 0, 0, 0, 0, 0, 0, 0,	\
@@ -104,8 +113,8 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
-    /* fp, ap regs.  */		\
-    1, 1, 1, 1 }
+    /* fp, ap, cc regs.  */	\
+    1, 1, 1, 1, 1, 1, 1, 1 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -114,25 +123,31 @@
     1, 1, 1, 1, 1, 1, 1, 1,	\
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
-    /* fp, ap regs.  */		\
-    1, 1, 1, 1 }
+    /* fp, ap, cc regs.  */	\
+    1, 1, 1, 1, 1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 36
+#define FIRST_PSEUDO_REGISTER 40
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
     8, 9, 10, 11, 12, 13, 14, 15, \
     16, 17, 18, 19, 20, 21, 22, 23, \
     24, 25, 26, 27, 28, 29, 30, 31, \
-    32, 33, 34, 35 }
+    32, 33, 34, 35, 36, 37, 38, 39 }
 
-#define HARD_REGNO_NREGS(REGNO, MODE)		\
-  (GET_MODE_SIZE (MODE))
+#define HARD_REGNO_NREGS(REGNO, MODE) \
+  m65x_hard_regno_nregs ((REGNO), (MODE))
 
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
   m65x_hard_regno_mode_ok ((REGNO), (MODE))
 
 #define MODES_TIEABLE_P(MODE1, MODE2) 1
+
+#if 0
+/* We don't need a definition of this for now.  */
+#define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
+  (HARD_REG_CLASS_P (CLASS) && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO))
+#endif
 
 /*****************************************************************************
  * Register classes.
@@ -142,13 +157,22 @@ enum reg_class
 {
   NO_REGS,
   HARD_ACCUM_REG,
+  SOFT_ACCUM_REGS,
+  ACCUM_REGS,
   HARD_X_REG,
+  SOFT_X_REGS,
+  X_REGS,
   HARD_Y_REG,
+  SOFT_Y_REGS,
+  Y_REGS,
   HARD_INDEX_REGS,
+  INDEX_REGS,
   HARD_REGS,
+  HARDISH_REGS,
   STACK_REG,
   ARG_REGS,
   CALLEE_SAVED_REGS,
+  CC_REGS,
   GENERAL_REGS,
   ALL_REGS,
   LIM_REG_CLASSES
@@ -160,44 +184,68 @@ enum reg_class
 {				\
   "NO_REGS",			\
   "HARD_ACCUM_REG",		\
+  "SOFT_ACCUM_REGS",		\
+  "ACCUM_REGS",			\
   "HARD_X_REG",			\
+  "SOFT_X_REGS",		\
+  "X_REGS",			\
   "HARD_Y_REG",			\
+  "SOFT_Y_REGS",		\
+  "Y_REGS",			\
   "HARD_INDEX_REGS",		\
+  "INDEX_REGS",			\
   "HARD_REGS",			\
+  "HARDISH_REGS",		\
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
+  "CC_REGS",			\
   "GENERAL_REGS",		\
   "ALL_REGS"			\
 }
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000,	0x0 },		\
-  { 0x0000000f,	0x0 },		\
-  { 0x000000f0,	0x0 },		\
-  { 0x00000f00,	0x0 },		\
-  { 0x00000ff0,	0x0 },		\
-  { 0x00000fff,	0x0 },		\
-  { 0x0000f000,	0x0 },		\
-  { 0x00ff0000,	0x0 },		\
-  { 0xff000000,	0x0 },		\
-  { 0xfffff000,	0x0 },		\
-  { 0xffffffff, 0xf },		\
+  { 0x00000000, 0x00 },		\
+  { 0x00000001, 0x00 },		\
+  { 0x0000000e, 0x00 },		\
+  { 0x0000000f, 0x00 },		\
+  { 0x00000010, 0x00 },		\
+  { 0x000000e0, 0x00 },		\
+  { 0x000000f0, 0x00 },		\
+  { 0x00000100, 0x00 },		\
+  { 0x00000e00, 0x00 },		\
+  { 0x00000f00, 0x00 },		\
+  { 0x00000110, 0x00 },		\
+  { 0x00000ff0, 0x00 },		\
+  { 0x00000111, 0x00 },		\
+  { 0x00000fff, 0x00 },		\
+  { 0x0000f000, 0x00 },		\
+  { 0x00ff0000, 0x00 },		\
+  { 0xff000000, 0x00 },		\
+  { 0x00000000, 0xf0 },		\
+  { 0xfffffeee, 0x00 },		\
+  { 0xffffffff, 0xff },		\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
-  ((REGNO) >= ACC_REGNUM && (REGNO) < (ACC_REGNUM + 4)			\
-    ? HARD_ACCUM_REG :							\
-   (REGNO) >= X_REGNUM && (REGNO) < (X_REGNUM + 4) ? HARD_X_REG :	\
-   (REGNO) >= Y_REGNUM && (REGNO) < (Y_REGNUM + 4) ? HARD_Y_REG : 	\
+  ((REGNO) == ACC_REGNUM ? HARD_ACCUM_REG :				\
+   (REGNO) >= (ACC_REGNUM + 1) && (REGNO) < (ACC_REGNUM + 4)		\
+    ? SOFT_ACCUM_REGS :							\
+   (REGNO) == X_REGNUM ? HARD_X_REG :					\
+   (REGNO) >= (X_REGNUM + 1) && (REGNO) < (X_REGNUM + 4)		\
+     ? SOFT_X_REGS :							\
+   (REGNO) == Y_REGNUM ? HARD_Y_REG :					\
+   (REGNO) >= (Y_REGNUM + 1) && (REGNO) < (Y_REGNUM + 4)		\
+     ? SOFT_Y_REGS :							\
    (REGNO) >= SP_REGNUM && (REGNO) <= (SP_REGNUM + 4) ? STACK_REG :	\
    (REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER	\
      ? ARG_REGS :							\
    (REGNO) >= FIRST_CALLER_SAVED && (REGNO) <= LAST_CALLER_SAVED	\
      ? CALLEE_SAVED_REGS :						\
    (REGNO) >= FIRST_ZP_REGISTER && (REGNO) <= LAST_ZP_REGISTER		\
-     ? GENERAL_REGS : NO_REGS)
+     ? GENERAL_REGS :							\
+   (REGNO) >= CC_REGNUM && (REGNO) <= (CC_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
 #define INDEX_REG_CLASS	HARD_INDEX_REGS
@@ -222,6 +270,11 @@ enum reg_class
   ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\
    || (CLASS) == HARD_Y_REG || (CLASS) == HARD_INDEX_REGS	\
    || (CLASS) == HARD_REGS)
+
+#define HARDISH_REG_CLASS_P(CLASS)				\
+  ((CLASS) == ACCUM_REGS || (CLASS) == X_REGS			\
+   || (CLASS) == Y_REGS || (CLASS) == INDEX_REGS		\
+   || (CLASS) == HARDISH_REGS)
 
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
@@ -342,7 +395,8 @@ typedef int CUMULATIVE_ARGS;
     "sp", "?sp", "fp", "?fp",				\
     "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",	\
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",	\
-    "?vfpl", "?vfph", "?vapl", "?vaph"			\
+    "?vfpl", "?vfph", "?vapl", "?vaph",			\
+    "?cc", "?cc1", "?cc2", "?cc3"			\
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
