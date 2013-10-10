@@ -120,7 +120,7 @@ m65x_address_register_p (rtx x, int strict_p)
   if (!strict_p && regno >= FIRST_PSEUDO_REGISTER)
     return true;
   
-  return (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER);
+  return IS_ZP_REGNUM (regno);
 }
 
 static bool
@@ -344,7 +344,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  || (REG_P (XEXP (x, 0))
 		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
 	    {
-	      if (reload_class == HARD_ACCUM_REG)
+	      if (reload_class == ACCUM_REGS)
 	        {
 		  /* We can only do (zp),y addressing mode for the accumulator
 		     reg.  */
@@ -356,7 +356,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		   will use the movhi_ldy_indy pattern.  */
 	        return NO_REGS;
 	      else
-	        return HARD_ACCUM_REG;
+	        return ACCUM_REGS;
 	    }
 	}
       else /* !in_p.  */
@@ -370,7 +370,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  || (REG_P (XEXP (x, 0))
 		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
 	    {
-	      if (reload_class == HARD_ACCUM_REG)
+	      if (reload_class == ACCUM_REGS)
 	        {
 		  sri->icode = CODE_FOR_reload_outhi_acc_indy;
 		  return NO_REGS;
@@ -381,7 +381,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		   movhi_sty_indy pattern.  */
 		return NO_REGS;
 	      else
-	        return HARD_ACCUM_REG;
+	        return ACCUM_REGS;
 	    }
 	  
 	  /* Storing hard register RELOAD_CLASS to a constant memory X.  Any
