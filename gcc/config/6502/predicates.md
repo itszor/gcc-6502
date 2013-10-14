@@ -55,7 +55,7 @@
   return regno == ACC_REGNUM
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
-  	 || (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER)
+  	 || IS_ZP_REGNUM (regno)
 	 || regno == FRAME_POINTER_REGNUM
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
@@ -88,7 +88,7 @@
   return regno == ACC_REGNUM
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
-  	 || (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER)
+  	 || IS_ZP_REGNUM (regno)
 	 || regno == FRAME_POINTER_REGNUM
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
@@ -97,6 +97,15 @@
 (define_predicate "const_mem_operand"
   (and (match_code "mem")
        (match_test "CONSTANT_P (XEXP (op, 0))")))
+
+(define_predicate "ind_y_mem_operand"
+  (and (match_code "mem")
+       (match_test "GET_CODE (XEXP (op, 0)) == PLUS
+		    && zp_reg_operand (XEXP (XEXP (op, 0), 0),
+				       GET_MODE (XEXP (XEXP (op, 0), 0)))
+		    && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT
+		    && INTVAL (XEXP (XEXP (op, 0), 1)) >= 0
+		    && INTVAL (XEXP (XEXP (op, 0), 1)) < 256")))
 
 (define_predicate "zp_reg_operand"
   (match_code "reg,subreg")
@@ -108,7 +117,7 @@
   
   regno = REGNO (op);
   
-  return (regno >= FIRST_PSEUDO_REGISTER || REGNO_OK_FOR_BASE_P (regno));
+  return IS_ZP_REGNUM (regno);
 })
 
 (define_predicate "zp_reg_or_acc_operand"
@@ -154,7 +163,7 @@
   return regno == ACC_REGNUM
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
-  	 || (regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER)
+  	 || IS_ZP_REGNUM (regno)
 	 || regno == FRAME_POINTER_REGNUM
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
