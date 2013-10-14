@@ -351,7 +351,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
 		  return NO_REGS;
 		}
-	      else if (reload_class == HARD_Y_REG)
+	      else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
 	        /* We're trying to load Y, so we can't use Y as scratch.  This
 		   will use the movhi_ldy_indy pattern.  */
 	        return NO_REGS;
@@ -375,7 +375,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		  sri->icode = CODE_FOR_reload_outhi_acc_indy;
 		  return NO_REGS;
 		}
-	      else if (reload_class == HARD_Y_REG)
+	      else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
 		/* This is a bit of a problem, we're trying to store Y, so
 		   we can't use Y as scratch.  This will use the inefficient
 		   movhi_sty_indy pattern.  */
