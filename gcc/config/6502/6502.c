@@ -123,7 +123,7 @@ m65x_address_register_p (rtx x, int strict_p)
   return IS_ZP_REGNUM (regno);
 }
 
-static bool
+bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF)
@@ -304,10 +304,18 @@ m65x_reg_class_name (reg_class_t c)
     {
     case NO_REGS: return "NO_REGS";
     case HARD_ACCUM_REG: return "HARD_ACCUM_REG";
+    case SOFT_ACCUM_REGS: return "SOFT_ACCUM_REGS";
+    case ACCUM_REGS: return "ACCUM_REGS";
     case HARD_X_REG: return "HARD_X_REG";
+    case SOFT_X_REGS: return "SOFT_X_REGS";
+    case X_REGS: return "X_REGS";
     case HARD_Y_REG: return "HARD_Y_REG";
+    case SOFT_Y_REGS: return "SOFT_Y_REGS";
+    case Y_REGS: return "Y_REGS";
     case HARD_INDEX_REGS: return "HARD_INDEX_REGS";
+    case INDEX_REGS: return "INDEX_REGS";
     case HARD_REGS: return "HARD_REGS";
+    case HARDISH_REGS: return "HARDISH_REGS";
     case STACK_REG: return "STACK_REG";
     case ARG_REGS: return "ARG_REGS";
     case CALLEE_SAVED_REGS: return "CALLEE_SAVED_REGS";
@@ -358,6 +366,13 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	      else
 	        return ACCUM_REGS;
 	    }
+	  else if (MEM_P (x) && !CONSTANT_P (XEXP (x, 0)))
+	    {
+	      if (reload_class == ACCUM_REGS)
+	        return NO_REGS;
+	      else
+		return ACCUM_REGS;
+	    }
 	}
       else /* !in_p.  */
         {
@@ -383,6 +398,13 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	      else
 	        return ACCUM_REGS;
 	    }
+	  else if (MEM_P (x) && !CONSTANT_P (x))
+	    {
+	      if (reload_class == ACCUM_REGS)
+	        return NO_REGS;
+	      else
+		return ACCUM_REGS;
+	    }
 	  
 	  /* Storing hard register RELOAD_CLASS to a constant memory X.  Any
 	     other hard register can be used as a scratch.  */
@@ -406,6 +428,53 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     }
 
   return NO_REGS;
+}
+
+bool
+m65x_valid_movhi_operands (rtx *operands)
+{
+  if (reload_in_progress)
+    {
+      if (REG_P (operands[0]) && true_regnum (operands[0]) == -1)
+        return false;
+
+      if (REG_P (operands[1]) && true_regnum (operands[1]) == -1)
+        return false;
+    }
+  
+  if (MEM_P (operands[0]))
+    {
+      if (CONSTANT_P (XEXP (operands[0], 0)))
+	return register_operand (operands[1], HImode);
+      else if (register_operand (XEXP (operands[0], 0), HImode)
+	       || (GET_CODE (XEXP (operands[0], 0)) == PLUS
+		   && REG_P (XEXP (XEXP (operands[0], 0), 0))
+		   && GET_CODE (XEXP (XEXP (operands[0], 0), 1)) == CONST_INT))
+	return !reload_in_progress && !reload_completed
+	       && register_operand (operands[1], HImode);
+      else
+        return false;
+    }
+  
+  if (MEM_P (operands[1]))
+    {
+      if (CONSTANT_P (XEXP (operands[1], 0)))
+        return register_operand (operands[0], HImode);
+      else if (register_operand (XEXP (operands[1], 0), HImode)
+	       || (GET_CODE (XEXP (operands[1], 0)) == PLUS
+		   && REG_P (XEXP (XEXP (operands[1], 0), 0))
+		   && GET_CODE (XEXP (XEXP (operands[1], 0), 1)) == CONST_INT))
+	return !reload_in_progress && !reload_completed
+	       && register_operand (operands[0], HImode);
+      else
+        return false;
+    }
+
+  if (register_operand (operands[0], HImode)
+      || register_operand (operands[1], HImode))
+    return true;
+  
+  return false;
 }
 
 #undef TARGET_FUNCTION_ARG

@@ -44,7 +44,9 @@
 {
   int regno;
 
-  if (MEM_P (op))
+  if (MEM_P (op)
+      && m65x_legitimate_address_p (HImode, XEXP (op, 0),
+				    reload_in_progress || reload_completed))
     return true;
 
   if (GET_CODE (op) == SUBREG)
@@ -66,7 +68,9 @@
 {
   int regno;
 
-  if (MEM_P (op))
+  if (MEM_P (op)
+      && m65x_legitimate_address_p (HImode, XEXP (op, 0),
+				    reload_in_progress || reload_completed))
     return true;
 
   if (GET_CODE (op) == LABEL_REF)
@@ -82,7 +86,10 @@
 	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
 	      || GET_CODE (op) == SYMBOL_REF);
     }
-  
+
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+
   regno = REGNO (op);
   
   return regno == ACC_REGNUM
@@ -117,6 +124,22 @@
   
   regno = REGNO (op);
   
+  return IS_ZP_REGNUM (regno);
+})
+
+(define_predicate "reload_zpreg_operand"
+  (match_code "reg,subreg")
+{
+  int regno;
+  
+  if (reload_in_progress && true_regnum (op) == -1)
+    return false;
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  regno = REGNO (op);
+
   return IS_ZP_REGNUM (regno);
 })
 
