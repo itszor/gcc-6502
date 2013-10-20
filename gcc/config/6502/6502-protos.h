@@ -7,6 +7,8 @@ extern void m65x_print_operand_address (FILE *, rtx);
 extern int m65x_mode_dependent_address_p (rtx);
 extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
 extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);
+extern bool m65x_valid_movhi_operands (rtx *operands);
+extern bool m65x_legitimate_address_p (enum machine_mode mode, rtx, bool);
 #endif
 
 #endif
