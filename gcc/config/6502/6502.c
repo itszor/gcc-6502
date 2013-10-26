@@ -57,6 +57,8 @@ m65x_print_operand (FILE *stream, rtx x, int code)
         {
 	case EQ: asm_fprintf (stream, "beq"); break;
 	case NE: asm_fprintf (stream, "bne"); break;
+	case LTU: asm_fprintf (stream, "bcc"); break;
+	case GEU: asm_fprintf (stream, "bcs"); break;
 	default: gcc_unreachable ();
 	}
       break;
@@ -160,7 +162,7 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 }
 
 int
-m65x_mode_dependent_address_p (rtx x)
+m65x_mode_dependent_address_p (rtx x ATTRIBUTE_UNUSED)
 {
   /* Another big lie!  */
   return 0;
@@ -168,7 +170,8 @@ m65x_mode_dependent_address_p (rtx x)
 
 static rtx
 m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
-		   const_tree type, bool named)
+		   const_tree type ATTRIBUTE_UNUSED,
+		   bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
 
@@ -180,7 +183,8 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
 
 static void
 m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
-			   const_tree type, bool named)
+			   const_tree type ATTRIBUTE_UNUSED,
+			   bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
   
@@ -188,8 +192,9 @@ m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
 }
 
 static rtx
-m65x_function_value (const_tree ret_type, const_tree fn_decl_or_type,
-		     bool outgoing)
+m65x_function_value (const_tree ret_type,
+		     const_tree fn_decl_or_type ATTRIBUTE_UNUSED,
+		     bool outgoing ATTRIBUTE_UNUSED)
 {
   enum machine_mode mode;
   
@@ -199,7 +204,7 @@ m65x_function_value (const_tree ret_type, const_tree fn_decl_or_type,
 }
 
 static rtx
-m65x_libcall_value (enum machine_mode mode, const_rtx fun)
+m65x_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
 {
   return gen_rtx_REG (mode, ACC_REGNUM);
 }
@@ -275,7 +280,7 @@ m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
    bits in size.  */
 
 HOST_WIDE_INT
-m65x_hard_regno_nregs (int regno, enum machine_mode mode)
+m65x_hard_regno_nregs (int regno ATTRIBUTE_UNUSED, enum machine_mode mode)
 {
   HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
   
@@ -283,7 +288,7 @@ m65x_hard_regno_nregs (int regno, enum machine_mode mode)
 }
 
 static reg_class_t
-m65x_spill_class (reg_class_t klass, enum machine_mode mode)
+m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
 {
   switch (klass)
     {
@@ -477,6 +482,136 @@ m65x_valid_movhi_operands (rtx *operands)
   return false;
 }
 
+static void
+m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
+			      bool op0_preserve_value)
+{
+  rtx tmp;
+  bool swap = false;
+
+  switch (*code)
+    {
+    case GTU:
+      swap = true;
+      *code = LTU;
+      break;
+    
+    case LEU:
+      swap = true;
+      *code = GEU;
+      break;
+    
+    default:
+      ;
+    }
+  
+  if (swap)
+    {
+      gcc_assert (!op0_preserve_value);
+      tmp = *op0;
+      *op0 = *op1;
+      *op1 = tmp;
+    }
+}
+
+static rtx
+m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
+{
+  rtx cmp = gen_rtx_fmt_ee (cond, VOIDmode, cc_reg, const0_rtx);
+  rtx jmp_insn = emit_jump_insn (gen_condbranchqi (cmp, dest));
+  add_reg_note (jmp_insn, REG_BR_PROB, GEN_INT (prob));
+}
+
+void
+m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
+			     rtx scratch)
+{
+  rtx op0_lo = gen_lowpart (QImode, op0);
+  rtx op1_lo = gen_lowpart (QImode, op1);
+  rtx op0_hi = gen_highpart_mode (QImode, HImode, op0);
+  rtx op1_hi = gen_highpart_mode (QImode, HImode, op1);
+  rtx cc_reg = gen_rtx_REG (CCmode, CC_REGNUM);
+  rtx new_label = NULL_RTX;
+  int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
+
+  if ((cond == EQ || cond == NE)
+      && REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+    {
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+      op0_lo = scratch;
+    }
+  
+  if (cond != NE)
+    new_label = gen_label_rtx ();
+
+  switch (cond)
+    {
+    case EQ:
+      /* Low part.  */
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (NE, cc_reg, rev_prob, new_label);
+
+      /* High part.  */
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (EQ, cc_reg, split_branch_probability, dest);
+      break;
+
+    case NE:
+      /* Low part.  */
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
+
+      /* High part.  */
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
+      break;
+    
+    case LTU:
+      /* High part.  */
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
+
+      /* Low part.  */
+      if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+	{
+	  emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+	  op0_lo = scratch;
+	}
+
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
+      break;
+    
+    case GEU:
+      /* High part.  */
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op1_hi));
+      emit_insn (gen_compareqi (scratch, op0_hi));
+      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
+
+      /* Low part.  */
+      if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+	{
+	  emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+	  op0_lo = scratch;
+	}
+
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (GEU, cc_reg, split_branch_probability, dest);
+      break;
+    
+    default:
+      gcc_unreachable ();
+    }
+
+  if (new_label != NULL_RTX)
+    emit_label (new_label);
+}
+
 #undef TARGET_FUNCTION_ARG
 #define TARGET_FUNCTION_ARG m65x_function_arg
 
@@ -500,6 +635,9 @@ m65x_valid_movhi_operands (rtx *operands)
 
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD m65x_secondary_reload
+
+#undef TARGET_CANONICALIZE_COMPARISON
+#define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
 
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION m65x_asm_named_section

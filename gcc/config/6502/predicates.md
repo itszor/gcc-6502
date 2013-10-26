@@ -114,7 +114,7 @@
 		    && INTVAL (XEXP (XEXP (op, 0), 1)) >= 0
 		    && INTVAL (XEXP (XEXP (op, 0), 1)) < 256")))
 
-(define_predicate "zp_reg_operand"
+(define_predicate "strict_zp_reg_operand"
   (match_code "reg,subreg")
 {
   int regno;
@@ -125,6 +125,19 @@
   regno = REGNO (op);
   
   return IS_ZP_REGNUM (regno);
+})
+
+(define_predicate "zp_reg_operand"
+  (match_code "reg,subreg")
+{
+  int regno;
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  regno = REGNO (op);
+  
+  return IS_ZP_REGNUM (regno) || regno >= FIRST_PSEUDO_REGISTER;
 })
 
 (define_predicate "reload_zpreg_operand"
@@ -151,6 +164,10 @@
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
 
+(define_predicate "zp_reg_or_imm_operand"
+  (ior (match_operand 0 "immediate_operand")
+       (match_operand 0 "zp_reg_operand")))
+
 (define_predicate "shifthi_amount"
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 1 && INTVAL (op) <= 16")))
@@ -160,12 +177,12 @@
        (match_test "INTVAL (op) == 5 || INTVAL (op) == 6")))
 
 (define_special_predicate "himode_comparison"
-  (match_code "eq,ne,gtu,geu,gt,ge"))
+  (match_code "eq,ne,gtu,ltu,geu,leu"))
 
 (define_special_predicate "qimode_comparison"
-  (match_code "eq,ne"))
+  (match_code "eq,ne,ltu,geu"))
 
-(define_predicate "qimode_src_operand"
+(define_predicate "compareqi_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,const")
 {
   int regno;
@@ -183,10 +200,7 @@
   
   regno = REGNO (op);
   
-  return regno == ACC_REGNUM
-	 || regno == X_REGNUM
-	 || regno == Y_REGNUM
-  	 || IS_ZP_REGNUM (regno)
+  return IS_ZP_REGNUM (regno)
 	 || regno == FRAME_POINTER_REGNUM
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
