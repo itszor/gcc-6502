@@ -1,0 +1,19 @@
+/* Use CC_V to test only the overflow flag:
+   EQ -- V is 0
+   NE -- V is 1.  */
+
+CC_MODE (CC_V);
+
+/* CC_C represents only the carry flag.
+   EQ -- C is 0.
+   NE -- C is 1.  */
+
+CC_MODE (CC_C);
+
+/* CC_NV codes:
+   EQ -- V is 0
+   NE -- V is 1
+   GE -- N is 0
+   LT -- N is 1.  */
+
+CC_MODE (CC_NV);
