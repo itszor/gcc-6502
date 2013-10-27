@@ -1,0 +1,8 @@
+2013-10-27  Julian Brown  <jules@panic.cs-bristol.org.uk>
+
+	Backport from mainline
+
+	2013-10-15  Bernd Schmidt  <bernds@codesourcery.com>
+
+	* reload1.c (reloads_unique_chain_p): Ensure that r1 is the input for
+	r2.
