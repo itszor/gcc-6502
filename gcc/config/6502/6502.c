@@ -52,17 +52,6 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	}
       break;
 
-    case 'B':
-      switch (GET_CODE (x))
-        {
-	case EQ: asm_fprintf (stream, "beq"); break;
-	case NE: asm_fprintf (stream, "bne"); break;
-	case LTU: asm_fprintf (stream, "bcc"); break;
-	case GEU: asm_fprintf (stream, "bcs"); break;
-	default: gcc_unreachable ();
-	}
-      break;
-
     case 'C':
       gcc_assert (REG_P (x));
       switch (REGNO (x))
@@ -108,6 +97,45 @@ m65x_print_operand_address (FILE *stream, rtx x)
       output_addr_const (stream, x);
     }
 }
+
+void
+m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest)
+{
+  const char *fmt;
+
+  switch (mode)
+    {
+    case CCmode:
+      /* These are used for unsigned comparisons.  */
+      switch (GET_CODE (cond))
+        {
+	case EQ: fmt = "beq %0"; break;
+	case NE: fmt = "bne %0"; break;
+	case LTU: fmt = "bcc %0"; break;
+	case GEU: fmt = "bcs %0"; break;
+	default: gcc_unreachable ();
+	}
+      break;
+
+    case CC_NVmode:
+      /* These are used to synthesize signed comparisons.  */
+      switch (GET_CODE (cond))
+	{
+	case EQ: fmt = "bvc %0"; break;
+	case NE: fmt = "bvs %0"; break;
+	case GE: fmt = "bpl %0"; break;
+	case LT: fmt = "bmi %0"; break;
+	default: gcc_unreachable ();
+	}
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+  
+  output_asm_insn (fmt, &dest);
+}
+
 
 static bool
 m65x_address_register_p (rtx x, int strict_p)
@@ -495,12 +523,22 @@ m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
       swap = true;
       *code = LTU;
       break;
-    
+
     case LEU:
       swap = true;
       *code = GEU;
       break;
-    
+
+    case GT:
+      swap = true;
+      *code = LT;
+      break;
+
+    case LE:
+      swap = true;
+      *code = GE;
+      break;
+
     default:
       ;
     }
@@ -514,11 +552,14 @@ m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
     }
 }
 
-static rtx
+static void
 m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 {
   rtx cmp = gen_rtx_fmt_ee (cond, VOIDmode, cc_reg, const0_rtx);
-  rtx jmp_insn = emit_jump_insn (gen_condbranchqi (cmp, dest));
+  rtx branch = gen_rtx_SET (VOIDmode, pc_rtx,
+		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
+		   gen_rtx_LABEL_REF (Pmode, dest), pc_rtx));
+  rtx jmp_insn = emit_jump_insn (branch);
   add_reg_note (jmp_insn, REG_BR_PROB, GEN_INT (prob));
 }
 
@@ -531,10 +572,11 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx op0_hi = gen_highpart_mode (QImode, HImode, op0);
   rtx op1_hi = gen_highpart_mode (QImode, HImode, op1);
   rtx cc_reg = gen_rtx_REG (CCmode, CC_REGNUM);
+  rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
   rtx new_label = NULL_RTX;
   int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
 
-  if ((cond == EQ || cond == NE)
+  if ((cond == EQ || cond == NE || cond == LT || cond == GE)
       && REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
     {
       emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
@@ -548,30 +590,31 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     {
     case EQ:
       /* Low part.  */
-      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
       m65x_emit_cbranchqi (NE, cc_reg, rev_prob, new_label);
 
       /* High part.  */
       emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi (scratch, op1_hi));
+      emit_insn (gen_compareqi_cc (scratch, op1_hi));
       m65x_emit_cbranchqi (EQ, cc_reg, split_branch_probability, dest);
+      emit_label (new_label);
       break;
 
     case NE:
       /* Low part.  */
-      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
       m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
 
       /* High part.  */
       emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi (scratch, op1_hi));
+      emit_insn (gen_compareqi_cc (scratch, op1_hi));
       m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
       break;
     
     case LTU:
       /* High part.  */
       emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi (scratch, op1_hi));
+      emit_insn (gen_compareqi_cc (scratch, op1_hi));
       m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
       m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
 
@@ -582,14 +625,15 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	  op0_lo = scratch;
 	}
 
-      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
       m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
+      emit_label (new_label);
       break;
     
     case GEU:
       /* High part.  */
       emit_insn (gen_rtx_SET (VOIDmode, scratch, op1_hi));
-      emit_insn (gen_compareqi (scratch, op0_hi));
+      emit_insn (gen_compareqi_cc (scratch, op0_hi));
       m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
       m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
 
@@ -600,17 +644,54 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	  op0_lo = scratch;
 	}
 
-      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
       m65x_emit_cbranchqi (GEU, cc_reg, split_branch_probability, dest);
+      emit_label (new_label);
+      break;
+    
+    case LT:
+    case GE:
+      emit_insn (gen_compareqi_cc_c (op0_lo, op1_lo));
+      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
+      emit_insn (gen_sbcqi3_nv (scratch, scratch, op1_hi));
+      m65x_emit_cbranchqi (EQ, nvflags, split_branch_probability / 2,
+			   new_label);
+      emit_insn (gen_negate_highbit (scratch, scratch));
+      emit_label (new_label);
+      m65x_emit_cbranchqi (cond, nvflags, split_branch_probability, dest);
       break;
     
     default:
       gcc_unreachable ();
     }
-
-  if (new_label != NULL_RTX)
-    emit_label (new_label);
 }
+
+#undef TARGET_ASM_BYTE_OP
+#define TARGET_ASM_BYTE_OP "\t.byte\t"
+
+#undef TARGET_ASM_ALIGNED_HI_OP
+#define TARGET_ASM_ALIGNED_HI_OP "\t.word\t"
+
+#undef TARGET_ASM_ALIGNED_SI_OP
+#define TARGET_ASM_ALIGNED_SI_OP "\t.dword\t"
+
+#undef TARGET_ASM_ALIGNED_DI_OP
+#define TARGET_ASM_ALIGNED_DI_OP NULL
+
+#undef TARGET_ASM_ALIGNED_TI_OP
+#define TARGET_ASM_ALIGNED_TI_OP NULL
+
+#undef TARGET_ASM_UNALIGNED_HI_OP
+#define TARGET_ASM_UNALIGNED_HI_OP "\t.word\t"
+
+#undef TARGET_ASM_UNALIGNED_SI_OP
+#define TARGET_ASM_UNALIGNED_SI_OP "\t.dword\t"
+
+#undef TARGET_ASM_UNALIGNED_DI_OP
+#define TARGET_ASM_UNALIGNED_DI_OP NULL
+
+#undef TARGET_ASM_UNALIGNED_TI_OP
+#define TARGET_ASM_UNALIGNED_TI_OP NULL
 
 #undef TARGET_FUNCTION_ARG
 #define TARGET_FUNCTION_ARG m65x_function_arg

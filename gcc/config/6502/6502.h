@@ -376,6 +376,15 @@ typedef int CUMULATIVE_ARGS;
 #define NO_FUNCTION_CSE
 
 /*****************************************************************************
+ * Sections.
+ *****************************************************************************/
+
+#define TEXT_SECTION_ASM_OP		"\t.code"
+#define DATA_SECTION_ASM_OP		"\t.data"
+#define READONLY_DATA_SECTION_ASM_OP	"\t.rodata"
+#define BSS_SECTION_ASM_OP		"\t.bss"
+
+/*****************************************************************************
  * Assembler format.
  *****************************************************************************/
 
@@ -406,7 +415,7 @@ typedef int CUMULATIVE_ARGS;
   m65x_print_operand_address ((STREAM), (X))
 
 #define ASM_OUTPUT_ALIGN(STREAM, POWER) \
-  fprintf ((STREAM), ".align %d", (POWER))
+  fprintf ((STREAM), ".align %d", 1 << (POWER))
 
 #define ASM_FPRINTF_EXTENSIONS(FILE, ARGS, P)		\
   case 'r':						\
