@@ -177,10 +177,13 @@
        (match_test "INTVAL (op) == 5 || INTVAL (op) == 6")))
 
 (define_special_predicate "himode_comparison"
-  (match_code "eq,ne,gtu,ltu,geu,leu"))
+  (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
-(define_special_predicate "qimode_comparison"
+(define_special_predicate "qimode_uns_comparison"
   (match_code "eq,ne,ltu,geu"))
+
+(define_special_predicate "qimode_sgn_comparison"
+  (match_code "eq,ne,lt,ge"))
 
 (define_predicate "compareqi_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,const")
@@ -205,3 +208,6 @@
 	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
+
+(define_predicate "qimode_src_operand"
+  (match_operand 0 "compareqi_src_operand"))
