@@ -64,7 +64,7 @@
 })
 
 (define_predicate "movhi_src_operand"
-  (match_code "reg,subreg,const_int,mem,label_ref,const")
+  (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
   int regno;
 
@@ -73,7 +73,7 @@
 				    reload_in_progress || reload_completed))
     return true;
 
-  if (GET_CODE (op) == LABEL_REF)
+  if (GET_CODE (op) == LABEL_REF || GET_CODE (op) == SYMBOL_REF)
     return true;
 
   if (GET_CODE (op) == CONST_INT)
