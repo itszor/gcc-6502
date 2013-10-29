@@ -29,6 +29,37 @@
 #include "langhooks.h"
 #include "df.h"
 
+static void
+m65x_file_start (void)
+{
+  int i;
+  int zploc = 0x70;
+  
+  fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
+  fprintf (asm_out_file, "\t.psc02\n");
+  
+  fprintf (asm_out_file, "\t.define ah $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define ah2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define ah3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define xh $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define xh2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define xh3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define yh $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define yh2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define yh3 $%x\n", zploc++);
+  
+  fprintf (asm_out_file, "\t.define sp $%x\n", zploc);
+  zploc += 2;
+  fprintf (asm_out_file, "\t.define fp $%x\n", zploc);
+  zploc += 2;
+  
+  for (i = 0; i < 8; i++)
+    fprintf (asm_out_file, "\t.define a%d $%x\n", i, zploc++);
+
+  for (i = 0; i < 8; i++)
+    fprintf (asm_out_file, "\t.define s%d $%x\n", i, zploc++);
+}
+
 static void m65x_asm_globalize_label (FILE *, const char *);
 
 void
@@ -137,6 +168,62 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest)
 }
 
 
+void
+m65x_output_ascii (FILE *f, const char *str, int len)
+{
+  enum {
+    START,
+    PRINT,
+    NONPRINT
+  } state = START;
+  int i;
+  
+  for (i = 0; i < len; i++)
+    {
+      /* This doesn't pay much attention to character encoding issues...  */
+      if (str[i] < 32 || str[i] >= 127)
+        {
+	  switch (state)
+	    {
+	    case START:
+	      fprintf (f, "\t.byte $%x", str[i]);
+	      break;
+	    
+	    case PRINT:
+	      fprintf (f, "\", $%x", str[i]);
+	      break;
+
+	    case NONPRINT:
+	      fprintf (f, ", $%x", str[i]);
+	    }
+	  state = NONPRINT;
+	}
+      else
+        {
+	  switch (state)
+	    {
+	    case START:
+	      fprintf (f, "\t.byte \"%c", str[i]);
+	      break;
+	    
+	    case PRINT:
+	      fputc (str[i], f);
+	      break;
+	    
+	    case NONPRINT:
+	      fprintf (f, ", \"%c", str[i]);
+	    }
+	  state = PRINT;
+	}
+    }
+  
+  if (state == PRINT)
+    fputc ('"', f);
+
+  fputc ('\n', f);
+}
+
+
 static bool
 m65x_address_register_p (rtx x, int strict_p)
 {
@@ -156,7 +243,7 @@ m65x_address_register_p (rtx x, int strict_p)
 bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
-  if (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF)
+  if (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF || GET_CODE (x) == SYMBOL_REF)
     return true;
   
   if (m65x_address_register_p (x, strict))
@@ -361,6 +448,30 @@ m65x_reg_class_name (reg_class_t c)
   return NULL;
 }
 
+static bool
+base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
+{
+  int modesize = GET_MODE_SIZE (mode);
+  
+  if (!MEM_P (x))
+    return false;
+  
+  x = XEXP (x, 0);
+
+  if (REG_P (x) && REGNO_OK_FOR_BASE_P (REGNO (x)))
+    return true;
+
+  if (GET_CODE (x) == PLUS
+      && REG_P (XEXP (x, 0))
+      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0)))
+      && GET_CODE (XEXP (x, 1)) == CONST_INT
+      && INTVAL (XEXP (x, 1)) >= 0
+      && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+    return true;
+
+  return false;
+}
+
 static reg_class_t
 m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		       enum machine_mode reload_mode,
@@ -372,18 +483,34 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   debug_rtx (x);
 #endif
 
-  if (reload_mode == HImode)
+  if (reload_mode == QImode)
+    {
+      /* X needs to be copied to a register of class RELOAD_CLASS.  */
+      if (base_plus_const_byte_offset_mem (QImode, x))
+	{
+	  if (reload_class == HARD_ACCUM_REG || reload_class == ACCUM_REGS)
+	    {
+	      /* We can only do (zp),y addressing mode for the accumulator
+	         reg.  */
+	      sri->icode =
+		in_p ? CODE_FOR_reload_inqi_acc_indy
+		     : CODE_FOR_reload_outqi_acc_indy;
+	      return NO_REGS;
+	    }
+	  else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
+	    /* We're trying to load Y, so we can't use Y as scratch.  This
+	       will use the movhi_ldy_indy pattern.  */
+	    return NO_REGS;
+	  else
+	    return ACCUM_REGS;
+	}
+    }
+  else if (reload_mode == HImode)
     {
       if (in_p)
         {
 	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
-	  if (MEM_P (x)
-	      && ((GET_CODE (XEXP (x, 0)) == PLUS
-		   && REG_P (XEXP (XEXP (x, 0), 0))
-		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
-		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-		  || (REG_P (XEXP (x, 0))
-		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
+	  if (base_plus_const_byte_offset_mem (HImode, x))
 	    {
 	      if (reload_class == ACCUM_REGS)
 	        {
@@ -410,13 +537,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       else /* !in_p.  */
         {
 	  /* A register of class RELOAD_CLASS needs to be copied to X.  */
-	  if (MEM_P (x)
-	      && ((GET_CODE (XEXP (x, 0)) == PLUS
-		   && REG_P (XEXP (XEXP (x, 0), 0))
-		   && REGNO_OK_FOR_BASE_P (REGNO (XEXP (XEXP (x, 0), 0)))
-		   && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-		  || (REG_P (XEXP (x, 0))
-		      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0))))))
+	  if (base_plus_const_byte_offset_mem (HImode, x))
 	    {
 	      if (reload_class == ACCUM_REGS)
 	        {
@@ -665,6 +786,9 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       gcc_unreachable ();
     }
 }
+
+#undef TARGET_ASM_FILE_START
+#define TARGET_ASM_FILE_START m65x_file_start
 
 #undef TARGET_ASM_BYTE_OP
 #define TARGET_ASM_BYTE_OP "\t.byte\t"
