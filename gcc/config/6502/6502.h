@@ -391,8 +391,13 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_APP_OFF			""
 #define ASM_APP_ON			""
 
+/* Data Output.  */
+
+#define ASM_OUTPUT_ASCII(STREAM, PTR, LEN) \
+  m65x_output_ascii ((STREAM), (PTR), (LEN))
+
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL, PREFIX, NUM) \
-  sprintf (LABEL, "*.%s%u", PREFIX, (unsigned) (NUM))
+  sprintf (LABEL, "%s%u@int", PREFIX, (unsigned) (NUM))
 
 /* Instruction Output.  */
 
@@ -445,6 +450,10 @@ typedef int CUMULATIVE_ARGS;
 /* Prevent emission of call to __main.  */
 
 #define HAS_INIT_SECTION
+
+#define NO_DOLLAR_IN_LABEL
+
+#define NO_DOT_IN_LABEL
 
 /*****************************************************************************
  * Misc.

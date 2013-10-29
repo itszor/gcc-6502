@@ -5,6 +5,7 @@
 extern void m65x_print_operand (FILE *, rtx, int);
 extern void m65x_print_branch (enum machine_mode, rtx, rtx);
 extern void m65x_print_operand_address (FILE *, rtx);
+extern void m65x_output_ascii (FILE *, const char *, int);
 extern int m65x_mode_dependent_address_p (rtx);
 extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
 extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);

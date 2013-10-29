@@ -4,7 +4,8 @@
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
-  return REGNO (op) == ACC_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER;
+  return REG_P (op)
+	 && (REGNO (op) == ACC_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
 (define_predicate "x_reg_operand"
@@ -13,7 +14,8 @@
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
-  return (REGNO (op) == X_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+  return REG_P (op)
+	 && (REGNO (op) == X_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
 (define_predicate "y_reg_operand"
@@ -22,7 +24,8 @@
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
-  return (REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+  return REG_P (op)
+	 && (REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
 (define_predicate "index_reg_operand"
@@ -35,22 +38,26 @@
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
-  return (REGNO (op) == ACC_REGNUM || REGNO (op) == X_REGNUM
-	  || REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+  return REG_P (op)
+	 && (REGNO (op) == ACC_REGNUM || REGNO (op) == X_REGNUM
+	     || REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
-(define_predicate "movhi_dst_operand"
+(define_predicate "mov_dst_operand"
   (match_code "reg,subreg,mem")
 {
   int regno;
 
   if (MEM_P (op)
-      && m65x_legitimate_address_p (HImode, XEXP (op, 0),
+      && m65x_legitimate_address_p (mode, XEXP (op, 0),
 				    reload_in_progress || reload_completed))
     return true;
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
+  
+  if (!REG_P (op))
+    return false;
   
   regno = REGNO (op);
   
@@ -63,13 +70,13 @@
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
-(define_predicate "movhi_src_operand"
+(define_predicate "mov_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
   int regno;
 
   if (MEM_P (op)
-      && m65x_legitimate_address_p (HImode, XEXP (op, 0),
+      && m65x_legitimate_address_p (mode, XEXP (op, 0),
 				    reload_in_progress || reload_completed))
     return true;
 
@@ -89,6 +96,9 @@
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
+
+  if (!REG_P (op))
+    return false;
 
   regno = REGNO (op);
   
@@ -117,14 +127,10 @@
 (define_predicate "strict_zp_reg_operand"
   (match_code "reg,subreg")
 {
-  int regno;
-  
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
-  regno = REGNO (op);
-  
-  return IS_ZP_REGNUM (regno);
+  return REG_P (op) && IS_ZP_REGNUM (REGNO (op));
 })
 
 (define_predicate "zp_reg_operand"
@@ -134,6 +140,9 @@
   
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
+  
+  if (!REG_P (op))
+    return false;
   
   regno = REGNO (op);
   
@@ -151,6 +160,9 @@
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
+  if (!REG_P (op))
+    return false;
+  
   regno = REGNO (op);
 
   return IS_ZP_REGNUM (regno);
@@ -167,6 +179,10 @@
 (define_predicate "zp_reg_or_imm_operand"
   (ior (match_operand 0 "immediate_operand")
        (match_operand 0 "zp_reg_operand")))
+
+(define_predicate "const_byte_amount"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) >= 0 && INTVAL (op) < 256")))
 
 (define_predicate "shifthi_amount"
   (and (match_code "const_int")
@@ -200,6 +216,12 @@
 	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
 	      || GET_CODE (op) == SYMBOL_REF);
     }
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  if (!REG_P (op))
+    return false;
   
   regno = REGNO (op);
   
