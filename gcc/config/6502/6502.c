@@ -38,26 +38,26 @@ m65x_file_start (void)
   fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
   fprintf (asm_out_file, "\t.psc02\n");
   
-  fprintf (asm_out_file, "\t.define ah $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define ah2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define ah3 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define xh $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define xh2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define xh3 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define yh $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define yh2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define yh3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _ah $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _ah2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _ah3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _xh $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _xh2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _xh3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _yh $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _yh2 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _yh3 $%x\n", zploc++);
   
-  fprintf (asm_out_file, "\t.define sp $%x\n", zploc);
-  zploc += 2;
-  fprintf (asm_out_file, "\t.define fp $%x\n", zploc);
-  zploc += 2;
+  fprintf (asm_out_file, "\t.define _sp $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _sph $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _fp $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _fph $%x\n", zploc++);
   
   for (i = 0; i < 8; i++)
-    fprintf (asm_out_file, "\t.define a%d $%x\n", i, zploc++);
+    fprintf (asm_out_file, "\t.define _a%d $%x\n", i, zploc++);
 
   for (i = 0; i < 8; i++)
-    fprintf (asm_out_file, "\t.define s%d $%x\n", i, zploc++);
+    fprintf (asm_out_file, "\t.define _s%d $%x\n", i, zploc++);
 }
 
 static void m65x_asm_globalize_label (FILE *, const char *);
@@ -231,13 +231,19 @@ m65x_address_register_p (rtx x, int strict_p)
 
   if (!REG_P (x))
     return false;
-  
+    
+  if (strict_p)
+    {
+      regno = true_regnum (x);
+      return regno != -1 && IS_ZP_REGNUM (regno);
+    }
+
   regno = REGNO (x);
-  
-  if (!strict_p && regno >= FIRST_PSEUDO_REGISTER)
-    return true;
-  
-  return IS_ZP_REGNUM (regno);
+
+  return (IS_ZP_REGNUM (regno)
+	  || regno >= FIRST_PSEUDO_REGISTER
+	  || regno == FRAME_POINTER_REGNUM
+	  || regno == ARG_POINTER_REGNUM);
 }
 
 bool
@@ -245,6 +251,9 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF || GET_CODE (x) == SYMBOL_REF)
     return true;
+  
+  if (GET_CODE (x) == CONST)
+    x = XEXP (x, 0);
   
   if (m65x_address_register_p (x, strict))
     return true;
@@ -274,6 +283,42 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
     }
 
   return false;
+}
+
+static bool
+m65x_pseudo_register (rtx op)
+{
+  if (!REG_P (op) && GET_CODE (op) != SUBREG)
+    return false;
+
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+
+  if (REG_P (op)
+      && (REGNO (op) == ARG_POINTER_REGNUM
+	  || REGNO (op) == FRAME_POINTER_REGNUM
+	  || REGNO (op) >= FIRST_PSEUDO_REGISTER))
+    return true;
+
+  return false;
+}
+
+/* A simple address -- one which does not require any index registers to
+   form.  Mostly this is just constant addresses, but maybe it could be
+   zp-indirect on 65x variants supporting that.  */
+
+bool
+m65x_simple_address_p (enum machine_mode mode, rtx x)
+{
+  /* Allow (mem (reg)) addresses with pseudo registers, otherwise the compiler
+     gets upset.  */
+  if (m65x_pseudo_register (x)
+      || (GET_CODE (x) == PLUS && GET_CODE (XEXP (x, 1)) == CONST_INT
+	  && m65x_pseudo_register (XEXP (x, 0))))
+    return true;
+
+  return (CONSTANT_P (x) || GET_CODE (x) == LABEL_REF
+	  || GET_CODE (x) == SYMBOL_REF);
 }
 
 int
@@ -383,10 +428,13 @@ m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
   if (modesize == 1)
     return true;
 
+  if (modesize <= 0)
+    return regno >= 12;
+
   /* For the "hard" registers, force values to have the actual LSB in the hard
      register for greater-than-byte-size modes.  */
   if (regno < 12)
-    return (regno % 4) == 0;
+    return (regno % modesize) == 0;
   else
     return true;
 }
@@ -424,13 +472,13 @@ m65x_reg_class_name (reg_class_t c)
     {
     case NO_REGS: return "NO_REGS";
     case HARD_ACCUM_REG: return "HARD_ACCUM_REG";
-    case SOFT_ACCUM_REGS: return "SOFT_ACCUM_REGS";
     case ACCUM_REGS: return "ACCUM_REGS";
+    case WORD_ACCUM_REGS: return "WORD_ACCUM_REGS";
     case HARD_X_REG: return "HARD_X_REG";
-    case SOFT_X_REGS: return "SOFT_X_REGS";
+    case WORD_X_REGS: return "WORD_X_REGS";
     case X_REGS: return "X_REGS";
     case HARD_Y_REG: return "HARD_Y_REG";
-    case SOFT_Y_REGS: return "SOFT_Y_REGS";
+    case WORD_Y_REGS: return "WORD_Y_REGS";
     case Y_REGS: return "Y_REGS";
     case HARD_INDEX_REGS: return "HARD_INDEX_REGS";
     case INDEX_REGS: return "INDEX_REGS";
@@ -458,12 +506,12 @@ base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
   
   x = XEXP (x, 0);
 
-  if (REG_P (x) && REGNO_OK_FOR_BASE_P (REGNO (x)))
+  if (REG_P (x) && REGNO_OK_FOR_BASE_P (true_regnum (x)))
     return true;
 
   if (GET_CODE (x) == PLUS
       && REG_P (XEXP (x, 0))
-      && REGNO_OK_FOR_BASE_P (REGNO (XEXP (x, 0)))
+      && REGNO_OK_FOR_BASE_P (true_regnum (XEXP (x, 0)))
       && GET_CODE (XEXP (x, 1)) == CONST_INT
       && INTVAL (XEXP (x, 1)) >= 0
       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
@@ -488,96 +536,58 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       /* X needs to be copied to a register of class RELOAD_CLASS.  */
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
-	  if (reload_class == HARD_ACCUM_REG || reload_class == ACCUM_REGS)
+	  if (reload_class == HARD_ACCUM_REG)
 	    {
 	      /* We can only do (zp),y addressing mode for the accumulator
 	         reg.  */
-	      sri->icode =
-		in_p ? CODE_FOR_reload_inqi_acc_indy
-		     : CODE_FOR_reload_outqi_acc_indy;
+	      sri->icode = in_p ? CODE_FOR_reload_inqi_acc_indy
+				: CODE_FOR_reload_outqi_acc_indy;
 	      return NO_REGS;
 	    }
-	  else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
-	    /* We're trying to load Y, so we can't use Y as scratch.  This
-	       will use the movhi_ldy_indy pattern.  */
+	  else if (reload_class == HARD_Y_REG)
 	    return NO_REGS;
 	  else
-	    return ACCUM_REGS;
+	    return HARD_ACCUM_REG;
 	}
     }
   else if (reload_mode == HImode)
     {
-      if (in_p)
-        {
-	  /* X needs to be copied to a register of class RELOAD_CLASS.  */
-	  if (base_plus_const_byte_offset_mem (HImode, x))
+      /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
+	 else a register of class RELOAD_CLASS needs to be copied to X.  */
+      if (base_plus_const_byte_offset_mem (HImode, x))
+	{
+	  if (reload_class == HARD_ACCUM_REG || reload_class == WORD_ACCUM_REGS)
 	    {
-	      if (reload_class == ACCUM_REGS)
-	        {
-		  /* We can only do (zp),y addressing mode for the accumulator
-		     reg.  */
-		  sri->icode = CODE_FOR_reload_inhi_acc_indy;
-		  return NO_REGS;
-		}
-	      else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
-	        /* We're trying to load Y, so we can't use Y as scratch.  This
-		   will use the movhi_ldy_indy pattern.  */
-	        return NO_REGS;
-	      else
-	        return ACCUM_REGS;
+	      /* We can only do (zp),y addressing mode for the accumulator
+		 reg.  */
+	      sri->icode = in_p ? CODE_FOR_reload_inhi_acc_indy
+				: CODE_FOR_reload_outhi_acc_indy;
+	      return NO_REGS;
 	    }
-	  else if (MEM_P (x) && !CONSTANT_P (XEXP (x, 0)))
-	    {
-	      if (reload_class == ACCUM_REGS)
-	        return NO_REGS;
-	      else
-		return ACCUM_REGS;
-	    }
+	  else if (reload_class == HARD_Y_REG || reload_class == WORD_Y_REGS)
+	    /* We're trying to load/store Y, so we can't use Y as scratch.
+	       This will use the movhi_{ldy,sty}_indy pattern.  */
+	    return NO_REGS;
+	  else
+	    return WORD_ACCUM_REGS;
 	}
-      else /* !in_p.  */
-        {
-	  /* A register of class RELOAD_CLASS needs to be copied to X.  */
-	  if (base_plus_const_byte_offset_mem (HImode, x))
+      else
+	{
+	  if (reg_classes_intersect_p (reload_class, HARD_REGS))
 	    {
-	      if (reload_class == ACCUM_REGS)
+	      if (!in_p)
 	        {
-		  sri->icode = CODE_FOR_reload_outhi_acc_indy;
+		  /* Storing HImode hard registers (including ZP parts) needs
+		     a scratch register.  This arranges to have one
+		     available.  */
+		  sri->icode = CODE_FOR_reload_outhi_hardreg_abs;
 		  return NO_REGS;
 		}
-	      else if (reload_class == HARD_Y_REG || reload_class == Y_REGS)
-		/* This is a bit of a problem, we're trying to store Y, so
-		   we can't use Y as scratch.  This will use the inefficient
-		   movhi_sty_indy pattern.  */
-		return NO_REGS;
 	      else
-	        return ACCUM_REGS;
-	    }
-	  else if (MEM_P (x) && !CONSTANT_P (x))
-	    {
-	      if (reload_class == ACCUM_REGS)
 	        return NO_REGS;
-	      else
-		return ACCUM_REGS;
 	    }
-	  
-	  /* Storing hard register RELOAD_CLASS to a constant memory X.  Any
-	     other hard register can be used as a scratch.  */
-	  if (MEM_P (x) && CONSTANT_P (XEXP (x, 0))
-	      && HARD_REG_CLASS_P (reload_class))
-	    {
-	      sri->icode = CODE_FOR_reload_outhi_hardreg_abs;
-	      return NO_REGS;
-	    }
-	  
-	  /* We can do constant memory->memory moves if we have a scratch
-	     register.  This might not work!  If not we can use the peephole2
-	     trick instead.  */
-	  if (MEM_P (x) && CONSTANT_P (XEXP (x, 0))
-	      && reload_class == NO_REGS)
-	    {
-	      sri->icode = CODE_FOR_reload_outhi_noreg_abs;
-	      return NO_REGS;
-	    }
+	  else
+	    return HARDISH_REGS;
 	}
     }
 
@@ -585,50 +595,41 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 }
 
 bool
-m65x_valid_movhi_operands (rtx *operands)
+m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 {
   if (reload_in_progress)
     {
-      if (REG_P (operands[0]) && true_regnum (operands[0]) == -1)
-        return false;
+      if ((REG_P (operands[0]) || GET_CODE (operands[0]) == SUBREG)
+	  && true_regnum (operands[0]) == -1)
+	return false;
 
-      if (REG_P (operands[1]) && true_regnum (operands[1]) == -1)
-        return false;
+      if ((REG_P (operands[1]) || GET_CODE (operands[1]) == SUBREG)
+	  && true_regnum (operands[1]) == -1)
+	return false;
     }
   
   if (MEM_P (operands[0]))
-    {
-      if (CONSTANT_P (XEXP (operands[0], 0)))
-	return register_operand (operands[1], HImode);
-      else if (register_operand (XEXP (operands[0], 0), HImode)
-	       || (GET_CODE (XEXP (operands[0], 0)) == PLUS
-		   && REG_P (XEXP (XEXP (operands[0], 0), 0))
-		   && GET_CODE (XEXP (XEXP (operands[0], 0), 1)) == CONST_INT))
-	return !reload_in_progress && !reload_completed
-	       && register_operand (operands[1], HImode);
-      else
-        return false;
-    }
-  
-  if (MEM_P (operands[1]))
-    {
-      if (CONSTANT_P (XEXP (operands[1], 0)))
-        return register_operand (operands[0], HImode);
-      else if (register_operand (XEXP (operands[1], 0), HImode)
-	       || (GET_CODE (XEXP (operands[1], 0)) == PLUS
-		   && REG_P (XEXP (XEXP (operands[1], 0), 0))
-		   && GET_CODE (XEXP (XEXP (operands[1], 0), 1)) == CONST_INT))
-	return !reload_in_progress && !reload_completed
-	       && register_operand (operands[0], HImode);
-      else
-        return false;
-    }
-
-  if (register_operand (operands[0], HImode)
-      || register_operand (operands[1], HImode))
-    return true;
-  
-  return false;
+    return m65x_simple_address_p (mode, XEXP (operands[0], 0))
+	   && (register_operand (operands[1], mode)
+	       || immediate_operand (operands[1], mode));
+  else if (MEM_P (operands[1]))
+    return m65x_simple_address_p (mode, XEXP (operands[1], 0))
+	   && register_operand (operands[0], mode);
+  else
+    return (accumulator_operand (operands[0], mode)
+            && (index_reg_operand (operands[1], mode)
+	        || zp_reg_operand (operands[1], mode)))
+	   || (index_reg_operand (operands[0], mode)
+	       && accumulator_operand (operands[1], mode))
+           || (hard_reg_operand (operands[0], mode)
+	       && zp_reg_or_imm_operand (operands[1], mode))
+	   || (zp_reg_operand (operands[0], mode)
+	       && (hard_reg_operand (operands[1], mode)
+		   || zp_reg_or_imm_operand (operands[1], mode)))
+	   || (y_reg_operand (operands[0], mode)
+	       && x_reg_operand (operands[1], mode))
+	   || (x_reg_operand (operands[0], mode)
+	       && y_reg_operand (operands[1], mode));
 }
 
 static void
