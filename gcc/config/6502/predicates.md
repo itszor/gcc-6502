@@ -48,10 +48,8 @@
 {
   int regno;
 
-  if (MEM_P (op)
-      && m65x_legitimate_address_p (mode, XEXP (op, 0),
-				    reload_in_progress || reload_completed))
-    return true;
+  if (MEM_P (op))
+    return m65x_simple_address_p (mode, XEXP (op, 0));
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
@@ -75,10 +73,8 @@
 {
   int regno;
 
-  if (MEM_P (op)
-      && m65x_legitimate_address_p (mode, XEXP (op, 0),
-				    reload_in_progress || reload_completed))
-    return true;
+  if (MEM_P (op))
+    return m65x_simple_address_p (mode, XEXP (op, 0));
 
   if (GET_CODE (op) == LABEL_REF || GET_CODE (op) == SYMBOL_REF)
     return true;
@@ -154,17 +150,24 @@
 {
   int regno;
   
-  if (reload_in_progress && true_regnum (op) == -1)
-    return false;
-  
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
-  
-  if (!REG_P (op))
-    return false;
-  
-  regno = REGNO (op);
+  if (reload_in_progress)
+    {
+      regno = true_regnum (op);
 
+      if (regno == -1)
+	return false;
+    }
+  else
+    {
+      if (GET_CODE (op) == SUBREG)
+	op = SUBREG_REG (op);
+
+      if (!REG_P (op))
+        return false;
+
+      regno = REGNO (op);
+    }
+  
   return IS_ZP_REGNUM (regno);
 })
 
@@ -179,6 +182,11 @@
 (define_predicate "zp_reg_or_imm_operand"
   (ior (match_operand 0 "immediate_operand")
        (match_operand 0 "zp_reg_operand")))
+
+(define_predicate "zp_acc_imm_operand"
+  (ior (match_operand 0 "accumulator_operand")
+       (match_operand 0 "zp_reg_operand")
+       (match_operand 0 "immediate_operand")))
 
 (define_predicate "const_byte_amount"
   (and (match_code "const_int")
