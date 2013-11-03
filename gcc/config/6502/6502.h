@@ -87,6 +87,7 @@
    37: "
    38: "
    39: "
+   40: hard SP register
 */
 
 #define ACC_REGNUM 0
@@ -101,10 +102,14 @@
 #define FIRST_ZP_REGISTER SP_REGNUM
 #define LAST_ZP_REGISTER LAST_CALLER_SAVED
 #define CC_REGNUM 36
+#define HARDSP_REGNUM 40
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
    || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER))
+
+#define IS_HARD_REGNUM(X)					\
+  ((X) == ACC_REGNUM || (X) == X_REGNUM || (X) == Y_REGNUM)
 
 #define FIXED_REGISTERS		\
   { 0, 0, 0, 0, 0, 0, 0, 0,	\
@@ -114,7 +119,8 @@
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
-    1, 1, 1, 1, 1, 1, 1, 1 }
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    1 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -124,16 +130,18 @@
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
-    1, 1, 1, 1, 1, 1, 1, 1 }
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    1 }
 
-#define FIRST_PSEUDO_REGISTER 40
+#define FIRST_PSEUDO_REGISTER 41
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
     8, 9, 10, 11, 12, 13, 14, 15, \
     16, 17, 18, 19, 20, 21, 22, 23, \
     24, 25, 26, 27, 28, 29, 30, 31, \
-    32, 33, 34, 35, 36, 37, 38, 39 }
+    32, 33, 34, 35, 36, 37, 38, 39, \
+    40 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -157,13 +165,13 @@ enum reg_class
 {
   NO_REGS,
   HARD_ACCUM_REG,
-  SOFT_ACCUM_REGS,
+  WORD_ACCUM_REGS,
   ACCUM_REGS,
   HARD_X_REG,
-  SOFT_X_REGS,
+  WORD_X_REGS,
   X_REGS,
   HARD_Y_REG,
-  SOFT_Y_REGS,
+  WORD_Y_REGS,
   Y_REGS,
   HARD_INDEX_REGS,
   INDEX_REGS,
@@ -184,13 +192,13 @@ enum reg_class
 {				\
   "NO_REGS",			\
   "HARD_ACCUM_REG",		\
-  "SOFT_ACCUM_REGS",		\
+  "WORD_ACCUM_REGS",		\
   "ACCUM_REGS",			\
   "HARD_X_REG",			\
-  "SOFT_X_REGS",		\
+  "WORD_X_REGS",		\
   "X_REGS",			\
   "HARD_Y_REG",			\
-  "SOFT_Y_REGS",		\
+  "WORD_Y_REGS",		\
   "Y_REGS",			\
   "HARD_INDEX_REGS",		\
   "INDEX_REGS",			\
@@ -206,38 +214,41 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000, 0x00 },		\
-  { 0x00000001, 0x00 },		\
-  { 0x0000000e, 0x00 },		\
-  { 0x0000000f, 0x00 },		\
-  { 0x00000010, 0x00 },		\
-  { 0x000000e0, 0x00 },		\
-  { 0x000000f0, 0x00 },		\
-  { 0x00000100, 0x00 },		\
-  { 0x00000e00, 0x00 },		\
-  { 0x00000f00, 0x00 },		\
-  { 0x00000110, 0x00 },		\
-  { 0x00000ff0, 0x00 },		\
-  { 0x00000111, 0x00 },		\
-  { 0x00000fff, 0x00 },		\
-  { 0x0000f000, 0x00 },		\
-  { 0x00ff0000, 0x00 },		\
-  { 0xff000000, 0x00 },		\
-  { 0x00000000, 0xf0 },		\
-  { 0xfffffeee, 0x00 },		\
-  { 0xffffffff, 0xff },		\
+  { 0x00000000, 0x000 },	\
+  { 0x00000001, 0x000 },	\
+  { 0x00000003, 0x000 },	\
+  { 0x0000000f, 0x000 },	\
+  { 0x00000010, 0x000 },	\
+  { 0x00000030, 0x000 },	\
+  { 0x000000f0, 0x000 },	\
+  { 0x00000100, 0x000 },	\
+  { 0x00000300, 0x000 },	\
+  { 0x00000f00, 0x000 },	\
+  { 0x00000110, 0x000 },	\
+  { 0x00000330, 0x000 },	\
+  { 0x00000111, 0x000 },	\
+  { 0x00000333, 0x000 },	\
+  { 0x0000f000, 0x000 },	\
+  { 0x00ff0000, 0x000 },	\
+  { 0xff000000, 0x000 },	\
+  { 0x00000000, 0x0f0 },	\
+  { 0xfffffeee, 0x000 },	\
+  { 0xffffffff, 0x1ff },	\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
   ((REGNO) == ACC_REGNUM ? HARD_ACCUM_REG :				\
-   (REGNO) >= (ACC_REGNUM + 1) && (REGNO) < (ACC_REGNUM + 4)		\
-    ? SOFT_ACCUM_REGS :							\
+   (REGNO) == (ACC_REGNUM + 1) ? WORD_ACCUM_REGS :			\
+   (REGNO) >= (ACC_REGNUM + 2) && (REGNO) < (ACC_REGNUM + 4)		\
+    ? ACCUM_REGS :							\
    (REGNO) == X_REGNUM ? HARD_X_REG :					\
-   (REGNO) >= (X_REGNUM + 1) && (REGNO) < (X_REGNUM + 4)		\
-     ? SOFT_X_REGS :							\
+   (REGNO) == (X_REGNUM + 1) ? WORD_X_REGS :				\
+   (REGNO) >= (X_REGNUM + 2) && (REGNO) < (X_REGNUM + 4)		\
+     ? X_REGS :								\
    (REGNO) == Y_REGNUM ? HARD_Y_REG :					\
-   (REGNO) >= (Y_REGNUM + 1) && (REGNO) < (Y_REGNUM + 4)		\
-     ? SOFT_Y_REGS :							\
+   (REGNO) == (Y_REGNUM + 1) ? WORD_Y_REGS :				\
+   (REGNO) >= (Y_REGNUM + 2) && (REGNO) < (Y_REGNUM + 4)		\
+     ? Y_REGS :								\
    (REGNO) >= SP_REGNUM && (REGNO) <= (SP_REGNUM + 4) ? STACK_REG :	\
    (REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER	\
      ? ARG_REGS :							\
@@ -250,8 +261,7 @@ enum reg_class
 #define BASE_REG_CLASS	GENERAL_REGS
 #define INDEX_REG_CLASS	HARD_INDEX_REGS
 
-#define REGNO_OK_FOR_BASE_P(NUM) \
-  ((NUM) >= FIRST_ZP_REGISTER && (NUM) <= LAST_ZP_REGISTER)
+#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))
 
 #define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == X_REGNUM || (NUM) == Y_REGNUM)
 
@@ -401,16 +411,17 @@ typedef int CUMULATIVE_ARGS;
 
 /* Instruction Output.  */
 
-#define REGISTER_NAMES					\
-  {							\
-    "a", "ah", "ah2", "ah3",				\
-    "x", "xh", "xh2", "xh3",				\
-    "y", "yh", "yh2", "yh3",				\
-    "sp", "?sp", "fp", "?fp",				\
-    "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",	\
-    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",	\
-    "?vfpl", "?vfph", "?vapl", "?vaph",			\
-    "?cc", "?cc1", "?cc2", "?cc3"			\
+#define REGISTER_NAMES						\
+  {								\
+    "a", "ah", "ah2", "ah3",					\
+    "x", "xh", "xh2", "xh3",					\
+    "y", "yh", "yh2", "yh3",					\
+    "sp", "sph", "fp", "fph",					\
+    "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",		\
+    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
+    "?vfpl", "?vfph", "?vapl", "?vaph",				\
+    "?cc", "?cc1", "?cc2", "?cc3",				\
+    "?hardsp"							\
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
@@ -422,9 +433,9 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_OUTPUT_ALIGN(STREAM, POWER) \
   fprintf ((STREAM), ".align %d", 1 << (POWER))
 
-#define ASM_FPRINTF_EXTENSIONS(FILE, ARGS, P)		\
-  case 'r':						\
-    fputs (reg_names [va_arg (ARGS, int)], FILE);	\
+#define ASM_FPRINTF_EXTENSIONS(FILE, ARGS, P)			\
+  case 'r':							\
+    fprintf (FILE, "_%s", reg_names [va_arg (ARGS, int)]);	\
     break;
 
 /* Output of uninitialized variables.  */
