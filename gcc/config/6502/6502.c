@@ -296,26 +296,23 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 
   if (CONSTANT_ADDRESS_P (x))
     return true;
-  
-  if (m65x_indirect_indexed_addr_p (x, strict))
+
+  /*if (m65x_indirect_indexed_addr_p (x, strict))
+    return true;*/
+
+  if (m65x_address_register_p (x, strict))
     return true;
 
-  /* Possibly we can't outlaw plain (mem (reg)) addresses -- GCC seems to get
-     upset if we do.  This might be a bit of a problem for NMOS parts!  */
-  if (/*!strict &&*/ m65x_address_register_p (x, strict))
-    return true;
-
-  if (strict)
-    return false;
-
-  if (!reload_in_progress && !reload_completed && GET_CODE (x) == PLUS)
+  if (GET_CODE (x) == PLUS)
     {
       HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
 
       if (m65x_address_register_p (XEXP (x, 0), strict)
-	  && CONST_INT_P (XEXP (x, 1))
-	  && INTVAL (XEXP (x, 1)) >= 0
-	  && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+	  && ((!strict && CONST_INT_P (XEXP (x, 1))
+	       && INTVAL (XEXP (x, 1)) >= 0
+	       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+	      || (strict && REG_P (XEXP (x, 1))
+		  && REGNO (XEXP (x, 1)) == Y_REGNUM)))
 	return true;
     }
 
@@ -623,19 +620,17 @@ base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
   
   x = XEXP (x, 0);
 
-  if ((REG_P (x) /*|| GET_CODE (x) == SUBREG*/)
-      && REGNO_OK_FOR_BASE_P (true_regnum (x)))
+  if (REG_P (x))
     return true;
 
   if (GET_CODE (x) == PLUS
-      && (REG_P (XEXP (x, 0)) /*|| GET_CODE (XEXP (x, 0)) == SUBREG*/)
-      && REGNO_OK_FOR_BASE_P (true_regnum (XEXP (x, 0)))
+      && REG_P (XEXP (x, 0))
       && CONST_INT_P (XEXP (x, 1))
       && INTVAL (XEXP (x, 1)) >= 0
       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
     return true;
   
-  if (GET_CODE (x) == LO_SUM
+  if (0 && GET_CODE (x) == LO_SUM
       && (REG_P (XEXP (x, 0)) /*|| GET_CODE (XEXP (x, 0)) == SUBREG*/)
       && REGNO_OK_FOR_BASE_P (true_regnum (XEXP (x, 0))))
     {
@@ -698,6 +693,13 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       if (base_plus_const_byte_offset_mem (HImode, x))
 	{
 	  if (reload_class == HARD_ACCUM_REG || reload_class == WORD_ACCUM_REGS)
+	    {
+	      fprintf (stderr, "setting sri->icode!\n");
+	      sri->icode = in_p ? CODE_FOR_reload_inhi_acc_indy
+				: CODE_FOR_reload_outhi_acc_indy;
+	      return NO_REGS;
+	    }
+	  else if (reload_class == HARD_Y_REG || reload_class == WORD_Y_REGS)
 	    return NO_REGS;
 	  /*else if (reg_classes_intersect_p (reload_class, GENERAL_REGS))
 	    {
@@ -738,6 +740,13 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     }
 
   return NO_REGS;
+}
+
+static bool
+m65x_lra_p (void)
+{
+  /* Reload sux!  */
+  return true;
 }
 
 bool
@@ -1019,6 +1028,9 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 
 #undef TARGET_SECONDARY_RELOAD
 #define TARGET_SECONDARY_RELOAD m65x_secondary_reload
+
+#undef TARGET_LRA_P
+#define TARGET_LRA_P m65x_lra_p
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
