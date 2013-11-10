@@ -13,8 +13,6 @@
 (define_register_constraint "hh" "HARD_REGS")
 (define_register_constraint "hc" "HARDISH_REGS")
 
-(define_register_constraint "S" "STACK_REG")
-
 (define_constraint "I"
   "An integer 0-255."
   (and (match_code "const_int")
@@ -80,7 +78,19 @@
   (and (match_code "const_int")
        (match_test "ival == 15 || ival == 16")))
 
+(define_constraint "NB"
+  "An integer 1-8."
+  (and (match_code "const_int")
+       (match_test "ival >= 1 && ival <= 8")))
+
+(define_constraint "S"
+  "A symbol_ref or a label_ref or a subreg of either."
+  (and (match_code "symbol_ref,label_ref,subreg")
+       (match_test "GET_CODE (op) != SUBREG
+		    || GET_CODE (XEXP (op, 0)) == SYMBOL_REF
+		    || GET_CODE (XEXP (op, 0)) == LABEL_REF")))
+
 (define_memory_constraint "U"
   "A constant mem."
   (and (match_code "mem")
-       (match_test "CONSTANT_P (XEXP (op, 0))")))
+       (match_test "CONSTANT_ADDRESS_P (XEXP (op, 0))")))
