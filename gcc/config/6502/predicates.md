@@ -1,7 +1,7 @@
 (define_predicate "accumulator_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -11,7 +11,7 @@
 (define_predicate "x_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -21,7 +21,7 @@
 (define_predicate "y_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -35,7 +35,7 @@
 (define_predicate "hard_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG)
+  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -48,8 +48,8 @@
 {
   int regno;
 
-  if (MEM_P (op))
-    return m65x_simple_address_p (mode, XEXP (op, 0));
+  if (memory_operand (op, mode))
+    return true;
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
@@ -73,22 +73,11 @@
 {
   int regno;
 
-  if (MEM_P (op))
-    return m65x_simple_address_p (mode, XEXP (op, 0));
-
-  if (GET_CODE (op) == LABEL_REF || GET_CODE (op) == SYMBOL_REF)
+  if (memory_operand (op, mode))
     return true;
 
-  if (GET_CODE (op) == CONST_INT)
+  if (CONSTANT_P (op))
     return true;
-  
-  if (GET_CODE (op) == CONST)
-    {
-      op = XEXP (op, 0);
-      return ((GET_CODE (op) == PLUS && GET_CODE (XEXP (op, 0)) == SYMBOL_REF
-	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
-	      || GET_CODE (op) == SYMBOL_REF);
-    }
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
@@ -109,7 +98,7 @@
 
 (define_predicate "const_mem_operand"
   (and (match_code "mem")
-       (match_test "CONSTANT_P (XEXP (op, 0))")))
+       (match_test "CONSTANT_ADDRESS_P (XEXP (op, 0))")))
 
 (define_predicate "ind_y_mem_operand"
   (and (match_code "mem")
@@ -121,12 +110,12 @@
 		    && INTVAL (XEXP (XEXP (op, 0), 1)) < 256")))
 
 (define_predicate "strict_zp_reg_operand"
-  (match_code "reg,subreg")
+  (match_code "reg")
 {
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  /*if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);*/
   
-  return REG_P (op) && IS_ZP_REGNUM (REGNO (op));
+  return /*REG_P (op) &&*/ IS_ZP_REGNUM (REGNO (op));
 })
 
 (define_predicate "zp_reg_operand"
@@ -179,6 +168,9 @@
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
 
+(define_predicate "symlab_ref_operand"
+  (match_code "label_ref,symbol_ref"))
+
 (define_predicate "zp_reg_or_imm_operand"
   (ior (match_operand 0 "immediate_operand")
        (match_operand 0 "zp_reg_operand")))
@@ -200,6 +192,10 @@
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 5 || INTVAL (op) == 6")))
 
+(define_predicate "shiftqi_amount"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) >= 1 && INTVAL (op) <= 8")))
+
 (define_special_predicate "himode_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
@@ -210,23 +206,18 @@
   (match_code "eq,ne,lt,ge"))
 
 (define_predicate "compareqi_src_operand"
-  (match_code "reg,subreg,const_int,mem,label_ref,const")
+  (match_code "reg,const_int,mem,label_ref,const")
 {
   int regno;
   
-  if (MEM_P (op) || GET_CODE (op) == LABEL_REF || GET_CODE (op) == CONST_INT)
+  if (MEM_P (op))
     return true;
   
-  if (GET_CODE (op) == CONST)
-    {
-      op = XEXP (op, 0);
-      return ((GET_CODE (op) == PLUS && GET_CODE (XEXP (op, 0)) == SYMBOL_REF
-	       && GET_CODE (XEXP (op, 1)) == CONST_INT)
-	      || GET_CODE (op) == SYMBOL_REF);
-    }
-  
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
+  if (CONSTANT_P (op))
+    return true;
+
+  /*if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);*/
   
   if (!REG_P (op))
     return false;

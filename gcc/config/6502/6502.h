@@ -17,7 +17,7 @@
 /*#define LIBGCC2_WORDS_BIG_ENDIAN 	WORDS_BIG_ENDIAN*/
 
 #define BITS_PER_UNIT			8
-#define UNITS_PER_WORD			2
+#define UNITS_PER_WORD			1
 #define POINTER_SIZE			16
 #define POINTERS_EXTEND_UNSIGNED	1
 
@@ -63,14 +63,14 @@
    13 : sp/hi (zp)
    14 : fp/lo (zp)
    15 : fp/hi (zp)
-   16 : a0 (argument regs)
-   17 : a1
-   18 : a2
-   19 : a3
-   20 : a4
-   21 : a5
-   22 : a6
-   23 : a7
+   16 : r0 (argument regs)
+   17 : r1
+   18 : r2
+   19 : r3
+   20 : r4
+   21 : r5
+   22 : r6
+   23 : r7
    24 : s0 (callee-saved regs)
    25 : s1
    26 : s2
@@ -272,9 +272,11 @@ enum reg_class
 #define CLASS_MAX_NREGS(CLASS, MODE)		\
   (GET_MODE_SIZE (MODE))
 
+#if 0
 #define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, M) \
   (((CLASS1) == HARD_X_REG && (CLASS2) == HARD_Y_REG) \
-   || (CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG)
+   || ((CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG))
+#endif
 
 #define HARD_REG_CLASS_P(CLASS)					\
   ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\
@@ -365,15 +367,20 @@ typedef int CUMULATIVE_ARGS;
  * Addressing modes.
  *****************************************************************************/
 
-#define CONSTANT_ADDRESS_P(X) CONSTANT_P (X)
-
 #define MAX_REGS_PER_ADDRESS		2
 
 /*#define LEGITIMATE_CONSTANT_P(X)	1*/
 
-/*#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)	\
-  if (m65x_mode_dependent_address_p (ADDR))		\
-    goto LABEL;*/
+#define LEGITIMIZE_RELOAD_ADDRESS(X, MODE, OPNUM, TYPE, IND_L, WIN)	\
+  do {									\
+    rtx new_x = m65x_legitimize_reload_address (&(X), (MODE), (OPNUM),	\
+						(TYPE), (IND_L));	\
+    if (new_x)								\
+      {									\
+        (X) = new_x;							\
+	goto WIN;							\
+      }									\
+  } while (0)
 
 /*****************************************************************************
  * Costs.
@@ -407,7 +414,7 @@ typedef int CUMULATIVE_ARGS;
   m65x_output_ascii ((STREAM), (PTR), (LEN))
 
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL, PREFIX, NUM) \
-  sprintf (LABEL, "%s%u@int", PREFIX, (unsigned) (NUM))
+  sprintf (LABEL, "%s@%u", PREFIX, (unsigned) (NUM))
 
 /* Instruction Output.  */
 
@@ -417,7 +424,7 @@ typedef int CUMULATIVE_ARGS;
     "x", "xh", "xh2", "xh3",					\
     "y", "yh", "yh2", "yh3",					\
     "sp", "sph", "fp", "fph",					\
-    "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",		\
+    "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",		\
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
     "?cc", "?cc1", "?cc2", "?cc3",				\
@@ -444,7 +451,7 @@ typedef int CUMULATIVE_ARGS;
   do {								\
     fprintf ((STREAM), "\t.global ");				\
     assemble_name ((STREAM), (NAME));				\
-    fprintf ((STREAM), "\n%s:\n\t.res %d\n", (NAME), (SIZE));	\
+    fprintf ((STREAM), "\n%s:\n\t.res %d\n", (NAME), (int) (SIZE)); \
   } while (0)
 
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
