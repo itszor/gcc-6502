@@ -59,3 +59,26 @@ func ParForIters(desc *ParFor, tid uint32) (uint32, uint32) {
 	begin, end := parforiters(desc, uintptr(tid))
 	return uint32(begin), uint32(end)
 }
+
+func testSchedLocalQueue()
+func testSchedLocalQueueSteal()
+
+var TestSchedLocalQueue1 = testSchedLocalQueue
+var TestSchedLocalQueueSteal1 = testSchedLocalQueueSteal
+
+// func haveGoodHash() bool
+// func stringHash(s string, seed uintptr) uintptr
+// func bytesHash(b []byte, seed uintptr) uintptr
+// func int32Hash(i uint32, seed uintptr) uintptr
+// func int64Hash(i uint64, seed uintptr) uintptr
+
+// var HaveGoodHash = haveGoodHash
+// var StringHash = stringHash
+// var BytesHash = bytesHash
+// var Int32Hash = int32Hash
+// var Int64Hash = int64Hash
+
+// func GogoBytes() int32
+
+var hashLoad float64 // declared in hashmap.c
+var HashLoad = &hashLoad

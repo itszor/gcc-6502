@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 )
 
@@ -34,9 +35,12 @@ var _ = log.Printf
 // When opening a fakeDriver's database, it starts empty with no
 // tables.  All tables and data are stored in memory only.
 type fakeDriver struct {
-	mu        sync.Mutex
-	openCount int
-	dbs       map[string]*fakeDB
+	mu         sync.Mutex // guards 3 following fields
+	openCount  int        // conn opens
+	closeCount int        // conn closes
+	waitCh     chan struct{}
+	waitingCh  chan struct{}
+	dbs        map[string]*fakeDB
 }
 
 type fakeDB struct {
@@ -144,6 +148,12 @@ func (d *fakeDriver) Open(dsn string) (driver.Conn, error) {
 	if len(parts) >= 2 && parts[1] == "badConn" {
 		conn.bad = true
 	}
+	if d.waitCh != nil {
+		d.waitingCh <- struct{}{}
+		<-d.waitCh
+		d.waitCh = nil
+		d.waitingCh = nil
+	}
 	return conn, nil
 }
 
@@ -229,7 +239,43 @@ func (c *fakeConn) Begin() (driver.Tx, error) {
 	return c.currTx, nil
 }
 
-func (c *fakeConn) Close() error {
+var hookPostCloseConn struct {
+	sync.Mutex
+	fn func(*fakeConn, error)
+}
+
+func setHookpostCloseConn(fn func(*fakeConn, error)) {
+	hookPostCloseConn.Lock()
+	defer hookPostCloseConn.Unlock()
+	hookPostCloseConn.fn = fn
+}
+
+var testStrictClose *testing.T
+
+// setStrictFakeConnClose sets the t to Errorf on when fakeConn.Close
+// fails to close. If nil, the check is disabled.
+func setStrictFakeConnClose(t *testing.T) {
+	testStrictClose = t
+}
+
+func (c *fakeConn) Close() (err error) {
+	drv := fdriver.(*fakeDriver)
+	defer func() {
+		if err != nil && testStrictClose != nil {
+			testStrictClose.Errorf("failed to close a test fakeConn: %v", err)
+		}
+		hookPostCloseConn.Lock()
+		fn := hookPostCloseConn.fn
+		hookPostCloseConn.Unlock()
+		if fn != nil {
+			fn(c, err)
+		}
+		if err == nil {
+			drv.mu.Lock()
+			drv.closeCount++
+			drv.mu.Unlock()
+		}
+	}()
 	if c.currTx != nil {
 		return errors.New("can't close fakeConn; in a Transaction")
 	}
@@ -255,6 +301,18 @@ func checkSubsetTypes(args []driver.Value) error {
 }
 
 func (c *fakeConn) Exec(query string, args []driver.Value) (driver.Result, error) {
+	// This is an optional interface, but it's implemented here
+	// just to check that all the args are of the proper types.
+	// ErrSkip is returned so the caller acts as if we didn't
+	// implement this at all.
+	err := checkSubsetTypes(args)
+	if err != nil {
+		return nil, err
+	}
+	return nil, driver.ErrSkip
+}
+
+func (c *fakeConn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	// This is an optional interface, but it's implemented here
 	// just to check that all the args are of the proper types.
 	// ErrSkip is returned so the caller acts as if we didn't
@@ -397,6 +455,10 @@ func (c *fakeConn) Prepare(query string) (driver.Stmt, error) {
 		return c.prepareCreate(stmt, parts)
 	case "INSERT":
 		return c.prepareInsert(stmt, parts)
+	case "NOSERT":
+		// Do all the prep-work like for an INSERT but don't actually insert the row.
+		// Used for some of the concurrent tests.
+		return c.prepareInsert(stmt, parts)
 	default:
 		stmt.Close()
 		return nil, errf("unsupported command type %q", cmd)
@@ -412,6 +474,12 @@ func (s *fakeStmt) ColumnConverter(idx int) driver.ValueConverter {
 }
 
 func (s *fakeStmt) Close() error {
+	if s.c == nil {
+		panic("nil conn in fakeStmt.Close")
+	}
+	if s.c.db == nil {
+		panic("in fakeStmt.Close, conn's db is nil (already closed)")
+	}
 	if !s.closed {
 		s.c.incrStat(&s.c.stmtsClosed)
 		s.closed = true
@@ -441,13 +509,20 @@ func (s *fakeStmt) Exec(args []driver.Value) (driver.Result, error) {
 		}
 		return driver.ResultNoRows, nil
 	case "INSERT":
-		return s.execInsert(args)
+		return s.execInsert(args, true)
+	case "NOSERT":
+		// Do all the prep-work like for an INSERT but don't actually insert the row.
+		// Used for some of the concurrent tests.
+		return s.execInsert(args, false)
 	}
 	fmt.Printf("EXEC statement, cmd=%q: %#v\n", s.cmd, s)
 	return nil, fmt.Errorf("unimplemented statement Exec command type of %q", s.cmd)
 }
 
-func (s *fakeStmt) execInsert(args []driver.Value) (driver.Result, error) {
+// When doInsert is true, add the row to the table.
+// When doInsert is false do prep-work and error checking, but don't
+// actually add the row to the table.
+func (s *fakeStmt) execInsert(args []driver.Value, doInsert bool) (driver.Result, error) {
 	db := s.c.db
 	if len(args) != s.placeholders {
 		panic("error in pkg db; should only get here if size is correct")
@@ -462,7 +537,10 @@ func (s *fakeStmt) execInsert(args []driver.Value) (driver.Result, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	cols := make([]interface{}, len(t.colname))
+	var cols []interface{}
+	if doInsert {
+		cols = make([]interface{}, len(t.colname))
+	}
 	argPos := 0
 	for n, colname := range s.colName {
 		colidx := t.columnIndex(colname)
@@ -476,10 +554,14 @@ func (s *fakeStmt) execInsert(args []driver.Value) (driver.Result, error) {
 		} else {
 			val = s.colValue[n]
 		}
-		cols[colidx] = val
+		if doInsert {
+			cols[colidx] = val
+		}
 	}
 
-	t.rows = append(t.rows, &row{cols: cols})
+	if doInsert {
+		t.rows = append(t.rows, &row{cols: cols})
+	}
 	return driver.RowsAffected(1), nil
 }
 
@@ -503,6 +585,15 @@ func (s *fakeStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if !ok {
 		return nil, fmt.Errorf("fakedb: table %q doesn't exist", s.table)
 	}
+
+	if s.table == "magicquery" {
+		if len(s.whereCol) == 2 && s.whereCol[0] == "op" && s.whereCol[1] == "millis" {
+			if args[0] == "sleep" {
+				time.Sleep(time.Duration(args[1].(int64)) * time.Millisecond)
+			}
+		}
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -543,9 +634,10 @@ rows:
 	}
 
 	cursor := &rowsCursor{
-		pos:  -1,
-		rows: mrows,
-		cols: s.colName,
+		pos:    -1,
+		rows:   mrows,
+		cols:   s.colName,
+		errPos: -1,
 	}
 	return cursor, nil
 }
@@ -569,6 +661,10 @@ type rowsCursor struct {
 	pos    int
 	rows   []*row
 	closed bool
+
+	// errPos and err are for making Next return early with error.
+	errPos int
+	err    error
 
 	// a clone of slices to give out to clients, indexed by the
 	// the original slice's first byte address.  we clone them
@@ -595,6 +691,9 @@ func (rc *rowsCursor) Next(dest []driver.Value) error {
 		return errors.New("fakedb: cursor is closed")
 	}
 	rc.pos++
+	if rc.pos == rc.errPos {
+		return rc.err
+	}
 	if rc.pos >= len(rc.rows) {
 		return io.EOF // per interface spec
 	}

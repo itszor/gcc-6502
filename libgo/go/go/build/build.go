@@ -27,15 +27,31 @@ import (
 
 // A Context specifies the supporting context for a build.
 type Context struct {
-	GOARCH      string   // target architecture
-	GOOS        string   // target operating system
-	GOROOT      string   // Go root
-	GOPATH      string   // Go path
-	CgoEnabled  bool     // whether cgo can be used
-	BuildTags   []string // additional tags to recognize in +build lines
-	InstallTag  string   // package install directory suffix
-	UseAllFiles bool     // use files regardless of +build lines, file names
-	Compiler    string   // compiler to assume when computing target paths
+	GOARCH      string // target architecture
+	GOOS        string // target operating system
+	GOROOT      string // Go root
+	GOPATH      string // Go path
+	CgoEnabled  bool   // whether cgo can be used
+	UseAllFiles bool   // use files regardless of +build lines, file names
+	Compiler    string // compiler to assume when computing target paths
+
+	// The build and release tags specify build constraints
+	// that should be considered satisfied when processing +build lines.
+	// Clients creating a new context may customize BuildTags, which
+	// defaults to empty, but it is usually an error to customize ReleaseTags,
+	// which defaults to the list of Go releases the current release is compatible with.
+	// In addition to the BuildTags and ReleaseTags, build constraints
+	// consider the values of GOARCH and GOOS as satisfied tags.
+	BuildTags   []string
+	ReleaseTags []string
+
+	// The install suffix specifies a suffix to use in the name of the installation
+	// directory. By default it is empty, but custom builds that need to keep
+	// their outputs separate can set InstallSuffix to do so. For example, when
+	// using the race detector, the go command uses InstallSuffix = "race", so
+	// that on a Linux/386 system, packages are written to a directory named
+	// "linux_386_race" instead of the usual "linux_386".
+	InstallSuffix string
 
 	// By default, Import uses the operating system's file system calls
 	// to read directories and files.  To read from other sources,
@@ -117,12 +133,27 @@ func (ctxt *Context) hasSubdir(root, dir string) (rel string, ok bool) {
 		return f(root, dir)
 	}
 
-	if p, err := filepath.EvalSymlinks(root); err == nil {
-		root = p
+	// Try using paths we received.
+	if rel, ok = hasSubdir(root, dir); ok {
+		return
 	}
-	if p, err := filepath.EvalSymlinks(dir); err == nil {
-		dir = p
+
+	// Try expanding symlinks and comparing
+	// expanded against unexpanded and
+	// expanded against expanded.
+	rootSym, _ := filepath.EvalSymlinks(root)
+	dirSym, _ := filepath.EvalSymlinks(dir)
+
+	if rel, ok = hasSubdir(rootSym, dir); ok {
+		return
 	}
+	if rel, ok = hasSubdir(root, dirSym); ok {
+		return
+	}
+	return hasSubdir(rootSym, dirSym)
+}
+
+func hasSubdir(root, dir string) (rel string, ok bool) {
 	const sep = string(filepath.Separator)
 	root = filepath.Clean(root)
 	if !strings.HasSuffix(root, sep) {
@@ -181,6 +212,21 @@ func (ctxt *Context) gopath() []string {
 			// Do not get confused by this common mistake.
 			continue
 		}
+		if strings.HasPrefix(p, "~") {
+			// Path segments starting with ~ on Unix are almost always
+			// users who have incorrectly quoted ~ while setting GOPATH,
+			// preventing it from expanding to $HOME.
+			// The situation is made more confusing by the fact that
+			// bash allows quoted ~ in $PATH (most shells do not).
+			// Do not get confused by this, and do not try to use the path.
+			// It does not exist, and printing errors about it confuses
+			// those users even more, because they think "sure ~ exists!".
+			// The go command diagnoses this situation and prints a
+			// useful error.
+			// On Windows, ~ is used in short names, such as c:\progra~1
+			// for c:\program files.
+			continue
+		}
 		all = append(all, p)
 	}
 	return all
@@ -212,19 +258,23 @@ func (ctxt *Context) SrcDirs() []string {
 var Default Context = defaultContext()
 
 var cgoEnabled = map[string]bool{
-	"darwin/386":    true,
-	"darwin/amd64":  true,
-	"freebsd/386":   true,
-	"freebsd/amd64": true,
-	"linux/386":     true,
-	"linux/amd64":   true,
-	"linux/arm":     true,
-	"netbsd/386":    true,
-	"netbsd/amd64":  true,
-	"openbsd/386":   true,
-	"openbsd/amd64": true,
-	"windows/386":   true,
-	"windows/amd64": true,
+	"darwin/386":      true,
+	"darwin/amd64":    true,
+	"dragonfly/386":   true,
+	"dragonfly/amd64": true,
+	"freebsd/386":     true,
+	"freebsd/amd64":   true,
+	"freebsd/arm":     true,
+	"linux/386":       true,
+	"linux/amd64":     true,
+	"linux/arm":       true,
+	"netbsd/386":      true,
+	"netbsd/amd64":    true,
+	"netbsd/arm":      true,
+	"openbsd/386":     true,
+	"openbsd/amd64":   true,
+	"windows/386":     true,
+	"windows/amd64":   true,
 }
 
 func defaultContext() Context {
@@ -236,13 +286,30 @@ func defaultContext() Context {
 	c.GOPATH = envOr("GOPATH", "")
 	c.Compiler = runtime.Compiler
 
+	// Each major Go release in the Go 1.x series should add a tag here.
+	// Old tags should not be removed. That is, the go1.x tag is present
+	// in all releases >= Go 1.x. Code that requires Go 1.x or later should
+	// say "+build go1.x", and code that should only be built before Go 1.x
+	// (perhaps it is the stub to use in that case) should say "+build !go1.x".
+	//
+	// When we reach Go 1.3 the line will read
+	//	c.ReleaseTags = []string{"go1.1", "go1.2", "go1.3"}
+	// and so on.
+	c.ReleaseTags = []string{"go1.1", "go1.2"}
+
 	switch os.Getenv("CGO_ENABLED") {
 	case "1":
 		c.CgoEnabled = true
 	case "0":
 		c.CgoEnabled = false
 	default:
-		c.CgoEnabled = cgoEnabled[c.GOOS+"/"+c.GOARCH]
+		// golang.org/issue/5141
+		// cgo should be disabled for cross compilation builds
+		if runtime.GOARCH == c.GOARCH && runtime.GOOS == c.GOOS {
+			c.CgoEnabled = cgoEnabled[c.GOOS+"/"+c.GOARCH]
+			break
+		}
+		c.CgoEnabled = false
 	}
 
 	return c
@@ -272,31 +339,37 @@ const (
 
 // A Package describes the Go package found in a directory.
 type Package struct {
-	Dir        string // directory containing package sources
-	Name       string // package name
-	Doc        string // documentation synopsis
-	ImportPath string // import path of package ("" if unknown)
-	Root       string // root of Go tree where this package lives
-	SrcRoot    string // package source root directory ("" if unknown)
-	PkgRoot    string // package install root directory ("" if unknown)
-	BinDir     string // command install directory ("" if unknown)
-	Goroot     bool   // package found in Go root
-	PkgObj     string // installed .a file
+	Dir         string   // directory containing package sources
+	Name        string   // package name
+	Doc         string   // documentation synopsis
+	ImportPath  string   // import path of package ("" if unknown)
+	Root        string   // root of Go tree where this package lives
+	SrcRoot     string   // package source root directory ("" if unknown)
+	PkgRoot     string   // package install root directory ("" if unknown)
+	BinDir      string   // command install directory ("" if unknown)
+	Goroot      bool     // package found in Go root
+	PkgObj      string   // installed .a file
+	AllTags     []string // tags that can influence file selection in this directory
+	ConflictDir string   // this directory shadows Dir in $GOPATH
 
 	// Source files
-	GoFiles      []string // .go source files (excluding CgoFiles, TestGoFiles, XTestGoFiles)
-	CgoFiles     []string // .go source files that import "C"
-	CFiles       []string // .c source files
-	HFiles       []string // .h source files
-	SFiles       []string // .s source files
-	SysoFiles    []string // .syso system object files to add to archive
-	SwigFiles    []string // .swig files
-	SwigCXXFiles []string // .swigcxx files
+	GoFiles        []string // .go source files (excluding CgoFiles, TestGoFiles, XTestGoFiles)
+	CgoFiles       []string // .go source files that import "C"
+	IgnoredGoFiles []string // .go source files ignored for this build
+	CFiles         []string // .c source files
+	CXXFiles       []string // .cc, .cpp and .cxx source files
+	HFiles         []string // .h, .hh, .hpp and .hxx source files
+	SFiles         []string // .s source files
+	SwigFiles      []string // .swig files
+	SwigCXXFiles   []string // .swigcxx files
+	SysoFiles      []string // .syso system object files to add to archive
 
 	// Cgo directives
-	CgoPkgConfig []string // Cgo pkg-config directives
 	CgoCFLAGS    []string // Cgo CFLAGS directives
+	CgoCPPFLAGS  []string // Cgo CPPFLAGS directives
+	CgoCXXFLAGS  []string // Cgo CXXFLAGS directives
 	CgoLDFLAGS   []string // Cgo LDFLAGS directives
+	CgoPkgConfig []string // Cgo pkg-config directives
 
 	// Dependency information
 	Imports   []string                    // imports from GoFiles, CgoFiles
@@ -325,13 +398,22 @@ func (ctxt *Context) ImportDir(dir string, mode ImportMode) (*Package, error) {
 }
 
 // NoGoError is the error used by Import to describe a directory
-// containing no Go source files.
+// containing no buildable Go source files. (It may still contain
+// test files, files hidden by build tags, and so on.)
 type NoGoError struct {
 	Dir string
 }
 
 func (e *NoGoError) Error() string {
-	return "no Go source files in " + e.Dir
+	return "no buildable Go source files in " + e.Dir
+}
+
+func nameExt(name string) string {
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		return ""
+	}
+	return name[i:]
 }
 
 // Import returns details about the Go package named by the import path,
@@ -363,13 +445,13 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 	switch ctxt.Compiler {
 	case "gccgo":
 		dir, elem := pathpkg.Split(p.ImportPath)
-		pkga = "pkg/gccgo/" + dir + "lib" + elem + ".a"
+		pkga = "pkg/gccgo_" + ctxt.GOOS + "_" + ctxt.GOARCH + "/" + dir + "lib" + elem + ".a"
 	case "gc":
-		tag := ""
-		if ctxt.InstallTag != "" {
-			tag = "_" + ctxt.InstallTag
+		suffix := ""
+		if ctxt.InstallSuffix != "" {
+			suffix = "_" + ctxt.InstallSuffix
 		}
-		pkga = "pkg/" + ctxt.GOOS + "_" + ctxt.GOARCH + tag + "/" + p.ImportPath + ".a"
+		pkga = "pkg/" + ctxt.GOOS + "_" + ctxt.GOARCH + suffix + "/" + p.ImportPath + ".a"
 	default:
 		// Save error for end of function.
 		pkgerr = fmt.Errorf("import %q: unknown compiler %q", path, ctxt.Compiler)
@@ -403,11 +485,13 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 				// else first.
 				if ctxt.GOROOT != "" {
 					if dir := ctxt.joinPath(ctxt.GOROOT, "src", "pkg", sub); ctxt.isDir(dir) {
+						p.ConflictDir = dir
 						goto Found
 					}
 				}
 				for _, earlyRoot := range all[:i] {
 					if dir := ctxt.joinPath(earlyRoot, "src", sub); ctxt.isDir(dir) {
+						p.ConflictDir = dir
 						goto Found
 					}
 				}
@@ -426,7 +510,7 @@ func (ctxt *Context) Import(path string, srcDir string, mode ImportMode) (*Packa
 			return p, fmt.Errorf("import %q: cannot import absolute path", path)
 		}
 
-		// tried records the location of unsucsessful package lookups
+		// tried records the location of unsuccessful package lookups
 		var tried struct {
 			goroot string
 			gopath []string
@@ -509,58 +593,24 @@ Found:
 	imported := make(map[string][]token.Position)
 	testImported := make(map[string][]token.Position)
 	xTestImported := make(map[string][]token.Position)
+	allTags := make(map[string]bool)
 	fset := token.NewFileSet()
 	for _, d := range dirs {
 		if d.IsDir() {
 			continue
 		}
+
 		name := d.Name()
-		if strings.HasPrefix(name, "_") ||
-			strings.HasPrefix(name, ".") {
-			continue
-		}
-		if !ctxt.UseAllFiles && !ctxt.goodOSArchFile(name) {
-			continue
-		}
+		ext := nameExt(name)
 
-		i := strings.LastIndex(name, ".")
-		if i < 0 {
-			i = len(name)
-		}
-		ext := name[i:]
-		switch ext {
-		case ".go", ".c", ".s", ".h", ".S", ".swig", ".swigcxx":
-			// tentatively okay - read to make sure
-		case ".syso":
-			// binary objects to add to package archive
-			// Likely of the form foo_windows.syso, but
-			// the name was vetted above with goodOSArchFile.
-			p.SysoFiles = append(p.SysoFiles, name)
-			continue
-		default:
-			// skip
-			continue
-		}
-
-		filename := ctxt.joinPath(p.Dir, name)
-		f, err := ctxt.openFile(filename)
+		match, data, filename, err := ctxt.matchFile(p.Dir, name, true, allTags)
 		if err != nil {
 			return p, err
 		}
-
-		var data []byte
-		if strings.HasSuffix(filename, ".go") {
-			data, err = readImports(f, false)
-		} else {
-			data, err = readComments(f)
-		}
-		f.Close()
-		if err != nil {
-			return p, fmt.Errorf("read %s: %v", filename, err)
-		}
-
-		// Look for +build comments to accept or reject the file.
-		if !ctxt.UseAllFiles && !ctxt.shouldBuild(data) {
+		if !match {
+			if ext == ".go" {
+				p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
+			}
 			continue
 		}
 
@@ -569,7 +619,10 @@ Found:
 		case ".c":
 			p.CFiles = append(p.CFiles, name)
 			continue
-		case ".h":
+		case ".cc", ".cpp", ".cxx":
+			p.CXXFiles = append(p.CXXFiles, name)
+			continue
+		case ".h", ".hh", ".hpp", ".hxx":
 			p.HFiles = append(p.HFiles, name)
 			continue
 		case ".s":
@@ -584,6 +637,12 @@ Found:
 		case ".swigcxx":
 			p.SwigCXXFiles = append(p.SwigCXXFiles, name)
 			continue
+		case ".syso":
+			// binary objects to add to package archive
+			// Likely of the form foo_windows.syso, but
+			// the name was vetted above with goodOSArchFile.
+			p.SysoFiles = append(p.SysoFiles, name)
+			continue
 		}
 
 		pf, err := parser.ParseFile(fset, filename, data, parser.ImportsOnly|parser.ParseComments)
@@ -593,6 +652,7 @@ Found:
 
 		pkg := pf.Name.Name
 		if pkg == "documentation" {
+			p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
 			continue
 		}
 
@@ -655,8 +715,11 @@ Found:
 			}
 		}
 		if isCgo {
+			allTags["cgo"] = true
 			if ctxt.CgoEnabled {
 				p.CgoFiles = append(p.CgoFiles, name)
+			} else {
+				p.IgnoredGoFiles = append(p.IgnoredGoFiles, name)
 			}
 		} else if isXTest {
 			p.XTestGoFiles = append(p.XTestGoFiles, name)
@@ -666,9 +729,14 @@ Found:
 			p.GoFiles = append(p.GoFiles, name)
 		}
 	}
-	if p.Name == "" {
+	if len(p.GoFiles)+len(p.CgoFiles)+len(p.TestGoFiles)+len(p.XTestGoFiles) == 0 {
 		return p, &NoGoError{p.Dir}
 	}
+
+	for tag := range allTags {
+		p.AllTags = append(p.AllTags, tag)
+	}
+	sort.Strings(p.AllTags)
 
 	p.Imports, p.ImportPos = cleanImports(imported)
 	p.TestImports, p.TestImportPos = cleanImports(testImported)
@@ -683,6 +751,79 @@ Found:
 	}
 
 	return p, pkgerr
+}
+
+// MatchFile reports whether the file with the given name in the given directory
+// matches the context and would be included in a Package created by ImportDir
+// of that directory.
+//
+// MatchFile considers the name of the file and may use ctxt.OpenFile to
+// read some or all of the file's content.
+func (ctxt *Context) MatchFile(dir, name string) (match bool, err error) {
+	match, _, _, err = ctxt.matchFile(dir, name, false, nil)
+	return
+}
+
+// matchFile determines whether the file with the given name in the given directory
+// should be included in the package being constructed.
+// It returns the data read from the file.
+// If returnImports is true and name denotes a Go program, matchFile reads
+// until the end of the imports (and returns that data) even though it only
+// considers text until the first non-comment.
+// If allTags is non-nil, matchFile records any encountered build tag
+// by setting allTags[tag] = true.
+func (ctxt *Context) matchFile(dir, name string, returnImports bool, allTags map[string]bool) (match bool, data []byte, filename string, err error) {
+	if strings.HasPrefix(name, "_") ||
+		strings.HasPrefix(name, ".") {
+		return
+	}
+
+	i := strings.LastIndex(name, ".")
+	if i < 0 {
+		i = len(name)
+	}
+	ext := name[i:]
+
+	if !ctxt.goodOSArchFile(name, allTags) && !ctxt.UseAllFiles {
+		return
+	}
+
+	switch ext {
+	case ".go", ".c", ".cc", ".cxx", ".cpp", ".s", ".h", ".hh", ".hpp", ".hxx", ".S", ".swig", ".swigcxx":
+		// tentatively okay - read to make sure
+	case ".syso":
+		// binary, no reading
+		match = true
+		return
+	default:
+		// skip
+		return
+	}
+
+	filename = ctxt.joinPath(dir, name)
+	f, err := ctxt.openFile(filename)
+	if err != nil {
+		return
+	}
+
+	if strings.HasSuffix(filename, ".go") {
+		data, err = readImports(f, false)
+	} else {
+		data, err = readComments(f)
+	}
+	f.Close()
+	if err != nil {
+		err = fmt.Errorf("read %s: %v", filename, err)
+		return
+	}
+
+	// Look for +build comments to accept or reject the file.
+	if !ctxt.shouldBuild(data, allTags) && !ctxt.UseAllFiles {
+		return
+	}
+
+	match = true
+	return
 }
 
 func cleanImports(m map[string][]token.Position) ([]string, map[string][]token.Position) {
@@ -719,7 +860,7 @@ var slashslash = []byte("//")
 //
 // marks the file as applicable only on Windows and Linux.
 //
-func (ctxt *Context) shouldBuild(content []byte) bool {
+func (ctxt *Context) shouldBuild(content []byte, allTags map[string]bool) bool {
 	// Pass 1. Identify leading run of // comments and blank lines,
 	// which must be followed by a blank line.
 	end := 0
@@ -744,6 +885,7 @@ func (ctxt *Context) shouldBuild(content []byte) bool {
 
 	// Pass 2.  Process each line in the run.
 	p = content
+	allok := true
 	for len(p) > 0 {
 		line := p
 		if i := bytes.IndexByte(line, '\n'); i >= 0 {
@@ -760,24 +902,24 @@ func (ctxt *Context) shouldBuild(content []byte) bool {
 				if f[0] == "+build" {
 					ok := false
 					for _, tok := range f[1:] {
-						if ctxt.match(tok) {
+						if ctxt.match(tok, allTags) {
 							ok = true
-							break
 						}
 					}
 					if !ok {
-						return false // this one doesn't match
+						allok = false
 					}
 				}
 			}
 		}
 	}
-	return true // everything matches
+
+	return allok
 }
 
 // saveCgo saves the information from the #cgo lines in the import "C" comment.
-// These lines set CFLAGS and LDFLAGS and pkg-config directives that affect
-// the way cgo's C code is built.
+// These lines set CFLAGS, CPPFLAGS, CXXFLAGS and LDFLAGS and pkg-config directives
+// that affect the way cgo's C code is built.
 //
 // TODO(rsc): This duplicates code in cgo.
 // Once the dust settles, remove this code from cgo.
@@ -812,7 +954,7 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 		if len(cond) > 0 {
 			ok := false
 			for _, c := range cond {
-				if ctxt.match(c) {
+				if ctxt.match(c, nil) {
 					ok = true
 					break
 				}
@@ -827,7 +969,7 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 			return fmt.Errorf("%s: invalid #cgo line: %s", filename, orig)
 		}
 		for _, arg := range args {
-			if !safeName(arg) {
+			if !safeCgoName(arg) {
 				return fmt.Errorf("%s: malformed #cgo argument: %s", filename, arg)
 			}
 		}
@@ -835,6 +977,10 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 		switch verb {
 		case "CFLAGS":
 			di.CgoCFLAGS = append(di.CgoCFLAGS, args...)
+		case "CPPFLAGS":
+			di.CgoCPPFLAGS = append(di.CgoCPPFLAGS, args...)
+		case "CXXFLAGS":
+			di.CgoCXXFLAGS = append(di.CgoCXXFLAGS, args...)
 		case "LDFLAGS":
 			di.CgoLDFLAGS = append(di.CgoLDFLAGS, args...)
 		case "pkg-config":
@@ -846,9 +992,12 @@ func (ctxt *Context) saveCgo(filename string, di *Package, cg *ast.CommentGroup)
 	return nil
 }
 
-var safeBytes = []byte("+-.,/0123456789=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz:")
+// NOTE: $ is not safe for the shell, but it is allowed here because of linker options like -Wl,$ORIGIN.
+// We never pass these arguments to a shell (just to programs we construct argv for), so this should be okay.
+// See golang.org/issue/6038.
+var safeBytes = []byte("+-.,/0123456789=ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz:$")
 
-func safeName(s string) bool {
+func safeCgoName(s string) bool {
 	if s == "" {
 		return false
 	}
@@ -929,29 +1078,38 @@ func splitQuoted(s string) (r []string, err error) {
 //	!cgo (if cgo is disabled)
 //	ctxt.Compiler
 //	!ctxt.Compiler
-//	tag (if tag is listed in ctxt.BuildTags)
-//	!tag (if tag is not listed in ctxt.BuildTags)
+//	tag (if tag is listed in ctxt.BuildTags or ctxt.ReleaseTags)
+//	!tag (if tag is not listed in ctxt.BuildTags or ctxt.ReleaseTags)
 //	a comma-separated list of any of these
 //
-func (ctxt *Context) match(name string) bool {
+func (ctxt *Context) match(name string, allTags map[string]bool) bool {
 	if name == "" {
+		if allTags != nil {
+			allTags[name] = true
+		}
 		return false
 	}
 	if i := strings.Index(name, ","); i >= 0 {
 		// comma-separated list
-		return ctxt.match(name[:i]) && ctxt.match(name[i+1:])
+		ok1 := ctxt.match(name[:i], allTags)
+		ok2 := ctxt.match(name[i+1:], allTags)
+		return ok1 && ok2
 	}
 	if strings.HasPrefix(name, "!!") { // bad syntax, reject always
 		return false
 	}
 	if strings.HasPrefix(name, "!") { // negation
-		return len(name) > 1 && !ctxt.match(name[1:])
+		return len(name) > 1 && !ctxt.match(name[1:], allTags)
 	}
 
-	// Tags must be letters, digits, underscores.
+	if allTags != nil {
+		allTags[name] = true
+	}
+
+	// Tags must be letters, digits, underscores or dots.
 	// Unlike in Go identifiers, all digits are fine (e.g., "386").
 	for _, c := range name {
-		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' {
+		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' && c != '.' {
 			return false
 		}
 	}
@@ -966,6 +1124,11 @@ func (ctxt *Context) match(name string) bool {
 
 	// other tags
 	for _, tag := range ctxt.BuildTags {
+		if tag == name {
+			return true
+		}
+	}
+	for _, tag := range ctxt.ReleaseTags {
 		if tag == name {
 			return true
 		}
@@ -985,7 +1148,7 @@ func (ctxt *Context) match(name string) bool {
 //     name_$(GOARCH)_test.*
 //     name_$(GOOS)_$(GOARCH)_test.*
 //
-func (ctxt *Context) goodOSArchFile(name string) bool {
+func (ctxt *Context) goodOSArchFile(name string, allTags map[string]bool) bool {
 	if dot := strings.Index(name, "."); dot != -1 {
 		name = name[:dot]
 	}
@@ -995,12 +1158,22 @@ func (ctxt *Context) goodOSArchFile(name string) bool {
 	}
 	n := len(l)
 	if n >= 2 && knownOS[l[n-2]] && knownArch[l[n-1]] {
+		if allTags != nil {
+			allTags[l[n-2]] = true
+			allTags[l[n-1]] = true
+		}
 		return l[n-2] == ctxt.GOOS && l[n-1] == ctxt.GOARCH
 	}
 	if n >= 1 && knownOS[l[n-1]] {
+		if allTags != nil {
+			allTags[l[n-1]] = true
+		}
 		return l[n-1] == ctxt.GOOS
 	}
 	if n >= 1 && knownArch[l[n-1]] {
+		if allTags != nil {
+			allTags[l[n-1]] = true
+		}
 		return l[n-1] == ctxt.GOARCH
 	}
 	return true

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin freebsd linux netbsd openbsd windows
+// +build darwin dragonfly freebsd linux netbsd openbsd windows
 
 package os
 
@@ -118,9 +118,9 @@ func (p *ProcessState) String() string {
 	case status.Exited():
 		res = "exit status " + itod(status.ExitStatus())
 	case status.Signaled():
-		res = "signal " + itod(int(status.Signal()))
+		res = "signal: " + status.Signal().String()
 	case status.Stopped():
-		res = "stop signal " + itod(int(status.StopSignal()))
+		res = "stop signal: " + status.StopSignal().String()
 		if status.StopSignal() == syscall.SIGTRAP && status.TrapCause() != 0 {
 			res += " (trap " + itod(status.TrapCause()) + ")"
 		}

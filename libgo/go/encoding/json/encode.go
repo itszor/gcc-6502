@@ -3,7 +3,8 @@
 // license that can be found in the LICENSE file.
 
 // Package json implements encoding and decoding of JSON objects as defined in
-// RFC 4627.
+// RFC 4627. The mapping between JSON objects and Go values is described
+// in the documentation for the Marshal and Unmarshal functions.
 //
 // See "JSON and Go" for an introduction to this package:
 // http://golang.org/doc/articles/json_and_go.html
@@ -11,6 +12,7 @@ package json
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/base64"
 	"math"
 	"reflect"
@@ -38,8 +40,8 @@ import (
 //
 // Floating point, integer, and Number values encode as JSON numbers.
 //
-// String values encode as JSON strings, with each invalid UTF-8 sequence
-// replaced by the encoding of the Unicode replacement character U+FFFD.
+// String values encode as JSON strings. InvalidUTF8Error will be returned
+// if an invalid UTF-8 sequence is encountered.
 // The angle brackets "<" and ">" are escaped to "\u003c" and "\u003e"
 // to keep some browsers from misinterpreting JSON output as HTML.
 //
@@ -86,9 +88,21 @@ import (
 // underscores and slashes.
 //
 // Anonymous struct fields are usually marshaled as if their inner exported fields
-// were fields in the outer struct, subject to the usual Go visibility rules.
+// were fields in the outer struct, subject to the usual Go visibility rules amended
+// as described in the next paragraph.
 // An anonymous struct field with a name given in its JSON tag is treated as
-// having that name instead of as anonymous.
+// having that name, rather than being anonymous.
+//
+// The Go visibility rules for struct fields are amended for JSON when
+// deciding which field to marshal or unmarshal. If there are
+// multiple fields at the same level, and that level is the least
+// nested (and would therefore be the nesting level selected by the
+// usual Go rules), the following extra rules apply:
+//
+// 1) Of those fields, if any are JSON-tagged, only tagged fields are considered,
+// even if there are multiple untagged fields that would otherwise conflict.
+// 2) If there is exactly one field (tagged or not according to the first rule), that is selected.
+// 3) Otherwise there are multiple fields, and all are ignored; no error occurs.
 //
 // Handling of anonymous struct fields is new in Go 1.1.
 // Prior to Go 1.1, anonymous struct fields were ignored. To force ignoring of
@@ -136,14 +150,14 @@ func MarshalIndent(v interface{}, prefix, indent string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// HTMLEscape appends to dst the JSON-encoded src with <, >, and &
-// characters inside string literals changed to \u003c, \u003e, \u0026
+// HTMLEscape appends to dst the JSON-encoded src with <, >, &, U+2028 and U+2029
+// characters inside string literals changed to \u003c, \u003e, \u0026, \u2028, \u2029
 // so that the JSON will be safe to embed inside HTML <script> tags.
 // For historical reasons, web browsers don't honor standard HTML
 // escaping within <script> tags, so an alternative JSON encoding must
 // be used.
 func HTMLEscape(dst *bytes.Buffer, src []byte) {
-	// < > & can only appear in string literals,
+	// The characters can only appear in string literals,
 	// so just scan the string one byte at a time.
 	start := 0
 	for i, c := range src {
@@ -155,6 +169,15 @@ func HTMLEscape(dst *bytes.Buffer, src []byte) {
 			dst.WriteByte(hex[c>>4])
 			dst.WriteByte(hex[c&0xF])
 			start = i + 1
+		}
+		// Convert U+2028 and U+2029 (E2 80 A8 and E2 80 A9).
+		if c == 0xE2 && i+2 < len(src) && src[i+1] == 0x80 && src[i+2]&^1 == 0xA8 {
+			if start < i {
+				dst.Write(src[start:i])
+			}
+			dst.WriteString(`\u202`)
+			dst.WriteByte(hex[src[i+2]&0xF])
+			start = i + 3
 		}
 	}
 	if start < len(src) {
@@ -187,8 +210,14 @@ func (e *UnsupportedValueError) Error() string {
 	return "json: unsupported value: " + e.Str
 }
 
+// Before Go 1.2, an InvalidUTF8Error was returned by Marshal when
+// attempting to encode a string value with invalid UTF-8 sequences.
+// As of Go 1.2, Marshal instead coerces the string to valid UTF-8 by
+// replacing invalid bytes with the Unicode replacement rune U+FFFD.
+// This error is no longer generated but is kept for backwards compatibility
+// with programs that might mention it.
 type InvalidUTF8Error struct {
-	S string
+	S string // the whole string value that caused the error
 }
 
 func (e *InvalidUTF8Error) Error() string {
@@ -212,11 +241,34 @@ type encodeState struct {
 	scratch      [64]byte
 }
 
+// TODO(bradfitz): use a sync.Cache here
+var encodeStatePool = make(chan *encodeState, 8)
+
+func newEncodeState() *encodeState {
+	select {
+	case e := <-encodeStatePool:
+		e.Reset()
+		return e
+	default:
+		return new(encodeState)
+	}
+}
+
+func putEncodeState(e *encodeState) {
+	select {
+	case encodeStatePool <- e:
+	default:
+	}
+}
+
 func (e *encodeState) marshal(v interface{}) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if _, ok := r.(runtime.Error); ok {
 				panic(r)
+			}
+			if s, ok := r.(string); ok {
+				panic(s)
 			}
 			err = r.(error)
 		}
@@ -250,186 +302,438 @@ func isEmptyValue(v reflect.Value) bool {
 }
 
 func (e *encodeState) reflectValue(v reflect.Value) {
-	e.reflectValueQuoted(v, false)
+	valueEncoder(v)(e, v, false)
 }
 
-// reflectValueQuoted writes the value in v to the output.
-// If quoted is true, the serialization is wrapped in a JSON string.
-func (e *encodeState) reflectValueQuoted(v reflect.Value, quoted bool) {
+type encoderFunc func(e *encodeState, v reflect.Value, quoted bool)
+
+var encoderCache struct {
+	sync.RWMutex
+	m map[reflect.Type]encoderFunc
+}
+
+func valueEncoder(v reflect.Value) encoderFunc {
 	if !v.IsValid() {
+		return invalidValueEncoder
+	}
+	return typeEncoder(v.Type())
+}
+
+func typeEncoder(t reflect.Type) encoderFunc {
+	encoderCache.RLock()
+	f := encoderCache.m[t]
+	encoderCache.RUnlock()
+	if f != nil {
+		return f
+	}
+
+	// To deal with recursive types, populate the map with an
+	// indirect func before we build it. This type waits on the
+	// real func (f) to be ready and then calls it.  This indirect
+	// func is only used for recursive types.
+	encoderCache.Lock()
+	if encoderCache.m == nil {
+		encoderCache.m = make(map[reflect.Type]encoderFunc)
+	}
+	var wg sync.WaitGroup
+	wg.Add(1)
+	encoderCache.m[t] = func(e *encodeState, v reflect.Value, quoted bool) {
+		wg.Wait()
+		f(e, v, quoted)
+	}
+	encoderCache.Unlock()
+
+	// Compute fields without lock.
+	// Might duplicate effort but won't hold other computations back.
+	f = newTypeEncoder(t, true)
+	wg.Done()
+	encoderCache.Lock()
+	encoderCache.m[t] = f
+	encoderCache.Unlock()
+	return f
+}
+
+var (
+	marshalerType     = reflect.TypeOf(new(Marshaler)).Elem()
+	textMarshalerType = reflect.TypeOf(new(encoding.TextMarshaler)).Elem()
+)
+
+// newTypeEncoder constructs an encoderFunc for a type.
+// The returned encoder only checks CanAddr when allowAddr is true.
+func newTypeEncoder(t reflect.Type, allowAddr bool) encoderFunc {
+	if t.Implements(marshalerType) {
+		return marshalerEncoder
+	}
+	if t.Kind() != reflect.Ptr && allowAddr {
+		if reflect.PtrTo(t).Implements(marshalerType) {
+			return newCondAddrEncoder(addrMarshalerEncoder, newTypeEncoder(t, false))
+		}
+	}
+
+	if t.Implements(textMarshalerType) {
+		return textMarshalerEncoder
+	}
+	if t.Kind() != reflect.Ptr && allowAddr {
+		if reflect.PtrTo(t).Implements(textMarshalerType) {
+			return newCondAddrEncoder(addrTextMarshalerEncoder, newTypeEncoder(t, false))
+		}
+	}
+
+	switch t.Kind() {
+	case reflect.Bool:
+		return boolEncoder
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return intEncoder
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return uintEncoder
+	case reflect.Float32:
+		return float32Encoder
+	case reflect.Float64:
+		return float64Encoder
+	case reflect.String:
+		return stringEncoder
+	case reflect.Interface:
+		return interfaceEncoder
+	case reflect.Struct:
+		return newStructEncoder(t)
+	case reflect.Map:
+		return newMapEncoder(t)
+	case reflect.Slice:
+		return newSliceEncoder(t)
+	case reflect.Array:
+		return newArrayEncoder(t)
+	case reflect.Ptr:
+		return newPtrEncoder(t)
+	default:
+		return unsupportedTypeEncoder
+	}
+}
+
+func invalidValueEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	e.WriteString("null")
+}
+
+func marshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	if v.Kind() == reflect.Ptr && v.IsNil() {
 		e.WriteString("null")
 		return
 	}
-
-	m, ok := v.Interface().(Marshaler)
-	if !ok {
-		// T doesn't match the interface. Check against *T too.
-		if v.Kind() != reflect.Ptr && v.CanAddr() {
-			m, ok = v.Addr().Interface().(Marshaler)
-			if ok {
-				v = v.Addr()
-			}
-		}
+	m := v.Interface().(Marshaler)
+	b, err := m.MarshalJSON()
+	if err == nil {
+		// copy JSON into buffer, checking validity.
+		err = compact(&e.Buffer, b, true)
 	}
-	if ok && (v.Kind() != reflect.Ptr || !v.IsNil()) {
-		b, err := m.MarshalJSON()
-		if err == nil {
-			// copy JSON into buffer, checking validity.
-			err = compact(&e.Buffer, b, true)
-		}
-		if err != nil {
-			e.error(&MarshalerError{v.Type(), err})
-		}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
+
+func addrMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	va := v.Addr()
+	if va.IsNil() {
+		e.WriteString("null")
 		return
 	}
+	m := va.Interface().(Marshaler)
+	b, err := m.MarshalJSON()
+	if err == nil {
+		// copy JSON into buffer, checking validity.
+		err = compact(&e.Buffer, b, true)
+	}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
 
-	writeString := (*encodeState).WriteString
+func textMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	m := v.Interface().(encoding.TextMarshaler)
+	b, err := m.MarshalText()
+	if err == nil {
+		_, err = e.stringBytes(b)
+	}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
+
+func addrTextMarshalerEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	va := v.Addr()
+	if va.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	m := va.Interface().(encoding.TextMarshaler)
+	b, err := m.MarshalText()
+	if err == nil {
+		_, err = e.stringBytes(b)
+	}
+	if err != nil {
+		e.error(&MarshalerError{v.Type(), err})
+	}
+}
+
+func boolEncoder(e *encodeState, v reflect.Value, quoted bool) {
 	if quoted {
-		writeString = (*encodeState).string
+		e.WriteByte('"')
 	}
-
-	switch v.Kind() {
-	case reflect.Bool:
-		x := v.Bool()
-		if x {
-			writeString(e, "true")
-		} else {
-			writeString(e, "false")
-		}
-
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		b := strconv.AppendInt(e.scratch[:0], v.Int(), 10)
-		if quoted {
-			writeString(e, string(b))
-		} else {
-			e.Write(b)
-		}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		b := strconv.AppendUint(e.scratch[:0], v.Uint(), 10)
-		if quoted {
-			writeString(e, string(b))
-		} else {
-			e.Write(b)
-		}
-	case reflect.Float32, reflect.Float64:
-		f := v.Float()
-		if math.IsInf(f, 0) || math.IsNaN(f) {
-			e.error(&UnsupportedValueError{v, strconv.FormatFloat(f, 'g', -1, v.Type().Bits())})
-		}
-		b := strconv.AppendFloat(e.scratch[:0], f, 'g', -1, v.Type().Bits())
-		if quoted {
-			writeString(e, string(b))
-		} else {
-			e.Write(b)
-		}
-	case reflect.String:
-		if v.Type() == numberType {
-			numStr := v.String()
-			if numStr == "" {
-				numStr = "0" // Number's zero-val
-			}
-			e.WriteString(numStr)
-			break
-		}
-		if quoted {
-			sb, err := Marshal(v.String())
-			if err != nil {
-				e.error(err)
-			}
-			e.string(string(sb))
-		} else {
-			e.string(v.String())
-		}
-
-	case reflect.Struct:
-		e.WriteByte('{')
-		first := true
-		for _, f := range cachedTypeFields(v.Type()) {
-			fv := fieldByIndex(v, f.index)
-			if !fv.IsValid() || f.omitEmpty && isEmptyValue(fv) {
-				continue
-			}
-			if first {
-				first = false
-			} else {
-				e.WriteByte(',')
-			}
-			e.string(f.name)
-			e.WriteByte(':')
-			e.reflectValueQuoted(fv, f.quoted)
-		}
-		e.WriteByte('}')
-
-	case reflect.Map:
-		if v.Type().Key().Kind() != reflect.String {
-			e.error(&UnsupportedTypeError{v.Type()})
-		}
-		if v.IsNil() {
-			e.WriteString("null")
-			break
-		}
-		e.WriteByte('{')
-		var sv stringValues = v.MapKeys()
-		sort.Sort(sv)
-		for i, k := range sv {
-			if i > 0 {
-				e.WriteByte(',')
-			}
-			e.string(k.String())
-			e.WriteByte(':')
-			e.reflectValue(v.MapIndex(k))
-		}
-		e.WriteByte('}')
-
-	case reflect.Slice:
-		if v.IsNil() {
-			e.WriteString("null")
-			break
-		}
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			// Byte slices get special treatment; arrays don't.
-			s := v.Bytes()
-			e.WriteByte('"')
-			if len(s) < 1024 {
-				// for small buffers, using Encode directly is much faster.
-				dst := make([]byte, base64.StdEncoding.EncodedLen(len(s)))
-				base64.StdEncoding.Encode(dst, s)
-				e.Write(dst)
-			} else {
-				// for large buffers, avoid unnecessary extra temporary
-				// buffer space.
-				enc := base64.NewEncoder(base64.StdEncoding, e)
-				enc.Write(s)
-				enc.Close()
-			}
-			e.WriteByte('"')
-			break
-		}
-		// Slices can be marshalled as nil, but otherwise are handled
-		// as arrays.
-		fallthrough
-	case reflect.Array:
-		e.WriteByte('[')
-		n := v.Len()
-		for i := 0; i < n; i++ {
-			if i > 0 {
-				e.WriteByte(',')
-			}
-			e.reflectValue(v.Index(i))
-		}
-		e.WriteByte(']')
-
-	case reflect.Interface, reflect.Ptr:
-		if v.IsNil() {
-			e.WriteString("null")
-			return
-		}
-		e.reflectValue(v.Elem())
-
-	default:
-		e.error(&UnsupportedTypeError{v.Type()})
+	if v.Bool() {
+		e.WriteString("true")
+	} else {
+		e.WriteString("false")
 	}
-	return
+	if quoted {
+		e.WriteByte('"')
+	}
+}
+
+func intEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	b := strconv.AppendInt(e.scratch[:0], v.Int(), 10)
+	if quoted {
+		e.WriteByte('"')
+	}
+	e.Write(b)
+	if quoted {
+		e.WriteByte('"')
+	}
+}
+
+func uintEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	b := strconv.AppendUint(e.scratch[:0], v.Uint(), 10)
+	if quoted {
+		e.WriteByte('"')
+	}
+	e.Write(b)
+	if quoted {
+		e.WriteByte('"')
+	}
+}
+
+type floatEncoder int // number of bits
+
+func (bits floatEncoder) encode(e *encodeState, v reflect.Value, quoted bool) {
+	f := v.Float()
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		e.error(&UnsupportedValueError{v, strconv.FormatFloat(f, 'g', -1, int(bits))})
+	}
+	b := strconv.AppendFloat(e.scratch[:0], f, 'g', -1, int(bits))
+	if quoted {
+		e.WriteByte('"')
+	}
+	e.Write(b)
+	if quoted {
+		e.WriteByte('"')
+	}
+}
+
+var (
+	float32Encoder = (floatEncoder(32)).encode
+	float64Encoder = (floatEncoder(64)).encode
+)
+
+func stringEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	if v.Type() == numberType {
+		numStr := v.String()
+		if numStr == "" {
+			numStr = "0" // Number's zero-val
+		}
+		e.WriteString(numStr)
+		return
+	}
+	if quoted {
+		sb, err := Marshal(v.String())
+		if err != nil {
+			e.error(err)
+		}
+		e.string(string(sb))
+	} else {
+		e.string(v.String())
+	}
+}
+
+func interfaceEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	if v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	e.reflectValue(v.Elem())
+}
+
+func unsupportedTypeEncoder(e *encodeState, v reflect.Value, quoted bool) {
+	e.error(&UnsupportedTypeError{v.Type()})
+}
+
+type structEncoder struct {
+	fields    []field
+	fieldEncs []encoderFunc
+}
+
+func (se *structEncoder) encode(e *encodeState, v reflect.Value, quoted bool) {
+	e.WriteByte('{')
+	first := true
+	for i, f := range se.fields {
+		fv := fieldByIndex(v, f.index)
+		if !fv.IsValid() || f.omitEmpty && isEmptyValue(fv) {
+			continue
+		}
+		if first {
+			first = false
+		} else {
+			e.WriteByte(',')
+		}
+		e.string(f.name)
+		e.WriteByte(':')
+		se.fieldEncs[i](e, fv, f.quoted)
+	}
+	e.WriteByte('}')
+}
+
+func newStructEncoder(t reflect.Type) encoderFunc {
+	fields := cachedTypeFields(t)
+	se := &structEncoder{
+		fields:    fields,
+		fieldEncs: make([]encoderFunc, len(fields)),
+	}
+	for i, f := range fields {
+		se.fieldEncs[i] = typeEncoder(typeByIndex(t, f.index))
+	}
+	return se.encode
+}
+
+type mapEncoder struct {
+	elemEnc encoderFunc
+}
+
+func (me *mapEncoder) encode(e *encodeState, v reflect.Value, _ bool) {
+	if v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	e.WriteByte('{')
+	var sv stringValues = v.MapKeys()
+	sort.Sort(sv)
+	for i, k := range sv {
+		if i > 0 {
+			e.WriteByte(',')
+		}
+		e.string(k.String())
+		e.WriteByte(':')
+		me.elemEnc(e, v.MapIndex(k), false)
+	}
+	e.WriteByte('}')
+}
+
+func newMapEncoder(t reflect.Type) encoderFunc {
+	if t.Key().Kind() != reflect.String {
+		return unsupportedTypeEncoder
+	}
+	me := &mapEncoder{typeEncoder(t.Elem())}
+	return me.encode
+}
+
+func encodeByteSlice(e *encodeState, v reflect.Value, _ bool) {
+	if v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	s := v.Bytes()
+	e.WriteByte('"')
+	if len(s) < 1024 {
+		// for small buffers, using Encode directly is much faster.
+		dst := make([]byte, base64.StdEncoding.EncodedLen(len(s)))
+		base64.StdEncoding.Encode(dst, s)
+		e.Write(dst)
+	} else {
+		// for large buffers, avoid unnecessary extra temporary
+		// buffer space.
+		enc := base64.NewEncoder(base64.StdEncoding, e)
+		enc.Write(s)
+		enc.Close()
+	}
+	e.WriteByte('"')
+}
+
+// sliceEncoder just wraps an arrayEncoder, checking to make sure the value isn't nil.
+type sliceEncoder struct {
+	arrayEnc encoderFunc
+}
+
+func (se *sliceEncoder) encode(e *encodeState, v reflect.Value, _ bool) {
+	if v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	se.arrayEnc(e, v, false)
+}
+
+func newSliceEncoder(t reflect.Type) encoderFunc {
+	// Byte slices get special treatment; arrays don't.
+	if t.Elem().Kind() == reflect.Uint8 {
+		return encodeByteSlice
+	}
+	enc := &sliceEncoder{newArrayEncoder(t)}
+	return enc.encode
+}
+
+type arrayEncoder struct {
+	elemEnc encoderFunc
+}
+
+func (ae *arrayEncoder) encode(e *encodeState, v reflect.Value, _ bool) {
+	e.WriteByte('[')
+	n := v.Len()
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			e.WriteByte(',')
+		}
+		ae.elemEnc(e, v.Index(i), false)
+	}
+	e.WriteByte(']')
+}
+
+func newArrayEncoder(t reflect.Type) encoderFunc {
+	enc := &arrayEncoder{typeEncoder(t.Elem())}
+	return enc.encode
+}
+
+type ptrEncoder struct {
+	elemEnc encoderFunc
+}
+
+func (pe *ptrEncoder) encode(e *encodeState, v reflect.Value, _ bool) {
+	if v.IsNil() {
+		e.WriteString("null")
+		return
+	}
+	pe.elemEnc(e, v.Elem(), false)
+}
+
+func newPtrEncoder(t reflect.Type) encoderFunc {
+	enc := &ptrEncoder{typeEncoder(t.Elem())}
+	return enc.encode
+}
+
+type condAddrEncoder struct {
+	canAddrEnc, elseEnc encoderFunc
+}
+
+func (ce *condAddrEncoder) encode(e *encodeState, v reflect.Value, quoted bool) {
+	if v.CanAddr() {
+		ce.canAddrEnc(e, v, quoted)
+	} else {
+		ce.elseEnc(e, v, quoted)
+	}
+}
+
+// newCondAddrEncoder returns an encoder that checks whether its value
+// CanAddr and delegates to canAddrEnc if so, else to elseEnc.
+func newCondAddrEncoder(canAddrEnc, elseEnc encoderFunc) encoderFunc {
+	enc := &condAddrEncoder{canAddrEnc: canAddrEnc, elseEnc: elseEnc}
+	return enc.encode
 }
 
 func isValidTag(s string) bool {
@@ -464,6 +768,16 @@ func fieldByIndex(v reflect.Value, index []int) reflect.Value {
 	return v
 }
 
+func typeByIndex(t reflect.Type, index []int) reflect.Type {
+	for _, i := range index {
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		t = t.Field(i).Type
+	}
+	return t
+}
+
 // stringValues is a slice of reflect.Value holding *reflect.StringValue.
 // It implements the methods to sort by string.
 type stringValues []reflect.Value
@@ -473,13 +787,14 @@ func (sv stringValues) Swap(i, j int)      { sv[i], sv[j] = sv[j], sv[i] }
 func (sv stringValues) Less(i, j int) bool { return sv.get(i) < sv.get(j) }
 func (sv stringValues) get(i int) string   { return sv[i].String() }
 
+// NOTE: keep in sync with stringBytes below.
 func (e *encodeState) string(s string) (int, error) {
 	len0 := e.Len()
 	e.WriteByte('"')
 	start := 0
 	for i := 0; i < len(s); {
 		if b := s[i]; b < utf8.RuneSelf {
-			if 0x20 <= b && b != '\\' && b != '"' && b != '<' && b != '>' {
+			if 0x20 <= b && b != '\\' && b != '"' && b != '<' && b != '>' && b != '&' {
 				i++
 				continue
 			}
@@ -511,12 +826,108 @@ func (e *encodeState) string(s string) (int, error) {
 		}
 		c, size := utf8.DecodeRuneInString(s[i:])
 		if c == utf8.RuneError && size == 1 {
-			e.error(&InvalidUTF8Error{s})
+			if start < i {
+				e.WriteString(s[start:i])
+			}
+			e.WriteString(`\ufffd`)
+			i += size
+			start = i
+			continue
+		}
+		// U+2028 is LINE SEPARATOR.
+		// U+2029 is PARAGRAPH SEPARATOR.
+		// They are both technically valid characters in JSON strings,
+		// but don't work in JSONP, which has to be evaluated as JavaScript,
+		// and can lead to security holes there. It is valid JSON to
+		// escape them, so we do so unconditionally.
+		// See http://timelessrepo.com/json-isnt-a-javascript-subset for discussion.
+		if c == '\u2028' || c == '\u2029' {
+			if start < i {
+				e.WriteString(s[start:i])
+			}
+			e.WriteString(`\u202`)
+			e.WriteByte(hex[c&0xF])
+			i += size
+			start = i
+			continue
 		}
 		i += size
 	}
 	if start < len(s) {
 		e.WriteString(s[start:])
+	}
+	e.WriteByte('"')
+	return e.Len() - len0, nil
+}
+
+// NOTE: keep in sync with string above.
+func (e *encodeState) stringBytes(s []byte) (int, error) {
+	len0 := e.Len()
+	e.WriteByte('"')
+	start := 0
+	for i := 0; i < len(s); {
+		if b := s[i]; b < utf8.RuneSelf {
+			if 0x20 <= b && b != '\\' && b != '"' && b != '<' && b != '>' && b != '&' {
+				i++
+				continue
+			}
+			if start < i {
+				e.Write(s[start:i])
+			}
+			switch b {
+			case '\\', '"':
+				e.WriteByte('\\')
+				e.WriteByte(b)
+			case '\n':
+				e.WriteByte('\\')
+				e.WriteByte('n')
+			case '\r':
+				e.WriteByte('\\')
+				e.WriteByte('r')
+			default:
+				// This encodes bytes < 0x20 except for \n and \r,
+				// as well as < and >. The latter are escaped because they
+				// can lead to security holes when user-controlled strings
+				// are rendered into JSON and served to some browsers.
+				e.WriteString(`\u00`)
+				e.WriteByte(hex[b>>4])
+				e.WriteByte(hex[b&0xF])
+			}
+			i++
+			start = i
+			continue
+		}
+		c, size := utf8.DecodeRune(s[i:])
+		if c == utf8.RuneError && size == 1 {
+			if start < i {
+				e.Write(s[start:i])
+			}
+			e.WriteString(`\ufffd`)
+			i += size
+			start = i
+			continue
+		}
+		// U+2028 is LINE SEPARATOR.
+		// U+2029 is PARAGRAPH SEPARATOR.
+		// They are both technically valid characters in JSON strings,
+		// but don't work in JSONP, which has to be evaluated as JavaScript,
+		// and can lead to security holes there. It is valid JSON to
+		// escape them, so we do so unconditionally.
+		// See http://timelessrepo.com/json-isnt-a-javascript-subset for discussion.
+		if c == '\u2028' || c == '\u2029' {
+			if start < i {
+				e.Write(s[start:i])
+			}
+			e.WriteString(`\u202`)
+			e.WriteByte(hex[c&0xF])
+			i += size
+			start = i
+			continue
+		}
+		i += size
+	}
+	if start < len(s) {
+		e.Write(s[start:])
 	}
 	e.WriteByte('"')
 	return e.Len() - len0, nil
@@ -654,25 +1065,76 @@ func typeFields(t reflect.Type) []field {
 
 	sort.Sort(byName(fields))
 
-	// Remove fields with annihilating name collisions
-	// and also fields shadowed by fields with explicit JSON tags.
-	name := ""
+	// Delete all fields that are hidden by the Go rules for embedded fields,
+	// except that fields with JSON tags are promoted.
+
+	// The fields are sorted in primary order of name, secondary order
+	// of field index length. Loop over names; for each name, delete
+	// hidden fields by choosing the one dominant field that survives.
 	out := fields[:0]
-	for _, f := range fields {
-		if f.name != name {
-			name = f.name
-			out = append(out, f)
+	for advance, i := 0, 0; i < len(fields); i += advance {
+		// One iteration per name.
+		// Find the sequence of fields with the name of this first field.
+		fi := fields[i]
+		name := fi.name
+		for advance = 1; i+advance < len(fields); advance++ {
+			fj := fields[i+advance]
+			if fj.name != name {
+				break
+			}
+		}
+		if advance == 1 { // Only one field with this name
+			out = append(out, fi)
 			continue
 		}
-		if n := len(out); n > 0 && out[n-1].name == name && (!out[n-1].tag || f.tag) {
-			out = out[:n-1]
+		dominant, ok := dominantField(fields[i : i+advance])
+		if ok {
+			out = append(out, dominant)
 		}
 	}
-	fields = out
 
+	fields = out
 	sort.Sort(byIndex(fields))
 
 	return fields
+}
+
+// dominantField looks through the fields, all of which are known to
+// have the same name, to find the single field that dominates the
+// others using Go's embedding rules, modified by the presence of
+// JSON tags. If there are multiple top-level fields, the boolean
+// will be false: This condition is an error in Go and we skip all
+// the fields.
+func dominantField(fields []field) (field, bool) {
+	// The fields are sorted in increasing index-length order. The winner
+	// must therefore be one with the shortest index length. Drop all
+	// longer entries, which is easy: just truncate the slice.
+	length := len(fields[0].index)
+	tagged := -1 // Index of first tagged field.
+	for i, f := range fields {
+		if len(f.index) > length {
+			fields = fields[:i]
+			break
+		}
+		if f.tag {
+			if tagged >= 0 {
+				// Multiple tagged fields at the same level: conflict.
+				// Return no field.
+				return field{}, false
+			}
+			tagged = i
+		}
+	}
+	if tagged >= 0 {
+		return fields[tagged], true
+	}
+	// All remaining fields have the same length. If there's more than one,
+	// we have a conflict (two fields named "X" at the same level) and we
+	// return no field.
+	if len(fields) > 1 {
+		return field{}, false
+	}
+	return fields[0], true
 }
 
 var fieldCache struct {

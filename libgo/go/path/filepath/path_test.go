@@ -91,7 +91,6 @@ var wincleantests = []PathTest{
 }
 
 func TestClean(t *testing.T) {
-	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
 	tests := cleantests
 	if runtime.GOOS == "windows" {
 		for i := range tests {
@@ -108,22 +107,23 @@ func TestClean(t *testing.T) {
 		}
 	}
 
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	allocs := -ms.Mallocs
-	const rounds = 100
-	for i := 0; i < rounds; i++ {
-		for _, test := range tests {
-			filepath.Clean(test.result)
+	if testing.Short() {
+		t.Skip("skipping malloc count in short mode")
+	}
+	if runtime.GOMAXPROCS(0) > 1 {
+		t.Log("skipping AllocsPerRun checks; GOMAXPROCS>1")
+		return
+	}
+
+	t.Log("Skipping AllocsPerRun for gccgo")
+	return
+
+	for _, test := range tests {
+		allocs := testing.AllocsPerRun(100, func() { filepath.Clean(test.result) })
+		if allocs > 0 {
+			t.Errorf("Clean(%q): %v allocs, want zero", test.result, allocs)
 		}
 	}
-	runtime.ReadMemStats(&ms)
-	allocs += ms.Mallocs
-	/* Fails with gccgo, which has no escape analysis.
-	if allocs >= rounds {
-		t.Errorf("Clean cleaned paths: %d allocations per test round, want zero", allocs/rounds)
-	}
-	*/
 }
 
 const sep = filepath.Separator
@@ -159,10 +159,36 @@ var splitlisttests = []SplitListTest{
 	{string([]byte{lsep, 'a', lsep, 'b'}), []string{"", "a", "b"}},
 }
 
+var winsplitlisttests = []SplitListTest{
+	// quoted
+	{`"a"`, []string{`a`}},
+
+	// semicolon
+	{`";"`, []string{`;`}},
+	{`"a;b"`, []string{`a;b`}},
+	{`";";`, []string{`;`, ``}},
+	{`;";"`, []string{``, `;`}},
+
+	// partially quoted
+	{`a";"b`, []string{`a;b`}},
+	{`a; ""b`, []string{`a`, ` b`}},
+	{`"a;b`, []string{`a;b`}},
+	{`""a;b`, []string{`a`, `b`}},
+	{`"""a;b`, []string{`a;b`}},
+	{`""""a;b`, []string{`a`, `b`}},
+	{`a";b`, []string{`a;b`}},
+	{`a;b";c`, []string{`a`, `b;c`}},
+	{`"a";b";c`, []string{`a`, `b;c`}},
+}
+
 func TestSplitList(t *testing.T) {
-	for _, test := range splitlisttests {
+	tests := splitlisttests
+	if runtime.GOOS == "windows" {
+		tests = append(tests, winsplitlisttests...)
+	}
+	for _, test := range tests {
 		if l := filepath.SplitList(test.list); !reflect.DeepEqual(l, test.result) {
-			t.Errorf("SplitList(%q) = %s, want %s", test.list, l, test.result)
+			t.Errorf("SplitList(%#q) = %#q, want %#q", test.list, l, test.result)
 		}
 	}
 }
@@ -610,6 +636,10 @@ func simpleJoin(dir, path string) string {
 }
 
 func TestEvalSymlinks(t *testing.T) {
+	if runtime.GOOS == "plan9" {
+		t.Skip("Skipping test: symlinks don't exist under Plan 9")
+	}
+
 	tmpDir, err := ioutil.TempDir("", "evalsymlink")
 	if err != nil {
 		t.Fatal("creating temp dir:", err)
@@ -903,28 +933,33 @@ func TestDriveLetterInEvalSymlinks(t *testing.T) {
    differently.
 
 func TestBug3486(t *testing.T) { // http://code.google.com/p/go/issues/detail?id=3486
-	root, err := filepath.EvalSymlinks(runtime.GOROOT())
+	root, err := filepath.EvalSymlinks(runtime.GOROOT() + "/test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	lib := filepath.Join(root, "lib")
-	src := filepath.Join(root, "src")
-	seenSrc := false
+	bugs := filepath.Join(root, "bugs")
+	ken := filepath.Join(root, "ken")
+	seenBugs := false
+	seenKen := false
 	filepath.Walk(root, func(pth string, info os.FileInfo, err error) error {
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		switch pth {
-		case lib:
+		case bugs:
+			seenBugs = true
 			return filepath.SkipDir
-		case src:
-			seenSrc = true
+		case ken:
+			if !seenBugs {
+				t.Fatal("filepath.Walk out of order - ken before bugs")
+			}
+			seenKen = true
 		}
 		return nil
 	})
-	if !seenSrc {
-		t.Fatalf("%q not seen", src)
+	if !seenKen {
+		t.Fatalf("%q not seen", ken)
 	}
 }
 

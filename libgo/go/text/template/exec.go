@@ -5,6 +5,7 @@
 package template
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"reflect"
@@ -125,8 +126,23 @@ func (t *Template) Execute(wr io.Writer, data interface{}) (err error) {
 		wr:   wr,
 		vars: []variable{{"$", value}},
 	}
+	t.init()
 	if t.Tree == nil || t.Root == nil {
-		state.errorf("%q is an incomplete or empty template", t.name)
+		var b bytes.Buffer
+		for name, tmpl := range t.tmpl {
+			if tmpl.Tree == nil || tmpl.Root == nil {
+				continue
+			}
+			if b.Len() > 0 {
+				b.WriteString(", ")
+			}
+			fmt.Fprintf(&b, "%q", name)
+		}
+		var s string
+		if b.Len() > 0 {
+			s = "; defined templates are: " + b.String()
+		}
+		state.errorf("%q is an incomplete or empty template%s", t.Name(), s)
 	}
 	state.walk(value, t.Root)
 	return
@@ -185,7 +201,7 @@ func (s *state) walkIfOrWith(typ parse.NodeType, dot reflect.Value, pipe *parse.
 	}
 }
 
-// isTrue returns whether the value is 'true', in the sense of not the zero of its type,
+// isTrue reports whether the value is 'true', in the sense of not the zero of its type,
 // and whether the value has a meaningful truth value.
 func isTrue(val reflect.Value) (truth, ok bool) {
 	if !val.IsValid() {
@@ -603,6 +619,8 @@ func (s *state) evalArg(dot reflect.Value, typ reflect.Type, n parse.Node) refle
 		return s.validateType(s.evalVariableNode(dot, arg, nil, zero), typ)
 	case *parse.PipeNode:
 		return s.validateType(s.evalPipeline(dot, arg), typ)
+	case *parse.IdentifierNode:
+		return s.evalFunction(dot, arg, arg, nil, zero)
 	}
 	switch typ.Kind() {
 	case reflect.Bool:
@@ -737,12 +755,21 @@ func indirect(v reflect.Value) (rv reflect.Value, isNil bool) {
 // the template.
 func (s *state) printValue(n parse.Node, v reflect.Value) {
 	s.at(n)
+	iface, ok := printableValue(v)
+	if !ok {
+		s.errorf("can't print %s of type %s", n, v.Type())
+	}
+	fmt.Fprint(s.wr, iface)
+}
+
+// printableValue returns the, possibly indirected, interface value inside v that
+// is best for a call to formatted printer.
+func printableValue(v reflect.Value) (interface{}, bool) {
 	if v.Kind() == reflect.Ptr {
 		v, _ = indirect(v) // fmt.Fprint handles nil.
 	}
 	if !v.IsValid() {
-		fmt.Fprint(s.wr, "<no value>")
-		return
+		return "<no value>", true
 	}
 
 	if !v.Type().Implements(errorType) && !v.Type().Implements(fmtStringerType) {
@@ -751,11 +778,11 @@ func (s *state) printValue(n parse.Node, v reflect.Value) {
 		} else {
 			switch v.Kind() {
 			case reflect.Chan, reflect.Func:
-				s.errorf("can't print %s of type %s", n, v.Type())
+				return nil, false
 			}
 		}
 	}
-	fmt.Fprint(s.wr, v.Interface())
+	return v.Interface(), true
 }
 
 // Types to help sort the keys in a map for reproducible output.

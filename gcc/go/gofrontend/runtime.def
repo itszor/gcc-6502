@@ -68,6 +68,12 @@ DEF_GO_RUNTIME(STRING_TO_INT_ARRAY, "__go_string_to_int_array",
 	       P1(STRING), R1(SLICE))
 
 
+// Complex division.
+DEF_GO_RUNTIME(COMPLEX64_DIV, "__go_complex64_div",
+	       P2(COMPLEX64, COMPLEX64), R1(COMPLEX64))
+DEF_GO_RUNTIME(COMPLEX128_DIV, "__go_complex128_div",
+	       P2(COMPLEX128, COMPLEX128), R1(COMPLEX128))
+
 // Make a slice.
 DEF_GO_RUNTIME(MAKESLICE1, "__go_make_slice1", P2(TYPE, UINTPTR), R1(SLICE))
 DEF_GO_RUNTIME(MAKESLICE2, "__go_make_slice2", P3(TYPE, UINTPTR, UINTPTR),
@@ -222,11 +228,6 @@ DEF_GO_RUNTIME(NEW, "__go_new", P1(UINTPTR), R1(POINTER))
 
 // Allocate memory which can not contain pointers.
 DEF_GO_RUNTIME(NEW_NOPOINTERS, "__go_new_nopointers", P1(UINTPTR), R1(POINTER))
-
-
-// Allocate a trampoline for a function literal.
-DEF_GO_RUNTIME(ALLOCATE_GO_TRAMPOLINE, "__go_allocate_trampoline",
-	       P2(UINTPTR, POINTER), R1(POINTER))
 
 
 // Start a new goroutine.

@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package filepath_test
+package filepath
 
 import (
-	. "path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -66,6 +65,11 @@ var matchTests = []MatchTest{
 	{"[-x]", "a", false, ErrBadPattern},
 	{"\\", "a", false, ErrBadPattern},
 	{"[a-b-c]", "a", false, ErrBadPattern},
+	{"[", "a", false, ErrBadPattern},
+	{"[^", "a", false, ErrBadPattern},
+	{"[^bc", "a", false, ErrBadPattern},
+	{"a[", "a", false, nil},
+	{"a[", "ab", false, ErrBadPattern},
 	{"*x", "xxx", true, nil},
 }
 

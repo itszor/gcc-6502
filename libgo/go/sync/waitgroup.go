@@ -34,15 +34,32 @@ type WaitGroup struct {
 // G3: Wait() // G1 still hasn't run, G3 finds sema == 1, unblocked! Bug.
 
 // Add adds delta, which may be negative, to the WaitGroup counter.
-// If the counter becomes zero, all goroutines blocked on Wait() are released.
+// If the counter becomes zero, all goroutines blocked on Wait are released.
 // If the counter goes negative, Add panics.
+//
+// Note that calls with positive delta must happen before the call to Wait,
+// or else Wait may wait for too small a group. Typically this means the calls
+// to Add should execute before the statement creating the goroutine or
+// other event to be waited for. See the WaitGroup example.
 func (wg *WaitGroup) Add(delta int) {
 	if raceenabled {
-		raceReleaseMerge(unsafe.Pointer(wg))
+		_ = wg.m.state // trigger nil deref early
+		if delta < 0 {
+			// Synchronize decrements with Wait.
+			raceReleaseMerge(unsafe.Pointer(wg))
+		}
 		raceDisable()
 		defer raceEnable()
 	}
 	v := atomic.AddInt32(&wg.counter, int32(delta))
+	if raceenabled {
+		if delta > 0 && v == int32(delta) {
+			// The first increment must be synchronized with Wait.
+			// Need to model this as a read, because there can be
+			// several concurrent wg.counter transitions from 0.
+			raceRead(unsafe.Pointer(&wg.sema))
+		}
+	}
 	if v < 0 {
 		panic("sync: negative WaitGroup counter")
 	}
@@ -66,6 +83,7 @@ func (wg *WaitGroup) Done() {
 // Wait blocks until the WaitGroup counter is zero.
 func (wg *WaitGroup) Wait() {
 	if raceenabled {
+		_ = wg.m.state // trigger nil deref early
 		raceDisable()
 	}
 	if atomic.LoadInt32(&wg.counter) == 0 {
@@ -76,7 +94,7 @@ func (wg *WaitGroup) Wait() {
 		return
 	}
 	wg.m.Lock()
-	atomic.AddInt32(&wg.waiters, 1)
+	w := atomic.AddInt32(&wg.waiters, 1)
 	// This code is racing with the unlocked path in Add above.
 	// The code above modifies counter and then reads waiters.
 	// We must modify waiters and then read counter (the opposite order)
@@ -93,6 +111,13 @@ func (wg *WaitGroup) Wait() {
 			raceEnable()
 		}
 		return
+	}
+	if raceenabled && w == 1 {
+		// Wait must be synchronized with the first Add.
+		// Need to model this is as a write to race with the read in Add.
+		// As a consequence, can do the write only for the first waiter,
+		// otherwise concurrent Waits will race with each other.
+		raceWrite(unsafe.Pointer(&wg.sema))
 	}
 	if wg.sema == nil {
 		wg.sema = new(uint32)

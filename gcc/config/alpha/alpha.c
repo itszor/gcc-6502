@@ -49,7 +49,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "langhooks.h"
 #include "splay-tree.h"
 #include "gimple.h"
-#include "tree-flow.h"
+#include "gimple-ssa.h"
+#include "tree-ssanames.h"
 #include "tree-stdarg.h"
 #include "tm-constrs.h"
 #include "df.h"
@@ -2659,6 +2660,7 @@ alpha_emit_conditional_move (rtx cmp, enum machine_mode mode)
       cmp_mode = cmp_mode == DImode ? DFmode : DImode;
       op0 = gen_lowpart (cmp_mode, tem);
       op1 = CONST0_RTX (cmp_mode);
+      cmp = gen_rtx_fmt_ee (code, VOIDmode, op0, op1);
       local_fast_math = 1;
     }
 
@@ -2700,12 +2702,12 @@ alpha_emit_conditional_move (rtx cmp, enum machine_mode mode)
       break;
 
     case GE:  case GT:  case GEU:  case GTU:
-      /* These must be swapped.  */
-      if (op1 != CONST0_RTX (cmp_mode))
-	{
-	  code = swap_condition (code);
-	  tem = op0, op0 = op1, op1 = tem;
-	}
+      /* These normally need swapping, but for integer zero we have
+	 special patterns that recognize swapped operands.  */
+      if (cmp_mode == DImode && op1 == const0_rtx)
+	break;
+      code = swap_condition (code);
+      tem = op0, op0 = op1, op1 = tem;
       break;
 
     default:
@@ -3067,12 +3069,9 @@ alpha_emit_xfloating_compare (enum rtx_code *pcode, rtx op0, rtx op1)
   operands[1] = op1;
   out = gen_reg_rtx (DImode);
 
-  /* What's actually returned is -1,0,1, not a proper boolean value,
-     so use an EXPR_LIST as with a generic libcall instead of a 
-     comparison type expression.  */
-  note = gen_rtx_EXPR_LIST (VOIDmode, op1, NULL_RTX);
-  note = gen_rtx_EXPR_LIST (VOIDmode, op0, note);
-  note = gen_rtx_EXPR_LIST (VOIDmode, func, note);
+  /* What's actually returned is -1,0,1, not a proper boolean value.  */
+  note = gen_rtx_fmt_ee (cmp_code, VOIDmode, op0, op1);
+  note = gen_rtx_UNSPEC (DImode, gen_rtvec (1, note), UNSPEC_XFLT_COMPARE);
   alpha_emit_xfloating_libcall (func, out, operands, 2, note);
 
   return out;
@@ -4229,12 +4228,12 @@ alpha_expand_builtin_vector_binop (rtx (*gen) (rtx, rtx, rtx),
 static void
 emit_unlikely_jump (rtx cond, rtx label)
 {
-  rtx very_unlikely = GEN_INT (REG_BR_PROB_BASE / 100 - 1);
+  int very_unlikely = REG_BR_PROB_BASE / 100 - 1;
   rtx x;
 
   x = gen_rtx_IF_THEN_ELSE (VOIDmode, cond, label, pc_rtx);
   x = emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx, x));
-  add_reg_note (x, REG_BR_PROB, very_unlikely);
+  add_int_reg_note (x, REG_BR_PROB, very_unlikely);
 }
 
 /* A subroutine of the atomic operation splitters.  Emit a load-locked
@@ -7454,7 +7453,6 @@ alpha_does_function_need_gp (void)
 
   for (; insn; insn = NEXT_INSN (insn))
     if (NONDEBUG_INSN_P (insn)
-	&& ! JUMP_TABLE_DATA_P (insn)
 	&& GET_CODE (PATTERN (insn)) != USE
 	&& GET_CODE (PATTERN (insn)) != CLOBBER
 	&& get_attr_usegp (insn))

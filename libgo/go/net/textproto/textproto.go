@@ -105,7 +105,7 @@ func Dial(network, addr string) (*Conn, error) {
 //	if _, _, err = c.ReadCodeLine(110); err != nil {
 //		return nil, err
 //	}
-//	text, err := c.ReadDotAll()
+//	text, err := c.ReadDotBytes()
 //	if err != nil {
 //		return nil, err
 //	}
@@ -146,4 +146,9 @@ func TrimBytes(b []byte) []byte {
 
 func isASCIISpace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
+func isASCIILetter(b byte) bool {
+	b |= 0x20 // make lower case
+	return 'a' <= b && b <= 'z'
 }

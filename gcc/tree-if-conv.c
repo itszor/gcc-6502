@@ -88,7 +88,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "flags.h"
 #include "basic-block.h"
 #include "gimple-pretty-print.h"
-#include "tree-flow.h"
+#include "gimple.h"
+#include "gimple-ssa.h"
+#include "tree-cfg.h"
+#include "tree-phinodes.h"
+#include "ssa-iterators.h"
+#include "tree-ssanames.h"
+#include "tree-into-ssa.h"
+#include "tree-ssa.h"
 #include "cfgloop.h"
 #include "tree-chrec.h"
 #include "tree-data-ref.h"
@@ -797,20 +804,6 @@ if_convertible_stmt_p (gimple stmt, vec<data_reference_p> refs)
   return true;
 }
 
-/* Return true when BB post-dominates all its predecessors.  */
-
-static bool
-bb_postdominates_preds (basic_block bb)
-{
-  unsigned i;
-
-  for (i = 0; i < EDGE_COUNT (bb->preds); i++)
-    if (!dominated_by_p (CDI_POST_DOMINATORS, EDGE_PRED (bb, i)->src, bb))
-      return false;
-
-  return true;
-}
-
 /* Return true when BB is if-convertible.  This routine does not check
    basic block's statements and phis.
 
@@ -868,10 +861,23 @@ if_convertible_bb_p (struct loop *loop, basic_block bb, basic_block exit_bb)
 	return false;
       }
 
-  if (EDGE_COUNT (bb->preds) == 2
-      && bb != loop->header
-      && !bb_postdominates_preds (bb))
-    return false;
+  /* At least one incoming edge has to be non-critical as otherwise edge
+     predicates are not equal to basic-block predicates of the edge
+     source.  */
+  if (EDGE_COUNT (bb->preds) > 1
+      && bb != loop->header)
+    {
+      bool found = false;
+      FOR_EACH_EDGE (e, ei, bb->preds)
+	if (EDGE_COUNT (e->src->succs) == 1)
+	  found = true;
+      if (!found)
+	{
+	  if (dump_file && (dump_flags & TDF_DETAILS))
+	    fprintf (dump_file, "only critical predecessors\n");
+	  return false;
+	}
+    }
 
   return true;
 }
@@ -1084,7 +1090,6 @@ if_convertible_loop_p_1 (struct loop *loop,
     return false;
 
   calculate_dominance_info (CDI_DOMINATORS);
-  calculate_dominance_info (CDI_POST_DOMINATORS);
 
   /* Allow statements that can be handled during if-conversion.  */
   ifc_bbs = get_loop_body_in_if_conv_order (loop);
@@ -1160,7 +1165,6 @@ if_convertible_loop_p (struct loop *loop)
   bool res = false;
   vec<data_reference_p> refs;
   vec<ddr_p> ddrs;
-  vec<loop_p> loop_nest;
 
   /* Handle only innermost loop.  */
   if (!loop || loop->inner)
@@ -1194,7 +1198,7 @@ if_convertible_loop_p (struct loop *loop)
 
   refs.create (5);
   ddrs.create (25);
-  loop_nest.create (3);
+  stack_vec<loop_p, 3> loop_nest;
   res = if_convertible_loop_p_1 (loop, &loop_nest, &refs, &ddrs);
 
   if (flag_tree_loop_if_convert_stores)
@@ -1220,8 +1224,7 @@ if_convertible_loop_p (struct loop *loop)
    if-conversion.  */
 
 static basic_block
-find_phi_replacement_condition (struct loop *loop,
-				basic_block bb, tree *cond,
+find_phi_replacement_condition (basic_block bb, tree *cond,
 				gimple_stmt_iterator *gsi)
 {
   edge first_edge, second_edge;
@@ -1231,34 +1234,10 @@ find_phi_replacement_condition (struct loop *loop,
   first_edge = EDGE_PRED (bb, 0);
   second_edge = EDGE_PRED (bb, 1);
 
-  /* Use condition based on following criteria:
-     1)
-       S1: x = !c ? a : b;
-
-       S2: x = c ? b : a;
-
-       S2 is preferred over S1. Make 'b' first_bb and use its condition.
-
-     2) Do not make loop header first_bb.
-
-     3)
-       S1: x = !(c == d)? a : b;
-
-       S21: t1 = c == d;
-       S22: x = t1 ? b : a;
-
-       S3: x = (c == d) ? b : a;
-
-       S3 is preferred over S1 and S2*, Make 'b' first_bb and use
-       its condition.
-
-     4) If  pred B is dominated by pred A then use pred B's condition.
-        See PR23115.  */
-
-  /* Select condition that is not TRUTH_NOT_EXPR.  */
+  /* Prefer an edge with a not negated predicate.
+     ???  That's a very weak cost model.  */
   tmp_cond = bb_predicate (first_edge->src);
   gcc_assert (tmp_cond);
-
   if (TREE_CODE (tmp_cond) == TRUTH_NOT_EXPR)
     {
       edge tmp_edge;
@@ -1268,11 +1247,9 @@ find_phi_replacement_condition (struct loop *loop,
       second_edge = tmp_edge;
     }
 
-  /* Check if FIRST_BB is loop header or not and make sure that
-     FIRST_BB does not dominate SECOND_BB.  */
-  if (first_edge->src == loop->header
-      || dominated_by_p (CDI_DOMINATORS,
-			 second_edge->src, first_edge->src))
+  /* Check if the edge we take the condition from is not critical.
+     We know that at least one non-critical edge exists.  */
+  if (EDGE_COUNT (first_edge->src->succs) > 1)
     {
       *cond = bb_predicate (second_edge->src);
 
@@ -1347,16 +1324,12 @@ predicate_scalar_phi (gimple phi, tree cond,
 	  arg_1 = gimple_phi_arg_def (phi, 1);
 	}
 
-      gcc_checking_assert (bb == bb->loop_father->header
-			   || bb_postdominates_preds (bb));
-
       /* Build new RHS using selected condition and arguments.  */
       rhs = fold_build_cond_expr (TREE_TYPE (res), unshare_expr (cond),
 				  arg_0, arg_1);
     }
 
   new_stmt = gimple_build_assign (res, rhs);
-  SSA_NAME_DEF_STMT (gimple_phi_result (phi)) = new_stmt;
   gsi_insert_before (gsi, new_stmt, GSI_SAME_STMT);
   update_stmt (new_stmt);
 
@@ -1395,7 +1368,7 @@ predicate_all_scalar_phis (struct loop *loop)
       /* BB has two predecessors.  Using predecessor's aux field, set
 	 appropriate condition for the PHI node replacement.  */
       gsi = gsi_after_labels (bb);
-      true_bb = find_phi_replacement_condition (loop, bb, &cond, &gsi);
+      true_bb = find_phi_replacement_condition (bb, &cond, &gsi);
 
       while (!gsi_end_p (phi_gsi))
 	{
@@ -1765,9 +1738,6 @@ combine_blocks (struct loop *loop)
 
   free (ifc_bbs);
   ifc_bbs = NULL;
-
-  /* Post-dominators are corrupt now.  */
-  free_dominance_info (CDI_POST_DOMINATORS);
 }
 
 /* If-convert LOOP when it is legal.  For the moment this pass has no
@@ -1818,10 +1788,14 @@ main_tree_if_conversion (void)
   bool changed = false;
   unsigned todo = 0;
 
-  if (number_of_loops () <= 1)
+  if (number_of_loops (cfun) <= 1)
     return 0;
 
   FOR_EACH_LOOP (li, loop, 0)
+    if (flag_tree_loop_if_convert == 1
+	|| flag_tree_loop_if_convert_stores == 1
+	|| flag_tree_loop_vectorize
+	|| loop->force_vect)
     changed |= tree_if_conversion (loop);
 
   if (changed)
@@ -1829,8 +1803,6 @@ main_tree_if_conversion (void)
 
   if (changed && flag_tree_loop_if_convert_stores)
     todo |= TODO_update_ssa_only_virtuals;
-
-  free_dominance_info (CDI_POST_DOMINATORS);
 
 #ifdef ENABLE_CHECKING
   {
@@ -1848,28 +1820,47 @@ main_tree_if_conversion (void)
 static bool
 gate_tree_if_conversion (void)
 {
-  return ((flag_tree_vectorize && flag_tree_loop_if_convert != 0)
+  return (((flag_tree_loop_vectorize || cfun->has_force_vect_loops)
+	   && flag_tree_loop_if_convert != 0)
 	  || flag_tree_loop_if_convert == 1
 	  || flag_tree_loop_if_convert_stores == 1);
 }
 
-struct gimple_opt_pass pass_if_conversion =
+namespace {
+
+const pass_data pass_data_if_conversion =
 {
- {
-  GIMPLE_PASS,
-  "ifcvt",				/* name */
-  OPTGROUP_NONE,                        /* optinfo_flags */
-  gate_tree_if_conversion,		/* gate */
-  main_tree_if_conversion,		/* execute */
-  NULL,					/* sub */
-  NULL,					/* next */
-  0,					/* static_pass_number */
-  TV_NONE,				/* tv_id */
-  PROP_cfg | PROP_ssa,			/* properties_required */
-  0,					/* properties_provided */
-  0,					/* properties_destroyed */
-  0,					/* todo_flags_start */
-  TODO_verify_stmts | TODO_verify_flow
-                                        /* todo_flags_finish */
- }
+  GIMPLE_PASS, /* type */
+  "ifcvt", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_verify_stmts | TODO_verify_flow
+    | TODO_verify_ssa ), /* todo_flags_finish */
 };
+
+class pass_if_conversion : public gimple_opt_pass
+{
+public:
+  pass_if_conversion (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_if_conversion, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_tree_if_conversion (); }
+  unsigned int execute () { return main_tree_if_conversion (); }
+
+}; // class pass_if_conversion
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_if_conversion (gcc::context *ctxt)
+{
+  return new pass_if_conversion (ctxt);
+}

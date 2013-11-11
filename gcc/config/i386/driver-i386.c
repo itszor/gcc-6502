@@ -390,6 +390,8 @@ const char *host_detect_local_cpu (int argc, const char **argv)
   unsigned int has_rdrnd = 0, has_f16c = 0, has_fsgsbase = 0;
   unsigned int has_rdseed = 0, has_prfchw = 0, has_adx = 0;
   unsigned int has_osxsave = 0, has_fxsr = 0, has_xsave = 0, has_xsaveopt = 0;
+  unsigned int has_avx512er = 0, has_avx512pf = 0, has_avx512cd = 0;
+  unsigned int has_avx512f = 0;
 
   bool arch;
 
@@ -461,6 +463,10 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       has_fsgsbase = ebx & bit_FSGSBASE;
       has_rdseed = ebx & bit_RDSEED;
       has_adx = ebx & bit_ADX;
+      has_avx512f = ebx & bit_AVX512F;
+      has_avx512er = ebx & bit_AVX512ER;
+      has_avx512pf = ebx & bit_AVX512PF;
+      has_avx512cd = ebx & bit_AVX512CD;
     }
 
   if (max_level >= 13)
@@ -520,8 +526,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       if (vendor == signature_AMD_ebx
 	  || vendor == signature_CENTAUR_ebx
 	  || vendor == signature_CYRIX_ebx
-	  || vendor == signature_NSC_ebx
-	  || vendor == signature_TM2_ebx)
+	  || vendor == signature_NSC_ebx)
 	cache = detect_caches_amd (ext_level);
       else if (vendor == signature_INTEL_ebx)
 	{
@@ -573,13 +578,13 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	    case 6:
 	      if (model > 9)
 		/* Use the default detection procedure.  */
-		processor = PROCESSOR_GENERIC32;
+		processor = PROCESSOR_GENERIC;
 	      else if (model == 9)
 		cpu = "c3-2";
 	      else if (model >= 6)
 		cpu = "c3";
 	      else
-		processor = PROCESSOR_GENERIC32;
+		processor = PROCESSOR_GENERIC;
 	      break;
 	    case 5:
 	      if (has_3dnow)
@@ -587,11 +592,11 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	      else if (has_mmx)
 		cpu = "winchip2-c6";
 	      else
-		processor = PROCESSOR_GENERIC32;
+		processor = PROCESSOR_GENERIC;
 	      break;
 	    default:
 	      /* We have no idea.  */
-	      processor = PROCESSOR_GENERIC32;
+	      processor = PROCESSOR_GENERIC;
 	    }
 	}
     }
@@ -613,7 +618,7 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	  break;
 	default:
 	  /* We have no idea.  */
-	  processor = PROCESSOR_GENERIC32;
+	  processor = PROCESSOR_GENERIC;
 	}
     }
 
@@ -639,13 +644,18 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	  /* Atom.  */
 	  cpu = "atom";
 	  break;
+	case 0x0f:
+	  /* Merom.  */
+	case 0x17:
+	case 0x1d:
+	  /* Penryn.  */
+	  cpu = "core2";
+	  break;
 	case 0x1a:
 	case 0x1e:
 	case 0x1f:
 	case 0x2e:
 	  /* Nehalem.  */
-	  cpu = "corei7";
-	  break;
 	case 0x25:
 	case 0x2c:
 	case 0x2f:
@@ -657,25 +667,36 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 	  /* Sandy Bridge.  */
 	  cpu = "corei7-avx";
 	  break;
-	case 0x17:
-	case 0x1d:
-	  /* Penryn.  */
-	  cpu = "core2";
+	case 0x3a:
+	case 0x3e:
+	  /* Ivy Bridge.  */
+	  cpu = "core-avx-i";
 	  break;
-	case 0x0f:
-	  /* Merom.  */
-	  cpu = "core2";
+	case 0x3c:
+	case 0x45:
+	case 0x46:
+	  /* Haswell.  */
+	  cpu = "core-avx2";
 	  break;
 	default:
 	  if (arch)
 	    {
 	      /* This is unknown family 0x6 CPU.  */
-	      if (has_avx)
+	      if (has_avx2)
+		/* Assume Haswell.  */
+		cpu = "core-avx2";
+	      else if (has_avx)
 		/* Assume Sandy Bridge.  */
 		cpu = "corei7-avx";
 	      else if (has_sse4_2)
-		/* Assume Core i7.  */
-		cpu = "corei7";
+		{
+		  if (has_movbe)
+		    /* Assume SLM.  */
+		    cpu = "slm";
+		  else
+		    /* Assume Core i7.  */
+		    cpu = "corei7";
+		}
 	      else if (has_ssse3)
 		{
 		  if (has_movbe)
@@ -786,10 +807,17 @@ const char *host_detect_local_cpu (int argc, const char **argv)
 
   if (arch)
     {
+      const char *mmx = has_mmx ? " -mmmx" : " -mno-mmx";
+      const char *mmx3dnow = has_3dnow ? " -m3dnow" : " -mno-3dnow";
+      const char *sse = has_sse ? " -msse" : " -mno-sse";
+      const char *sse2 = has_sse2 ? " -msse2" : " -mno-sse2";
+      const char *sse3 = has_sse3 ? " -msse3" : " -mno-sse3";
+      const char *ssse3 = has_ssse3 ? " -mssse3" : " -mno-ssse3";
+      const char *sse4a = has_sse4a ? " -msse4a" : " -mno-sse4a";
       const char *cx16 = has_cmpxchg16b ? " -mcx16" : " -mno-cx16";
       const char *sahf = has_lahf_lm ? " -msahf" : " -mno-sahf";
       const char *movbe = has_movbe ? " -mmovbe" : " -mno-movbe";
-      const char *ase = has_aes ? " -maes" : " -mno-aes";
+      const char *aes = has_aes ? " -maes" : " -mno-aes";
       const char *pclmul = has_pclmul ? " -mpclmul" : " -mno-pclmul";
       const char *popcnt = has_popcnt ? " -mpopcnt" : " -mno-popcnt";
       const char *abm = has_abm ? " -mabm" : " -mno-abm";
@@ -816,12 +844,18 @@ const char *host_detect_local_cpu (int argc, const char **argv)
       const char *fxsr = has_fxsr ? " -mfxsr" : " -mno-fxsr";
       const char *xsave = has_xsave ? " -mxsave" : " -mno-xsave";
       const char *xsaveopt = has_xsaveopt ? " -mxsaveopt" : " -mno-xsaveopt";
+      const char *avx512f = has_avx512f ? " -mavx512f" : " -mno-avx512f";
+      const char *avx512er = has_avx512er ? " -mavx512er" : " -mno-avx512er";
+      const char *avx512cd = has_avx512cd ? " -mavx512cd" : " -mno-avx512cd";
+      const char *avx512pf = has_avx512pf ? " -mavx512pf" : " -mno-avx512pf";
 
-      options = concat (options, cx16, sahf, movbe, ase, pclmul,
+      options = concat (options, mmx, mmx3dnow, sse, sse2, sse3, ssse3,
+			sse4a, cx16, sahf, movbe, aes, pclmul,
 			popcnt, abm, lwp, fma, fma4, xop, bmi, bmi2,
 			tbm, avx, avx2, sse4_2, sse4_1, lzcnt, rtm,
 			hle, rdrnd, f16c, fsgsbase, rdseed, prfchw, adx,
-			fxsr, xsave, xsaveopt, NULL);
+			fxsr, xsave, xsaveopt, avx512f, avx512er,
+			avx512cd, avx512pf, NULL);
     }
 
 done:

@@ -28,7 +28,12 @@ var emptyParams = make(map[string]string)
 type Part struct {
 	// The headers of the body, if any, with the keys canonicalized
 	// in the same fashion that the Go http.Request headers are.
-	// i.e. "foo-bar" changes case to "Foo-Bar"
+	// For example, "foo-bar" changes case to "Foo-Bar"
+	//
+	// As a special case, if the "Content-Transfer-Encoding" header
+	// has a value of "quoted-printable", that header is instead
+	// hidden from this map and the body is transparently decoded
+	// during Read calls.
 	Header textproto.MIMEHeader
 
 	buffer    *bytes.Buffer
@@ -265,11 +270,10 @@ func (r *Reader) NextPart() (*Part, error) {
 
 		return nil, fmt.Errorf("multipart: unexpected line in Next(): %q", line)
 	}
-	panic("unreachable")
 }
 
-// isFinalBoundary returns whether line is the final boundary line
-// indiciating that all parts are over.
+// isFinalBoundary reports whether line is the final boundary line
+// indicating that all parts are over.
 // It matches `^--boundary--[ \t]*(\r\n)?$`
 func (mr *Reader) isFinalBoundary(line []byte) bool {
 	if !bytes.HasPrefix(line, mr.dashBoundaryDash) {
@@ -303,8 +307,8 @@ func (mr *Reader) isBoundaryDelimiterLine(line []byte) (ret bool) {
 	return bytes.Equal(rest, mr.nl)
 }
 
-// peekBufferIsEmptyPart returns whether the provided peek-ahead
-// buffer represents an empty part.  This is only called if we've not
+// peekBufferIsEmptyPart reports whether the provided peek-ahead
+// buffer represents an empty part. It is called only if we've not
 // already read any bytes in this part and checks for the case of MIME
 // software not writing the \r\n on empty parts. Some does, some
 // doesn't.

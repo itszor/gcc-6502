@@ -6,7 +6,6 @@ package zip
 
 import (
 	"bufio"
-	"compress/flate"
 	"encoding/binary"
 	"errors"
 	"hash"
@@ -163,6 +162,9 @@ func (w *Writer) Close() error {
 
 // Create adds a file to the zip file using the provided name.
 // It returns a Writer to which the file contents should be written.
+// The name must be a relative path: it must not start with a drive
+// letter (e.g. C:) or leading slash, and only forward slashes are
+// allowed.
 // The file's contents must be written to the io.Writer before the next
 // call to Create, CreateHeader, or Close.
 func (w *Writer) Create(name string) (io.Writer, error) {
@@ -195,17 +197,14 @@ func (w *Writer) CreateHeader(fh *FileHeader) (io.Writer, error) {
 		compCount: &countWriter{w: w.cw},
 		crc32:     crc32.NewIEEE(),
 	}
-	switch fh.Method {
-	case Store:
-		fw.comp = nopCloser{fw.compCount}
-	case Deflate:
-		var err error
-		fw.comp, err = flate.NewWriter(fw.compCount, 5)
-		if err != nil {
-			return nil, err
-		}
-	default:
+	comp := compressor(fh.Method)
+	if comp == nil {
 		return nil, ErrAlgorithm
+	}
+	var err error
+	fw.comp, err = comp(fw.compCount)
+	if err != nil {
+		return nil, err
 	}
 	fw.rawCount = &countWriter{w: fw.comp}
 

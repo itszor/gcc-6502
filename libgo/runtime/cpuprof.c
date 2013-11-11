@@ -121,7 +121,9 @@ static uintptr eod[3] = {0, 1, 0};
 // LostProfileData is a no-op function used in profiles
 // to mark the number of profiling stack traces that were
 // discarded due to slow data writers.
-static void LostProfileData(void) {
+static void
+LostProfileData(void)
+{
 }
 
 extern void runtime_SetCPUProfileRate(intgo)
@@ -144,7 +146,7 @@ runtime_SetCPUProfileRate(intgo hz)
 	runtime_lock(&lk);
 	if(hz > 0) {
 		if(prof == nil) {
-			prof = runtime_SysAlloc(sizeof *prof);
+			prof = runtime_SysAlloc(sizeof *prof, &mstats.other_sys);
 			if(prof == nil) {
 				runtime_printf("runtime: cpu profiling cannot allocate memory\n");
 				runtime_unlock(&lk);
@@ -338,7 +340,7 @@ getprofile(Profile *p)
 
 	if(p->wholding) {
 		// Release previous log to signal handling side.
-		// Loop because we are racing against setprofile(off).
+		// Loop because we are racing against SetCPUProfileRate(0).
 		for(;;) {
 			n = p->handoff;
 			if(n == 0) {
@@ -365,9 +367,7 @@ getprofile(Profile *p)
 		return ret;
 
 	// Wait for new log.
-	runtime_entersyscall();
-	runtime_notesleep(&p->wait);
-	runtime_exitsyscall();
+	runtime_notetsleepg(&p->wait, -1);
 	runtime_noteclear(&p->wait);
 
 	n = p->handoff;

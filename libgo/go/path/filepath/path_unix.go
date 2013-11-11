@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin freebsd linux netbsd openbsd
+// +build darwin dragonfly freebsd linux netbsd openbsd
 
 package filepath
 
@@ -22,4 +22,11 @@ func volumeNameLen(path string) int {
 // HasPrefix exists for historical compatibility and should not be used.
 func HasPrefix(p, prefix string) bool {
 	return strings.HasPrefix(p, prefix)
+}
+
+func splitList(path string) []string {
+	if path == "" {
+		return []string{}
+	}
+	return strings.Split(path, string(ListSeparator))
 }

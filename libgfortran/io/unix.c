@@ -30,7 +30,10 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #include <stdlib.h>
 #include <limits.h>
 
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <assert.h>
@@ -212,6 +215,8 @@ typedef struct
   /* Cached stat(2) values.  */
   dev_t st_dev;
   ino_t st_ino;
+
+  bool unbuffered;  /* Buffer should be flushed after each I/O statement.  */
 }
 unix_stream;
 
@@ -442,7 +447,7 @@ raw_init (unix_stream * s)
 Buffered I/O functions. These functions have the same semantics as the
 raw I/O functions above, except that they are buffered in order to
 improve performance. The buffer must be flushed when switching from
-reading to writing and vice versa. Only supported for regular files.
+reading to writing and vice versa.
 *********************************************************************/
 
 static int
@@ -968,11 +973,26 @@ open_internal4 (char *base, int length, gfc_offset offset)
 }
 
 
+/* "Unbuffered" really means I/O statement buffering. For formatted
+   I/O, the fbuf manages this, and then uses raw I/O. For unformatted
+   I/O, buffered I/O is used, and the buffer is flushed at the end of
+   each I/O statement, where this function is called.  */
+
+int
+flush_if_unbuffered (stream* s)
+{
+  unix_stream* us = (unix_stream*) s;
+  if (us->unbuffered)
+    return sflush (s);
+  return 0;
+}
+
+
 /* fd_to_stream()-- Given an open file descriptor, build a stream
  * around it. */
 
 static stream *
-fd_to_stream (int fd)
+fd_to_stream (int fd, bool unformatted)
 {
   struct stat statbuf;
   unix_stream *s;
@@ -998,7 +1018,15 @@ fd_to_stream (int fd)
 	    || s->fd == STDERR_FILENO)))
     buf_init (s);
   else
-    raw_init (s);
+    {
+      if (unformatted)
+	{
+	  s->unbuffered = true;
+	  buf_init (s);
+	}
+      else
+	raw_init (s);
+    }
 
   return (stream *) s;
 }
@@ -1042,6 +1070,20 @@ unpack_filename (char *cstring, const char *fstring, int len)
 }
 
 
+/* Set the close-on-exec flag for an existing fd, if the system
+   supports such.  */
+
+static void __attribute__ ((unused))
+set_close_on_exec (int fd __attribute__ ((unused)))
+{
+  /* Mingw does not define F_SETFD.  */
+#if defined(F_SETFD) && defined(FD_CLOEXEC)
+  if (fd >= 0)
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+}
+
+
 /* Helper function for tempfile(). Tries to open a temporary file in
    the directory specified by tempdir. If successful, the file name is
    stored in fname and the descriptor returned. Returns -1 on
@@ -1081,7 +1123,12 @@ tempfile_open (const char *tempdir, char **fname)
   mode_mask = umask (S_IXUSR | S_IRWXG | S_IRWXO);
 #endif
 
+#if defined(HAVE_MKOSTEMP) && defined(O_CLOEXEC)
+  fd = mkostemp (template, O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC);
+#else
   fd = mkstemp (template);
+  set_close_on_exec (fd);
+#endif
 
 #ifdef HAVE_UMASK
   (void) umask (mode_mask);
@@ -1091,6 +1138,13 @@ tempfile_open (const char *tempdir, char **fname)
   fd = -1;
   int count = 0;
   size_t slashlen = strlen (slash);
+  int flags = O_RDWR | O_CREAT | O_EXCL;
+#if defined(HAVE_CRLF) && defined(O_BINARY)
+  flags |= O_BINARY;
+#endif
+#ifdef O_CLOEXEC
+  flags |= O_CLOEXEC;
+#endif
   do
     {
       snprintf (template, tempdirlen + 23, "%s%sgfortrantmpaaaXXXXXX", 
@@ -1114,14 +1168,12 @@ tempfile_open (const char *tempdir, char **fname)
 	continue;
       }
 
-#if defined(HAVE_CRLF) && defined(O_BINARY)
-      fd = open (template, O_RDWR | O_CREAT | O_EXCL | O_BINARY,
-		 S_IRUSR | S_IWUSR);
-#else
-      fd = open (template, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-#endif
+      fd = open (template, flags, S_IRUSR | S_IWUSR);
     }
   while (fd == -1 && errno == EEXIST);
+#ifndef O_CLOEXEC
+  set_close_on_exec (fd);
+#endif
 #endif /* HAVE_MKSTEMP */
 
   *fname = template;
@@ -1295,6 +1347,10 @@ regular_file (st_parameter_open *opp, unit_flags *flags)
   crflag |= O_BINARY;
 #endif
 
+#ifdef O_CLOEXEC
+  crflag |= O_CLOEXEC;
+#endif
+
   mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
   fd = open (path, rwflag | crflag, mode);
   if (flags->action != ACTION_UNSPECIFIED)
@@ -1358,13 +1414,16 @@ open_external (st_parameter_open *opp, unit_flags *flags)
       /* regular_file resets flags->action if it is ACTION_UNSPECIFIED and
        * if it succeeds */
       fd = regular_file (opp, flags);
+#ifndef O_CLOEXEC
+      set_close_on_exec (fd);
+#endif
     }
 
   if (fd < 0)
     return NULL;
   fd = fix_fd (fd);
 
-  return fd_to_stream (fd);
+  return fd_to_stream (fd, flags->form == FORM_UNFORMATTED);
 }
 
 
@@ -1374,7 +1433,7 @@ open_external (st_parameter_open *opp, unit_flags *flags)
 stream *
 input_stream (void)
 {
-  return fd_to_stream (STDIN_FILENO);
+  return fd_to_stream (STDIN_FILENO, false);
 }
 
 
@@ -1390,7 +1449,7 @@ output_stream (void)
   setmode (STDOUT_FILENO, O_BINARY);
 #endif
 
-  s = fd_to_stream (STDOUT_FILENO);
+  s = fd_to_stream (STDOUT_FILENO, false);
   return s;
 }
 
@@ -1407,7 +1466,7 @@ error_stream (void)
   setmode (STDERR_FILENO, O_BINARY);
 #endif
 
-  s = fd_to_stream (STDERR_FILENO);
+  s = fd_to_stream (STDERR_FILENO, false);
   return s;
 }
 

@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package heap_test
+package heap
 
 import (
-	. "container/heap"
+	"math/rand"
 	"testing"
 )
 
@@ -181,5 +181,33 @@ func BenchmarkDup(b *testing.B) {
 		for h.Len() > 0 {
 			Pop(&h)
 		}
+	}
+}
+
+func TestFix(t *testing.T) {
+	h := new(myHeap)
+	h.verify(t, 0)
+
+	for i := 200; i > 0; i -= 10 {
+		Push(h, i)
+	}
+	h.verify(t, 0)
+
+	if (*h)[0] != 10 {
+		t.Fatalf("Expected head to be 10, was %d", (*h)[0])
+	}
+	(*h)[0] = 210
+	Fix(h, 0)
+	h.verify(t, 0)
+
+	for i := 100; i > 0; i-- {
+		elem := rand.Intn(h.Len())
+		if i&1 == 0 {
+			(*h)[elem] *= 2
+		} else {
+			(*h)[elem] /= 2
+		}
+		Fix(h, elem)
+		h.verify(t, 0)
 	}
 }

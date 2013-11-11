@@ -191,6 +191,14 @@ type Type interface {
 	uncommon() *uncommonType
 }
 
+// BUG(rsc): FieldByName and related functions consider struct field names to be equal
+// if the names are equal, even if they are unexported names originating
+// in different packages. The practical effect of this is that the result of
+// t.FieldByName("x") is not well defined if the struct type t contains
+// multiple fields named x (embedded from different packages).
+// FieldByName may return one of the fields named x or may report that there are none.
+// See golang.org/issue/4876 for more details.
+
 /*
  * These data structures are known to the compiler (../../cmd/gc/reflect.c).
  * A few are known to ../runtime/type.go to convey to debuggers.
@@ -243,8 +251,8 @@ type rtype struct {
 	size       uintptr // size in bytes
 	hash       uint32  // hash of type; avoids computation in hash tables
 
-	hashfn  func(unsafe.Pointer, uintptr)                 // hash function
-	equalfn func(unsafe.Pointer, unsafe.Pointer, uintptr) // equality function
+	hashfn  uintptr // hash function code
+	equalfn uintptr // equality function code
 
 	string        *string // string form; unnecessary  but undeniably useful
 	*uncommonType         // (relatively) uncommon fields
@@ -320,6 +328,8 @@ type mapType struct {
 	rtype `reflect:"map"`
 	key   *rtype // map key type
 	elem  *rtype // map element (value) type
+	// bucket *rtype // internal bucket structure
+	// hmap   *rtype // internal map header
 }
 
 // ptrType represents a pointer type.
@@ -349,6 +359,24 @@ type structType struct {
 	fields []structField // sorted by offset
 }
 
+// NOTE: These are copied from ../runtime/mgc0.h.
+// They must be kept in sync.
+const (
+	_GC_END = iota
+	_GC_PTR
+	_GC_APTR
+	_GC_ARRAY_START
+	_GC_ARRAY_NEXT
+	_GC_CALL
+	_GC_CHAN_PTR
+	_GC_STRING
+	_GC_EFACE
+	_GC_IFACE
+	_GC_SLICE
+	_GC_REGION
+	_GC_NUM_INSTR
+)
+
 /*
  * The compiler knows the exact layout of all the data structures above.
  * The compiler does not know about the data structures and methods below.
@@ -372,7 +400,10 @@ type Method struct {
 
 // High bit says whether type has
 // embedded pointers,to help garbage collector.
-const kindMask = 0x7f
+const (
+	kindMask       = 0x7f
+	kindNoPointers = 0x80
+)
 
 func (k Kind) String() string {
 	if int(k) < len(kindNames) {
@@ -485,7 +516,7 @@ func (t *uncommonType) Method(i int) (m Method) {
 	mt := p.typ
 	m.Type = toType(mt)
 	x := new(unsafe.Pointer)
-	*x = p.tfn
+	*x = unsafe.Pointer(&p.tfn)
 	m.Func = Value{mt, unsafe.Pointer(x), fl | flagIndir}
 	m.Index = i
 	return
@@ -730,7 +761,7 @@ type StructField struct {
 	Tag       StructTag // field tag string
 	Offset    uintptr   // offset within struct, in bytes
 	Index     []int     // index sequence for Type.FieldByIndex
-	Anonymous bool      // is an anonymous field
+	Anonymous bool      // is an embedded field
 }
 
 // A StructTag is the tag string in a struct field.
@@ -999,6 +1030,32 @@ func TypeOf(i interface{}) Type {
 var ptrMap struct {
 	sync.RWMutex
 	m map[*rtype]*ptrType
+}
+
+// garbage collection bytecode program for pointer to memory without pointers.
+// See ../../cmd/gc/reflect.c:/^dgcsym1 and :/^dgcsym.
+type ptrDataGC struct {
+	width uintptr // sizeof(ptr)
+	op    uintptr // _GC_APTR
+	off   uintptr // 0
+	end   uintptr // _GC_END
+}
+
+var ptrDataGCProg = ptrDataGC{
+	width: unsafe.Sizeof((*byte)(nil)),
+	op:    _GC_APTR,
+	off:   0,
+	end:   _GC_END,
+}
+
+// garbage collection bytecode program for pointer to memory with pointers.
+// See ../../cmd/gc/reflect.c:/^dgcsym1 and :/^dgcsym.
+type ptrGC struct {
+	width  uintptr        // sizeof(ptr)
+	op     uintptr        // _GC_PTR
+	off    uintptr        // 0
+	elemgc unsafe.Pointer // element gc type
+	end    uintptr        // _GC_END
 }
 
 // PtrTo returns the pointer type with element t.
@@ -1334,6 +1391,21 @@ func cachePut(k cacheKey, t *rtype) Type {
 	return t
 }
 
+// garbage collection bytecode program for chan.
+// See ../../cmd/gc/reflect.c:/^dgcsym1 and :/^dgcsym.
+type chanGC struct {
+	width uintptr // sizeof(map)
+	op    uintptr // _GC_CHAN_PTR
+	off   uintptr // 0
+	typ   *rtype  // map type
+	end   uintptr // _GC_END
+}
+
+type badGC struct {
+	width uintptr
+	end   uintptr
+}
+
 // ChanOf returns the channel type with the given direction and element type.
 // For example, if t represents int, ChanOf(RecvDir, t) represents <-chan int.
 //
@@ -1393,20 +1465,27 @@ func ChanOf(dir ChanDir, t Type) Type {
 	ch.uncommonType = nil
 	ch.ptrToThis = nil
 
+	// INCORRECT. Uncomment to check that TestChanOfGC fails when ch.gc is wrong.
+	//ch.gc = unsafe.Pointer(&badGC{width: ch.size, end: _GC_END})
+
 	return cachePut(ckey, &ch.rtype)
 }
+
+func ismapkey(*rtype) bool // implemented in runtime
 
 // MapOf returns the map type with the given key and element types.
 // For example, if k represents int and e represents string,
 // MapOf(k, e) represents map[int]string.
 //
 // If the key type is not a valid map key type (that is, if it does
-// not implement Go's == operator), MapOf panics. TODO(rsc).
+// not implement Go's == operator), MapOf panics.
 func MapOf(key, elem Type) Type {
 	ktyp := key.(*rtype)
 	etyp := elem.(*rtype)
 
-	// TODO: Check for invalid key types.
+	if !ismapkey(ktyp) {
+		panic("reflect.MapOf: invalid key type " + ktyp.String())
+	}
 
 	// Look in cache.
 	ckey := cacheKey{Map, ktyp, etyp, 0}
@@ -1430,10 +1509,154 @@ func MapOf(key, elem Type) Type {
 
 	mt.key = ktyp
 	mt.elem = etyp
+	// mt.bucket = bucketOf(ktyp, etyp)
+	// mt.hmap = hMapOf(mt.bucket)
 	mt.uncommonType = nil
 	mt.ptrToThis = nil
 
+	// INCORRECT. Uncomment to check that TestMapOfGC and TestMapOfGCValues
+	// fail when mt.gc is wrong.
+	//mt.gc = unsafe.Pointer(&badGC{width: mt.size, end: _GC_END})
+
 	return cachePut(ckey, &mt.rtype)
+}
+
+// Make sure these routines stay in sync with ../../pkg/runtime/hashmap.c!
+// These types exist only for GC, so we only fill out GC relevant info.
+// Currently, that's just size and the GC program.  We also fill in string
+// for possible debugging use.
+const (
+	_BUCKETSIZE = 8
+	_MAXKEYSIZE = 128
+	_MAXVALSIZE = 128
+)
+
+func bucketOf(ktyp, etyp *rtype) *rtype {
+	if ktyp.size > _MAXKEYSIZE {
+		ktyp = PtrTo(ktyp).(*rtype)
+	}
+	if etyp.size > _MAXVALSIZE {
+		etyp = PtrTo(etyp).(*rtype)
+	}
+	ptrsize := unsafe.Sizeof(uintptr(0))
+
+	gc := make([]uintptr, 1)                                       // first entry is size, filled in at the end
+	offset := _BUCKETSIZE * unsafe.Sizeof(uint8(0))                // topbits
+	gc = append(gc, _GC_PTR, offset, 0 /*self pointer set below*/) // overflow
+	offset += ptrsize
+
+	// keys
+	if ktyp.kind&kindNoPointers == 0 {
+		gc = append(gc, _GC_ARRAY_START, offset, _BUCKETSIZE, ktyp.size)
+		gc = appendGCProgram(gc, ktyp)
+		gc = append(gc, _GC_ARRAY_NEXT)
+	}
+	offset += _BUCKETSIZE * ktyp.size
+
+	// values
+	if etyp.kind&kindNoPointers == 0 {
+		gc = append(gc, _GC_ARRAY_START, offset, _BUCKETSIZE, etyp.size)
+		gc = appendGCProgram(gc, etyp)
+		gc = append(gc, _GC_ARRAY_NEXT)
+	}
+	offset += _BUCKETSIZE * etyp.size
+
+	gc = append(gc, _GC_END)
+	gc[0] = offset
+	gc[3] = uintptr(unsafe.Pointer(&gc[0])) // set self pointer
+
+	b := new(rtype)
+	b.size = offset
+	// b.gc = unsafe.Pointer(&gc[0])
+	s := "bucket(" + *ktyp.string + "," + *etyp.string + ")"
+	b.string = &s
+	return b
+}
+
+// Take the GC program for "t" and append it to the GC program "gc".
+func appendGCProgram(gc []uintptr, t *rtype) []uintptr {
+	// p := t.gc
+	var p unsafe.Pointer
+	p = unsafe.Pointer(uintptr(p) + unsafe.Sizeof(uintptr(0))) // skip size
+loop:
+	for {
+		var argcnt int
+		switch *(*uintptr)(p) {
+		case _GC_END:
+			// Note: _GC_END not included in append
+			break loop
+		case _GC_ARRAY_NEXT:
+			argcnt = 0
+		case _GC_APTR, _GC_STRING, _GC_EFACE, _GC_IFACE:
+			argcnt = 1
+		case _GC_PTR, _GC_CALL, _GC_CHAN_PTR, _GC_SLICE:
+			argcnt = 2
+		case _GC_ARRAY_START, _GC_REGION:
+			argcnt = 3
+		default:
+			panic("unknown GC program op for " + *t.string + ": " + strconv.FormatUint(*(*uint64)(p), 10))
+		}
+		for i := 0; i < argcnt+1; i++ {
+			gc = append(gc, *(*uintptr)(p))
+			p = unsafe.Pointer(uintptr(p) + unsafe.Sizeof(uintptr(0)))
+		}
+	}
+	return gc
+}
+func hMapOf(bucket *rtype) *rtype {
+	ptrsize := unsafe.Sizeof(uintptr(0))
+
+	// make gc program & compute hmap size
+	gc := make([]uintptr, 1)           // first entry is size, filled in at the end
+	offset := unsafe.Sizeof(uint(0))   // count
+	offset += unsafe.Sizeof(uint32(0)) // flags
+	offset += unsafe.Sizeof(uint32(0)) // hash0
+	offset += unsafe.Sizeof(uint8(0))  // B
+	offset += unsafe.Sizeof(uint8(0))  // keysize
+	offset += unsafe.Sizeof(uint8(0))  // valuesize
+	offset = (offset + 1) / 2 * 2
+	offset += unsafe.Sizeof(uint16(0)) // bucketsize
+	offset = (offset + ptrsize - 1) / ptrsize * ptrsize
+	// gc = append(gc, _GC_PTR, offset, uintptr(bucket.gc)) // buckets
+	offset += ptrsize
+	// gc = append(gc, _GC_PTR, offset, uintptr(bucket.gc)) // oldbuckets
+	offset += ptrsize
+	offset += ptrsize // nevacuate
+	gc = append(gc, _GC_END)
+	gc[0] = offset
+
+	h := new(rtype)
+	h.size = offset
+	// h.gc = unsafe.Pointer(&gc[0])
+	s := "hmap(" + *bucket.string + ")"
+	h.string = &s
+	return h
+}
+
+// garbage collection bytecode program for slice of non-zero-length values.
+// See ../../cmd/gc/reflect.c:/^dgcsym1 and :/^dgcsym.
+type sliceGC struct {
+	width  uintptr        // sizeof(slice)
+	op     uintptr        // _GC_SLICE
+	off    uintptr        // 0
+	elemgc unsafe.Pointer // element gc program
+	end    uintptr        // _GC_END
+}
+
+// garbage collection bytecode program for slice of zero-length values.
+// See ../../cmd/gc/reflect.c:/^dgcsym1 and :/^dgcsym.
+type sliceEmptyGC struct {
+	width uintptr // sizeof(slice)
+	op    uintptr // _GC_APTR
+	off   uintptr // 0
+	end   uintptr // _GC_END
+}
+
+var sliceEmptyGCProg = sliceEmptyGC{
+	width: unsafe.Sizeof([]byte(nil)),
+	op:    _GC_APTR,
+	off:   0,
+	end:   _GC_END,
 }
 
 // SliceOf returns the slice type with element type t.
@@ -1464,6 +1687,9 @@ func SliceOf(t Type) Type {
 	slice.elem = typ
 	slice.uncommonType = nil
 	slice.ptrToThis = nil
+
+	// INCORRECT. Uncomment to check that TestSliceOfOfGC fails when slice.gc is wrong.
+	//slice.gc = unsafe.Pointer(&badGC{width: slice.size, end: _GC_END})
 
 	return cachePut(ckey, &slice.rtype)
 }

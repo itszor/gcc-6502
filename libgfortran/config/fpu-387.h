@@ -73,7 +73,7 @@ has_sse (void)
 
       /* We need a single SSE instruction here so the handler can safely skip
 	 over it.  */
-      __asm__ volatile ("movaps %xmm0,%xmm0");
+      __asm__ __volatile__ ("movaps\t%xmm0,%xmm0");
 
       sigaction (SIGILL, &oact, NULL);
 
@@ -88,49 +88,174 @@ has_sse (void)
 #endif
 }
 
-/* i387 -- see linux <fpu_control.h> header file for details.  */
+/* i387 exceptions -- see linux <fpu_control.h> header file for details.  */
 #define _FPU_MASK_IM  0x01
 #define _FPU_MASK_DM  0x02
 #define _FPU_MASK_ZM  0x04
 #define _FPU_MASK_OM  0x08
 #define _FPU_MASK_UM  0x10
 #define _FPU_MASK_PM  0x20
+#define _FPU_MASK_ALL 0x3f
 
-void set_fpu (void)
+#define _FPU_EX_ALL   0x3f
+
+/* i387 rounding modes.  */
+
+#define _FPU_RC_NEAREST 0x0
+#define _FPU_RC_DOWN    0x1
+#define _FPU_RC_UP      0x2
+#define _FPU_RC_ZERO    0x3
+
+#define _FPU_RC_MASK    0x3
+
+
+void
+set_fpu (void)
 {
+  int excepts = 0;
   unsigned short cw;
 
-  asm volatile ("fnstcw %0" : "=m" (cw));
+  __asm__ __volatile__ ("fstcw\t%0" : "=m" (cw));
 
-  cw |= (_FPU_MASK_IM | _FPU_MASK_DM | _FPU_MASK_ZM | _FPU_MASK_OM
-	 | _FPU_MASK_UM | _FPU_MASK_PM);
+  if (options.fpe & GFC_FPE_INVALID) excepts |= _FPU_MASK_IM;
+  if (options.fpe & GFC_FPE_DENORMAL) excepts |= _FPU_MASK_DM;
+  if (options.fpe & GFC_FPE_ZERO) excepts |= _FPU_MASK_ZM;
+  if (options.fpe & GFC_FPE_OVERFLOW) excepts |= _FPU_MASK_OM;
+  if (options.fpe & GFC_FPE_UNDERFLOW) excepts |= _FPU_MASK_UM;
+  if (options.fpe & GFC_FPE_INEXACT) excepts |= _FPU_MASK_PM;
 
-  if (options.fpe & GFC_FPE_INVALID) cw &= ~_FPU_MASK_IM;
-  if (options.fpe & GFC_FPE_DENORMAL) cw &= ~_FPU_MASK_DM;
-  if (options.fpe & GFC_FPE_ZERO) cw &= ~_FPU_MASK_ZM;
-  if (options.fpe & GFC_FPE_OVERFLOW) cw &= ~_FPU_MASK_OM;
-  if (options.fpe & GFC_FPE_UNDERFLOW) cw &= ~_FPU_MASK_UM;
-  if (options.fpe & GFC_FPE_INEXACT) cw &= ~_FPU_MASK_PM;
+  cw |= _FPU_MASK_ALL;
+  cw &= ~excepts;
 
-  asm volatile ("fldcw %0" : : "m" (cw));
+  __asm__ __volatile__ ("fnclex\n\tfldcw\t%0" : : "m" (cw));
 
   if (has_sse())
     {
       unsigned int cw_sse;
 
-      asm volatile ("%vstmxcsr %0" : "=m" (cw_sse));
+      __asm__ __volatile__ ("%vstmxcsr\t%0" : "=m" (cw_sse));
 
-      cw_sse &= 0xffff0000;
-      cw_sse |= (_FPU_MASK_IM | _FPU_MASK_DM | _FPU_MASK_ZM | _FPU_MASK_OM
-		 | _FPU_MASK_UM | _FPU_MASK_PM ) << 7;
+      /* The SSE exception masks are shifted by 7 bits.  */
+      cw_sse |= _FPU_MASK_ALL << 7;
+      cw_sse &= ~(excepts << 7);
 
-      if (options.fpe & GFC_FPE_INVALID) cw_sse &= ~(_FPU_MASK_IM << 7);
-      if (options.fpe & GFC_FPE_DENORMAL) cw_sse &= ~(_FPU_MASK_DM << 7);
-      if (options.fpe & GFC_FPE_ZERO) cw_sse &= ~(_FPU_MASK_ZM << 7);
-      if (options.fpe & GFC_FPE_OVERFLOW) cw_sse &= ~(_FPU_MASK_OM << 7);
-      if (options.fpe & GFC_FPE_UNDERFLOW) cw_sse &= ~(_FPU_MASK_UM << 7);
-      if (options.fpe & GFC_FPE_INEXACT) cw_sse &= ~(_FPU_MASK_PM << 7);
+      /* Clear stalled exception flags.  */
+      cw_sse &= ~_FPU_EX_ALL;
 
-      asm volatile ("%vldmxcsr %0" : : "m" (cw_sse));
+      __asm__ __volatile__ ("%vldmxcsr\t%0" : : "m" (cw_sse));
+    }
+}
+
+int
+get_fpu_except_flags (void)
+{
+  unsigned short cw;
+  int excepts;
+  int result = 0;
+
+  __asm__ __volatile__ ("fnstsw\t%0" : "=a" (cw));
+  excepts = cw;
+
+  if (has_sse())
+    {
+      unsigned int cw_sse;
+
+      __asm__ __volatile__ ("%vstmxcsr\t%0" : "=m" (cw_sse));
+      excepts |= cw_sse;
+    }
+
+  excepts &= _FPU_EX_ALL;
+
+  if (excepts & _FPU_MASK_IM) result |= GFC_FPE_INVALID;
+  if (excepts & _FPU_MASK_DM) result |= GFC_FPE_DENORMAL;
+  if (excepts & _FPU_MASK_ZM) result |= GFC_FPE_ZERO;
+  if (excepts & _FPU_MASK_OM) result |= GFC_FPE_OVERFLOW;
+  if (excepts & _FPU_MASK_UM) result |= GFC_FPE_UNDERFLOW;
+  if (excepts & _FPU_MASK_PM) result |= GFC_FPE_INEXACT;
+
+  return result;
+}
+
+void
+set_fpu_rounding_mode (int round)
+{
+  int round_mode;
+  unsigned short cw;
+
+  switch (round)
+    {
+    case GFC_FPE_TONEAREST:
+      round_mode = _FPU_RC_NEAREST;
+      break;
+    case GFC_FPE_UPWARD:
+      round_mode = _FPU_RC_UP;
+      break;
+    case GFC_FPE_DOWNWARD:
+      round_mode = _FPU_RC_DOWN;
+      break;
+    case GFC_FPE_TOWARDZERO:
+      round_mode = _FPU_RC_ZERO;
+      break;
+    default:
+      return; /* Should be unreachable.  */
+    }
+
+  __asm__ __volatile__ ("fnstcw\t%0" : "=m" (cw));
+
+  /* The x87 round control bits are shifted by 10 bits.  */
+  cw &= ~(_FPU_RC_MASK << 10);
+  cw |= round_mode << 10;
+
+  __asm__ __volatile__ ("fldcw\t%0" : : "m" (cw));
+
+  if (has_sse())
+    {
+      unsigned int cw_sse;
+
+      __asm__ __volatile__ ("%vstmxcsr\t%0" : "=m" (cw_sse));
+
+      /* The SSE round control bits are shifted by 13 bits.  */
+      cw_sse &= ~(_FPU_RC_MASK << 13);
+      cw_sse |= round_mode << 13;
+
+      __asm__ __volatile__ ("%vldmxcsr\t%0" : : "m" (cw_sse));
+    }
+}
+
+int
+get_fpu_rounding_mode (void)
+{
+  int round_mode;
+
+#ifdef __x86_64__
+  unsigned int cw;
+
+  __asm__ __volatile__ ("%vstmxcsr\t%0" : "=m" (cw));
+
+  /* The SSE round control bits are shifted by 13 bits.  */
+  round_mode = cw >> 13;
+#else
+  unsigned short cw;
+
+  __asm__ __volatile__ ("fnstcw\t%0" : "=m" (cw));
+
+  /* The x87 round control bits are shifted by 10 bits.  */
+  round_mode = cw >> 10;
+#endif
+
+  round_mode &= _FPU_RC_MASK;
+
+  switch (round_mode)
+    {
+    case _FPU_RC_NEAREST:
+      return GFC_FPE_TONEAREST;
+    case _FPU_RC_UP:
+      return GFC_FPE_UPWARD;
+    case _FPU_RC_DOWN:
+      return GFC_FPE_DOWNWARD;
+    case _FPU_RC_ZERO:
+      return GFC_FPE_TOWARDZERO;
+    default:
+      return GFC_FPE_INVALID; /* Should be unreachable.  */
     }
 }

@@ -58,12 +58,10 @@ func sendFile(c *netFD, r io.Reader) (written int64, err error, handled bool) {
 		return 0, err, false
 	}
 
-	c.wio.Lock()
-	defer c.wio.Unlock()
-	if err := c.incref(false); err != nil {
+	if err := c.writeLock(); err != nil {
 		return 0, err, true
 	}
-	defer c.decref()
+	defer c.writeUnlock()
 
 	dst := c.sysfd
 	src := int(f.Fd())
@@ -83,7 +81,7 @@ func sendFile(c *netFD, r io.Reader) (written int64, err error, handled bool) {
 			break
 		}
 		if err1 == syscall.EAGAIN {
-			if err1 = c.pollServer.WaitWrite(c); err1 == nil {
+			if err1 = c.pd.WaitWrite(); err1 == nil {
 				continue
 			}
 		}

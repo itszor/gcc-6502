@@ -569,7 +569,10 @@ void
 Assignment_statement::do_determine_types()
 {
   this->lhs_->determine_type_no_context();
-  Type_context context(this->lhs_->type(), false);
+  Type* rhs_context_type = this->lhs_->type();
+  if (rhs_context_type->is_sink_type())
+    rhs_context_type = NULL;
+  Type_context context(rhs_context_type, false);
   this->rhs_->determine_type(&context);
 }
 
@@ -591,6 +594,15 @@ Assignment_statement::do_check_types(Gogo*)
 
   Type* lhs_type = this->lhs_->type();
   Type* rhs_type = this->rhs_->type();
+
+  // Invalid assignment of nil to the blank identifier.
+  if (lhs_type->is_sink_type()
+      && rhs_type->is_nil_type())
+    {
+      this->report_error(_("use of untyped nil"));
+      return;
+    }
+
   std::string reason;
   bool ok;
   if (this->are_hidden_fields_ok_)
@@ -972,7 +984,10 @@ Tuple_assignment_statement::do_lower(Gogo*, Named_object*, Block* enclosing,
 
       if ((*plhs)->is_sink_expression())
 	{
-	  b->add_statement(Statement::make_statement(*prhs, true));
+          if ((*prhs)->type()->is_nil_type())
+            this->report_error(_("use of untyped nil"));
+          else
+            b->add_statement(Statement::make_statement(*prhs, true));
 	  continue;
 	}
 
@@ -1655,46 +1670,23 @@ Statement::make_tuple_type_guard_assignment(Expression* val, Expression* ok,
 						   location);
 }
 
-// An expression statement.
+// Class Expression_statement.
 
-class Expression_statement : public Statement
+// Constructor.
+
+Expression_statement::Expression_statement(Expression* expr, bool is_ignored)
+  : Statement(STATEMENT_EXPRESSION, expr->location()),
+    expr_(expr), is_ignored_(is_ignored)
 {
- public:
-  Expression_statement(Expression* expr, bool is_ignored)
-    : Statement(STATEMENT_EXPRESSION, expr->location()),
-      expr_(expr), is_ignored_(is_ignored)
-  { }
+}
 
-  Expression*
-  expr()
-  { return this->expr_; }
+// Determine types.
 
- protected:
-  int
-  do_traverse(Traverse* traverse)
-  { return this->traverse_expression(traverse, &this->expr_); }
-
-  void
-  do_determine_types()
-  { this->expr_->determine_type_no_context(); }
-
-  void
-  do_check_types(Gogo*);
-
-  bool
-  do_may_fall_through() const;
-
-  Bstatement*
-  do_get_backend(Translate_context* context);
-
-  void
-  do_dump_statement(Ast_dump_context*) const;
-
- private:
-  Expression* expr_;
-  // Whether the value of this expression is being explicitly ignored.
-  bool is_ignored_;
-};
+void
+Expression_statement::do_determine_types()
+{
+  this->expr_->determine_type_no_context();
+}
 
 // Check the types of an expression statement.  The only check we do
 // is to possibly give an error about discarding the value of the
@@ -1707,8 +1699,8 @@ Expression_statement::do_check_types(Gogo*)
     this->expr_->discarding_value();
 }
 
-// An expression statement may fall through unless it is a call to a
-// function which does not return.
+// An expression statement is only a terminating statement if it is
+// a call to panic.
 
 bool
 Expression_statement::do_may_fall_through() const
@@ -1717,22 +1709,28 @@ Expression_statement::do_may_fall_through() const
   if (call != NULL)
     {
       const Expression* fn = call->fn();
-      const Func_expression* fe = fn->func_expression();
-      if (fe != NULL)
+      // panic is still an unknown named object.
+      const Unknown_expression* ue = fn->unknown_expression();
+      if (ue != NULL)
 	{
-	  const Named_object* no = fe->named_object();
+	  Named_object* no = ue->named_object();
 
-	  Function_type* fntype;
-	  if (no->is_function())
-	    fntype = no->func_value()->type();
-	  else if (no->is_function_declaration())
-	    fntype = no->func_declaration_value()->type();
-	  else
-	    fntype = NULL;
+          if (no->is_unknown())
+            no = no->unknown_value()->real_named_object();
+          if (no != NULL)
+            {
+              Function_type* fntype;
+              if (no->is_function())
+                fntype = no->func_value()->type();
+              else if (no->is_function_declaration())
+                fntype = no->func_declaration_value()->type();
+              else
+                fntype = NULL;
 
-	  // The builtin function panic does not return.
-	  if (fntype != NULL && fntype->is_builtin() && no->name() == "panic")
-	    return false;
+              // The builtin function panic does not return.
+              if (fntype != NULL && fntype->is_builtin() && no->name() == "panic")
+                return false;
+            }
 	}
     }
   return true;
@@ -1953,10 +1951,15 @@ Thunk_statement::is_simple(Function_type* fntype) const
 	      && results->begin()->type()->points_to() == NULL)))
     return false;
 
-  // If this calls something which is not a simple function, then we
+  // If this calls something that is not a simple function, then we
   // need a thunk.
   Expression* fn = this->call_->call_expression()->fn();
-  if (fn->interface_field_reference_expression() != NULL)
+  if (fn->func_expression() == NULL)
+    return false;
+
+  // If the function uses a closure, then we need a thunk.  FIXME: We
+  // could accept a zero argument function with a closure.
+  if (fn->func_expression()->closure() != NULL)
     return false;
 
   return true;
@@ -2496,7 +2499,11 @@ Thunk_statement::get_fn_and_arg(Expression** pfn, Expression** parg)
 
   Call_expression* ce = this->call_->call_expression();
 
-  *pfn = ce->fn();
+  Expression* fn = ce->fn();
+  Func_expression* fe = fn->func_expression();
+  go_assert(fe != NULL);
+  *pfn = Expression::make_func_code_reference(fe->named_object(),
+					      fe->location());
 
   const Expression_list* args = ce->args();
   if (args == NULL || args->empty())
@@ -2798,6 +2805,28 @@ Statement::make_return_statement(Expression_list* vals,
 				 Location location)
 {
   return new Return_statement(vals, location);
+}
+
+// Make a statement that returns the result of a call expression.
+
+Statement*
+Statement::make_return_from_call(Call_expression* call, Location location)
+{
+  size_t rc = call->result_count();
+  if (rc == 0)
+    return Statement::make_statement(call, true);
+  else
+    {
+      Expression_list* vals = new Expression_list();
+      if (rc == 1)
+	vals->push_back(call);
+      else
+	{
+	  for (size_t i = 0; i < rc; ++i)
+	    vals->push_back(Expression::make_call_result(call, i));
+	}
+      return Statement::make_return_statement(vals, location);
+    }
 }
 
 // A break or continue statement.
@@ -3700,9 +3729,6 @@ class Constant_switch_statement : public Statement
   void
   do_check_types(Gogo*);
 
-  bool
-  do_may_fall_through() const;
-
   Bstatement*
   do_get_backend(Translate_context*);
 
@@ -3744,22 +3770,6 @@ Constant_switch_statement::do_check_types(Gogo*)
 {
   if (!this->clauses_->check_types(this->val_->type()))
     this->set_is_error();
-}
-
-// Return whether this switch may fall through.
-
-bool
-Constant_switch_statement::do_may_fall_through() const
-{
-  if (this->clauses_ == NULL)
-    return true;
-
-  // If we have a break label, then some case needed it.  That implies
-  // that the switch statement as a whole can fall through.
-  if (this->break_label_ != NULL)
-    return true;
-
-  return this->clauses_->may_fall_through();
 }
 
 // Convert to GENERIC.
@@ -3911,6 +3921,22 @@ Switch_statement::do_dump_statement(Ast_dump_context* ast_dump_context) const
   ast_dump_context->ostream() << std::endl;
 }
 
+// Return whether this switch may fall through.
+
+bool
+Switch_statement::do_may_fall_through() const
+{
+  if (this->clauses_ == NULL)
+    return true;
+
+  // If we have a break label, then some case needed it.  That implies
+  // that the switch statement as a whole can fall through.
+  if (this->break_label_ != NULL)
+    return true;
+
+  return this->clauses_->may_fall_through();
+}
+
 // Make a switch statement.
 
 Switch_statement*
@@ -4050,6 +4076,27 @@ Type_case_clauses::Type_case_clause::lower(Type* switch_val_type,
     }
 }
 
+// Return true if this type clause may fall through to the statements
+// following the switch.
+
+bool
+Type_case_clauses::Type_case_clause::may_fall_through() const
+{
+  if (this->is_fallthrough_)
+    {
+      // This case means that we automatically fall through to the
+      // next case (it's used for T1 in case T1, T2:).  It does not
+      // mean that we fall through to the end of the type switch as a
+      // whole.  There is sure to be a next case and that next case
+      // will determine whether we fall through to the statements
+      // after the type switch.
+      return false;
+    }
+  if (this->statements_ == NULL)
+    return true;
+  return this->statements_->may_fall_through();
+}
+
 // Dump the AST representation for a type case clause
 
 void
@@ -4148,6 +4195,25 @@ Type_case_clauses::lower(Type* switch_val_type, Block* b,
 			NULL);
 }
 
+// Return true if these clauses may fall through to the statements
+// following the switch statement.
+
+bool
+Type_case_clauses::may_fall_through() const
+{
+  bool found_default = false;
+  for (Type_clauses::const_iterator p = this->clauses_.begin();
+       p != this->clauses_.end();
+       ++p)
+    {
+      if (p->may_fall_through())
+	return true;
+      if (p->is_default())
+	found_default = true;
+    }
+  return !found_default;
+}
+
 // Dump the AST representation for case clauses (from a switch statement)
 
 void
@@ -4235,6 +4301,22 @@ Type_switch_statement::do_lower(Gogo*, Named_object*, Block* enclosing,
   b->add_statement(s);
 
   return Statement::make_block_statement(b, loc);
+}
+
+// Return whether this switch may fall through.
+
+bool
+Type_switch_statement::do_may_fall_through() const
+{
+  if (this->clauses_ == NULL)
+    return true;
+
+  // If we have a break label, then some case needed it.  That implies
+  // that the switch statement as a whole can fall through.
+  if (this->break_label_ != NULL)
+    return true;
+
+  return this->clauses_->may_fall_through();
 }
 
 // Return the break label for this type switch statement, creating it
@@ -4954,6 +5036,19 @@ Select_statement::do_lower(Gogo* gogo, Named_object* function,
   return Statement::make_block_statement(b, loc);
 }
 
+// Whether the select statement itself may fall through to the following
+// statement.
+
+bool
+Select_statement::do_may_fall_through() const
+{
+  // A select statement is terminating if no break statement
+  // refers to it and all of its clauses are terminating.
+  if (this->break_label_ != NULL)
+    return true;
+  return this->clauses_->may_fall_through();
+}
+
 // Return the backend representation for a select statement.
 
 Bstatement*
@@ -5112,6 +5207,20 @@ For_statement::set_break_continue_labels(Unnamed_label* break_label,
   go_assert(this->break_label_ == NULL && this->continue_label_ == NULL);
   this->break_label_ = break_label;
   this->continue_label_ = continue_label;
+}
+
+// Whether the overall statement may fall through.
+
+bool
+For_statement::do_may_fall_through() const
+{
+  // A for loop is terminating if it has no condition and
+  // no break statement.
+  if(this->cond_ != NULL)
+    return true;
+  if(this->break_label_ != NULL)
+    return true;
+  return false;
 }
 
 // Dump the AST representation for a for statement.
@@ -5431,7 +5540,7 @@ For_range_statement::lower_range_array(Gogo* gogo,
 
       ref = this->make_range_ref(range_object, range_temp, loc);
       Expression* ref2 = Expression::make_temporary_reference(index_temp, loc);
-      Expression* index = Expression::make_index(ref, ref2, NULL, loc);
+      Expression* index = Expression::make_index(ref, ref2, NULL, NULL, loc);
 
       tref = Expression::make_temporary_reference(value_temp, loc);
       tref->set_is_lvalue();
@@ -5532,7 +5641,7 @@ For_range_statement::lower_range_slice(Gogo* gogo,
 
       ref = Expression::make_temporary_reference(for_temp, loc);
       Expression* ref2 = Expression::make_temporary_reference(index_temp, loc);
-      Expression* index = Expression::make_index(ref, ref2, NULL, loc);
+      Expression* index = Expression::make_index(ref, ref2, NULL, NULL, loc);
 
       tref = Expression::make_temporary_reference(value_temp, loc);
       tref->set_is_lvalue();
@@ -5740,7 +5849,7 @@ For_range_statement::lower_range_map(Gogo*,
   Expression* zexpr = Expression::make_integer(&zval, NULL, loc);
   mpz_clear(zval);
 
-  Expression* index = Expression::make_index(ref, zexpr, NULL, loc);
+  Expression* index = Expression::make_index(ref, zexpr, NULL, NULL, loc);
 
   Expression* ne = Expression::make_binary(OPERATOR_NOTEQ, index,
 					   Expression::make_nil(loc),

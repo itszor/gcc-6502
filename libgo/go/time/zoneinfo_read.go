@@ -11,10 +11,6 @@ package time
 
 import "errors"
 
-const (
-	headerSize = 4 + 16 + 4*7
-)
-
 // Simple I/O interface to binary blob of data.
 type data struct {
 	p     []byte
@@ -172,6 +168,12 @@ func loadZoneData(bytes []byte) (l *Location, err error) {
 		if i < len(isutc) {
 			tx[i].isutc = isutc[i] != 0
 		}
+	}
+
+	if len(tx) == 0 {
+		// Build fake transition to cover all time.
+		// This happens in fixed locations like "Etc/GMT0".
+		tx = append(tx, zoneTrans{when: -1 << 63, index: 0})
 	}
 
 	// Committed to succeed.

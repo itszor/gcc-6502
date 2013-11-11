@@ -64,6 +64,24 @@ var tests = []ZipTest{
 		},
 	},
 	{
+		Name:    "test-trailing-junk.zip",
+		Comment: "This is a zipfile comment.",
+		File: []ZipTestFile{
+			{
+				Name:    "test.txt",
+				Content: []byte("This is a test text file.\n"),
+				Mtime:   "09-05-10 12:12:02",
+				Mode:    0644,
+			},
+			{
+				Name:  "gophercolor16x16.png",
+				File:  "gophercolor16x16.png",
+				Mtime: "09-05-10 15:52:58",
+				Mode:  0644,
+			},
+		},
+	},
+	{
 		Name:   "r.zip",
 		Source: returnRecursiveZip,
 		File: []ZipTestFile{
@@ -258,11 +276,12 @@ func readTestZip(t *testing.T, zt ZipTest) {
 		var rc *ReadCloser
 		rc, err = OpenReader(filepath.Join("testdata", zt.Name))
 		if err == nil {
+			defer rc.Close()
 			z = &rc.Reader
 		}
 	}
 	if err != zt.Error {
-		t.Errorf("error=%v, want %v", err, zt.Error)
+		t.Errorf("%s: error=%v, want %v", zt.Name, err, zt.Error)
 		return
 	}
 

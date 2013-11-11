@@ -523,6 +523,14 @@ class Type
   static Type*
   make_forward_declaration(Named_object*);
 
+  // Make a builtin struct type from a list of fields.
+  static Struct_type*
+  make_builtin_struct_type(int nfields, ...);
+
+  // Make a builtin named type.
+  static Named_type*
+  make_builtin_named_type(const char* name, Type* type);
+
   // Traverse a type.
   static int
   traverse(Type*, Traverse*);
@@ -893,7 +901,7 @@ class Type
   // Build a type descriptor entry for this type.  Return a pointer to
   // it.  The location is the location which causes us to need the
   // entry.
-  tree
+  Bexpression*
   type_descriptor_pointer(Gogo* gogo, Location);
 
   // Return the type reflection string for this type.
@@ -1034,14 +1042,6 @@ class Type
   Expression*
   type_descriptor_constructor(Gogo*, int runtime_type_kind, Named_type*,
 			      const Methods*, bool only_value_methods);
-
-  // Make a builtin struct type from a list of fields.
-  static Struct_type*
-  make_builtin_struct_type(int nfields, ...);
-
-  // Make a builtin named type.
-  static Named_type*
-  make_builtin_named_type(const char* name, Type* type);
 
   // For the benefit of child class reflection string generation.
   void
@@ -1717,7 +1717,8 @@ class Function_type : public Type
 		Typed_identifier_list* results, Location location)
     : Type(TYPE_FUNCTION),
       receiver_(receiver), parameters_(parameters), results_(results),
-      location_(location), is_varargs_(false), is_builtin_(false)
+      location_(location), is_varargs_(false), is_builtin_(false),
+      fnbtype_(NULL)
   { }
 
   // Get the receiver.
@@ -1789,14 +1790,25 @@ class Function_type : public Type
   Function_type*
   copy_with_receiver(Type*) const;
 
+  // Return a copy of this type ignoring any receiver and using dummy
+  // names for all parameters.  This is used for thunks for method
+  // values.
+  Function_type*
+  copy_with_names() const;
+
   static Type*
   make_function_type_descriptor_type();
+
+  // Return the backend representation of this function type. This is used
+  // as the real type of a backend function declaration or defintion.
+  Btype*
+  get_backend_fntype(Gogo*);
 
  protected:
   int
   do_traverse(Traverse*);
 
-  // A trampoline function has a pointer which matters for GC.
+  // A function descriptor may be allocated on the heap.
   bool
   do_has_pointer() const
   { return true; }
@@ -1845,6 +1857,9 @@ class Function_type : public Type
   // Whether this is a special builtin function which can not simply
   // be called.  This is used for len, cap, etc.
   bool is_builtin_;
+  // The backend representation of this type for backend function
+  // declarations and definitions.
+  Btype* fnbtype_;
 };
 
 // The type of a pointer.
@@ -1909,7 +1924,7 @@ class Struct_field
 {
  public:
   explicit Struct_field(const Typed_identifier& typed_identifier)
-    : typed_identifier_(typed_identifier), tag_(NULL)
+    : typed_identifier_(typed_identifier), tag_(NULL), is_imported_(false)
   { }
 
   // The field name.
@@ -1919,6 +1934,14 @@ class Struct_field
   // Return whether this struct field is named NAME.
   bool
   is_field_name(const std::string& name) const;
+
+  // Return whether this struct field is an unexported field named NAME.
+  bool
+  is_unexported_field_name(Gogo*, const std::string& name) const;
+
+  // Return whether this struct field is an embedded built-in type.
+  bool
+  is_embedded_builtin(Gogo*) const;
 
   // The field type.
   Type*
@@ -1953,6 +1976,11 @@ class Struct_field
   set_tag(const std::string& tag)
   { this->tag_ = new std::string(tag); }
 
+  // Record that this field is defined in an imported struct.
+  void
+  set_is_imported()
+  { this->is_imported_ = true; }
+
   // Set the type.  This is only used in error cases.
   void
   set_type(Type* type)
@@ -1963,6 +1991,8 @@ class Struct_field
   Typed_identifier typed_identifier_;
   // The field tag.  This is NULL if the field has no tag.
   std::string* tag_;
+  // Whether this field is defined in an imported struct.
+  bool is_imported_;
 };
 
 // A list of struct fields.
@@ -2031,8 +2061,7 @@ class Struct_type : public Type
  public:
   Struct_type(Struct_field_list* fields, Location location)
     : Type(TYPE_STRUCT),
-      fields_(fields), location_(location), all_methods_(NULL),
-      interface_method_tables_(NULL), pointer_interface_method_tables_(NULL)
+      fields_(fields), location_(location), all_methods_(NULL)
   { }
 
   // Return the field NAME.  This only looks at local fields, not at
@@ -2190,6 +2219,16 @@ class Struct_type : public Type
 
   static Identical_structs identical_structs;
 
+  // Used to manage method tables for identical unnamed structs.
+  typedef std::pair<Interface_method_tables*, Interface_method_tables*>
+    Struct_method_table_pair;
+
+  typedef Unordered_map_hash(Struct_type*, Struct_method_table_pair*,
+			     Type_hash_identical, Type_identical)
+    Struct_method_tables;
+
+  static Struct_method_tables struct_method_tables;
+
   // Used to avoid infinite loops in field_reference_depth.
   struct Saw_named_type
   {
@@ -2208,13 +2247,6 @@ class Struct_type : public Type
   Location location_;
   // If this struct is unnamed, a list of methods.
   Methods* all_methods_;
-  // A mapping from interfaces to the associated interface method
-  // tables for this type.  Only used if this struct is unnamed.
-  Interface_method_tables* interface_method_tables_;
-  // A mapping from interfaces to the associated interface method
-  // tables for pointers to this type.  Only used if this struct is
-  // unnamed.
-  Interface_method_tables* pointer_interface_method_tables_;
 };
 
 // The type of an array.
@@ -2380,7 +2412,7 @@ class Map_type : public Type
   // Build a map descriptor for this type.  Return a pointer to it.
   // The location is the location which causes us to need the
   // descriptor.
-  tree
+  Bexpression*
   map_descriptor_pointer(Gogo* gogo, Location);
 
  protected:

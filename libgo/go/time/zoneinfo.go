@@ -145,28 +145,36 @@ func (l *Location) lookup(sec int64) (name string, offset int, isDST bool, start
 }
 
 // lookupName returns information about the time zone with
-// the given name (such as "EST").
-func (l *Location) lookupName(name string) (offset int, isDST bool, ok bool) {
+// the given name (such as "EST") at the given pseudo-Unix time
+// (what the given time of day would be in UTC).
+func (l *Location) lookupName(name string, unix int64) (offset int, isDST bool, ok bool) {
 	l = l.get()
+
+	// First try for a zone with the right name that was actually
+	// in effect at the given time. (In Sydney, Australia, both standard
+	// and daylight-savings time are abbreviated "EST". Using the
+	// offset helps us pick the right one for the given time.
+	// It's not perfect: during the backward transition we might pick
+	// either one.)
+	for i := range l.zone {
+		zone := &l.zone[i]
+		if zone.name == name {
+			nam, offset, isDST, _, _ := l.lookup(unix - int64(zone.offset))
+			if nam == zone.name {
+				return offset, isDST, true
+			}
+		}
+	}
+
+	// Otherwise fall back to an ordinary name match.
 	for i := range l.zone {
 		zone := &l.zone[i]
 		if zone.name == name {
 			return zone.offset, zone.isDST, true
 		}
 	}
-	return
-}
 
-// lookupOffset returns information about the time zone with
-// the given offset (such as -5*60*60).
-func (l *Location) lookupOffset(offset int) (name string, isDST bool, ok bool) {
-	l = l.get()
-	for i := range l.zone {
-		zone := &l.zone[i]
-		if zone.offset == offset {
-			return zone.name, zone.isDST, true
-		}
-	}
+	// Otherwise, give up.
 	return
 }
 

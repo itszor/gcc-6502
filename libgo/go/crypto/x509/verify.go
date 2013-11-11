@@ -5,6 +5,8 @@
 package x509
 
 import (
+	"fmt"
+	"net"
 	"runtime"
 	"strings"
 	"time"
@@ -63,23 +65,54 @@ type HostnameError struct {
 }
 
 func (h HostnameError) Error() string {
-	var valid string
 	c := h.Certificate
-	if len(c.DNSNames) > 0 {
-		valid = strings.Join(c.DNSNames, ", ")
+
+	var valid string
+	if ip := net.ParseIP(h.Host); ip != nil {
+		// Trying to validate an IP
+		if len(c.IPAddresses) == 0 {
+			return "x509: cannot validate certificate for " + h.Host + " because it doesn't contain any IP SANs"
+		}
+		for _, san := range c.IPAddresses {
+			if len(valid) > 0 {
+				valid += ", "
+			}
+			valid += san.String()
+		}
 	} else {
-		valid = c.Subject.CommonName
+		if len(c.DNSNames) > 0 {
+			valid = strings.Join(c.DNSNames, ", ")
+		} else {
+			valid = c.Subject.CommonName
+		}
 	}
-	return "certificate is valid for " + valid + ", not " + h.Host
+	return "x509: certificate is valid for " + valid + ", not " + h.Host
 }
 
 // UnknownAuthorityError results when the certificate issuer is unknown
 type UnknownAuthorityError struct {
 	cert *Certificate
+	// hintErr contains an error that may be helpful in determining why an
+	// authority wasn't found.
+	hintErr error
+	// hintCert contains a possible authority certificate that was rejected
+	// because of the error in hintErr.
+	hintCert *Certificate
 }
 
 func (e UnknownAuthorityError) Error() string {
-	return "x509: certificate signed by unknown authority"
+	s := "x509: certificate signed by unknown authority"
+	if e.hintErr != nil {
+		certName := e.hintCert.Subject.CommonName
+		if len(certName) == 0 {
+			if len(e.hintCert.Subject.Organization) > 0 {
+				certName = e.hintCert.Subject.Organization[0]
+			}
+			certName = "serial:" + e.hintCert.SerialNumber.String()
+		}
+		s += fmt.Sprintf(" (possibly because of %q while trying to verify candidate authority certificate %q)", e.hintErr, certName)
+	}
+	return s
 }
 
 // SystemRootsError results when we fail to load the system root certificates.
@@ -121,14 +154,18 @@ func (c *Certificate) isValid(certType int, currentChain []*Certificate, opts *V
 	}
 
 	if len(c.PermittedDNSDomains) > 0 {
+		ok := false
 		for _, domain := range c.PermittedDNSDomains {
 			if opts.DNSName == domain ||
 				(strings.HasSuffix(opts.DNSName, domain) &&
 					len(opts.DNSName) >= 1+len(domain) &&
 					opts.DNSName[len(opts.DNSName)-len(domain)-1] == '.') {
-				continue
+				ok = true
+				break
 			}
+		}
 
+		if !ok {
 			return CertificateInvalidError{c, CANotAuthorizedForThisName}
 		}
 	}
@@ -234,7 +271,8 @@ func appendToFreshChain(chain []*Certificate, cert *Certificate) []*Certificate 
 }
 
 func (c *Certificate) buildChains(cache map[int][][]*Certificate, currentChain []*Certificate, opts *VerifyOptions) (chains [][]*Certificate, err error) {
-	for _, rootNum := range opts.Roots.findVerifiedParents(c) {
+	possibleRoots, failedRoot, rootErr := opts.Roots.findVerifiedParents(c)
+	for _, rootNum := range possibleRoots {
 		root := opts.Roots.certs[rootNum]
 		err = root.isValid(rootCertificate, currentChain, opts)
 		if err != nil {
@@ -243,8 +281,9 @@ func (c *Certificate) buildChains(cache map[int][][]*Certificate, currentChain [
 		chains = append(chains, appendToFreshChain(currentChain, root))
 	}
 
+	possibleIntermediates, failedIntermediate, intermediateErr := opts.Intermediates.findVerifiedParents(c)
 nextIntermediate:
-	for _, intermediateNum := range opts.Intermediates.findVerifiedParents(c) {
+	for _, intermediateNum := range possibleIntermediates {
 		intermediate := opts.Intermediates.certs[intermediateNum]
 		for _, cert := range currentChain {
 			if cert == intermediate {
@@ -269,7 +308,13 @@ nextIntermediate:
 	}
 
 	if len(chains) == 0 && err == nil {
-		err = UnknownAuthorityError{c}
+		hintErr := rootErr
+		hintCert := failedRoot
+		if hintErr == nil {
+			hintErr = intermediateErr
+			hintCert = failedIntermediate
+		}
+		err = UnknownAuthorityError{c, hintErr, hintCert}
 	}
 
 	return
@@ -334,6 +379,22 @@ func toLowerCaseASCII(in string) string {
 // VerifyHostname returns nil if c is a valid certificate for the named host.
 // Otherwise it returns an error describing the mismatch.
 func (c *Certificate) VerifyHostname(h string) error {
+	// IP addresses may be written in [ ].
+	candidateIP := h
+	if len(h) >= 3 && h[0] == '[' && h[len(h)-1] == ']' {
+		candidateIP = h[1 : len(h)-1]
+	}
+	if ip := net.ParseIP(candidateIP); ip != nil {
+		// We only match IP addresses against IP SANs.
+		// https://tools.ietf.org/html/rfc6125#appendix-B.2
+		for _, candidate := range c.IPAddresses {
+			if ip.Equal(candidate) {
+				return nil
+			}
+		}
+		return HostnameError{c, candidateIP}
+	}
+
 	lowered := toLowerCaseASCII(h)
 
 	if len(c.DNSNames) > 0 {
@@ -388,6 +449,14 @@ func checkChainForKeyUsage(chain []*Certificate, keyUsages []ExtKeyUsage) bool {
 
 			for _, usage := range cert.ExtKeyUsage {
 				if requestedUsage == usage {
+					continue NextRequestedUsage
+				} else if requestedUsage == ExtKeyUsageServerAuth &&
+					(usage == ExtKeyUsageNetscapeServerGatedCrypto ||
+						usage == ExtKeyUsageMicrosoftServerGatedCrypto) {
+					// In order to support COMODO
+					// certificate chains, we have to
+					// accept Netscape or Microsoft SGC
+					// usages as equal to ServerAuth.
 					continue NextRequestedUsage
 				}
 			}

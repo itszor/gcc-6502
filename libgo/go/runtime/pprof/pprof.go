@@ -20,8 +20,8 @@ import (
 	"text/tabwriter"
 )
 
-// BUG(rsc): A bug in the OS X Snow Leopard 64-bit kernel prevents
-// CPU profiling from giving accurate results on that system.
+// BUG(rsc): Profiles are incomplete and inaccuate on NetBSD, OpenBSD, and OS X.
+// See http://golang.org/issue/6047 for details.
 
 // A Profile is a collection of stack traces showing the call sequences
 // that led to instances of a particular event, such as allocation.
@@ -318,21 +318,33 @@ func printCountProfile(w io.Writer, debug int, name string, p countProfile) erro
 // for a single stack trace.
 func printStackRecord(w io.Writer, stk []uintptr, allFrames bool) {
 	show := allFrames
-	for _, pc := range stk {
+	wasPanic := false
+	for i, pc := range stk {
 		f := runtime.FuncForPC(pc)
 		if f == nil {
 			show = true
 			fmt.Fprintf(w, "#\t%#x\n", pc)
+			wasPanic = false
 		} else {
-			file, line := f.FileLine(pc)
+			tracepc := pc
+			// Back up to call instruction.
+			if i > 0 && pc > f.Entry() && !wasPanic {
+				if runtime.GOARCH == "386" || runtime.GOARCH == "amd64" {
+					tracepc--
+				} else {
+					tracepc -= 4 // arm, etc
+				}
+			}
+			file, line := f.FileLine(tracepc)
 			name := f.Name()
 			// Hide runtime.goexit and any runtime functions at the beginning.
 			// This is useful mainly for allocation traces.
+			wasPanic = name == "runtime.panic"
 			if name == "runtime.goexit" || !show && strings.HasPrefix(name, "runtime.") {
 				continue
 			}
 			show = true
-			fmt.Fprintf(w, "#\t%#x\t%s+%#x\t%s:%d\n", pc, f.Name(), pc-f.Entry(), file, line)
+			fmt.Fprintf(w, "#\t%#x\t%s+%#x\t%s:%d\n", pc, name, pc-f.Entry(), file, line)
 		}
 	}
 	if !show {
@@ -654,7 +666,7 @@ func writeBlock(w io.Writer, debug int) error {
 		}
 		fmt.Fprint(w, "\n")
 		if debug > 0 {
-			printStackRecord(w, r.Stack(), false)
+			printStackRecord(w, r.Stack(), true)
 		}
 	}
 

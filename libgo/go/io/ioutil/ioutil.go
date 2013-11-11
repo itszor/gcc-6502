@@ -78,9 +78,11 @@ func WriteFile(filename string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	n, err := f.Write(data)
-	f.Close()
 	if err == nil && n < len(data) {
 		err = io.ErrShortWrite
+	}
+	if err1 := f.Close(); err == nil {
+		err = err1
 	}
 	return err
 }
@@ -130,6 +132,10 @@ func (devNull) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func (devNull) WriteString(s string) (int, error) {
+	return len(s), nil
+}
+
 func (devNull) ReadFrom(r io.Reader) (n int64, err error) {
 	buf := blackHole()
 	defer blackHolePut(buf)
@@ -144,7 +150,6 @@ func (devNull) ReadFrom(r io.Reader) (n int64, err error) {
 			return
 		}
 	}
-	panic("unreachable")
 }
 
 // Discard is an io.Writer on which all Write calls succeed

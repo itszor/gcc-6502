@@ -25,13 +25,13 @@ along with GCC; see the file COPYING3.  If not see
 static bool debug = false;
 
 void
-find_file_set_debug(bool debug_state)
+find_file_set_debug (bool debug_state)
 {
   debug = debug_state;
 }
 
 char *
-find_a_file (struct path_prefix *pprefix, const char *name)
+find_a_file (struct path_prefix *pprefix, const char *name, int mode)
 {
   char *temp;
   struct prefix_list *pl;
@@ -50,7 +50,7 @@ find_a_file (struct path_prefix *pprefix, const char *name)
 
   if (IS_ABSOLUTE_PATH (name))
     {
-      if (access (name, X_OK) == 0)
+      if (access (name, mode) == 0)
 	{
 	  strcpy (temp, name);
 
@@ -66,7 +66,7 @@ find_a_file (struct path_prefix *pprefix, const char *name)
       strcpy (temp, name);
 	strcat (temp, HOST_EXECUTABLE_SUFFIX);
 
-	if (access (temp, X_OK) == 0)
+	if (access (temp, mode) == 0)
 	  return temp;
 #endif
 
@@ -83,7 +83,7 @@ find_a_file (struct path_prefix *pprefix, const char *name)
 
 	if (stat (temp, &st) >= 0
 	    && ! S_ISDIR (st.st_mode)
-	    && access (temp, X_OK) == 0)
+	    && access (temp, mode) == 0)
 	  return temp;
 
 #ifdef HOST_EXECUTABLE_SUFFIX
@@ -93,7 +93,7 @@ find_a_file (struct path_prefix *pprefix, const char *name)
 
 	if (stat (temp, &st) >= 0
 	    && ! S_ISDIR (st.st_mode)
-	    && access (temp, X_OK) == 0)
+	    && access (temp, mode) == 0)
 	  return temp;
 #endif
       }

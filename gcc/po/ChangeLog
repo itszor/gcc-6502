@@ -1,6 +1,14 @@
-2013-05-31  Release Manager
+2013-07-11  Joseph Myers  <joseph@codesourcery.com>
 
-	* GCC 4.8.1 released.
+	* fi.po: Update.
+
+2013-07-02  Joseph Myers  <joseph@codesourcery.com>
+
+	* ru.po: Update.
+
+2013-06-25  Joseph Myers  <joseph@codesourcery.com>
+
+	* zh_TW.po: Update.
 
 2013-04-28  Joseph Myers  <joseph@codesourcery.com>
 
@@ -21,10 +29,6 @@
 2013-03-26  Joseph Myers  <joseph@codesourcery.com>
 
 	* de.po, sv.po: Update.
-
-2013-03-22  Release Manager
-
-	* GCC 4.8.0 released.
 
 2013-03-17  Joseph Myers  <joseph@codesourcery.com>
 

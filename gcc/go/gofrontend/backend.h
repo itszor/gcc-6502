@@ -7,6 +7,9 @@
 #ifndef GO_BACKEND_H
 #define GO_BACKEND_H
 
+#include <gmp.h>
+#include <mpfr.h>
+
 // Pointers to these types are created by the backend, passed to the
 // frontend, and passed back to the backend.  The types must be
 // defined by the backend using these names.
@@ -20,7 +23,7 @@ class Bexpression;
 // The backend representation of a statement.
 class Bstatement;
 
-// The backend representation of a function definition.
+// The backend representation of a function definition or declaration.
 class Bfunction;
 
 // The backend representation of a block.
@@ -95,7 +98,10 @@ class Backend
 
   // Get a function type.  The receiver, parameter, and results are
   // generated from the types in the Function_type.  The Function_type
-  // is provided so that the names are available.
+  // is provided so that the names are available.  This should return
+  // not the type of a Go function (which is a pointer to a struct)
+  // but the type of a C function pointer (which will be used as the
+  // type of the first field of the struct).
   virtual Btype*
   function_type(const Btyped_identifier& receiver,
 		const std::vector<Btyped_identifier>& parameters,
@@ -227,6 +233,47 @@ class Backend
   // converting nil to other types.
   virtual Bexpression*
   zero_expression(Btype*) = 0;
+
+  // Create an error expression. This is used for cases which should
+  // not occur in a correct program, in order to keep the compilation
+  // going without crashing.
+  virtual Bexpression*
+  error_expression() = 0;
+
+  // Create a reference to a variable.
+  virtual Bexpression*
+  var_expression(Bvariable* var, Location) = 0;
+
+  // Create an expression that indirects through the pointer expression EXPR
+  // (i.e., return the expression for *EXPR). KNOWN_VALID is true if the pointer
+  // is known to point to a valid memory location.
+  virtual Bexpression*
+  indirect_expression(Bexpression* expr, bool known_valid, Location) = 0;
+
+  // Return an expression for the multi-precision integer VAL in BTYPE.
+  virtual Bexpression*
+  integer_constant_expression(Btype* btype, mpz_t val) = 0;
+
+  // Return an expression for the floating point value VAL in BTYPE.
+  virtual Bexpression*
+  float_constant_expression(Btype* btype, mpfr_t val) = 0;
+
+  // Return an expression for the complex value REAL/IMAG in BTYPE.
+  virtual Bexpression*
+  complex_constant_expression(Btype* btype, mpfr_t real, mpfr_t imag) = 0;
+
+  // Return an expression that converts EXPR to TYPE.
+  virtual Bexpression*
+  convert_expression(Btype* type, Bexpression* expr, Location) = 0;
+
+  // Create an expression for the address of a function.  This is used to
+  // get the address of the code for a function.
+  virtual Bexpression*
+  function_code_expression(Bfunction*, Location) = 0;
+
+  // Create an expression that takes the address of an expression.
+  virtual Bexpression*
+  address_expression(Bexpression*, Location) = 0;
 
   // Statements.
 
@@ -388,18 +435,22 @@ class Backend
 		     Bstatement** pstatement) = 0;
 
   // Create a named immutable initialized data structure.  This is
-  // used for type descriptors and map descriptors.  This returns a
-  // Bvariable because it corresponds to an initialized const global
-  // variable in C.
+  // used for type descriptors, map descriptors, and function
+  // descriptors.  This returns a Bvariable because it corresponds to
+  // an initialized const variable in C.
   //
   // NAME is the name to use for the initialized global variable which
   // this call will create.
+  //
+  // IS_HIDDEN will be true if the descriptor should only be visible
+  // within the current object.
   //
   // IS_COMMON is true if NAME may be defined by several packages, and
   // the linker should merge all such definitions.  If IS_COMMON is
   // false, NAME should be defined in only one file.  In general
   // IS_COMMON will be true for the type descriptor of an unnamed type
-  // or a builtin type.
+  // or a builtin type.  IS_HIDDEN and IS_COMMON will never both be
+  // true.
   //
   // TYPE will be a struct type; the type of the returned expression
   // must be a pointer to this struct type.
@@ -409,20 +460,20 @@ class Backend
   // address.  After calling this the frontend will call
   // immutable_struct_set_init.
   virtual Bvariable*
-  immutable_struct(const std::string& name, bool is_common, Btype* type,
-		   Location) = 0;
+  immutable_struct(const std::string& name, bool is_hidden, bool is_common,
+		   Btype* type, Location) = 0;
 
   // Set the initial value of a variable created by immutable_struct.
-  // The NAME, IS_COMMON, TYPE, and location parameters are the same
-  // ones passed to immutable_struct.  INITIALIZER will be a composite
-  // literal of type TYPE.  It will not contain any function calls or
-  // anything else which can not be put into a read-only data section.
-  // It may contain the address of variables created by
+  // The NAME, IS_HIDDEN, IS_COMMON, TYPE, and location parameters are
+  // the same ones passed to immutable_struct.  INITIALIZER will be a
+  // composite literal of type TYPE.  It will not contain any function
+  // calls or anything else that can not be put into a read-only data
+  // section.  It may contain the address of variables created by
   // immutable_struct.
   virtual void
   immutable_struct_set_init(Bvariable*, const std::string& name,
-			    bool is_common, Btype* type, Location,
-			    Bexpression* initializer) = 0;
+			    bool is_hidden, bool is_common, Btype* type,
+			    Location, Bexpression* initializer) = 0;
 
   // Create a reference to a named immutable initialized data
   // structure defined in some other package.  This will be a
@@ -456,6 +507,32 @@ class Backend
   // recover.
   virtual Bexpression*
   label_address(Blabel*, Location) = 0;
+
+  // Functions.
+
+  // Create an error function.  This is used for cases which should
+  // not occur in a correct program, in order to keep the compilation
+  // going without crashing.
+  virtual Bfunction*
+  error_function() = 0;
+
+  // Declare or define a function of FNTYPE.
+  // NAME is the Go name of the function. ASM_NAME, if not the empty string, is
+  // the name that should be used in the symbol table; this will be non-empty if
+  // a magic extern comment is used.
+  // IS_VISIBLE is true if this function should be visible outside of the
+  // current compilation unit. IS_DECLARATION is true if this is a function
+  // declaration rather than a definition; the function definition will be in
+  // another compilation unit.
+  // IS_INLINABLE is true if the function can be inlined.
+  // DISABLE_SPLIT_STACK is true if this function may not split the stack; this
+  // is used for the implementation of recover.
+  // IN_UNIQUE_SECTION is true if this function should be put into a unique
+  // location if possible; this is used for field tracking.
+  virtual Bfunction*
+  function(Btype* fntype, const std::string& name, const std::string& asm_name,
+           bool is_visible, bool is_declaration, bool is_inlinable,
+           bool disable_split_stack, bool in_unique_section, Location) = 0;
 };
 
 // The backend interface has to define this function.
@@ -475,5 +552,6 @@ extern tree expr_to_tree(Bexpression*);
 extern tree stat_to_tree(Bstatement*);
 extern tree block_to_tree(Bblock*);
 extern tree var_to_tree(Bvariable*);
+extern tree function_to_tree(Bfunction*);
 
 #endif // !defined(GO_BACKEND_H)

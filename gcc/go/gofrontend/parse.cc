@@ -213,7 +213,7 @@ Parse::qualified_ident(std::string* pname, Named_object** ppackage)
   if (name == "_")
     {
       error_at(this->location(), "invalid use of %<_%>");
-      name = "blank";
+      name = Gogo::erroneous_name();
     }
 
   if (package->name() == this->gogo_->package_name())
@@ -744,6 +744,8 @@ Parse::signature(Typed_identifier* receiver, Location location)
     return NULL;
 
   Parse::Names names;
+  if (receiver != NULL)
+    names[receiver->name()] = receiver;
   if (params != NULL)
     this->check_signature_names(params, &names);
   if (results != NULL)
@@ -1457,6 +1459,16 @@ Parse::const_spec(Type** last_type, Expression_list** last_expr_list)
 
       if (!Gogo::is_sink_name(pi->name()))
 	this->gogo_->add_constant(*pi, *pe, this->iota_value());
+      else
+	{
+	  static int count;
+	  char buf[30];
+	  snprintf(buf, sizeof buf, ".$sinkconst%d", count);
+	  ++count;
+	  Typed_identifier ti(std::string(buf), type, pi->location());
+	  Named_object* no = this->gogo_->add_constant(ti, *pe, this->iota_value());
+	  no->const_value()->set_is_sink();
+	}
     }
   if (pe != expr_list->end())
     error_at(this->location(), "too many initializers");
@@ -1930,12 +1942,9 @@ Parse::init_var(const Typed_identifier& tid, Type* type, Expression* init,
 	{
 	  if (this->gogo_->in_global_scope())
 	    return this->create_dummy_global(type, init, location);
-	  else if (type == NULL)
-	    this->gogo_->add_statement(Statement::make_statement(init, true));
 	  else
 	    {
-	      // With both a type and an initializer, create a dummy
-	      // variable so that we will check whether the
+	      // Create a dummy variable so that we will check whether the
 	      // initializer can be assigned to the type.
 	      Variable* var = new Variable(type, init, false, false, false,
 					   location);
@@ -2627,7 +2636,11 @@ Parse::enclosing_var_reference(Named_object* in_function, Named_object* var,
   Named_object* this_function = this->gogo_->current_function();
   Named_object* closure = this_function->func_value()->closure_var();
 
-  Enclosing_var ev(var, in_function, this->enclosing_vars_.size());
+  // The last argument to the Enclosing_var constructor is the index
+  // of this variable in the closure.  We add 1 to the current number
+  // of enclosed variables, because the first field in the closure
+  // points to the function code.
+  Enclosing_var ev(var, in_function, this->enclosing_vars_.size() + 1);
   std::pair<Enclosing_vars::iterator, bool> ins =
     this->enclosing_vars_.insert(ev);
   if (ins.second)
@@ -2679,15 +2692,17 @@ Parse::composite_lit(Type* type, int depth, Location location)
     {
       this->advance_token();
       return Expression::make_composite_literal(type, depth, false, NULL,
-						location);
+						false, location);
     }
 
   bool has_keys = false;
+  bool all_are_names = true;
   Expression_list* vals = new Expression_list;
   while (true)
     {
       Expression* val;
       bool is_type_omitted = false;
+      bool is_name = false;
 
       const Token* token = this->peek_token();
 
@@ -2708,6 +2723,7 @@ Parse::composite_lit(Type* type, int depth, Location location)
 	      val = this->id_to_expression(gogo->pack_hidden_name(identifier,
 								  is_exported),
 					   location);
+	      is_name = true;
 	    }
 	  else
 	    {
@@ -2733,6 +2749,7 @@ Parse::composite_lit(Type* type, int depth, Location location)
 	{
 	  if (has_keys)
 	    vals->push_back(NULL);
+	  is_name = false;
 	}
       else
 	{
@@ -2779,6 +2796,9 @@ Parse::composite_lit(Type* type, int depth, Location location)
 
       vals->push_back(val);
 
+      if (!is_name)
+	all_are_names = false;
+
       if (token->is_op(OPERATOR_COMMA))
 	{
 	  if (this->advance_token()->is_op(OPERATOR_RCURLY))
@@ -2819,7 +2839,7 @@ Parse::composite_lit(Type* type, int depth, Location location)
     }
 
   return Expression::make_composite_literal(type, depth, has_keys, vals,
-					    location);
+					    all_are_names, location);
 }
 
 // FunctionLit = "func" Signature Block .
@@ -2882,8 +2902,9 @@ Parse::function_lit()
 // Create a closure for the nested function FUNCTION.  This is based
 // on ENCLOSING_VARS, which is a list of all variables defined in
 // enclosing functions and referenced from FUNCTION.  A closure is the
-// address of a struct which contains the addresses of all the
-// referenced variables.  This returns NULL if no closure is required.
+// address of a struct which point to the real function code and
+// contains the addresses of all the referenced variables.  This
+// returns NULL if no closure is required.
 
 Expression*
 Parse::create_closure(Named_object* function, Enclosing_vars* enclosing_vars,
@@ -2899,16 +2920,25 @@ Parse::create_closure(Named_object* function, Enclosing_vars* enclosing_vars,
   for (Enclosing_vars::const_iterator p = enclosing_vars->begin();
        p != enclosing_vars->end();
        ++p)
-    ev[p->index()] = *p;
+    {
+      // Subtract 1 because index 0 is the function code.
+      ev[p->index() - 1] = *p;
+    }
 
   // Build an initializer for a composite literal of the closure's
   // type.
 
   Named_object* enclosing_function = this->gogo_->current_function();
   Expression_list* initializer = new Expression_list;
+
+  initializer->push_back(Expression::make_func_code_reference(function,
+							      location));
+
   for (size_t i = 0; i < enclosing_var_count; ++i)
     {
-      go_assert(ev[i].index() == i);
+      // Add 1 to i because the first field in the closure is a
+      // pointer to the function code.
+      go_assert(ev[i].index() == i + 1);
       Named_object* var = ev[i].var();
       Expression* ref;
       if (ev[i].in_function() == enclosing_function)
@@ -3016,7 +3046,7 @@ Parse::primary_expr(bool may_be_sink, bool may_be_composite_lit,
 		  && t->array_type()->length()->is_nil_expression())
 		{
 		  error_at(ret->location(),
-			   "invalid use of %<...%> in type conversion");
+			   "use of %<[...]%> outside of array literal");
 		  ret = Expression::make_error(loc);
 		}
 	      else
@@ -3083,7 +3113,7 @@ Parse::selector(Expression* left, bool* is_type_switch)
       if (token->identifier() == "_")
 	{
 	  error_at(this->location(), "invalid use of %<_%>");
-	  name = this->gogo_->pack_hidden_name("blank", false);
+	  name = Gogo::erroneous_name();
 	}
       this->advance_token();
       return Expression::make_selector(left, name, location);
@@ -3122,7 +3152,7 @@ Parse::selector(Expression* left, bool* is_type_switch)
 }
 
 // Index          = "[" Expression "]" .
-// Slice          = "[" Expression ":" [ Expression ] "]" .
+// Slice          = "[" Expression ":" [ Expression ] [ ":" Expression ] "]" .
 
 Expression*
 Parse::index(Expression* expr)
@@ -3148,14 +3178,31 @@ Parse::index(Expression* expr)
       // We use nil to indicate a missing high expression.
       if (this->advance_token()->is_op(OPERATOR_RSQUARE))
 	end = Expression::make_nil(this->location());
+      else if (this->peek_token()->is_op(OPERATOR_COLON))
+	{
+	  error_at(this->location(), "middle index required in 3-index slice");
+	  end = Expression::make_error(this->location());
+	}
       else
 	end = this->expression(PRECEDENCE_NORMAL, false, true, NULL, NULL);
+    }
+
+  Expression* cap = NULL;
+  if (this->peek_token()->is_op(OPERATOR_COLON))
+    {
+      if (this->advance_token()->is_op(OPERATOR_RSQUARE))
+	{
+	  error_at(this->location(), "final index required in 3-index slice");
+	  cap = Expression::make_error(this->location());
+	}
+      else
+        cap = this->expression(PRECEDENCE_NORMAL, false, true, NULL, NULL);
     }
   if (!this->peek_token()->is_op(OPERATOR_RSQUARE))
     error_at(this->location(), "missing %<]%>");
   else
     this->advance_token();
-  return Expression::make_index(expr, start, end, location);
+  return Expression::make_index(expr, start, end, cap, location);
 }
 
 // Call           = "(" [ ArgumentList [ "," ] ] ")" .
@@ -4499,9 +4546,12 @@ Parse::expr_case_clause(Case_clauses* clauses, bool* saw_default)
   bool is_fallthrough = false;
   if (this->peek_token()->is_keyword(KEYWORD_FALLTHROUGH))
     {
+      Location fallthrough_loc = this->location();
       is_fallthrough = true;
       if (this->advance_token()->is_op(OPERATOR_SEMICOLON))
 	this->advance_token();
+      if (this->peek_token()->is_op(OPERATOR_RCURLY))
+	error_at(fallthrough_loc, _("cannot fallthrough final case in switch"));
     }
 
   if (is_default)
@@ -4905,7 +4955,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 	    {
 	      error_at(recv_var_loc,
 		       "no new variables on left side of %<:=%>");
-	      recv_var = "blank";
+	      recv_var = Gogo::erroneous_name();
 	    }
 	  *is_send = false;
 	  *varname = gogo->pack_hidden_name(recv_var, is_rv_exported);
@@ -4941,7 +4991,7 @@ Parse::send_or_recv_stmt(bool* is_send, Expression** channel, Expression** val,
 		    {
 		      error_at(recv_var_loc,
 			       "no new variables on left side of %<:=%>");
-		      recv_var = "blank";
+		      recv_var = Gogo::erroneous_name();
 		    }
 		  *is_send = false;
 		  if (recv_var != "_")
@@ -5239,7 +5289,8 @@ Parse::range_clause_decl(const Typed_identifier_list* til,
 	no->var_value()->set_type_from_range_value();
       if (is_new)
 	any_new = true;
-      p_range_clause->value = Expression::make_var_reference(no, location);
+      if (!Gogo::is_sink_name(pti->name()))
+        p_range_clause->value = Expression::make_var_reference(no, location);
     }
 
   if (!any_new)
@@ -5477,7 +5528,7 @@ Parse::package_clause()
 	  if (name == "_")
 	    {
 	      error_at(this->location(), "invalid package name _");
-	      name = "blank";
+	      name = Gogo::erroneous_name();
 	    }
 	  this->advance_token();
 	}

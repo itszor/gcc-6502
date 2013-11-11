@@ -45,7 +45,7 @@ var listenerTests = []struct {
 // same port.
 func TestTCPListener(t *testing.T) {
 	switch runtime.GOOS {
-	case "plan9", "windows":
+	case "plan9":
 		t.Skipf("skipping test on %q", runtime.GOOS)
 	}
 
@@ -69,7 +69,7 @@ func TestTCPListener(t *testing.T) {
 // same port.
 func TestUDPListener(t *testing.T) {
 	switch runtime.GOOS {
-	case "plan9", "windows":
+	case "plan9":
 		t.Skipf("skipping test on %q", runtime.GOOS)
 	}
 
@@ -90,63 +90,6 @@ func TestUDPListener(t *testing.T) {
 			continue
 		}
 		if tt.ipv6 && !supportsIPv6 {
-			continue
-		}
-		tt.net = toudpnet(tt.net)
-		l1, port := usableListenPacketPort(t, tt.net, tt.laddr)
-		checkFirstListener(t, tt.net, tt.laddr+":"+port, l1)
-		l2, err := ListenPacket(tt.net, tt.laddr+":"+port)
-		checkSecondListener(t, tt.net, tt.laddr+":"+port, err, l2)
-		l1.Close()
-	}
-}
-
-func TestSimpleTCPListener(t *testing.T) {
-	switch runtime.GOOS {
-	case "plan9":
-		t.Skipf("skipping test on %q", runtime.GOOS)
-		return
-	}
-
-	for _, tt := range listenerTests {
-		if tt.wildcard && (testing.Short() || !*testExternal) {
-			continue
-		}
-		if tt.ipv6 {
-			continue
-		}
-		l1, port := usableListenPort(t, tt.net, tt.laddr)
-		checkFirstListener(t, tt.net, tt.laddr+":"+port, l1)
-		l2, err := Listen(tt.net, tt.laddr+":"+port)
-		checkSecondListener(t, tt.net, tt.laddr+":"+port, err, l2)
-		l1.Close()
-	}
-}
-
-func TestSimpleUDPListener(t *testing.T) {
-	switch runtime.GOOS {
-	case "plan9":
-		t.Skipf("skipping test on %q", runtime.GOOS)
-		return
-	}
-
-	toudpnet := func(net string) string {
-		switch net {
-		case "tcp":
-			return "udp"
-		case "tcp4":
-			return "udp4"
-		case "tcp6":
-			return "udp6"
-		}
-		return "<nil>"
-	}
-
-	for _, tt := range listenerTests {
-		if tt.wildcard && (testing.Short() || !*testExternal) {
-			continue
-		}
-		if tt.ipv6 {
 			continue
 		}
 		tt.net = toudpnet(tt.net)
@@ -231,7 +174,7 @@ func TestDualStackTCPListener(t *testing.T) {
 		t.Skipf("skipping test on %q", runtime.GOOS)
 	}
 	if !supportsIPv6 {
-		return
+		t.Skip("ipv6 is not supported")
 	}
 
 	for _, tt := range dualStackListenerTests {
@@ -263,7 +206,7 @@ func TestDualStackUDPListener(t *testing.T) {
 		t.Skipf("skipping test on %q", runtime.GOOS)
 	}
 	if !supportsIPv6 {
-		return
+		t.Skip("ipv6 is not supported")
 	}
 
 	toudpnet := func(net string) string {
@@ -406,12 +349,16 @@ func checkDualStackSecondListener(t *testing.T, net, laddr string, xerr, err err
 		if xerr == nil && err != nil || xerr != nil && err == nil {
 			t.Fatalf("Second Listen(%q, %q) returns %v, expected %v", net, laddr, err, xerr)
 		}
-		l.(*TCPListener).Close()
+		if err == nil {
+			l.(*TCPListener).Close()
+		}
 	case "udp", "udp4", "udp6":
 		if xerr == nil && err != nil || xerr != nil && err == nil {
 			t.Fatalf("Second ListenPacket(%q, %q) returns %v, expected %v", net, laddr, err, xerr)
 		}
-		l.(*UDPConn).Close()
+		if err == nil {
+			l.(*UDPConn).Close()
+		}
 	default:
 		t.Fatalf("Unexpected network: %q", net)
 	}
@@ -493,8 +440,8 @@ func TestWildWildcardListener(t *testing.T) {
 	}
 
 	defer func() {
-		if recover() != nil {
-			t.Fatalf("panicked")
+		if p := recover(); p != nil {
+			t.Fatalf("Listen, ListenPacket or protocol-specific Listen panicked: %v", p)
 		}
 	}()
 

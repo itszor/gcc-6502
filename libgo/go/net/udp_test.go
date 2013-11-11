@@ -7,35 +7,29 @@ package net
 import (
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 )
 
-var resolveUDPAddrTests = []struct {
-	net     string
-	litAddr string
-	addr    *UDPAddr
-	err     error
-}{
-	{"udp", "127.0.0.1:0", &UDPAddr{IP: IPv4(127, 0, 0, 1), Port: 0}, nil},
-	{"udp4", "127.0.0.1:65535", &UDPAddr{IP: IPv4(127, 0, 0, 1), Port: 65535}, nil},
-
-	{"udp", "[::1]:1", &UDPAddr{IP: ParseIP("::1"), Port: 1}, nil},
-	{"udp6", "[::1]:65534", &UDPAddr{IP: ParseIP("::1"), Port: 65534}, nil},
-
-	{"", "127.0.0.1:0", &UDPAddr{IP: IPv4(127, 0, 0, 1), Port: 0}, nil}, // Go 1.0 behavior
-	{"", "[::1]:0", &UDPAddr{IP: ParseIP("::1"), Port: 0}, nil},         // Go 1.0 behavior
-
-	{"sip", "127.0.0.1:0", nil, UnknownNetworkError("sip")},
-}
-
 func TestResolveUDPAddr(t *testing.T) {
-	for _, tt := range resolveUDPAddrTests {
-		addr, err := ResolveUDPAddr(tt.net, tt.litAddr)
+	for _, tt := range resolveTCPAddrTests {
+		net := strings.Replace(tt.net, "tcp", "udp", -1)
+		addr, err := ResolveUDPAddr(net, tt.litAddrOrName)
 		if err != tt.err {
-			t.Fatalf("ResolveUDPAddr(%v, %v) failed: %v", tt.net, tt.litAddr, err)
+			t.Fatalf("ResolveUDPAddr(%q, %q) failed: %v", net, tt.litAddrOrName, err)
 		}
-		if !reflect.DeepEqual(addr, tt.addr) {
-			t.Fatalf("got %#v; expected %#v", addr, tt.addr)
+		if !reflect.DeepEqual(addr, (*UDPAddr)(tt.addr)) {
+			t.Fatalf("ResolveUDPAddr(%q, %q) = %#v, want %#v", net, tt.litAddrOrName, addr, tt.addr)
+		}
+		if err == nil {
+			str := addr.String()
+			addr1, err := ResolveUDPAddr(net, str)
+			if err != nil {
+				t.Fatalf("ResolveUDPAddr(%q, %q) [from %q]: %v", net, str, tt.litAddrOrName, err)
+			}
+			if !reflect.DeepEqual(addr1, addr) {
+				t.Fatalf("ResolveUDPAddr(%q, %q) [from %q] = %#v, want %#v", net, str, tt.litAddrOrName, addr1, addr)
+			}
 		}
 	}
 }
@@ -135,14 +129,125 @@ func TestUDPConnLocalName(t *testing.T) {
 	for _, tt := range udpConnLocalNameTests {
 		c, err := ListenUDP(tt.net, tt.laddr)
 		if err != nil {
-			t.Errorf("ListenUDP failed: %v", err)
-			return
+			t.Fatalf("ListenUDP failed: %v", err)
 		}
 		defer c.Close()
 		la := c.LocalAddr()
 		if a, ok := la.(*UDPAddr); !ok || a.Port == 0 {
-			t.Errorf("got %v; expected a proper address with non-zero port number", la)
-			return
+			t.Fatalf("got %v; expected a proper address with non-zero port number", la)
+		}
+	}
+}
+
+func TestUDPConnLocalAndRemoteNames(t *testing.T) {
+	for _, laddr := range []string{"", "127.0.0.1:0"} {
+		c1, err := ListenPacket("udp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("ListenUDP failed: %v", err)
+		}
+		defer c1.Close()
+
+		var la *UDPAddr
+		if laddr != "" {
+			var err error
+			if la, err = ResolveUDPAddr("udp", laddr); err != nil {
+				t.Fatalf("ResolveUDPAddr failed: %v", err)
+			}
+		}
+		c2, err := DialUDP("udp", la, c1.LocalAddr().(*UDPAddr))
+		if err != nil {
+			t.Fatalf("DialUDP failed: %v", err)
+		}
+		defer c2.Close()
+
+		var connAddrs = [4]struct {
+			got Addr
+			ok  bool
+		}{
+			{c1.LocalAddr(), true},
+			{c1.(*UDPConn).RemoteAddr(), false},
+			{c2.LocalAddr(), true},
+			{c2.RemoteAddr(), true},
+		}
+		for _, ca := range connAddrs {
+			if a, ok := ca.got.(*UDPAddr); ok != ca.ok || ok && a.Port == 0 {
+				t.Fatalf("got %v; expected a proper address with non-zero port number", ca.got)
+			}
+		}
+	}
+}
+
+func TestIPv6LinkLocalUnicastUDP(t *testing.T) {
+	if testing.Short() || !*testExternal {
+		t.Skip("skipping test to avoid external network")
+	}
+	if !supportsIPv6 {
+		t.Skip("ipv6 is not supported")
+	}
+	ifi := loopbackInterface()
+	if ifi == nil {
+		t.Skip("loopback interface not found")
+	}
+	laddr := ipv6LinkLocalUnicastAddr(ifi)
+	if laddr == "" {
+		t.Skip("ipv6 unicast address on loopback not found")
+	}
+
+	type test struct {
+		net, addr  string
+		nameLookup bool
+	}
+	var tests = []test{
+		{"udp", "[" + laddr + "%" + ifi.Name + "]:0", false},
+		{"udp6", "[" + laddr + "%" + ifi.Name + "]:0", false},
+	}
+	switch runtime.GOOS {
+	case "darwin", "dragonfly", "freebsd", "openbsd", "netbsd":
+		tests = append(tests, []test{
+			{"udp", "[localhost%" + ifi.Name + "]:0", true},
+			{"udp6", "[localhost%" + ifi.Name + "]:0", true},
+		}...)
+	case "linux":
+		tests = append(tests, []test{
+			{"udp", "[ip6-localhost%" + ifi.Name + "]:0", true},
+			{"udp6", "[ip6-localhost%" + ifi.Name + "]:0", true},
+		}...)
+	}
+	for _, tt := range tests {
+		c1, err := ListenPacket(tt.net, tt.addr)
+		if err != nil {
+			// It might return "LookupHost returned no
+			// suitable address" error on some platforms.
+			t.Logf("ListenPacket failed: %v", err)
+			continue
+		}
+		defer c1.Close()
+		if la, ok := c1.LocalAddr().(*UDPAddr); !ok || !tt.nameLookup && la.Zone == "" {
+			t.Fatalf("got %v; expected a proper address with zone identifier", la)
+		}
+
+		c2, err := Dial(tt.net, c1.LocalAddr().String())
+		if err != nil {
+			t.Fatalf("Dial failed: %v", err)
+		}
+		defer c2.Close()
+		if la, ok := c2.LocalAddr().(*UDPAddr); !ok || !tt.nameLookup && la.Zone == "" {
+			t.Fatalf("got %v; expected a proper address with zone identifier", la)
+		}
+		if ra, ok := c2.RemoteAddr().(*UDPAddr); !ok || !tt.nameLookup && ra.Zone == "" {
+			t.Fatalf("got %v; expected a proper address with zone identifier", ra)
+		}
+
+		if _, err := c2.Write([]byte("UDP OVER IPV6 LINKLOCAL TEST")); err != nil {
+			t.Fatalf("Conn.Write failed: %v", err)
+		}
+		b := make([]byte, 32)
+		if _, from, err := c1.ReadFrom(b); err != nil {
+			t.Fatalf("PacketConn.ReadFrom failed: %v", err)
+		} else {
+			if ra, ok := from.(*UDPAddr); !ok || !tt.nameLookup && ra.Zone == "" {
+				t.Fatalf("got %v; expected a proper address with zone identifier", ra)
+			}
 		}
 	}
 }

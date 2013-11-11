@@ -4,7 +4,8 @@
 
 package time
 
-// Sleep pauses the current goroutine for the duration d.
+// Sleep pauses the current goroutine for at least the duration d.
+// A negative or zero duration causes Sleep to return immediately.
 func Sleep(d Duration)
 
 func nano() int64 {
@@ -18,8 +19,23 @@ type runtimeTimer struct {
 	i      int32
 	when   int64
 	period int64
-	f      func(int64, interface{})
+	f      func(int64, interface{}) // NOTE: must not be closure
 	arg    interface{}
+}
+
+// when is a helper function for setting the 'when' field of a runtimeTimer.
+// It returns what the time will be, in nanoseconds, Duration d in the future.
+// If d is negative, it is ignored.  If the returned value would be less than
+// zero because of an overflow, MaxInt64 is returned.
+func when(d Duration) int64 {
+	if d <= 0 {
+		return nano()
+	}
+	t := nano() + int64(d)
+	if t < 0 {
+		t = 1<<63 - 1 // math.MaxInt64
+	}
+	return t
 }
 
 func startTimer(*runtimeTimer)
@@ -49,7 +65,7 @@ func NewTimer(d Duration) *Timer {
 	t := &Timer{
 		C: c,
 		r: runtimeTimer{
-			when: nano() + int64(d),
+			when: when(d),
 			f:    sendTime,
 			arg:  c,
 		},
@@ -62,9 +78,9 @@ func NewTimer(d Duration) *Timer {
 // It returns true if the timer had been active, false if the timer had
 // expired or been stopped.
 func (t *Timer) Reset(d Duration) bool {
-	when := nano() + int64(d)
+	w := when(d)
 	active := stopTimer(&t.r)
-	t.r.when = when
+	t.r.when = w
 	startTimer(&t.r)
 	return active
 }
@@ -94,7 +110,7 @@ func After(d Duration) <-chan Time {
 func AfterFunc(d Duration, f func()) *Timer {
 	t := &Timer{
 		r: runtimeTimer{
-			when: nano() + int64(d),
+			when: when(d),
 			f:    goFunc,
 			arg:  f,
 		},

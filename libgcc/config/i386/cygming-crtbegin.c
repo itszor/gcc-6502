@@ -46,14 +46,36 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define LIBGCJ_SONAME "libgcj_s.dll"
 #endif
 
-
+#if DWARF2_UNWIND_INFO
 /* Make the declarations weak.  This is critical for
    _Jv_RegisterClasses because it lives in libgcj.a  */
-extern void __register_frame_info (const void *, struct object *)
+extern void __register_frame_info (__attribute__((unused)) const void *,
+				   __attribute__((unused)) struct object *)
 				   TARGET_ATTRIBUTE_WEAK;
-extern void *__deregister_frame_info (const void *)
+extern void *__deregister_frame_info (__attribute__((unused)) const void *)
 				      TARGET_ATTRIBUTE_WEAK;
-extern void _Jv_RegisterClasses (const void *) TARGET_ATTRIBUTE_WEAK;
+TARGET_ATTRIBUTE_WEAK void
+__register_frame_info (__attribute__((unused)) const void *p,
+		       __attribute__((unused)) struct object *o)
+{
+}
+
+TARGET_ATTRIBUTE_WEAK void *
+__deregister_frame_info (__attribute__((unused)) const void *p)
+{
+  return (void*) 0;
+}
+#endif /* DWARF2_UNWIND_INFO */
+
+#if TARGET_USE_JCR_SECTION
+extern void _Jv_RegisterClasses (__attribute__((unused)) const void *)
+  TARGET_ATTRIBUTE_WEAK;
+
+TARGET_ATTRIBUTE_WEAK void
+_Jv_RegisterClasses (__attribute__((unused)) const void *p)
+{
+}
+#endif /* TARGET_USE_JCR_SECTION */
 
 #if defined(HAVE_LD_RO_RW_SECTION_MIXING)
 # define EH_FRAME_SECTION_CONST const
@@ -69,6 +91,9 @@ static EH_FRAME_SECTION_CONST char __EH_FRAME_BEGIN__[]
   = { };
 
 static struct object obj;
+
+/* Handle of libgcc's DLL reference.  */
+HANDLE hmod_libgcc;
 #endif
 
 #if TARGET_USE_JCR_SECTION
@@ -93,9 +118,14 @@ __gcc_register_frame (void)
 
   void (*register_frame_fn) (const void *, struct object *);
   HANDLE h = GetModuleHandle (LIBGCC_SONAME);
+
   if (h)
-    register_frame_fn = (void (*) (const void *, struct object *))
-			GetProcAddress (h, "__register_frame_info");
+    {
+      /* Increasing the load-count of LIBGCC_SONAME DLL.  */
+      hmod_libgcc = LoadLibrary (LIBGCC_SONAME);
+      register_frame_fn = (void (*) (const void *, struct object *))
+			  GetProcAddress (h, "__register_frame_info");
+    }
   else 
     register_frame_fn = __register_frame_info;
   if (register_frame_fn)
@@ -132,5 +162,7 @@ __gcc_deregister_frame (void)
     deregister_frame_fn = __deregister_frame_info;
   if (deregister_frame_fn)
      deregister_frame_fn (__EH_FRAME_BEGIN__);
+  if (hmod_libgcc)
+    FreeLibrary (hmod_libgcc);
 #endif
 }

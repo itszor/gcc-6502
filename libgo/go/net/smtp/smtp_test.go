@@ -57,6 +57,41 @@ testLoop:
 	}
 }
 
+func TestAuthPlain(t *testing.T) {
+	auth := PlainAuth("foo", "bar", "baz", "servername")
+
+	tests := []struct {
+		server *ServerInfo
+		err    string
+	}{
+		{
+			server: &ServerInfo{Name: "servername", TLS: true},
+		},
+		{
+			// Okay; explicitly advertised by server.
+			server: &ServerInfo{Name: "servername", Auth: []string{"PLAIN"}},
+		},
+		{
+			server: &ServerInfo{Name: "servername", Auth: []string{"CRAM-MD5"}},
+			err:    "unencrypted connection",
+		},
+		{
+			server: &ServerInfo{Name: "attacker", TLS: true},
+			err:    "wrong host name",
+		},
+	}
+	for i, tt := range tests {
+		_, _, err := auth.Start(tt.server)
+		got := ""
+		if err != nil {
+			got = err.Error()
+		}
+		if got != tt.err {
+			t.Errorf("%d. got error = %q; want %q", i, got, tt.err)
+		}
+	}
+}
+
 type faker struct {
 	io.ReadWriter
 }
@@ -203,6 +238,7 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v\n(after %v)", err, out())
 	}
+	defer c.Close()
 	if ok, args := c.Extension("aUtH"); !ok || args != "LOGIN PLAIN" {
 		t.Fatalf("Expected AUTH supported")
 	}
@@ -243,6 +279,7 @@ func TestNewClient2(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
+	defer c.Close()
 	if ok, _ := c.Extension("DSN"); ok {
 		t.Fatalf("Shouldn't support DSN")
 	}
@@ -288,6 +325,7 @@ func TestHello(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewClient: %v", err)
 		}
+		defer c.Close()
 		c.localName = "customhost"
 		err = nil
 
@@ -464,5 +502,49 @@ Subject: SendMail test
 
 SendMail is working for me.
 .
+QUIT
+`
+
+func TestAuthFailed(t *testing.T) {
+	server := strings.Join(strings.Split(authFailedServer, "\n"), "\r\n")
+	client := strings.Join(strings.Split(authFailedClient, "\n"), "\r\n")
+	var cmdbuf bytes.Buffer
+	bcmdbuf := bufio.NewWriter(&cmdbuf)
+	var fake faker
+	fake.ReadWriter = bufio.NewReadWriter(bufio.NewReader(strings.NewReader(server)), bcmdbuf)
+	c, err := NewClient(fake, "fake.host")
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	defer c.Close()
+
+	c.tls = true
+	c.serverName = "smtp.google.com"
+	err = c.Auth(PlainAuth("", "user", "pass", "smtp.google.com"))
+
+	if err == nil {
+		t.Error("Auth: expected error; got none")
+	} else if err.Error() != "535 Invalid credentials\nplease see www.example.com" {
+		t.Errorf("Auth: got error: %v, want: %s", err, "535 Invalid credentials\nplease see www.example.com")
+	}
+
+	bcmdbuf.Flush()
+	actualcmds := cmdbuf.String()
+	if client != actualcmds {
+		t.Errorf("Got:\n%s\nExpected:\n%s", actualcmds, client)
+	}
+}
+
+var authFailedServer = `220 hello world
+250-mx.google.com at your service
+250 AUTH LOGIN PLAIN
+535-Invalid credentials
+535 please see www.example.com
+221 Goodbye
+`
+
+var authFailedClient = `EHLO localhost
+AUTH PLAIN AHVzZXIAcGFzcw==
+*
 QUIT
 `

@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include "runtime.h"
 #include "array.h"
+#include "go-type.h"
 
 //static Lock debuglock;
 
@@ -13,7 +14,7 @@ static void go_vprintf(const char*, va_list);
 // write to goroutine-local buffer if diverting output,
 // or else standard error.
 static void
-gwrite(const void *v, int32 n)
+gwrite(const void *v, intgo n)
 {
 	G* g = runtime_g();
 
@@ -88,6 +89,9 @@ go_vprintf(const char *s, va_list va)
 		case 'a':
 			runtime_printslice(va_arg(va, Slice));
 			break;
+		case 'c':
+			runtime_printbyte(va_arg(va, int32));
+			break;
 		case 'd':
 			runtime_printint(va_arg(va, int32));
 			break;
@@ -151,6 +155,12 @@ runtime_printbool(_Bool v)
 		return;
 	}
 	gwrite("false", 5);
+}
+
+void
+runtime_printbyte(int8 c)
+{
+	gwrite(&c, 1);
 }
 
 void
@@ -292,8 +302,6 @@ runtime_printpointer(void *p)
 void
 runtime_printstring(String v)
 {
-	// extern uint32 runtime_maxstring;
-
 	// if(v.len > runtime_maxstring) {
 	//	gwrite("[string too long]", 17);
 	//	return;

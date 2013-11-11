@@ -399,8 +399,23 @@
 /* Define to 1 if you have the <fptrap.h> header file. */
 #undef HAVE_FPTRAP_H
 
+/* Define to 1 if you have the <fpxcp.h> header file. */
+#undef HAVE_FPXCP_H
+
 /* fp_enable is present */
 #undef HAVE_FP_ENABLE
+
+/* Define to 1 if the system has the type `fp_except'. */
+#undef HAVE_FP_EXCEPT
+
+/* Define to 1 if the system has the type `fp_except_t'. */
+#undef HAVE_FP_EXCEPT_T
+
+/* Define to 1 if the system has the type `fp_rnd'. */
+#undef HAVE_FP_RND
+
+/* Define to 1 if the system has the type `fp_rnd_t'. */
+#undef HAVE_FP_RND_T
 
 /* fp_trap is present */
 #undef HAVE_FP_TRAP
@@ -590,6 +605,9 @@
 
 /* Define if you have __mingw_snprintf. */
 #undef HAVE_MINGW_SNPRINTF
+
+/* Define to 1 if you have the `mkostemp' function. */
+#undef HAVE_MKOSTEMP
 
 /* Define to 1 if you have the `mkstemp' function. */
 #undef HAVE_MKSTEMP
