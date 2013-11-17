@@ -5782,6 +5782,22 @@ decompose_normal_address (struct address_info *info)
     gcc_assert (out == 0);
 }
 
+static void
+decompose_lo_sum_address (struct address_info *info)
+{
+  rtx *base = get_base_term (info->inner);
+  rtx *index = &XEXP (*info->inner, 1);
+  fprintf (stderr, "base term:\n");
+  debug_rtx (*base);
+  fprintf (stderr, "index term:\n");
+  debug_rtx (*index);
+  set_address_base (info, base, base);
+  if (CONSTANT_P (*index))
+    set_address_disp (info, index, index);
+  else
+    set_address_index (info, index, index);
+}
+
 /* Describe address *LOC in *INFO.  MODE is the mode of the addressed value,
    or VOIDmode if not known.  AS is the address space associated with LOC.
    OUTER_CODE is MEM if *LOC is a MEM address and ADDRESS otherwise.  */
@@ -5809,6 +5825,10 @@ decompose_address (struct address_info *info, rtx *loc, enum machine_mode mode,
     case PRE_MODIFY:
     case POST_MODIFY:
       decompose_automod_address (info);
+      break;
+
+    case LO_SUM:
+      decompose_lo_sum_address (info);
       break;
 
     default:

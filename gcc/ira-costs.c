@@ -952,6 +952,9 @@ ok_for_base_p_nonstrict (rtx reg, enum machine_mode mode, addr_space_t as,
 
    SCALE is twice the amount to multiply the cost by (it is twice so
    we can represent half-cost adjustments).  */
+   
+extern const char *m65x_reg_class_name (reg_class_t);
+   
 static void
 record_address_regs (enum machine_mode mode, addr_space_t as, rtx x,
 		     int context, enum rtx_code outer_code,
@@ -964,6 +967,10 @@ record_address_regs (enum machine_mode mode, addr_space_t as, rtx x,
     rclass = INDEX_REG_CLASS;
   else
     rclass = base_reg_class (mode, as, outer_code, index_code);
+
+  fprintf (stderr, "context=%d, x=\n", context);
+  debug_rtx (x);
+  fprintf (stderr, "rclass=%s\n", m65x_reg_class_name (rclass));
 
   switch (code)
     {
@@ -1002,68 +1009,92 @@ record_address_regs (enum machine_mode mode, addr_space_t as, rtx x,
 	/* If this machine only allows one register per address, it
 	   must be in the first operand.  */
 	if (MAX_REGS_PER_ADDRESS == 1)
-	  record_address_regs (mode, as, arg0, 0, PLUS, code1, scale);
+	  record_address_regs (mode, as, arg0, 0, code, code1, scale);
 
 	/* If index and base registers are the same on this machine,
 	   just record registers in any non-constant operands.  We
 	   assume here, as well as in the tests below, that all
 	   addresses are in canonical form.  */
 	else if (INDEX_REG_CLASS
-		 == base_reg_class (VOIDmode, as, PLUS, SCRATCH))
+		 == base_reg_class (VOIDmode, as, code, SCRATCH))
 	  {
-	    record_address_regs (mode, as, arg0, context, PLUS, code1, scale);
+	    record_address_regs (mode, as, arg0, context, code, code1, scale);
 	    if (! CONSTANT_P (arg1))
-	      record_address_regs (mode, as, arg1, context, PLUS, code0, scale);
+	      record_address_regs (mode, as, arg1, context, code, code0, scale);
 	  }
 
 	/* If the second operand is a constant integer, it doesn't
 	   change what class the first operand must be.  */
 	else if (CONST_SCALAR_INT_P (arg1))
-	  record_address_regs (mode, as, arg0, context, PLUS, code1, scale);
+	  record_address_regs (mode, as, arg0, context, code, code1, scale);
 	/* If the second operand is a symbolic constant, the first
 	   operand must be an index register.  */
 	else if (code1 == SYMBOL_REF || code1 == CONST || code1 == LABEL_REF)
-	  record_address_regs (mode, as, arg0, 1, PLUS, code1, scale);
+	  record_address_regs (mode, as, arg0, 1, code, code1, scale);
 	/* If both operands are registers but one is already a hard
 	   register of index or reg-base class, give the other the
 	   class that the hard register is not.  */
 	else if (code0 == REG && code1 == REG
 		 && REGNO (arg0) < FIRST_PSEUDO_REGISTER
-		 && (ok_for_base_p_nonstrict (arg0, mode, as, PLUS, REG)
+		 && (ok_for_base_p_nonstrict (arg0, mode, as, code, REG)
 		     || ok_for_index_p_nonstrict (arg0)))
 	  record_address_regs (mode, as, arg1,
 			       ok_for_base_p_nonstrict (arg0, mode, as,
-							PLUS, REG) ? 1 : 0,
-			       PLUS, REG, scale);
+							code, REG) ? 1 : 0,
+			       code, REG, scale);
 	else if (code0 == REG && code1 == REG
 		 && REGNO (arg1) < FIRST_PSEUDO_REGISTER
-		 && (ok_for_base_p_nonstrict (arg1, mode, as, PLUS, REG)
+		 && (ok_for_base_p_nonstrict (arg1, mode, as, code, REG)
 		     || ok_for_index_p_nonstrict (arg1)))
 	  record_address_regs (mode, as, arg0,
 			       ok_for_base_p_nonstrict (arg1, mode, as,
-							PLUS, REG) ? 1 : 0,
-			       PLUS, REG, scale);
+							code, REG) ? 1 : 0,
+			       code, REG, scale);
 	/* If one operand is known to be a pointer, it must be the
 	   base with the other operand the index.  Likewise if the
 	   other operand is a MULT.  */
 	else if ((code0 == REG && REG_POINTER (arg0)) || code1 == MULT)
 	  {
-	    record_address_regs (mode, as, arg0, 0, PLUS, code1, scale);
-	    record_address_regs (mode, as, arg1, 1, PLUS, code0, scale);
+	    record_address_regs (mode, as, arg0, 0, code, code1, scale);
+	    record_address_regs (mode, as, arg1, 1, code, code0, scale);
 	  }
 	else if ((code1 == REG && REG_POINTER (arg1)) || code0 == MULT)
 	  {
-	    record_address_regs (mode, as, arg0, 1, PLUS, code1, scale);
-	    record_address_regs (mode, as, arg1, 0, PLUS, code0, scale);
+	    record_address_regs (mode, as, arg0, 1, code, code1, scale);
+	    record_address_regs (mode, as, arg1, 0, code, code0, scale);
 	  }
 	/* Otherwise, count equal chances that each might be a base or
 	   index register.  This case should be rare.  */
 	else
 	  {
-	    record_address_regs (mode, as, arg0, 0, PLUS, code1, scale / 2);
-	    record_address_regs (mode, as, arg0, 1, PLUS, code1, scale / 2);
-	    record_address_regs (mode, as, arg1, 0, PLUS, code0, scale / 2);
-	    record_address_regs (mode, as, arg1, 1, PLUS, code0, scale / 2);
+	    record_address_regs (mode, as, arg0, 0, code, code1, scale / 2);
+	    record_address_regs (mode, as, arg0, 1, code, code1, scale / 2);
+	    record_address_regs (mode, as, arg1, 0, code, code0, scale / 2);
+	    record_address_regs (mode, as, arg1, 1, code, code0, scale / 2);
+	  }
+      }
+      break;
+
+    case LO_SUM:
+      {
+        rtx arg0 = XEXP (x, 0);
+	rtx arg1 = XEXP (x, 1);
+	enum rtx_code code0 = GET_CODE (arg0);
+	enum rtx_code code1 = GET_CODE (arg1);
+
+	if (code0 == REG && code1 == REG)
+          {
+            record_address_regs (mode, as, arg0, 0, code, code0, scale);
+	    record_address_regs (mode, as, arg1, 1, code, code1, scale);
+	  }
+	else if (code0 == REG && CONSTANT_P (arg1))
+	  record_address_regs (mode, as, arg0, 0, code, code0, scale);
+	else
+          {
+	    record_address_regs (mode, as, arg0, 0, code, code1, scale / 2);
+	    record_address_regs (mode, as, arg0, 1, code, code1, scale / 2);
+	    record_address_regs (mode, as, arg1, 0, code, code0, scale / 2);
+	    record_address_regs (mode, as, arg1, 1, code, code0, scale / 2);
 	  }
       }
       break;

@@ -180,6 +180,12 @@
        (match_operand 0 "zp_reg_operand")
        (match_operand 0 "immediate_operand")))
 
+(define_predicate "addhi_op2"
+  (ior (match_operand 0 "zp_acc_imm_operand")
+       (and (match_code "zero_extend")
+	    (match_test "REG_P (XEXP (op, 0))
+			 && REGNO (XEXP (op, 0)) == Y_REGNUM"))))
+
 (define_predicate "const_byte_amount"
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 0 && INTVAL (op) < 256")))

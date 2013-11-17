@@ -2031,6 +2031,8 @@ check_rtl (bool final_p)
 	if (final_p)
 	  {
 	    extract_insn (insn);
+	    fprintf (stderr, "extracted insn:\n");
+	    debug_rtx (insn);
 	    lra_assert (constrain_operands (1));
 	    continue;
 	  }

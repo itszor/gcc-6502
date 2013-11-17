@@ -438,6 +438,9 @@ memory_address_addr_space (enum machine_mode mode, rtx x, addr_space_t as)
 
   x = convert_memory_address_addr_space (address_mode, x, as);
 
+  fprintf (stderr, "here at the top, x=\n");
+  debug_rtx (x);
+
   /* By passing constant addresses through registers
      we get a chance to cse them.  */
   if (! cse_not_expected && CONSTANT_P (x) && CONSTANT_ADDRESS_P (x))
@@ -516,6 +519,9 @@ memory_address_addr_space (enum machine_mode mode, rtx x, addr_space_t as)
     }
 
  done:
+
+  fprintf (stderr, "address now looks like:\n");
+  debug_rtx (x);
 
   gcc_assert (memory_address_addr_space_p (mode, x, as));
   /* If we didn't change the address, we are done.  Otherwise, mark
