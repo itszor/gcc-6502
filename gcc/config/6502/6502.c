@@ -29,8 +29,8 @@
 #include "langhooks.h"
 #include "df.h"
 
-#define DEBUG_LEGIT_RELOAD
-#define DEBUG_SECONDARY_RELOAD
+#undef DEBUG_LEGIT_RELOAD
+#undef DEBUG_SECONDARY_RELOAD
 #undef DEBUG_ADDRESS
 
 static void
@@ -346,6 +346,9 @@ m65x_mode_dependent_address (const_rtx x,
 static rtx
 m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 {
+  if (CONSTANT_ADDRESS_P (x))
+    return x;
+
   if (mode == QImode)
     {
       x = oldx;
@@ -397,9 +400,6 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
         x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, x), GEN_INT (0));
     }
 
-  fprintf (stderr, "legitimized address:\n");
-  debug_rtx (x);
-
   return x;
 }
 
@@ -413,11 +413,6 @@ m65x_delegitimize_address (rtx orig_x)
   if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
       && CONST_INT_P (XEXP (x, 1)))
     x = gen_rtx_PLUS (GET_MODE (x), XEXP (x, 0), XEXP (x, 1));
-
-  fprintf (stderr, "delegitimized:\n");
-  debug_rtx (orig_x);
-  fprintf (stderr, "to:\n");
-  debug_rtx (x);
 
   return x;
 }
@@ -799,53 +794,8 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     }
   else if (reload_mode == HImode)
     {
-      if (base_plus_const_byte_offset_mem (HImode, x))
-	{
-	  if (reload_class == HARD_ACCUM_REG || reload_class == WORD_ACCUM_REGS)
-	    {
-	      fprintf (stderr, "setting sri->icode!\n");
-	      sri->icode = in_p ? CODE_FOR_reload_inhi_acc_indy
-				: CODE_FOR_reload_outhi_acc_indy;
-	      return NO_REGS;
-	    }
-	  else if (reload_class == HARD_Y_REG || reload_class == WORD_Y_REGS)
-	    return NO_REGS;
-	  /*else if (reg_classes_intersect_p (reload_class, GENERAL_REGS))
-	    {
-	      sri->icode = in_p ? CODE_FOR_reload_inhi_genregs
-				: CODE_FOR_reload_outhi_genregs;
-	      return NO_REGS;
-	    }*/
-	  else
-	    return WORD_ACCUM_REGS;
-	}
-#ifdef DEBUG_SECONDARY_RELOAD
-      else
-        {
-	  fprintf (stderr, "non base-plus-mem (himode):\n");
-	  debug_rtx (x);
-	}
-#endif
-#if 0
-      else
-	{
-	  if (reg_classes_intersect_p (reload_class, HARD_REGS))
-	    {
-	      if (!in_p)
-	        {
-		  /* Storing HImode hard registers (including ZP parts) needs
-		     a scratch register.  This arranges to have one
-		     available.  */
-		  //sri->icode = CODE_FOR_reload_outhi_hardreg_abs;
-		  return NO_REGS;
-		}
-	      else
-	        return NO_REGS;
-	    }
-	  else
-	    return HARDISH_REGS;
-	}
-#endif
+      if (in_p && REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
+	sri->icode = CODE_FOR_reload_inhi_indexreg;
     }
 
   return NO_REGS;
