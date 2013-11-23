@@ -63,8 +63,8 @@
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
   	 || IS_ZP_REGNUM (regno)
-	 || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM
+	 /*|| regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM*/
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
@@ -91,8 +91,8 @@
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
   	 || IS_ZP_REGNUM (regno)
-	 || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM
+	 /*|| regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM*/
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
@@ -131,7 +131,8 @@
   
   regno = REGNO (op);
   
-  return IS_ZP_REGNUM (regno) || regno >= FIRST_PSEUDO_REGISTER;
+  return IS_ZP_REGNUM (regno) || regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM || regno >= FIRST_PSEUDO_REGISTER;
 })
 
 (define_predicate "reload_zpreg_operand"
@@ -168,6 +169,10 @@
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
 
+(define_predicate "reg_or_const_mem_operand"
+  (ior (match_operand 0 "register_operand")
+       (match_operand 0 "const_mem_operand")))
+
 (define_predicate "symlab_ref_operand"
   (match_code "label_ref,symbol_ref"))
 
@@ -202,7 +207,7 @@
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 1 && INTVAL (op) <= 8")))
 
-(define_special_predicate "himode_comparison"
+(define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
 (define_special_predicate "qimode_uns_comparison"
@@ -231,8 +236,8 @@
   regno = REGNO (op);
   
   return IS_ZP_REGNUM (regno)
-	 || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM
+	 /*|| regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM*/
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
