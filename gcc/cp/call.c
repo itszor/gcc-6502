@@ -27,6 +27,9 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stor-layout.h"
+#include "trans-mem.h"
+#include "stringpool.h"
 #include "cp-tree.h"
 #include "flags.h"
 #include "toplev.h"
@@ -941,7 +944,7 @@ build_array_conv (tree type, tree ctor, int flags, tsubst_flags_t complain)
 
   if (TYPE_DOMAIN (type))
     {
-      unsigned HOST_WIDE_INT alen = tree_low_cst (array_type_nelts_top (type), 1);
+      unsigned HOST_WIDE_INT alen = tree_to_uhwi (array_type_nelts_top (type));
       if (alen < len)
 	return NULL;
     }
@@ -3684,7 +3687,7 @@ build_integral_nontype_arg_conv (tree type, tree expr, tsubst_flags_t complain)
   conversion *conv;
   void *p;
   tree t;
-  location_t loc = EXPR_LOC_OR_HERE (expr);
+  location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
 
   if (error_operand_p (expr))
     return error_mark_node;
@@ -5847,7 +5850,7 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
   tree totype = convs->type;
   diagnostic_t diag_kind;
   int flags;
-  location_t loc = EXPR_LOC_OR_HERE (expr);
+  location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
 
   if (convs->bad_p && !(complain & tf_error))
     return error_mark_node;
@@ -6260,7 +6263,7 @@ tree
 convert_arg_to_ellipsis (tree arg, tsubst_flags_t complain)
 {
   tree arg_type;
-  location_t loc = EXPR_LOC_OR_HERE (arg);
+  location_t loc = EXPR_LOC_OR_LOC (arg, input_location);
 
   /* [expr.call]
 
@@ -7165,7 +7168,7 @@ build_cxx_call (tree fn, int nargs, tree *argarray,
   int optimize_sav;
 
   /* Remember roughly where this call is.  */
-  location_t loc = EXPR_LOC_OR_HERE (fn);
+  location_t loc = EXPR_LOC_OR_LOC (fn, input_location);
   fn = build_call_a (fn, nargs, argarray);
   SET_EXPR_LOCATION (fn, loc);
 
@@ -8976,7 +8979,7 @@ perform_implicit_conversion_flags (tree type, tree expr,
 {
   conversion *conv;
   void *p;
-  location_t loc = EXPR_LOC_OR_HERE (expr);
+  location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
 
   if (error_operand_p (expr))
     return error_mark_node;
@@ -9292,7 +9295,7 @@ initialize_reference (tree type, tree expr,
 {
   conversion *conv;
   void *p;
-  location_t loc = EXPR_LOC_OR_HERE (expr);
+  location_t loc = EXPR_LOC_OR_LOC (expr, input_location);
 
   if (type == error_mark_node || error_operand_p (expr))
     return error_mark_node;

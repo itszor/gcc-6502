@@ -26,6 +26,10 @@ along with GCC; see the file COPYING3.  If not see
 #include "insn-config.h"
 #include "rtl.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "stor-layout.h"
+#include "calls.h"
+#include "varasm.h"
 #include "flags.h"
 #include "expr.h"
 #include "optabs.h"
@@ -48,7 +52,16 @@ along with GCC; see the file COPYING3.  If not see
 #include "sched-int.h"
 #include "params.h"
 #include "ggc.h"
+#include "pointer-set.h"
+#include "hash-table.h"
+#include "tree-ssa-alias.h"
+#include "internal-fn.h"
+#include "gimple-fold.h"
+#include "tree-eh.h"
+#include "gimple-expr.h"
+#include "is-a.h"
 #include "gimple.h"
+#include "gimplify.h"
 #include "cfgloop.h"
 #include "alloc-pool.h"
 #include "tm-constrs.h"
@@ -715,7 +728,9 @@ got_mode_name:;
 
 /* Register SH specific RTL passes.  */
 extern opt_pass* make_pass_sh_treg_combine (gcc::context* ctx, bool split_insns,
-				     const char* name);
+					    const char* name);
+extern opt_pass* make_pass_sh_optimize_sett_clrt (gcc::context* ctx,
+						  const char* name);
 static void
 register_sh_passes (void)
 {
@@ -739,6 +754,13 @@ register_sh_passes (void)
      reordering as this sometimes creates new opportunities.  */
   register_pass (make_pass_sh_treg_combine (g, true, "sh_treg_combine3"),
 		 PASS_POS_INSERT_AFTER, "split4", 1);
+
+  /* Optimize sett and clrt insns, by e.g. removing them if the T bit value
+     is known after a conditional branch.
+     This must be done after basic blocks and branch conditions have
+     stabilized and won't be changed by further passes.  */
+  register_pass (make_pass_sh_optimize_sett_clrt (g, "sh_optimize_sett_clrt"),
+		 PASS_POS_INSERT_BEFORE, "sched2", 1);
 }
 
 /* Implement TARGET_OPTION_OVERRIDE macro.  Validate and override 
@@ -5774,24 +5796,21 @@ fixup_addr_diff_vecs (rtx first)
 int
 barrier_align (rtx barrier_or_label)
 {
-  rtx next = next_active_insn (barrier_or_label), pat, prev;
+  rtx next, pat;
 
-  if (! next)
+  if (! barrier_or_label)
     return 0;
 
-  pat = PATTERN (next);
-
-  if (GET_CODE (pat) == ADDR_DIFF_VEC)
+  if (LABEL_P (barrier_or_label)
+      && NEXT_INSN (barrier_or_label)
+      && JUMP_TABLE_DATA_P (NEXT_INSN (barrier_or_label)))
     return 2;
 
-  if (GET_CODE (pat) == UNSPEC_VOLATILE && XINT (pat, 1) == UNSPECV_ALIGN)
-    /* This is a barrier in front of a constant table.  */
-    return 0;
-
-  prev = prev_active_insn (barrier_or_label);
-  if (GET_CODE (PATTERN (prev)) == ADDR_DIFF_VEC)
+  if (BARRIER_P (barrier_or_label)
+      && PREV_INSN (barrier_or_label)
+      && JUMP_TABLE_DATA_P (PREV_INSN (barrier_or_label)))
     {
-      pat = PATTERN (prev);
+      pat = PATTERN (PREV_INSN (barrier_or_label));
       /* If this is a very small table, we want to keep the alignment after
 	 the table to the minimum for proper code alignment.  */
       return ((optimize_size
@@ -5799,6 +5818,17 @@ barrier_align (rtx barrier_or_label)
 		   <= (unsigned) 1 << (CACHE_LOG - 2)))
 	      ? 1 << TARGET_SHMEDIA : align_jumps_log);
     }
+
+  next = next_active_insn (barrier_or_label);
+
+  if (! next)
+    return 0;
+
+  pat = PATTERN (next);
+
+  if (GET_CODE (pat) == UNSPEC_VOLATILE && XINT (pat, 1) == UNSPECV_ALIGN)
+    /* This is a barrier in front of a constant table.  */
+    return 0;
 
   if (optimize_size)
     return 0;
@@ -5824,13 +5854,12 @@ barrier_align (rtx barrier_or_label)
 	 (fill_eager_delay_slots) and the branch is to the insn after the insn
 	 after the barrier.  */
 
-      /* PREV is presumed to be the JUMP_INSN for the barrier under
-	 investigation.  Skip to the insn before it.  */
-
       int slot, credit;
       bool jump_to_next = false;
 
-      prev = prev_real_insn (prev);
+      /* Skip to the insn before the JUMP_INSN before the barrier under
+	 investigation.  */
+      rtx prev = prev_real_insn (prev_active_insn (barrier_or_label));
 
       for (slot = 2, credit = (1 << (CACHE_LOG - 2)) + 2;
 	   credit >= 0 && prev && NONJUMP_INSN_P (prev);

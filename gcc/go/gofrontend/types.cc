@@ -9,7 +9,6 @@
 #include "toplev.h"
 #include "intl.h"
 #include "tree.h"
-#include "gimple.h"
 #include "real.h"
 #include "convert.h"
 
@@ -8847,8 +8846,7 @@ Type::add_local_methods_for_type(const Named_type* nt,
       bool is_value_method = (is_embedded_pointer
 			      || !Type::method_expects_pointer(no));
       Method* m = new Named_method(no, field_indexes, depth, is_value_method,
-				   (needs_stub_method
-				    || (depth > 0 && is_value_method)));
+				   (needs_stub_method || depth > 0));
       if (!(*methods)->insert(no->name(), m))
 	delete m;
     }

@@ -25,9 +25,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "tm.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "varasm.h"
 #include "cp-tree.h"
 #include "flags.h"
 #include "target.h"
+#include "gimplify.h"
 
 static bool begin_init_stmts (tree *, tree *);
 static tree finish_init_stmts (bool, tree, tree);
@@ -2315,7 +2318,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 	{
 	  if (complain & tf_error)
 	    {
-	      error_at (EXPR_LOC_OR_HERE (inner_nelts),
+	      error_at (EXPR_LOC_OR_LOC (inner_nelts, input_location),
 			"array size in operator new must be constant");
 	      cxx_constant_value(inner_nelts);
 	    }
@@ -2343,7 +2346,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
       && !TREE_CONSTANT (maybe_constant_value (outer_nelts)))
     {
       if (complain & tf_warning_or_error)
-	pedwarn(EXPR_LOC_OR_HERE (outer_nelts), OPT_Wvla,
+	pedwarn(EXPR_LOC_OR_LOC (outer_nelts, input_location), OPT_Wvla,
 		"ISO C++ does not support variable-length array types");
       else
 	return error_mark_node;
@@ -3660,9 +3663,9 @@ build_vec_init (tree base, tree maxindex, tree init,
 
   if (from_array
       || ((type_build_ctor_call (type) || init || explicit_value_init_p)
-	  && ! (host_integerp (maxindex, 0)
+	  && ! (tree_fits_shwi_p (maxindex)
 		&& (num_initialized_elts
-		    == tree_low_cst (maxindex, 0) + 1))))
+		    == tree_to_shwi (maxindex) + 1))))
     {
       /* If the ITERATOR is equal to -1, then we don't have to loop;
 	 we've already initialized all the elements.  */

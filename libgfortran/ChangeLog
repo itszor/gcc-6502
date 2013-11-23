@@ -1,3 +1,34 @@
+2013-11-20  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* intrinsics/erfc_scaled.c (erfc_scaled_r16): Don't define if
+	__float128 is not available.
+
+2013-11-20  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR libfortran/49024
+	* intrinsics/erfc_scaled.c (erfc_scaled_r16): New function.
+	* intrinsics/erfc_scaled_inc.c: Do not provide quadruple
+	precision variant.
+
+2013-11-18  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	PR libfortran/51828
+	* intrinsics/unpack_generic.c (unpack_internal): Let the compiler
+	know that dim > 0 to avoid warnings.
+
+2013-11-15  Janne Blomqvist  <jb@gcc.gnu.org>
+	    Jerry DeLisle  <jvdelisle@gcc.gnu.org>
+
+	PR fortran/59108
+	* io/unix.c (regular_file): Don't set O_CREAT when opening a file
+	read-only with unknown status. Mask out O_CREAT when falling back
+	to opening read-only if ACTION= is not set and read-write fails.
+
+2013-11-15  Steve Ellcey  <sellcey@mips.com>
+
+	* configure.ac: Do not define HAVE_STRTOLD.
+	* configure: Regenerate.
+
 2013-11-10  Janne Blomqvist  <jb@gcc.gnu.org>
 
 	* configure.ac: Check presence of mkostemp.

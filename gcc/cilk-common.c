@@ -24,12 +24,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tree.h"
+#include "stringpool.h"
+#include "stor-layout.h"
 #include "langhooks.h"
 #include "expr.h"
 #include "optabs.h"
 #include "recog.h"
 #include "tree-iterator.h"
-#include "gimple.h"
+#include "gimplify.h"
 #include "cilk.h"
 
 /* This structure holds all the important fields of the internal structures,
@@ -339,8 +341,8 @@ expand_builtin_cilk_detach (tree exp)
      WORKER.TAIL <- TMP   */
 
   HOST_WIDE_INT worker_tail_offset =
-    tree_low_cst (DECL_FIELD_OFFSET (cilk_trees[CILK_TI_WORKER_TAIL]), 0) +
-    tree_low_cst (DECL_FIELD_BIT_OFFSET (cilk_trees[CILK_TI_WORKER_TAIL]), 0) /
+    tree_to_shwi (DECL_FIELD_OFFSET (cilk_trees[CILK_TI_WORKER_TAIL])) +
+    tree_to_shwi (DECL_FIELD_BIT_OFFSET (cilk_trees[CILK_TI_WORKER_TAIL])) /
     BITS_PER_UNIT;
   rtx tmem0 = gen_rtx_MEM (Pmode,
 			   plus_constant (Pmode, wreg, worker_tail_offset));
