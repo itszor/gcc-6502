@@ -40,6 +40,7 @@ m65x_file_start (void)
   int zploc = 0x70;
   
   fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
+  fprintf (asm_out_file, "\t.autoimport +\n");
   fprintf (asm_out_file, "\t.psc02\n");
   
   fprintf (asm_out_file, "\t.define _ah $%x\n", zploc++);
@@ -919,7 +920,50 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
 		   gen_rtx_LABEL_REF (Pmode, dest), pc_rtx));
   rtx jmp_insn = emit_jump_insn (branch);
-  add_reg_note (jmp_insn, REG_BR_PROB, GEN_INT (prob));
+  if (prob != -1)
+    add_reg_note (jmp_insn, REG_BR_PROB, GEN_INT (prob));
+}
+
+void
+m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
+{
+  rtx cmp;
+  rtx scratch;
+  rtx new_label;
+  rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
+
+  switch (cond)
+    {
+    case EQ:
+    case NE:
+    case LTU:
+    case GEU:
+      emit_insn (gen_compareqi_cc (op0, op1));
+      cmp = gen_rtx_fmt_ee (cond, VOIDmode, gen_rtx_REG (CCmode, CC_REGNUM),
+			    const0_rtx);
+      emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+				   gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
+				     gen_rtx_LABEL_REF (Pmode, dest), pc_rtx)));
+      break;
+
+    case LT:
+    case GE:
+      scratch = gen_reg_rtx (QImode);
+      new_label = gen_label_rtx ();
+      emit_move_insn (scratch, op0);
+      emit_insn (gen_sec ());
+      emit_insn (gen_sbcqi3_nv (scratch, scratch, op1));
+      m65x_emit_cbranchqi (EQ, nvflags,
+			   split_branch_probability == -1 ? -1 :
+			   split_branch_probability / 2, new_label);
+      emit_insn (gen_negate_highbit (scratch, scratch));
+      emit_label (new_label);
+      m65x_emit_cbranchqi (cond, nvflags, split_branch_probability, dest);
+      break;
+    
+    default:
+      gcc_unreachable ();
+    }
 }
 
 void
