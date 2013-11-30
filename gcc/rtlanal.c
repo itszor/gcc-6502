@@ -5787,10 +5787,6 @@ decompose_lo_sum_address (struct address_info *info)
 {
   rtx *base = get_base_term (info->inner);
   rtx *index = &XEXP (*info->inner, 1);
-  fprintf (stderr, "base term:\n");
-  debug_rtx (*base);
-  fprintf (stderr, "index term:\n");
-  debug_rtx (*index);
   set_address_base (info, base, base);
   if (CONSTANT_P (*index))
     set_address_disp (info, index, index);

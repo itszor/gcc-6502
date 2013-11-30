@@ -968,10 +968,6 @@ record_address_regs (enum machine_mode mode, addr_space_t as, rtx x,
   else
     rclass = base_reg_class (mode, as, outer_code, index_code);
 
-  fprintf (stderr, "context=%d, x=\n", context);
-  debug_rtx (x);
-  fprintf (stderr, "rclass=%s\n", m65x_reg_class_name (rclass));
-
   switch (code)
     {
     case CONST_INT:

@@ -186,6 +186,8 @@ get_final_hard_regno (int hard_regno, int offset)
   if (hard_regno < 0)
     return hard_regno;
   hard_regno = lra_get_elimination_hard_regno (hard_regno);
+  fprintf (stderr, "get_final_hard_regno returning %d\n",
+	   (int) hard_regno + offset);
   return hard_regno + offset;
 }
 
@@ -235,6 +237,8 @@ get_reg_class (int regno)
   return NO_REGS;
 }
 
+extern const char * __attribute__ ((used)) m65x_reg_class_name (reg_class_t c);
+
 /* Return true if REG satisfies (or will satisfy) reg class constraint
    CL.  Use elimination first if REG is a hard register.  If REG is a
    reload pseudo created by this constraints pass, assume that it will
@@ -263,6 +267,10 @@ in_class_p (rtx reg, enum reg_class cl, enum reg_class *new_class)
     }
   reg_mode = GET_MODE (reg);
   rclass = get_reg_class (regno);
+  fprintf (stderr, "divined reg class for %d: %s\n", (int) regno,
+	   m65x_reg_class_name (rclass));
+  fprintf (stderr, "regno=%d, new_regno_start=%d\n", (int) regno,
+	   (int) new_regno_start);
   if (regno < new_regno_start
       /* Do not allow the constraints for reload instructions to
 	 influence the classes of new pseudos.  These reloads are
@@ -274,12 +282,21 @@ in_class_p (rtx reg, enum reg_class cl, enum reg_class *new_class)
 	  && (OBJECT_P (SET_SRC (curr_insn_set))
 	      || (GET_CODE (SET_SRC (curr_insn_set)) == SUBREG
 		  && OBJECT_P (SUBREG_REG (SET_SRC (curr_insn_set)))))))
-    /* When we don't know what class will be used finally for reload
-       pseudos, we use ALL_REGS.  */
-    return ((regno >= new_regno_start && rclass == ALL_REGS)
-	    || (rclass != NO_REGS && ira_class_subset_p[rclass][cl]
-		&& ! hard_reg_set_subset_p (reg_class_contents[cl],
-					    lra_no_alloc_regs)));
+    {
+      fprintf (stderr, "rclass=%s\n", m65x_reg_class_name (rclass));
+      fprintf (stderr, "cl=%s\n", m65x_reg_class_name (cl));
+      fprintf (stderr, "hard_reg_set_subset_p (...)=%s\n",
+	       hard_reg_set_subset_p (reg_class_contents[cl], lra_no_alloc_regs)
+	       ? "yes" : "no");
+      fprintf (stderr, "ira_class_subset_p[rclass][cl]=%s\n",
+	       ira_class_subset_p[rclass][cl] ? "yes" : "no");
+      /* When we don't know what class will be used finally for reload
+	 pseudos, we use ALL_REGS.  */
+      return ((regno >= new_regno_start && rclass == ALL_REGS)
+	      || (rclass != NO_REGS && ira_class_subset_p[rclass][cl]
+		  && ! hard_reg_set_subset_p (reg_class_contents[cl],
+					      lra_no_alloc_regs)));
+    }
   else
     {
       common_class = ira_reg_class_subset[rclass][cl];
@@ -287,7 +304,10 @@ in_class_p (rtx reg, enum reg_class cl, enum reg_class *new_class)
 	*new_class = common_class;
       if (hard_reg_set_subset_p (reg_class_contents[common_class],
 				 lra_no_alloc_regs))
-	return false;
+	{
+	  fprintf (stderr, "returning false (1)\n");
+	  return false;
+	}
       /* Check that there are enough allocatable regs.  */
       class_size = ira_class_hard_regs_num[common_class];
       for (i = 0; i < class_size; i++)
@@ -295,15 +315,22 @@ in_class_p (rtx reg, enum reg_class cl, enum reg_class *new_class)
 	  hard_regno = ira_class_hard_regs[common_class][i];
 	  nregs = hard_regno_nregs[hard_regno][reg_mode];
 	  if (nregs == 1)
-	    return true;
+	    {
+	      fprintf (stderr, "returning true (1)\n");
+	      return true;
+	    }
 	  for (j = 0; j < nregs; j++)
 	    if (TEST_HARD_REG_BIT (lra_no_alloc_regs, hard_regno + j)
 		|| ! TEST_HARD_REG_BIT (reg_class_contents[common_class],
 					hard_regno + j))
 	      break;
 	  if (j >= nregs)
-	    return true;
+	    {
+	      fprintf (stderr, "returning true (2)\n");
+	      return true;
+	    }
 	}
+      fprintf (stderr, "returning false (2)\n");
       return false;
     }
 }
@@ -1460,6 +1487,14 @@ process_alt_operands (int only_alternative)
       op = no_subreg_reg_operand[nop] = *curr_id->operand_loc[nop];
       /* The real hard regno of the operand after the allocation.  */
       hard_regno[nop] = get_hard_regno (op);
+      fprintf (stderr, "set hard_regno[nop] to %d for nop %d\n",
+	       (int) hard_regno[nop], (int) nop);
+
+      if (lra_dump_file)
+        {
+	  fprintf (lra_dump_file, "nop=%d\n", nop);
+	  print_rtl_single (lra_dump_file, op);
+        }
 
       operand_reg[nop] = reg = op;
       biggest_mode[nop] = GET_MODE (op);
@@ -1535,6 +1570,8 @@ process_alt_operands (int only_alternative)
 	  bool this_alternative_offmemok;
 	  bool scratch_p;
 	  enum machine_mode mode;
+
+	  fprintf (stderr, "nalt=%d, nop=%d\n", nalt, nop);
 
 	  opalt_num = nalt * n_operands + nop;
 	  if (curr_static_id->operand_alternative[opalt_num].anything_ok)
@@ -1924,6 +1961,13 @@ process_alt_operands (int only_alternative)
 		  winreg = true;
 		  if (REG_P (op))
 		    {
+		      fprintf (stderr, "REG_P (op)=%d, nop=%d, "
+			       "hard_regno[nop]=%d, in_class_p (...)=%s\n",
+			       (int) REG_P (op), (int) nop,
+			       (int) hard_regno[nop],
+			       in_class_p (op, this_alternative, NULL)
+			       ? "yes" : "no");
+		      debug_rtx (op);
 		      if (hard_regno[nop] >= 0
 			  && in_hard_reg_set_p (this_alternative_set,
 						mode, hard_regno[nop]))
@@ -1938,6 +1982,8 @@ process_alt_operands (int only_alternative)
 		costly_p = c == '*';
 	    }
 	  while ((p += len), c);
+
+	  fprintf (stderr, "did we win? %s\n", win ? "yes" : "no");
 
 	  scratch_p = (operand_reg[nop] != NULL_RTX
 		       && lra_former_scratch_p (REGNO (operand_reg[nop])));
@@ -2271,6 +2317,11 @@ process_alt_operands (int only_alternative)
 		     using this alternative.  */
 		  && GET_CODE (no_subreg_reg_operand[1]) != PLUS)))
 	{
+	  fprintf (stderr, "avoiding a situation, nalt=%d\n", nalt);
+	  debug_rtx (no_subreg_reg_operand[0]);
+	  debug_rtx (no_subreg_reg_operand[1]);
+	  fprintf (stderr, "curr_alt_win[0]=%d, curr_alt_win[1]=%d\n",
+		   curr_alt_win[0], curr_alt_win[1]);
 	  /* We have a move insn and a new reload insn will be similar
 	     to the current insn.  We should avoid such situation as it
 	     results in LRA cycling.  */

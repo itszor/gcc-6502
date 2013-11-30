@@ -3,7 +3,7 @@
 
 #ifdef RTX_CODE
 extern void m65x_print_operand (FILE *, rtx, int);
-extern void m65x_print_branch (enum machine_mode, rtx, rtx);
+extern void m65x_print_branch (enum machine_mode, rtx, rtx, bool);
 extern void m65x_print_operand_address (FILE *, rtx);
 extern void m65x_output_ascii (FILE *, const char *, int);
 extern int m65x_mode_dependent_address_p (rtx);
