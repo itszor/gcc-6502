@@ -298,8 +298,8 @@ m65x_reg_ok_for_base_p (const_rtx x, bool strict_p)
   else if (!strict_p
 	   && (REGNO (x) >= FIRST_PSEUDO_REGISTER
 	       || IS_ZP_REGNUM (REGNO (x))
-	       || REGNO (x) == FRAME_POINTER_REGNUM
-	       || REGNO (x) == ARG_POINTER_REGNUM
+	       || reg_mentioned_p (frame_pointer_rtx, x)
+	       || reg_mentioned_p (arg_pointer_rtx, x)
 	       || reg_mentioned_p (virtual_incoming_args_rtx, x)
 	       || reg_mentioned_p (virtual_outgoing_args_rtx, x)
 	       || reg_mentioned_p (virtual_stack_dynamic_rtx, x)
@@ -1129,6 +1129,35 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     default:
       gcc_unreachable ();
     }
+}
+
+HOST_WIDE_INT
+m65x_elimination_offset (int from, int to)
+{
+  if (from == ARG_POINTER_REGNUM)
+    switch (to)
+      {
+      case STACK_POINTER_REGNUM:
+        return -2;
+      case FRAME_POINTER_REGNUM:
+        return 0;
+      case FP_REGNUM:
+        return 0;
+      default:
+        gcc_unreachable ();
+      }
+  else if (from == FRAME_POINTER_REGNUM)
+    switch (to)
+      {
+      case STACK_POINTER_REGNUM:
+        return -2;
+      case FP_REGNUM:
+        return 0;
+      default:
+        gcc_unreachable ();
+      }
+  else
+    gcc_unreachable ();
 }
 
 #undef TARGET_ASM_FILE_START

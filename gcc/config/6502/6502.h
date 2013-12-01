@@ -329,7 +329,7 @@ enum reg_class
 /* FIXME: This needs fixing.  */
 
 #define INITIAL_ELIMINATION_OFFSET(FROM, TO, OFFSET)	\
-  do { (OFFSET) = 0; } while (0)
+  do { (OFFSET) = m65x_elimination_offset ((FROM), (TO)); } while (0)
 
 /* Passing function arguments on the stack.  */
 
