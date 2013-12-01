@@ -46,8 +46,6 @@
 (define_predicate "mov_dst_operand"
   (match_code "reg,subreg,mem")
 {
-  int regno;
-
   if (memory_operand (op, mode))
     return true;
 
@@ -57,22 +55,12 @@
   if (!REG_P (op))
     return false;
   
-  regno = REGNO (op);
-  
-  return regno == ACC_REGNUM
-	 || regno == X_REGNUM
-	 || regno == Y_REGNUM
-  	 || IS_ZP_REGNUM (regno)
-	 || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM
-	 || regno >= FIRST_PSEUDO_REGISTER;
+  return true;
 })
 
 (define_predicate "mov_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
-  int regno;
-
   if (memory_operand (op, mode))
     return true;
 
@@ -85,15 +73,7 @@
   if (!REG_P (op))
     return false;
 
-  regno = REGNO (op);
-  
-  return regno == ACC_REGNUM
-	 || regno == X_REGNUM
-	 || regno == Y_REGNUM
-  	 || IS_ZP_REGNUM (regno)
-	 || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM
-	 || regno >= FIRST_PSEUDO_REGISTER;
+  return true;
 })
 
 (define_predicate "const_mem_operand"
@@ -131,8 +111,7 @@
   
   regno = REGNO (op);
   
-  return IS_ZP_REGNUM (regno) || regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM || regno >= FIRST_PSEUDO_REGISTER;
+  return IS_ZP_REGNUM (regno) || regno >= FIRST_PSEUDO_REGISTER;
 })
 
 (define_predicate "reload_zpreg_operand"
