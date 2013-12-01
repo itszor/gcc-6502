@@ -254,13 +254,15 @@ enum reg_class
    (REGNO) == (Y_REGNUM + 1) ? WORD_Y_REGS :				\
    (REGNO) >= (Y_REGNUM + 2) && (REGNO) < (Y_REGNUM + 4)		\
      ? Y_REGS :								\
-   (REGNO) >= SP_REGNUM && (REGNO) <= (SP_REGNUM + 4) ? STACK_REG :	\
+   (REGNO) >= SP_REGNUM && (REGNO) < (SP_REGNUM + 4) ? STACK_REG :	\
    (REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER	\
      ? ARG_REGS :							\
    (REGNO) >= FIRST_CALLER_SAVED && (REGNO) <= LAST_CALLER_SAVED	\
      ? CALLEE_SAVED_REGS :						\
    (REGNO) >= FIRST_ZP_REGISTER && (REGNO) <= LAST_ZP_REGISTER		\
      ? GENERAL_REGS :							\
+   (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
+     ? ALL_REGS :							\
    (REGNO) >= CC_REGNUM && (REGNO) <= (CC_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
@@ -316,6 +318,7 @@ enum reg_class
 #define STACK_POINTER_REGNUM		SP_REGNUM
 #define FRAME_POINTER_REGNUM		32
 #define ARG_POINTER_REGNUM		34
+#define HARD_FRAME_POINTER_REGNUM	FP_REGNUM
 
 /* Eliminating frame pointer/arg pointer.  */
 
@@ -324,7 +327,7 @@ enum reg_class
     { ARG_POINTER_REGNUM, FRAME_POINTER_REGNUM },	\
     { ARG_POINTER_REGNUM, FP_REGNUM },			\
     { FRAME_POINTER_REGNUM, STACK_POINTER_REGNUM },	\
-    { FRAME_POINTER_REGNUM, FP_REGNUM } }
+    { FRAME_POINTER_REGNUM, HARD_FRAME_POINTER_REGNUM } }
 
 /* FIXME: This needs fixing.  */
 
@@ -334,6 +337,7 @@ enum reg_class
 /* Passing function arguments on the stack.  */
 
 #define PUSH_ARGS 0
+#define ACCUMULATE_OUTGOING_ARGS 1
 
 #define FUNCTION_ARG_REGNO_P(REGNO) \
   ((REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER)

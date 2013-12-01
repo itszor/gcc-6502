@@ -32,7 +32,7 @@
 #include "df.h"
 
 #undef DEBUG_LEGIT_RELOAD
-#define DEBUG_SECONDARY_RELOAD
+#undef DEBUG_SECONDARY_RELOAD
 #undef DEBUG_ADDRESS
 
 static void
@@ -138,11 +138,14 @@ m65x_print_operand_address (FILE *stream, rtx x)
 #endif
 
 #if 1
-    case LO_SUM:
+    case PLUS:
       if (GET_MODE (x) == HImode
           && REG_P (XEXP (x, 0)) && IS_ZP_REGNUM (REGNO (XEXP (x, 0)))
 	  && REG_P (XEXP (x, 1)) && REGNO (XEXP (x, 1)) == Y_REGNUM)
 	asm_fprintf (stream, "(%r),y", REGNO (XEXP (x, 0)));
+      else if (REG_P (XEXP (x, 0)) && CONST_INT_P (XEXP (x, 1)))
+        asm_fprintf (stream, "(%r),##%d##", REGNO (XEXP (x, 0)),
+		     (int) INTVAL (XEXP (x, 1)));
       else
         output_operand_lossage ("invalid LO_SUM operand");
       break;
@@ -298,12 +301,8 @@ m65x_reg_ok_for_base_p (const_rtx x, bool strict_p)
   else if (!strict_p
 	   && (REGNO (x) >= FIRST_PSEUDO_REGISTER
 	       || IS_ZP_REGNUM (REGNO (x))
-	       || reg_mentioned_p (frame_pointer_rtx, x)
-	       || reg_mentioned_p (arg_pointer_rtx, x)
-	       || reg_mentioned_p (virtual_incoming_args_rtx, x)
-	       || reg_mentioned_p (virtual_outgoing_args_rtx, x)
-	       || reg_mentioned_p (virtual_stack_dynamic_rtx, x)
-	       || reg_mentioned_p (virtual_stack_vars_rtx, x)))
+	       || REGNO (x) == FRAME_POINTER_REGNUM
+	       || REGNO (x) == ARG_POINTER_REGNUM))
     return true;
   else
     return false;
@@ -321,14 +320,11 @@ m65x_address_register_p (const_rtx x, int strict_p)
 bool
 m65x_indirect_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 {
-  if (GET_CODE (x) == LO_SUM && m65x_address_register_p (XEXP (x, 0), strict)
-      && ((mode == QImode && REG_P (XEXP (x, 1))
-	   && (!strict || REGNO (XEXP (x, 1)) == Y_REGNUM))
-	  || (mode != QImode
-	      && ((REG_P (XEXP (x, 1))
-		   && (!strict || REGNO (XEXP (x, 1)) == Y_REGNUM))
-		  || (CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) >= 0
-		      && INTVAL (XEXP (x, 1)) < 256)))))
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+
+  if (GET_CODE (x) == PLUS && m65x_address_register_p (XEXP (x, 0), strict)
+      && CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) >= 0
+      && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
     return true;
 
   return false;
@@ -379,7 +375,7 @@ static bool
 m65x_mode_dependent_address (const_rtx x,
 			     addr_space_t addrspace ATTRIBUTE_UNUSED)
 {
-  if (GET_CODE (x) == PLUS || GET_CODE (x) == LO_SUM)
+  if (GET_CODE (x) == PLUS)
     return true;
   
   return false;
@@ -388,59 +384,23 @@ m65x_mode_dependent_address (const_rtx x,
 static rtx
 m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 {
+  int modesize = GET_MODE_SIZE (mode);
+
   if (CONSTANT_ADDRESS_P (x))
     return x;
 
-  if (mode == QImode)
-    {
-      x = oldx;
-
-      if (REG_P (x))
-	x = gen_rtx_LO_SUM (Pmode, x, force_reg (HImode, GEN_INT (0)));
-      else if (GET_CODE (x) == PLUS && CONST_INT_P (XEXP (x, 1))
-	       && INTVAL (XEXP (x, 1)) >= 0 && INTVAL (XEXP (x, 1)) < 256)
-	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, XEXP (x, 0)),
-			    force_reg (HImode, XEXP (x, 1)));
-      else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
-	       && REG_P (XEXP (x, 1)))
-	{
-	  rtx tmp = gen_reg_rtx (Pmode);
-	  emit_insn (gen_rtx_SET (VOIDmode, tmp, gen_rtx_PLUS (Pmode, 
-				    gen_rtx_HIGH (Pmode, XEXP (x, 1)),
-				    XEXP (x, 0))));
-	  return gen_rtx_LO_SUM (Pmode, tmp, XEXP (x, 1));
-	}
-      else if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
-	       && REG_P (XEXP (x, 1)))
-	return x;
-      else
-	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, x),
-			    force_reg (HImode, GEN_INT (0)));
-    }
-  else
-    {
-      int modesize = GET_MODE_SIZE (mode);
+  return force_reg (Pmode, x);
       
-      if (REG_P (x))
-        x = gen_rtx_LO_SUM (Pmode, x, GEN_INT (0));
-      else if (GET_CODE (x) == PLUS && CONST_INT_P (XEXP (x, 1))
-	       && INTVAL (XEXP (x, 1)) >= 0
-	       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
-	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, XEXP (x, 0)), XEXP (x, 1));
-      else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
-	       && REG_P (XEXP (x, 1)))
-	{
-	  rtx tmp = gen_reg_rtx (Pmode);
-	  emit_insn (gen_rtx_SET (VOIDmode, tmp, gen_rtx_PLUS (Pmode,
-				    gen_rtx_HIGH (Pmode, XEXP (x, 1)),
-				    XEXP (x, 0))));
-	  return gen_rtx_LO_SUM (Pmode, tmp, XEXP (x, 1));
-	}
-      else if (GET_CODE (x) == LO_SUM)
-        return x;
-      else
-        x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, x), GEN_INT (0));
-    }
+  if (REG_P (x))
+    x = gen_rtx_PLUS (Pmode, x, GEN_INT (0));
+  else if (GET_CODE (x) == PLUS && CONST_INT_P (XEXP (x, 1))
+	   && INTVAL (XEXP (x, 1)) >= 0
+	   && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+    x = gen_rtx_PLUS (Pmode, force_reg (Pmode, XEXP (x, 0)), XEXP (x, 1));
+  else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0)) && REG_P (XEXP (x, 1)))
+    ;
+  else
+    x = gen_rtx_PLUS (Pmode, force_reg (Pmode, x), GEN_INT (0));
 
   return x;
 }
@@ -452,9 +412,9 @@ m65x_delegitimize_address (rtx orig_x)
 {
   rtx x = delegitimize_mem_from_attrs (orig_x);
   
-  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
+  /*if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
       && CONST_INT_P (XEXP (x, 1)))
-    x = gen_rtx_PLUS (GET_MODE (x), XEXP (x, 0), XEXP (x, 1));
+    x = gen_rtx_PLUS (GET_MODE (x), XEXP (x, 0), XEXP (x, 1));*/
 
   return x;
 }
@@ -468,7 +428,7 @@ m65x_adjust_address (rtx mem, enum machine_mode mode, HOST_WIDE_INT adj)
   
   x = XEXP (mem, 0);
   
-  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
+  /*if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
       && CONST_INT_P (XEXP (x, 1)))
     {
       HOST_WIDE_INT offset = INTVAL (XEXP (x, 1));
@@ -476,7 +436,7 @@ m65x_adjust_address (rtx mem, enum machine_mode mode, HOST_WIDE_INT adj)
       if (offset >= 0 && offset < 256)
 	return change_address (mem, mode, gen_rtx_LO_SUM (Pmode, XEXP (x, 0),
 			       GEN_INT (offset)));
-    }
+    }*/
   
   return adjust_address (x, mode, adj);
 }
@@ -489,7 +449,7 @@ m65x_address_cost (rtx address, enum machine_mode mode, addr_space_t as,
       && REG_P (XEXP (address, 0))
       && CONST_INT_P (XEXP (address, 1))
       && INTVAL (XEXP (address, 1)) >= 0
-      && INTVAL (XEXP (address, 2)) < 256)
+      && INTVAL (XEXP (address, 1)) < 256)
     return 6;
   else if (GET_CODE (address) == PLUS
 	   && REG_P (XEXP (address, 0)) && REG_P (XEXP (address, 1)))
@@ -547,6 +507,8 @@ m65x_legitimize_reload_address (rtx *px, enum machine_mode mode, int opnum,
   fprintf (stderr, "m65x_legitimize_reload_address\n");
   debug_rtx (x);
 #endif
+
+  return NULL_RTX;
 
   if (GET_MODE (x) != HImode)
     return NULL_RTX;
@@ -790,7 +752,7 @@ base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
     return true;
   
-  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0)))
+  if (0 && GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0)))
     {
       if (CONST_INT_P (XEXP (x, 1))
           && INTVAL (XEXP (x, 1)) >= 0
@@ -910,14 +872,16 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
   else
     return (accumulator_operand (operands[0], mode)
             && (index_reg_operand (operands[1], mode)
-	        || zp_reg_operand (operands[1], mode)))
+	        || ptr_reg_operand (operands[1], mode)))
 	   || (index_reg_operand (operands[0], mode)
 	       && accumulator_operand (operands[1], mode))
            || (hard_reg_operand (operands[0], mode)
-	       && zp_reg_or_imm_operand (operands[1], mode))
-	   || (zp_reg_operand (operands[0], mode)
+	       && (ptr_reg_operand (operands[1], mode)
+		   || immediate_operand (operands[1], mode)))
+	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
-		   || zp_reg_or_imm_operand (operands[1], mode)))
+		   || ptr_reg_operand (operands[1], mode)
+		   || immediate_operand (operands[1], mode)))
 	   || (y_reg_operand (operands[0], mode)
 	       && x_reg_operand (operands[1], mode))
 	   || (x_reg_operand (operands[0], mode)
@@ -1134,11 +1098,13 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 HOST_WIDE_INT
 m65x_elimination_offset (int from, int to)
 {
+  HOST_WIDE_INT frame_size = get_frame_size ();
+  
   if (from == ARG_POINTER_REGNUM)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return -2;
+        return crtl->outgoing_args_size + frame_size;
       case FRAME_POINTER_REGNUM:
         return 0;
       case FP_REGNUM:
@@ -1150,7 +1116,7 @@ m65x_elimination_offset (int from, int to)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return -2;
+        return -(crtl->outgoing_args_size + frame_size);
       case FP_REGNUM:
         return 0;
       default:
@@ -1158,6 +1124,67 @@ m65x_elimination_offset (int from, int to)
       }
   else
     gcc_unreachable ();
+}
+
+void
+m65x_expand_prologue (void)
+{
+  int regno;
+  rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
+  HOST_WIDE_INT frame_size = get_frame_size ();
+  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;
+  
+  if (frame_pointer_needed)
+    {
+      insn = emit_insn (gen_movhi (hard_frame_pointer_rtx, stack_pointer_rtx));
+      RTX_FRAME_RELATED_P (insn) = 1;
+    }
+  
+  if (stack_offset != 0)
+    {
+      insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+			GEN_INT (-stack_offset)));
+      RTX_FRAME_RELATED_P (insn) = 1;
+    }
+  
+  for (regno = LAST_CALLER_SAVED; regno >= FIRST_CALLER_SAVED; regno--)
+    if (df_regs_ever_live_p (regno))
+      {
+        emit_insn (gen_movqi (accum, gen_rtx_REG (QImode, regno)));
+	insn = emit_insn (gen_pushqi1 (accum));
+	RTX_FRAME_RELATED_P (insn) = 1;
+      }
+}
+
+void
+m65x_expand_epilogue (void)
+{
+  int regno;
+  rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
+  HOST_WIDE_INT frame_size = get_frame_size ();
+  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;
+
+  emit_insn (gen_blockage ());
+
+  for (regno = FIRST_CALLER_SAVED; regno <= LAST_CALLER_SAVED; regno++)
+    if (df_regs_ever_live_p (regno))
+      {
+        emit_insn (gen_popqi1 (accum));
+	emit_insn (gen_movqi (gen_rtx_REG (QImode, regno), accum));
+      }
+  
+  if (stack_offset != 0)
+    {
+      /* If we have a frame pointer, it's easier to copy the caller's SP
+         directly from it rather than do a two-byte addition.  */
+      if (frame_pointer_needed)
+	emit_insn (gen_movhi (stack_pointer_rtx, hard_frame_pointer_rtx));
+      else
+	emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+			       GEN_INT (stack_offset)));
+    }
+  
+  emit_jump_insn (gen_m65x_return ());
 }
 
 #undef TARGET_ASM_FILE_START
