@@ -1,0 +1,7 @@
+LIB1ASMSRC = 6502/lib1funcs.S
+LIB1ASMFUNCS =	\
+  _bswapsi2	\
+  _bswapdi2	\
+  _fixunssfdi
+
+LIB2ADDEH =

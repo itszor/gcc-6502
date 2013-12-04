@@ -65,6 +65,9 @@ m65x_file_start (void)
 
   for (i = 0; i < 8; i++)
     fprintf (asm_out_file, "\t.define _s%d $%x\n", i, zploc++);
+  
+  fprintf (asm_out_file, "\t.define _tmp0 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _tmp1 $%x\n", zploc++);
 }
 
 static void m65x_asm_globalize_label (FILE *, const char *);
@@ -1185,6 +1188,15 @@ m65x_expand_epilogue (void)
     }
   
   emit_jump_insn (gen_m65x_return ());
+}
+
+static bool
+m65x_scalar_mode_supported_p (enum machine_mode mode)
+{
+  if (mode == SImode)
+    return true;
+  
+  return default_scalar_mode_supported_p (mode);
 }
 
 #undef TARGET_ASM_FILE_START
