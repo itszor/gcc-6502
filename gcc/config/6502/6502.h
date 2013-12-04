@@ -33,6 +33,7 @@
  * Layout of source language data types.
  *****************************************************************************/
 
+#define SHORT_TYPE_SIZE			16
 #define INT_TYPE_SIZE			16
 #define LONG_TYPE_SIZE			32
 #define LONG_LONG_TYPE_SIZE		32
@@ -42,6 +43,17 @@
 #define LONG_DOUBLE_TYPE_SIZE		32
 
 #define DEFAULT_SIGNED_CHAR		0
+
+#define WCHAR_TYPE "int"
+#define WCHAR_TYPE_SIZE INT_TYPE_SIZE
+
+#define INTMAX_TYPE "long int"
+#define UINTMAX_TYPE "long unsigned int"
+
+#define PTRDIFF_TYPE "int"
+#define SIZE_TYPE "unsigned int"
+
+#define LIBGCC2_HAS_DF_MODE 0
 
 /*****************************************************************************
  * Registers.
@@ -88,6 +100,8 @@
    38: "
    39: "
    40: hard SP register
+   41: fixed/local tmp0 (zp)
+   42: fixed/local tmp1 (zp)
 */
 
 #define ACC_REGNUM 0
@@ -103,10 +117,13 @@
 #define LAST_ZP_REGISTER LAST_CALLER_SAVED
 #define CC_REGNUM 36
 #define HARDSP_REGNUM 40
+#define TMP0_REGNUM 41
+#define TMP1_REGNUM 42
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
-   || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER))
+   || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
+   || (X) == TMP0_REGNUM || (X) == TMP1_REGNUM)
 
 #define IS_HARD_REGNUM(X)					\
   ((X) == ACC_REGNUM || (X) == X_REGNUM || (X) == Y_REGNUM)
@@ -120,7 +137,7 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1 }
+    1, 1, 1 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -131,9 +148,9 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1 }
+    1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 41
+#define FIRST_PSEUDO_REGISTER 43
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -141,7 +158,7 @@
     16, 17, 18, 19, 20, 21, 22, 23, \
     24, 25, 26, 27, 28, 29, 30, 31, \
     32, 33, 34, 35, 36, 37, 38, 39, \
-    40 }
+    40, 41, 42 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -237,8 +254,8 @@ enum reg_class
   { 0x00ff0000, 0x000 },	\
   { 0xff000000, 0x000 },	\
   { 0x00000000, 0x0f0 },	\
-  { 0xfffffeee, 0x000 },	\
-  { 0xffffffff, 0x1ff },	\
+  { 0xfffffeee, 0x600 },	\
+  { 0xffffffff, 0x7ff },	\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -260,6 +277,8 @@ enum reg_class
    (REGNO) >= FIRST_CALLER_SAVED && (REGNO) <= LAST_CALLER_SAVED	\
      ? CALLEE_SAVED_REGS :						\
    (REGNO) >= FIRST_ZP_REGISTER && (REGNO) <= LAST_ZP_REGISTER		\
+     ? GENERAL_REGS :							\
+   (REGNO) == TMP0_REGNUM || (REGNO) == TMP1_REGNUM			\
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
      ? ALL_REGS :							\
@@ -437,7 +456,7 @@ typedef int CUMULATIVE_ARGS;
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
     "?cc", "?cc1", "?cc2", "?cc3",				\
-    "?hardsp"							\
+    "?hardsp", "tmp0", "tmp1"					\
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
@@ -492,8 +511,16 @@ typedef int CUMULATIVE_ARGS;
 #undef WORD_REGISTER_OPERATIONS
 #define MOVE_MAX			2
 
+//#define MAX_FIXED_MODE_SIZE		32
+
 #define Pmode				HImode
 #define FUNCTION_MODE			QImode
 #define CASE_VECTOR_MODE		HImode
 
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
+
+/* ca65 can't handle "# ..." line directives.  This is a really crude way of
+   fixing that.  FIXME.  */
+
+#undef CC1_SPEC
+#define CC1_SPEC "-P"

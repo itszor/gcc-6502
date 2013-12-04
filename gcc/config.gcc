@@ -888,6 +888,7 @@ aarch64*-*-elf)
 	TM_MULTILIB_CONFIG=`echo $TM_MULTILIB_CONFIG | sed 's/^,//'`
 	;;
 6502-*-*)
+	tm_file="${tm_file} 6502/6502-stdint.h"
 	;;
 65816-*-*)
 	;;
