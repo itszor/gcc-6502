@@ -331,6 +331,7 @@ esac
 
 case ${host} in
 6502*-*)
+        tmake_file="$tmake_file 6502/t-6502"
 	;;
 aarch64*-*-elf | aarch64*-*-rtems*)
 	extra_parts="$extra_parts crtbegin.o crtend.o crti.o crtn.o"
