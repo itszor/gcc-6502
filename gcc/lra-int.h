@@ -391,7 +391,6 @@ static inline int
 lra_get_regno_hard_regno (int regno)
 {
   resize_reg_info ();
-  fprintf (stderr, "lra_get_regno_hard_regno (%d) returning %d\n", regno, reg_renumber[regno]);
   return reg_renumber[regno];
 }
 
