@@ -172,6 +172,15 @@
 (define_predicate "symlab_ref_operand"
   (match_code "label_ref,symbol_ref"))
 
+(define_predicate "sym_const_operand"
+  (match_code "label_ref,symbol_ref,plus,const")
+{
+  if (GET_CODE (op) == PLUS)
+    return sym_const_operand (XEXP (op, 0), mode);
+  
+  return true;
+})
+
 (define_predicate "zp_reg_or_imm_operand"
   (ior (match_operand 0 "immediate_operand")
        (match_operand 0 "zp_reg_operand")))
