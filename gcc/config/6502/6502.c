@@ -467,12 +467,12 @@ static int
 m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 			 reg_class_t to)
 {
-  /*if (mode == QImode && (HARD_REG_CLASS_P (to) || HARD_REG_CLASS_P (from)))
+  if (mode == QImode && (HARD_REG_CLASS_P (to) || HARD_REG_CLASS_P (from)))
     return 2;
   else if (mode == HImode && HARDISH_REG_CLASS_P (to))
     return 2;
   else if (ZP_REG_CLASS_P (from) && ZP_REG_CLASS_P (to))
-    return 6;*/
+    return 6;
 
   return 4;
 }
