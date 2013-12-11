@@ -5,3 +5,7 @@ LIB1ASMFUNCS =	\
   _fixunssfdi
 
 LIB2ADDEH =
+
+crt0.o: $(srcdir)/config/6502/crt0.S
+	$(gcc_compile) -c $<
+

@@ -158,6 +158,10 @@ m65x_print_operand_address (FILE *stream, rtx x)
       asm_fprintf (stream, "(%r)", REGNO (x));
       break;
 
+    case CONST_INT:
+      asm_fprintf (stream, "$%.4x", (int) INTVAL (x) & 0xffff);
+      break;
+
     default:
       output_addr_const (stream, x);
     }
@@ -645,11 +649,18 @@ m65x_asm_select_section (tree exp ATTRIBUTE_UNUSED,
       break;
     
     case SECCAT_RODATA:
+    case SECCAT_RODATA_MERGE_STR:
+    case SECCAT_RODATA_MERGE_STR_INIT:
+    case SECCAT_RODATA_MERGE_CONST:
       sname = "RODATA";
       break;
     
     case SECCAT_DATA:
       sname = "DATA";
+      break;
+    
+    case SECCAT_TEXT:
+      sname = "CODE";
       break;
     
     default:
