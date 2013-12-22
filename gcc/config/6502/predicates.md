@@ -161,6 +161,10 @@
   (ior (match_operand 0 "accumulator_operand")
        (match_operand 0 "zp_reg_operand")))
 
+(define_predicate "zp_or_hard_reg_operand"
+  (ior (match_operand 0 "hard_reg_operand")
+       (match_operand 0 "zp_reg_operand")))
+
 (define_predicate "zp_reg_or_const_mem_operand"
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))

@@ -6,8 +6,8 @@ bswapsi2:
 #endif
 
 #ifdef L_bswapdi2
-	.export bswapsi2
-bswapsi2:
+	.export bswapdi2
+bswapdi2:
 	; FIXME: Implement!
 	rts
 #endif
