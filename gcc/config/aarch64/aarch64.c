@@ -224,6 +224,15 @@ static const struct tune_params generic_tunings =
   NAMED_PARAM (memmov_cost, 4)
 };
 
+static const struct tune_params cortexa53_tunings =
+{
+  &cortexa53_extra_costs,
+  &generic_addrcost_table,
+  &generic_regmove_cost,
+  &generic_vector_cost,
+  NAMED_PARAM (memmov_cost, 4)
+};
+
 /* A processor implementing AArch64.  */
 struct processor
 {
@@ -237,7 +246,7 @@ struct processor
 /* Processor cores implementing AArch64.  */
 static const struct processor all_cores[] =
 {
-#define AARCH64_CORE(NAME, IDENT, ARCH, FLAGS, COSTS) \
+#define AARCH64_CORE(NAME, X, IDENT, ARCH, FLAGS, COSTS) \
   {NAME, IDENT, #ARCH, FLAGS | AARCH64_FL_FOR_ARCH##ARCH, &COSTS##_tunings},
 #include "aarch64-cores.def"
 #undef AARCH64_CORE
@@ -1694,7 +1703,7 @@ aarch64_frame_pointer_required (void)
   if (flag_omit_frame_pointer && !faked_omit_frame_pointer)
     return false;
   else if (flag_omit_leaf_frame_pointer)
-    return !crtl->is_leaf;
+    return !crtl->is_leaf || df_regs_ever_live_p (LR_REGNUM);
   return true;
 }
 
@@ -4117,7 +4126,7 @@ aarch64_can_eliminate (const int from, const int to)
 	 of faked_omit_frame_pointer here (which is true when we always
 	 wish to keep non-leaf frame pointers but only wish to keep leaf frame
 	 pointers when LR is clobbered).  */
-      if (from == FRAME_POINTER_REGNUM && to == STACK_POINTER_REGNUM
+      if (to == STACK_POINTER_REGNUM
 	  && df_regs_ever_live_p (LR_REGNUM)
 	  && faked_omit_frame_pointer)
 	return false;
@@ -5110,6 +5119,7 @@ aarch64_parse_cpu (void)
       if (strlen (cpu->name) == len && strncmp (cpu->name, str, len) == 0)
 	{
 	  selected_cpu = cpu;
+	  selected_tune = cpu;
 	  aarch64_isa_flags = selected_cpu->flags;
 
 	  if (ext != NULL)
@@ -5177,6 +5187,13 @@ aarch64_override_options (void)
     {
       aarch64_parse_tune ();
     }
+
+#ifndef HAVE_AS_MABI_OPTION
+  /* The compiler may have been configured with 2.23.* binutils, which does
+     not have support for ILP32.  */
+  if (TARGET_ILP32)
+    error ("Assembler does not support -mabi=ilp32");
+#endif
 
   initialize_aarch64_code_model ();
 
@@ -6370,6 +6387,7 @@ static aarch64_simd_mangle_map_entry aarch64_simd_mangle_map[] = {
   { V2DFmode,  "__builtin_aarch64_simd_df",     "13__Float64x2_t" },
   { V16QImode, "__builtin_aarch64_simd_poly8",  "12__Poly8x16_t" },
   { V8HImode,  "__builtin_aarch64_simd_poly16", "12__Poly16x8_t" },
+  { V2DImode,  "__builtin_aarch64_simd_poly64", "12__Poly64x2_t" },
   { VOIDmode, NULL, NULL }
 };
 
@@ -7421,7 +7439,9 @@ aarch64_start_file (void)
     }
   else if (selected_cpu)
     {
-      asm_fprintf (asm_out_file, "\t.cpu %s", selected_cpu->name);
+      const char *truncated_name
+	    = aarch64_rewrite_selected_cpu (selected_cpu->name);
+      asm_fprintf (asm_out_file, "\t.cpu %s", truncated_name);
       aarch64_print_extension ();
     }
   default_file_start();

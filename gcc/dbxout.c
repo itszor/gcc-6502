@@ -2367,10 +2367,6 @@ dbxout_type (tree type, int full)
       dbxout_type (TREE_TYPE (type), 0);
       break;
 
-    case POINTER_BOUNDS_TYPE:
-      /* No debug info for pointer bounds type supported yet.  */
-      break;
-
     default:
       gcc_unreachable ();
     }
@@ -2485,7 +2481,7 @@ dbxout_expand_expr (tree expr)
 	  /* If this is a var that might not be actually output,
 	     return NULL, otherwise stabs might reference an undefined
 	     symbol.  */
-	  struct varpool_node *node = varpool_get_node (expr);
+	  varpool_node *node = varpool_get_node (expr);
 	  if (!node || !node->definition)
 	    return NULL;
 	}

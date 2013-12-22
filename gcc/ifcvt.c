@@ -91,16 +91,16 @@ static rtx last_active_insn (basic_block, int);
 static rtx find_active_insn_before (basic_block, rtx);
 static rtx find_active_insn_after (basic_block, rtx);
 static basic_block block_fallthru (basic_block);
-static int cond_exec_process_insns (ce_if_block_t *, rtx, rtx, rtx, int, int);
+static int cond_exec_process_insns (ce_if_block *, rtx, rtx, rtx, int, int);
 static rtx cond_exec_get_condition (rtx);
 static rtx noce_get_condition (rtx, rtx *, bool);
 static int noce_operand_ok (const_rtx);
-static void merge_if_block (ce_if_block_t *);
+static void merge_if_block (ce_if_block *);
 static int find_cond_trap (basic_block, edge, edge);
 static basic_block find_if_header (basic_block, int);
 static int block_jumps_and_fallthru_p (basic_block, basic_block);
 static int noce_find_if_block (basic_block, edge, edge, int);
-static int cond_exec_find_if_block (ce_if_block_t *);
+static int cond_exec_find_if_block (ce_if_block *);
 static int find_if_case_1 (basic_block, edge, edge);
 static int find_if_case_2 (basic_block, edge, edge);
 static int dead_or_predicable (basic_block, basic_block, basic_block,
@@ -312,7 +312,7 @@ block_fallthru (basic_block bb)
    insns were processed.  */
 
 static int
-cond_exec_process_insns (ce_if_block_t *ce_info ATTRIBUTE_UNUSED,
+cond_exec_process_insns (ce_if_block *ce_info ATTRIBUTE_UNUSED,
 			 /* if block information */rtx start,
 			 /* first insn to look at */rtx end,
 			 /* last insn to look at */rtx test,
@@ -434,7 +434,7 @@ cond_exec_get_condition (rtx jump)
    converting the block.  */
 
 static int
-cond_exec_process_if_block (ce_if_block_t * ce_info,
+cond_exec_process_if_block (ce_if_block * ce_info,
 			    /* if block information */int do_multiple_p)
 {
   basic_block test_bb = ce_info->test_bb;	/* last test block */
@@ -1112,12 +1112,13 @@ noce_try_store_flag_constants (struct noce_if_info *if_info)
       ifalse = INTVAL (if_info->a);
       itrue = INTVAL (if_info->b);
 
+      diff = (unsigned HOST_WIDE_INT) itrue - ifalse;
       /* Make sure we can represent the difference between the two values.  */
-      if ((itrue - ifalse > 0)
+      if ((diff > 0)
 	  != ((ifalse < 0) != (itrue < 0) ? ifalse < 0 : ifalse < itrue))
 	return FALSE;
 
-      diff = trunc_int_for_mode (itrue - ifalse, mode);
+      diff = trunc_int_for_mode (diff, mode);
 
       can_reverse = (reversed_comparison_code (if_info->cond, if_info->jump)
 		     != UNKNOWN);
@@ -1148,7 +1149,7 @@ noce_try_store_flag_constants (struct noce_if_info *if_info)
       if (reversep)
 	{
 	  tmp = itrue; itrue = ifalse; ifalse = tmp;
-	  diff = trunc_int_for_mode (-diff, mode);
+	  diff = trunc_int_for_mode (-(unsigned HOST_WIDE_INT) diff, mode);
 	}
 
       start_sequence ();
@@ -3232,7 +3233,7 @@ merge_if_block (struct ce_if_block * ce_info)
 static basic_block
 find_if_header (basic_block test_bb, int pass)
 {
-  ce_if_block_t ce_info;
+  ce_if_block ce_info;
   edge then_edge;
   edge else_edge;
 
@@ -4408,7 +4409,7 @@ if_convert (bool after_combine)
 	fprintf (dump_file, "\n\n========== Pass %d ==========\n", pass);
 #endif
 
-      FOR_EACH_BB (bb)
+      FOR_EACH_BB_FN (bb, cfun)
 	{
           basic_block new_bb;
           while (!df_get_bb_dirty (bb)

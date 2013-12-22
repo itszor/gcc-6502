@@ -727,7 +727,7 @@ shrink_wrap_one_built_in_call (gimple bi_call)
   tree bi_call_label_decl;
   gimple bi_call_label;
 
-  stack_vec<gimple, 12> conds;
+  auto_vec<gimple, 12> conds;
   gen_shrink_wrap_conditions (bi_call, conds, &nconds);
 
   /* This can happen if the condition generator decides
@@ -876,7 +876,7 @@ tree_call_cdce (void)
   gimple_stmt_iterator i;
   bool something_changed = false;
   auto_vec<gimple> cond_dead_built_in_calls;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       /* Collect dead call candidates.  */
       for (i = gsi_start_bb (bb); !gsi_end_p (i); gsi_next (&i))

@@ -386,7 +386,6 @@ int_mode_for_mode (enum machine_mode mode)
     case MODE_VECTOR_ACCUM:
     case MODE_VECTOR_UFRACT:
     case MODE_VECTOR_UACCUM:
-    case MODE_POINTER_BOUNDS:
       mode = mode_for_size (GET_MODE_BITSIZE (mode), MODE_INT, 0);
       break;
 
@@ -2125,14 +2124,6 @@ layout_type (tree type)
       SET_TYPE_MODE (type, VOIDmode);
       break;
 
-    case POINTER_BOUNDS_TYPE:
-      SET_TYPE_MODE (type,
-                     mode_for_size (TYPE_PRECISION (type),
-				    MODE_POINTER_BOUNDS, 0));
-      TYPE_SIZE (type) = bitsize_int (GET_MODE_BITSIZE (TYPE_MODE (type)));
-      TYPE_SIZE_UNIT (type) = size_int (GET_MODE_SIZE (TYPE_MODE (type)));
-      break;
-
     case OFFSET_TYPE:
       TYPE_SIZE (type) = bitsize_int (POINTER_SIZE);
       TYPE_SIZE_UNIT (type) = size_int (POINTER_SIZE / BITS_PER_UNIT);
@@ -2530,7 +2521,7 @@ set_min_and_max_values_for_integral_type (tree type,
       max_value
 	= build_int_cst_wide (type, precision - HOST_BITS_PER_WIDE_INT >= 0
 			      ? -1
-			      : ((HOST_WIDE_INT) 1 << precision) - 1,
+			      : (HOST_WIDE_INT_1U << precision) - 1,
 			      precision - HOST_BITS_PER_WIDE_INT > 0
 			      ? ((unsigned HOST_WIDE_INT) ~0
 				 >> (HOST_BITS_PER_WIDE_INT
@@ -2543,7 +2534,7 @@ set_min_and_max_values_for_integral_type (tree type,
 	= build_int_cst_wide (type,
 			      (precision - HOST_BITS_PER_WIDE_INT > 0
 			       ? 0
-			       : (HOST_WIDE_INT) (-1) << (precision - 1)),
+			       : HOST_WIDE_INT_M1U << (precision - 1)),
 			      (((HOST_WIDE_INT) (-1)
 				<< (precision - HOST_BITS_PER_WIDE_INT - 1 > 0
 				    ? precision - HOST_BITS_PER_WIDE_INT - 1

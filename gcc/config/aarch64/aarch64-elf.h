@@ -134,13 +134,20 @@
   " %{!mbig-endian:%{!mlittle-endian:" ENDIAN_SPEC "}}" \
   " %{!mabi=*:" ABI_SPEC "}"
 
+#ifdef HAVE_AS_MABI_OPTION
+#define ASM_MABI_SPEC	"%{mabi=*:-mabi=%*}"
+#else
+#define ASM_MABI_SPEC	"%{mabi=lp64:}"
+#endif
+
 #ifndef ASM_SPEC
 #define ASM_SPEC "\
 %{mbig-endian:-EB} \
 %{mlittle-endian:-EL} \
 %{mcpu=*:-mcpu=%*} \
 %{march=*:-march=%*} \
-%{mabi=*:-mabi=%*}"
+%(asm_cpu_spec)" \
+ASM_MABI_SPEC
 #endif
 
 #undef TYPE_OPERAND_FMT

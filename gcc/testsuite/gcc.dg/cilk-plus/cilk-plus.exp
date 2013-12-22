@@ -26,7 +26,8 @@ if { ![check_effective_target_cilkplus] } {
 
 set library_var [get_multilibs]
 # Pointing the ld_library_path to the Cilk Runtime library binaries. 
-set ld_library_path "${library_var}/libcilkrts/.libs"
+append ld_library_path ":${library_var}/libcilkrts/.libs"
+set_ld_library_path_env_vars
 
 global TEST_EXTRA_LIBS
 set TEST_EXTRA_LIBS "-L${library_var}/libcilkrts/.libs"
@@ -58,6 +59,10 @@ dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cilk-plus/CK/*.c]] " -O
 if { [check_effective_target_lto] } {
     dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cilk-plus/CK/*.c]] " -O3 -flto -g -fcilkplus" " "
 }
+
+dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cilk-plus/SE/*.c]] " -g" " "
+dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cilk-plus/SE/*.c]] " -O3 -std=c99" " "
+dg-runtest [lsort [glob -nocomplain $srcdir/c-c++-common/cilk-plus/SE/*.c]] " -O3 -g" " "
 
 dg-finish
 

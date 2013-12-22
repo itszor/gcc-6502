@@ -180,7 +180,7 @@ gimple_build_with_ops_stat (enum gimple_code code, unsigned subcode,
 gimple
 gimple_build_return (tree retval)
 {
-  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 2);
+  gimple s = gimple_build_with_ops (GIMPLE_RETURN, ERROR_MARK, 1);
   if (retval)
     gimple_return_set_retval (s, retval);
   return s;
@@ -701,8 +701,8 @@ gimple_build_wce (gimple_seq cleanup)
 gimple
 gimple_build_resx (int region)
 {
-  gimple_statement_eh_ctrl *p =
-    as_a <gimple_statement_eh_ctrl> (
+  gimple_statement_resx *p =
+    as_a <gimple_statement_resx> (
       gimple_build_with_ops (GIMPLE_RESX, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -751,8 +751,8 @@ gimple_build_switch (tree index, tree default_label, vec<tree> args)
 gimple
 gimple_build_eh_dispatch (int region)
 {
-  gimple_statement_eh_ctrl *p =
-    as_a <gimple_statement_eh_ctrl> (
+  gimple_statement_eh_dispatch *p =
+    as_a <gimple_statement_eh_dispatch> (
       gimple_build_with_ops (GIMPLE_EH_DISPATCH, ERROR_MARK, 0));
   p->region = region;
   return p;
@@ -1475,17 +1475,19 @@ gimple_set_bb (gimple stmt, basic_block bb)
       uid = LABEL_DECL_UID (t);
       if (uid == -1)
 	{
-	  unsigned old_len = vec_safe_length (label_to_block_map);
+	  unsigned old_len =
+	    vec_safe_length (label_to_block_map_for_fn (cfun));
 	  LABEL_DECL_UID (t) = uid = cfun->cfg->last_label_uid++;
 	  if (old_len <= (unsigned) uid)
 	    {
 	      unsigned new_len = 3 * uid / 2 + 1;
 
-	      vec_safe_grow_cleared (label_to_block_map, new_len);
+	      vec_safe_grow_cleared (label_to_block_map_for_fn (cfun),
+				     new_len);
 	    }
 	}
 
-      (*label_to_block_map)[uid] = bb;
+      (*label_to_block_map_for_fn (cfun))[uid] = bb;
     }
 }
 
@@ -2324,8 +2326,7 @@ gimple_get_alias_set (tree t)
 /* Helper for gimple_ior_addresses_taken_1.  */
 
 static bool
-gimple_ior_addresses_taken_1 (gimple stmt ATTRIBUTE_UNUSED,
-			      tree addr, void *data)
+gimple_ior_addresses_taken_1 (gimple, tree addr, tree, void *data)
 {
   bitmap addresses_taken = (bitmap)data;
   addr = get_base_address (addr);
@@ -2494,7 +2495,7 @@ nonfreeing_call_p (gimple call)
    This routine only makes a superficial check for a dereference.  Thus
    it must only be used if it is safe to return a false negative.  */
 static bool
-check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
+check_loadstore (gimple, tree op, tree, void *data)
 {
   if ((TREE_CODE (op) == MEM_REF || TREE_CODE (op) == TARGET_MEM_REF)
       && operand_equal_p (TREE_OPERAND (op, 0), (tree)data, 0))
@@ -2502,10 +2503,16 @@ check_loadstore (gimple stmt ATTRIBUTE_UNUSED, tree op, void *data)
   return false;
 }
 
-/* If OP can be inferred to be non-zero after STMT executes, return true.  */
+/* If OP can be inferred to be non-NULL after STMT executes, return true.
+
+   DEREFERENCE is TRUE if we can use a pointer dereference to infer a
+   non-NULL range, FALSE otherwise.
+
+   ATTRIBUTE is TRUE if we can use attributes to infer a non-NULL range
+   for function arguments and return values.  FALSE otherwise.  */
 
 bool
-infer_nonnull_range (gimple stmt, tree op)
+infer_nonnull_range (gimple stmt, tree op, bool dereference, bool attribute)
 {
   /* We can only assume that a pointer dereference will yield
      non-NULL if -fdelete-null-pointer-checks is enabled.  */
@@ -2514,11 +2521,13 @@ infer_nonnull_range (gimple stmt, tree op)
       || gimple_code (stmt) == GIMPLE_ASM)
     return false;
 
-  if (walk_stmt_load_store_ops (stmt, (void *)op,
-				check_loadstore, check_loadstore))
+  if (dereference
+      && walk_stmt_load_store_ops (stmt, (void *)op,
+				   check_loadstore, check_loadstore))
     return true;
 
-  if (is_gimple_call (stmt) && !gimple_call_internal_p (stmt))
+  if (attribute
+      && is_gimple_call (stmt) && !gimple_call_internal_p (stmt))
     {
       tree fntype = gimple_call_fntype (stmt);
       tree attrs = TYPE_ATTRIBUTES (fntype);
@@ -2557,7 +2566,8 @@ infer_nonnull_range (gimple stmt, tree op)
 
   /* If this function is marked as returning non-null, then we can
      infer OP is non-null if it is used in the return statement.  */
-  if (gimple_code (stmt) == GIMPLE_RETURN
+  if (attribute
+      && gimple_code (stmt) == GIMPLE_RETURN
       && gimple_return_retval (stmt)
       && operand_equal_p (gimple_return_retval (stmt), op, 0)
       && lookup_attribute ("returns_nonnull",

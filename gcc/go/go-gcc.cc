@@ -158,6 +158,7 @@ class Gcc_backend : public Backend
   function_type(const Btyped_identifier&,
 		const std::vector<Btyped_identifier>&,
 		const std::vector<Btyped_identifier>&,
+		Btype*,
 		const Location);
 
   Btype*
@@ -241,6 +242,9 @@ class Gcc_backend : public Backend
 
   Bexpression*
   address_expression(Bexpression*, Location);
+
+  Bexpression*
+  struct_field_expression(Bexpression*, size_t, Location);
 
   // Statements.
 
@@ -493,7 +497,8 @@ Btype*
 Gcc_backend::function_type(const Btyped_identifier& receiver,
 			   const std::vector<Btyped_identifier>& parameters,
 			   const std::vector<Btyped_identifier>& results,
-			   Location location)
+			   Btype* result_struct,
+			   Location)
 {
   tree args = NULL_TREE;
   tree* pp = &args;
@@ -528,29 +533,8 @@ Gcc_backend::function_type(const Btyped_identifier& receiver,
     result = results.front().btype->get_tree();
   else
     {
-      result = make_node(RECORD_TYPE);
-      tree field_trees = NULL_TREE;
-      pp = &field_trees;
-      for (std::vector<Btyped_identifier>::const_iterator p = results.begin();
-	   p != results.end();
-	   ++p)
-	{
-	  const std::string name = (p->name.empty()
-				    ? "UNNAMED"
-				    : p->name);
-	  tree name_tree = get_identifier_from_string(name);
-	  tree field_type_tree = p->btype->get_tree();
-	  if (field_type_tree == error_mark_node)
-	    return this->error_type();
-	  gcc_assert(TYPE_SIZE(field_type_tree) != NULL_TREE);
-	  tree field = build_decl(location.gcc_location(), FIELD_DECL,
-                                  name_tree, field_type_tree);
-	  DECL_CONTEXT(field) = result;
-	  *pp = field;
-	  pp = &DECL_CHAIN(field);
-	}
-      TYPE_FIELDS(result) = field_trees;
-      layout_type(result);
+      gcc_assert(result_struct != NULL);
+      result = result_struct->get_tree();
     }
   if (result == error_mark_node)
     return this->error_type();
@@ -1015,6 +999,39 @@ Gcc_backend::address_expression(Bexpression* bexpr, Location location)
 
   tree ret = build_fold_addr_expr_loc(location.gcc_location(), expr);
   return this->make_expression(ret);
+}
+
+// Return an expression for the field at INDEX in BSTRUCT.
+
+Bexpression*
+Gcc_backend::struct_field_expression(Bexpression* bstruct, size_t index,
+                                     Location location)
+{
+  tree struct_tree = bstruct->get_tree();
+  if (struct_tree == error_mark_node
+      || TREE_TYPE(struct_tree) == error_mark_node)
+    return this->error_expression();
+  gcc_assert(TREE_CODE(TREE_TYPE(struct_tree)) == RECORD_TYPE);
+  tree field = TYPE_FIELDS(TREE_TYPE(struct_tree));
+  if (field == NULL_TREE)
+  {
+    // This can happen for a type which refers to itself indirectly
+    // and then turns out to be erroneous.
+    return this->error_expression();
+  }
+  for (unsigned int i = index; i > 0; --i)
+  {
+    field = DECL_CHAIN(field);
+    gcc_assert(field != NULL_TREE);
+  }
+  if (TREE_TYPE(field) == error_mark_node)
+    return this->error_expression();
+  tree ret = fold_build3_loc(location.gcc_location(), COMPONENT_REF,
+                             TREE_TYPE(field), struct_tree, field,
+                             NULL_TREE);
+  if (TREE_CONSTANT(struct_tree))
+    TREE_CONSTANT(ret) = 1;
+  return tree_to_expr(ret);
 }
 
 // An expression as a statement.

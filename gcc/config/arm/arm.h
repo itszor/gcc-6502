@@ -49,8 +49,14 @@ extern char arm_arch_name[];
            builtin_define ("__ARM_FEATURE_QBIT");	\
         if (TARGET_ARM_SAT)				\
            builtin_define ("__ARM_FEATURE_SAT");	\
+        if (TARGET_CRYPTO)				\
+	   builtin_define ("__ARM_FEATURE_CRYPTO");	\
 	if (unaligned_access)				\
 	  builtin_define ("__ARM_FEATURE_UNALIGNED");	\
+	if (TARGET_CRC32)				\
+	  builtin_define ("__ARM_FEATURE_CRC32");	\
+	if (TARGET_32BIT)				\
+	  builtin_define ("__ARM_32BIT_STATE");		\
 	if (TARGET_ARM_FEATURE_LDREX)				\
 	  builtin_define_with_int_value (			\
 	    "__ARM_FEATURE_LDREX", TARGET_ARM_FEATURE_LDREX);	\
@@ -162,8 +168,8 @@ extern char arm_arch_name[];
 
 enum target_cpus
 {
-#define ARM_CORE(NAME, IDENT, ARCH, FLAGS, COSTS) \
-  TARGET_CPU_##IDENT,
+#define ARM_CORE(NAME, INTERNAL_IDENT, IDENT, ARCH, FLAGS, COSTS) \
+  TARGET_CPU_##INTERNAL_IDENT,
 #include "arm-cores.def"
 #undef ARM_CORE
   TARGET_CPU_generic
@@ -274,6 +280,8 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
 #define TARGET_LDRD			(arm_arch5e && ARM_DOUBLEWORD_ALIGN \
                                          && !TARGET_THUMB1)
 
+#define TARGET_CRC32			(arm_arch_crc)
+
 /* The following two macros concern the ability to execute coprocessor
    instructions for VFPv3 or NEON.  TARGET_VFP3/TARGET_VFPD32 are currently
    only ever tested when we know we are generating for VFP hardware; we need
@@ -329,7 +337,9 @@ extern void (*arm_lang_output_object_attributes_hook)(void);
 
 /* Should MOVW/MOVT be used in preference to a constant pool.  */
 #define TARGET_USE_MOVT \
-  (arm_arch_thumb2 && !optimize_size && !current_tune->prefer_constant_pool)
+  (arm_arch_thumb2 \
+   && (arm_disable_literal_pool \
+       || (!optimize_size && !current_tune->prefer_constant_pool)))
 
 /* We could use unified syntax for arm mode, but for now we just use it
    for Thumb-2.  */
@@ -553,6 +563,14 @@ extern int arm_arch_thumb_hwdiv;
 /* Nonzero if we should use Neon to handle 64-bits operations rather
    than core registers.  */
 extern int prefer_neon_for_64bits;
+
+/* Nonzero if we shouldn't use literal pools.  */
+#ifndef USED_FOR_TARGET
+extern bool arm_disable_literal_pool;
+#endif
+
+/* Nonzero if chip supports the ARMv8 CRC instructions.  */
+extern int arm_arch_crc;
 
 #ifndef TARGET_DEFAULT
 #define TARGET_DEFAULT  (MASK_APCS_FRAME)
@@ -1270,18 +1288,20 @@ enum reg_class
 
 /* Must leave BASE_REGS reloads alone */
 #define THUMB_SECONDARY_INPUT_RELOAD_CLASS(CLASS, MODE, X)		\
-  ((CLASS) != LO_REGS && (CLASS) != BASE_REGS				\
-   ? ((true_regnum (X) == -1 ? LO_REGS					\
-       : (true_regnum (X) + HARD_REGNO_NREGS (0, MODE) > 8) ? LO_REGS	\
-       : NO_REGS)) 							\
-   : NO_REGS)
+  (lra_in_progress ? NO_REGS						\
+   : ((CLASS) != LO_REGS && (CLASS) != BASE_REGS			\
+      ? ((true_regnum (X) == -1 ? LO_REGS				\
+         : (true_regnum (X) + HARD_REGNO_NREGS (0, MODE) > 8) ? LO_REGS	\
+         : NO_REGS)) 							\
+      : NO_REGS))
 
 #define THUMB_SECONDARY_OUTPUT_RELOAD_CLASS(CLASS, MODE, X)		\
-  ((CLASS) != LO_REGS && (CLASS) != BASE_REGS				\
-   ? ((true_regnum (X) == -1 ? LO_REGS					\
-       : (true_regnum (X) + HARD_REGNO_NREGS (0, MODE) > 8) ? LO_REGS	\
-       : NO_REGS)) 							\
-   : NO_REGS)
+  (lra_in_progress ? NO_REGS						\
+   : (CLASS) != LO_REGS && (CLASS) != BASE_REGS				\
+      ? ((true_regnum (X) == -1 ? LO_REGS				\
+         : (true_regnum (X) + HARD_REGNO_NREGS (0, MODE) > 8) ? LO_REGS	\
+         : NO_REGS)) 							\
+      : NO_REGS)
 
 /* Return the register class of a scratch register needed to copy IN into
    or out of a register in CLASS in MODE.  If it can be done directly,
@@ -2335,16 +2355,25 @@ extern int making_const_table;
    instruction.  */
 #define MAX_LDM_STM_OPS 4
 
+#define BIG_LITTLE_SPEC \
+   " %{mcpu=*:%<mcpu=* -mcpu=%:rewrite_mcpu(%{mcpu=*:%*})}" \
+
+extern const char *arm_rewrite_mcpu (int argc, const char **argv);
+#define BIG_LITTLE_CPU_SPEC_FUNCTIONS \
+  { "rewrite_mcpu", arm_rewrite_mcpu },
+
 #define ASM_CPU_SPEC \
    " %{mcpu=generic-*:-march=%*;"				\
-   "   :%{mcpu=*:-mcpu=%*} %{march=*:-march=%*}}"
+   "   :%{march=*:-march=%*}}"					\
+   BIG_LITTLE_SPEC
 
 /* -mcpu=native handling only makes sense with compiler running on
    an ARM chip.  */
 #if defined(__arm__)
 extern const char *host_detect_local_cpu (int argc, const char **argv);
 # define EXTRA_SPEC_FUNCTIONS						\
-  { "local_cpu_detect", host_detect_local_cpu },
+  { "local_cpu_detect", host_detect_local_cpu },			\
+  BIG_LITTLE_CPU_SPEC_FUNCTIONS
 
 # define MCPU_MTUNE_NATIVE_SPECS					\
    " %{march=native:%<march=native %:local_cpu_detect(arch)}"		\
@@ -2352,6 +2381,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
    " %{mtune=native:%<mtune=native %:local_cpu_detect(tune)}"
 #else
 # define MCPU_MTUNE_NATIVE_SPECS ""
+# define EXTRA_SPEC_FUNCTIONS BIG_LITTLE_CPU_SPEC_FUNCTIONS
 #endif
 
 #define DRIVER_SELF_SPECS MCPU_MTUNE_NATIVE_SPECS

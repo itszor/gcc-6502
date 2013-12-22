@@ -653,7 +653,7 @@ record_target_from_binfo (vec <cgraph_node *> &nodes,
       if (!flag_ltrans && anonymous)
 	{
 	  tree vtable = BINFO_VTABLE (inner_binfo);
-	  struct varpool_node *vnode;
+	  varpool_node *vnode;
 
 	  if (TREE_CODE (vtable) == POINTER_PLUS_EXPR)
 	    vtable = TREE_OPERAND (TREE_OPERAND (vtable, 0), 0);
@@ -848,6 +848,10 @@ get_class_context (ipa_polymorphic_call_context *context,
       if (TREE_CODE (type) == TREE_CODE (expected_type)
 	  && types_same_for_odr (type, expected_type))
 	{
+	  /* Type can not contain itself on an non-zero offset.  In that case
+	     just give up.  */
+	  if (offset != 0)
+	    goto give_up;
 	  gcc_assert (offset == 0);
 	  return true;
 	}
@@ -978,23 +982,22 @@ get_polymorphic_call_info (tree fndecl,
 		 is known.  */
 	      else if (DECL_P (base))
 		{
-		  context->outer_type = TREE_TYPE (base);
-		  gcc_assert (!POINTER_TYPE_P (context->outer_type));
+		  gcc_assert (!POINTER_TYPE_P (TREE_TYPE (base)));
 
 		  /* Only type inconsistent programs can have otr_type that is
 		     not part of outer type.  */
-		  if (!contains_type_p (context->outer_type,
-					context->offset, *otr_type))
+		  if (!contains_type_p (TREE_TYPE (base),
+					context->offset + offset2, *otr_type))
 		    return base_pointer;
+		  context->outer_type = TREE_TYPE (base);
 		  context->offset += offset2;
-		  base_pointer = NULL;
 		  /* Make very conservative assumption that all objects
 		     may be in construction. 
 		     TODO: ipa-prop already contains code to tell better. 
 		     merge it later.  */
 		  context->maybe_in_construction = true;
 		  context->maybe_derived_type = false;
-		  return base_pointer;
+		  return NULL;
 		}
 	      else
 		break;
@@ -1144,7 +1147,7 @@ record_targets_from_bases (tree otr_type,
 /* When virtual table is removed, we may need to flush the cache.  */
 
 static void
-devirt_variable_node_removal_hook (struct varpool_node *n,
+devirt_variable_node_removal_hook (varpool_node *n,
 				   void *d ATTRIBUTE_UNUSED)
 {
   if (cached_polymorphic_call_targets
@@ -1591,12 +1594,14 @@ ipa_devirt (void)
   return ndevirtualized ? TODO_remove_functions : 0;
 }
 
-/* Gate for IPCP optimization.  */
+/* Gate for speculative IPA devirtualization optimization.  */
 
 static bool
 gate_ipa_devirt (void)
 {
-  return flag_devirtualize_speculatively && optimize;
+  return (flag_devirtualize
+	  && flag_devirtualize_speculatively
+	  && optimize);
 }
 
 namespace {

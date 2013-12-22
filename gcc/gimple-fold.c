@@ -77,7 +77,7 @@ along with GCC; see the file COPYING3.  If not see
 static bool
 can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
 {
-  struct varpool_node *vnode;
+  varpool_node *vnode;
   struct cgraph_node *node;
   symtab_node *snode;
 
@@ -374,6 +374,30 @@ fold_gimple_assign (gimple_stmt_iterator *si)
 	if (REFERENCE_CLASS_P (rhs))
 	  return maybe_fold_reference (rhs, false);
 
+	else if (TREE_CODE (rhs) == OBJ_TYPE_REF)
+	  {
+	    tree val = OBJ_TYPE_REF_EXPR (rhs);
+	    if (is_gimple_min_invariant (val))
+	      return val;
+	    else if (flag_devirtualize && virtual_method_call_p (val))
+	      {
+		bool final;
+		vec <cgraph_node *>targets
+		  = possible_polymorphic_call_targets (val, &final);
+		if (final && targets.length () <= 1)
+		  {
+		    tree fndecl;
+		    if (targets.length () == 1)
+		      fndecl = targets[0]->decl;
+		    else
+		      fndecl = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
+		    val = fold_convert (TREE_TYPE (val), fndecl);
+		    STRIP_USELESS_TYPE_CONVERSION (val);
+		    return val;
+		  }
+	      }
+
+	  }
 	else if (TREE_CODE (rhs) == ADDR_EXPR)
 	  {
 	    tree ref = TREE_OPERAND (rhs, 0);
@@ -1153,26 +1177,20 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 	  gimple_call_set_fn (stmt, OBJ_TYPE_REF_EXPR (callee));
 	  changed = true;
 	}
-      else if (virtual_method_call_p (callee))
+      else if (flag_devirtualize && virtual_method_call_p (callee))
 	{
-	  tree obj = OBJ_TYPE_REF_OBJECT (callee);
-	  tree binfo = gimple_extract_devirt_binfo_from_cst
-		 (obj, obj_type_ref_class (callee));
-	  if (binfo)
+	  bool final;
+	  vec <cgraph_node *>targets
+	    = possible_polymorphic_call_targets (callee, &final);
+	  if (final && targets.length () <= 1)
 	    {
-	      HOST_WIDE_INT token
-		= TREE_INT_CST_LOW (OBJ_TYPE_REF_TOKEN (callee));
-	      tree fndecl = gimple_get_virt_method_for_binfo (token, binfo);
-	      if (fndecl)
-		{
-#ifdef ENABLE_CHECKING
-		  gcc_assert (possible_polymorphic_call_target_p
-				 (callee, cgraph_get_node (fndecl)));
-
-#endif
-		  gimple_call_set_fndecl (stmt, fndecl);
-		  changed = true;
-		}
+	      tree fndecl;
+	      if (targets.length () == 1)
+		fndecl = targets[0]->decl;
+	      else
+		fndecl = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
+	      gimple_call_set_fndecl (stmt, fndecl);
+	      changed = true;
 	    }
 	}
     }
@@ -2531,6 +2549,13 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
 
 		  return build_vector (TREE_TYPE (rhs), vec);
 		}
+	      if (subcode == OBJ_TYPE_REF)
+		{
+		  tree val = (*valueize) (OBJ_TYPE_REF_EXPR (rhs));
+		  /* If callee is constant, we can fold away the wrapper.  */
+		  if (is_gimple_min_invariant (val))
+		    return val;
+		}
 
               if (kind == tcc_reference)
 		{
@@ -2660,8 +2685,37 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
 	tree fn;
 
 	if (gimple_call_internal_p (stmt))
-	  /* No folding yet for these functions.  */
-	  return NULL_TREE;
+	  {
+	    enum tree_code subcode = ERROR_MARK;
+	    switch (gimple_call_internal_fn (stmt))
+	      {
+	      case IFN_UBSAN_CHECK_ADD:
+		subcode = PLUS_EXPR;
+		break;
+	      case IFN_UBSAN_CHECK_SUB:
+		subcode = MINUS_EXPR;
+		break;
+	      case IFN_UBSAN_CHECK_MUL:
+		subcode = MULT_EXPR;
+		break;
+	      default:
+		return NULL_TREE;
+	      }
+	    tree op0 = (*valueize) (gimple_call_arg (stmt, 0));
+	    tree op1 = (*valueize) (gimple_call_arg (stmt, 1));
+
+	    if (TREE_CODE (op0) != INTEGER_CST
+		|| TREE_CODE (op1) != INTEGER_CST)
+	      return NULL_TREE;
+	    tree res = fold_binary_loc (loc, subcode,
+					TREE_TYPE (gimple_call_arg (stmt, 0)),
+					op0, op1);
+	    if (res
+		&& TREE_CODE (res) == INTEGER_CST
+		&& !TREE_OVERFLOW (res))
+	      return res;
+	    return NULL_TREE;
+	  }
 
 	fn = (*valueize) (gimple_call_fn (stmt));
 	if (TREE_CODE (fn) == ADDR_EXPR
@@ -3418,7 +3472,7 @@ gimple_fold_indirect_ref (tree t)
           unsigned HOST_WIDE_INT indexi = offset * BITS_PER_UNIT;
           tree index = bitsize_int (indexi);
           if (offset / part_widthi
-              <= TYPE_VECTOR_SUBPARTS (TREE_TYPE (addrtype)))
+	      < TYPE_VECTOR_SUBPARTS (TREE_TYPE (addrtype)))
             return fold_build3 (BIT_FIELD_REF, type, TREE_OPERAND (addr, 0),
                                 part_width, index);
 	}

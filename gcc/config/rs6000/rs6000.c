@@ -16395,7 +16395,7 @@ rs6000_alloc_sdmode_stack_slot (void)
   if (TARGET_NO_SDMODE_STACK)
     return;
 
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     for (gsi = gsi_start_bb (bb); !gsi_end_p (gsi); gsi_next (&gsi))
       {
 	tree ret = walk_gimple_op (gsi_stmt (gsi), rs6000_check_sdmode, NULL);
@@ -30045,6 +30045,21 @@ rs6000_expand_vec_perm_const_1 (rtx target, rtx op0, rtx op1,
       vmode = GET_MODE (target);
       gcc_assert (GET_MODE_NUNITS (vmode) == 2);
       dmode = mode_for_vector (GET_MODE_INNER (vmode), 4);
+
+      /* For little endian, swap operands and invert/swap selectors
+	 to get the correct xxpermdi.  The operand swap sets up the
+	 inputs as a little endian array.  The selectors are swapped
+	 because they are defined to use big endian ordering.  The
+	 selectors are inverted to get the correct doublewords for
+	 little endian ordering.  */
+      if (!BYTES_BIG_ENDIAN)
+	{
+	  int n;
+	  perm0 = 3 - perm0;
+	  perm1 = 3 - perm1;
+	  n = perm0, perm0 = perm1, perm1 = n;
+	  x = op0, op0 = op1, op1 = x;
+	}
 
       x = gen_rtx_VEC_CONCAT (dmode, op0, op1);
       v = gen_rtvec (2, GEN_INT (perm0), GEN_INT (perm1));

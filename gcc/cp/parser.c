@@ -5627,6 +5627,7 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
   cp_id_kind idk = CP_ID_KIND_NONE;
   tree postfix_expression = NULL_TREE;
   bool is_member_access = false;
+  int saved_in_statement = -1;
 
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
@@ -5769,6 +5770,66 @@ cp_parser_postfix_expression (cp_parser *parser, bool address_p, bool cast_p,
 						    /*is_declaration=*/false);
 	postfix_expression = cp_parser_functional_cast (parser, type);
       }
+      break;
+
+    case RID_CILK_SPAWN:
+      {
+	cp_lexer_consume_token (parser->lexer);
+	token = cp_lexer_peek_token (parser->lexer);
+	if (token->type == CPP_SEMICOLON)
+	  {
+	    error_at (token->location, "%<_Cilk_spawn%> must be followed by "
+		      "an expression");
+	    postfix_expression = error_mark_node;
+	    break;
+	  }
+	else if (!current_function_decl)
+	  {
+	    error_at (token->location, "%<_Cilk_spawn%> may only be used "
+		      "inside a function");
+	    postfix_expression = error_mark_node;
+	    break;
+	  }
+	else
+	  {
+	    /* Consecutive _Cilk_spawns are not allowed in a statement.  */
+	    saved_in_statement = parser->in_statement;
+	    parser->in_statement |= IN_CILK_SPAWN;
+	  }
+	cfun->calls_cilk_spawn = 1;
+	postfix_expression = 
+	  cp_parser_postfix_expression (parser, false, false, 
+					false, false, &idk);
+	if (saved_in_statement & IN_CILK_SPAWN)
+	  {
+	    error_at (token->location, "consecutive %<_Cilk_spawn%> keywords "
+		      "are not permitted");
+	    postfix_expression = error_mark_node;
+	    cfun->calls_cilk_spawn = 0; 
+	  }
+	else
+	  {
+	    postfix_expression = build_cilk_spawn (token->location, 
+						   postfix_expression);
+	    if (postfix_expression != error_mark_node) 
+	      SET_EXPR_LOCATION (postfix_expression, input_location);
+	    parser->in_statement = parser->in_statement & ~IN_CILK_SPAWN;
+	  }
+	break;
+      }
+      
+    case RID_CILK_SYNC:
+      if (flag_enable_cilkplus)
+	{ 
+	  tree sync_expr = build_cilk_sync ();
+	  SET_EXPR_LOCATION (sync_expr, 
+			     cp_lexer_peek_token (parser->lexer)->location);
+	  finish_expr_stmt (sync_expr);
+	}
+      else
+	error_at (input_location, "_Cilk_sync cannot be used without enabling "
+		  "Cilk Plus");
+      cp_lexer_consume_token (parser->lexer);
       break;
 
     case RID_BUILTIN_SHUFFLE:
@@ -18042,7 +18103,9 @@ cp_parser_parameter_declaration_clause (cp_parser* parser)
   (void) cleanup;
 
   if (!processing_specialization)
-    parser->auto_is_implicit_function_template_parm_p = true;
+    if (!current_function_decl
+	|| (current_class_type && LAMBDA_TYPE_P (current_class_type)))
+      parser->auto_is_implicit_function_template_parm_p = true;
 
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
@@ -23273,7 +23336,7 @@ cp_parser_late_parsing_for_member (cp_parser* parser, tree member_function)
 	{
 	  parser->lexer->in_pragma = true;
 	  cp_parser_omp_declare_reduction_exprs (member_function, parser);
-	  finish_function (0);
+	  finish_function (/*inline*/2);
 	  cp_check_omp_declare_reduction (member_function);
 	}
       else
@@ -24511,7 +24574,7 @@ cp_parser_cache_defarg (cp_parser *parser, bool nsdmi)
 	case CPP_CLOSE_SQUARE:
 	  if (depth == 0
 	      /* Handle correctly int n = sizeof ... ( p );  */
-	      && !(nsdmi && token->type == CPP_ELLIPSIS))
+	      && token->type != CPP_ELLIPSIS)
 	    done = true;
 	  /* Update DEPTH, if necessary.  */
 	  else if (token->type == CPP_CLOSE_PAREN
@@ -29449,12 +29512,16 @@ cp_parser_omp_sections (cp_parser *parser, cp_token *pragma_tok,
 }
 
 /* OpenMP 2.5:
-   # pragma parallel parallel-clause new-line
-   # pragma parallel for parallel-for-clause new-line
-   # pragma parallel sections parallel-sections-clause new-line
+   # pragma omp parallel parallel-clause[optseq] new-line
+     structured-block
+   # pragma omp parallel for parallel-for-clause[optseq] new-line
+     structured-block
+   # pragma omp parallel sections parallel-sections-clause[optseq] new-line
+     structured-block
 
    OpenMP 4.0:
-   # pragma parallel for simd parallel-for-simd-clause new-line */
+   # pragma omp parallel for simd parallel-for-simd-clause[optseq] new-line
+     structured-block */
 
 #define OMP_PARALLEL_CLAUSE_MASK				\
 	( (OMP_CLAUSE_MASK_1 << PRAGMA_OMP_CLAUSE_IF)		\
@@ -29966,10 +30033,10 @@ cp_parser_omp_target (cp_parser *parser, cp_token *pragma_tok,
 
 	  cp_lexer_consume_token (parser->lexer);
 	  strcpy (p_name, "#pragma omp target");
-	  keep_next_level (true);
 	  if (!flag_openmp)  /* flag_openmp_simd  */
 	    return cp_parser_omp_teams (parser, pragma_tok, p_name,
 					OMP_TARGET_CLAUSE_MASK, cclauses);
+	  keep_next_level (true);
 	  tree sb = begin_omp_structured_block ();
 	  unsigned save = cp_parser_begin_omp_structured_block (parser);
 	  tree ret = cp_parser_omp_teams (parser, pragma_tok, p_name,
@@ -31411,10 +31478,10 @@ cp_parser_cilk_simd_linear (cp_parser *parser, tree clauses)
    token is not consumed.  Otherwise, the appropriate enum from the
    pragma_simd_clause is returned and the token is consumed.  */
 
-static pragma_cilk_clause
+static pragma_omp_clause
 cp_parser_cilk_simd_clause_name (cp_parser *parser)
 {
-  pragma_cilk_clause clause_type;
+  pragma_omp_clause clause_type;
   cp_token *token = cp_lexer_peek_token (parser->lexer);
 
   if (token->keyword == RID_PRIVATE)
@@ -31448,7 +31515,7 @@ cp_parser_cilk_simd_all_clauses (cp_parser *parser, cp_token *pragma_token)
   while (cp_lexer_next_token_is_not (parser->lexer, CPP_PRAGMA_EOL)
 	 && clauses != error_mark_node)
     {
-      pragma_cilk_clause c_kind;
+      pragma_omp_clause c_kind;
       c_kind = cp_parser_cilk_simd_clause_name (parser);
       if (c_kind == PRAGMA_CILK_CLAUSE_VECTORLENGTH)
 	clauses = cp_parser_cilk_simd_vectorlength (parser, clauses);

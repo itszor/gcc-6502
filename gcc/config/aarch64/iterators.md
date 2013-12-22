@@ -107,6 +107,10 @@
 ;; All vector modes and DI.
 (define_mode_iterator VALLDI [V8QI V16QI V4HI V8HI V2SI V4SI V2DI V2SF V4SF V2DF DI])
 
+;; All vector modes and DI and DF.
+(define_mode_iterator VALLDIF [V8QI V16QI V4HI V8HI V2SI V4SI
+			       V2DI V2SF V4SF V2DF DI DF])
+
 ;; Vector modes for Integer reduction across lanes.
 (define_mode_iterator VDQV [V8QI V16QI V4HI V8HI V4SI V2DI])
 
@@ -263,6 +267,22 @@
     UNSPEC_UZP2		; Used in vector permute patterns.
     UNSPEC_TRN1		; Used in vector permute patterns.
     UNSPEC_TRN2		; Used in vector permute patterns.
+    UNSPEC_AESE		; Used in aarch64-simd.md.
+    UNSPEC_AESD         ; Used in aarch64-simd.md.
+    UNSPEC_AESMC        ; Used in aarch64-simd.md.
+    UNSPEC_AESIMC       ; Used in aarch64-simd.md.
+    UNSPEC_SHA1C	; Used in aarch64-simd.md.
+    UNSPEC_SHA1M        ; Used in aarch64-simd.md.
+    UNSPEC_SHA1P        ; Used in aarch64-simd.md.
+    UNSPEC_SHA1H        ; Used in aarch64-simd.md.
+    UNSPEC_SHA1SU0      ; Used in aarch64-simd.md.
+    UNSPEC_SHA1SU1      ; Used in aarch64-simd.md.
+    UNSPEC_SHA256H      ; Used in aarch64-simd.md.
+    UNSPEC_SHA256H2     ; Used in aarch64-simd.md.
+    UNSPEC_SHA256SU0    ; Used in aarch64-simd.md.
+    UNSPEC_SHA256SU1    ; Used in aarch64-simd.md.
+    UNSPEC_PMULL        ; Used in aarch64-simd.md.
+    UNSPEC_PMULL2       ; Used in aarch64-simd.md.
 ])
 
 ;; -------------------------------------------------------------------
@@ -363,7 +383,8 @@
 			  (V4HI "8b") (V8HI  "16b")
 			  (V2SI "8b") (V4SI  "16b")
 			  (V2DI "16b") (V2SF  "8b")
-			  (V4SF "16b") (V2DF  "16b")])
+			  (V4SF "16b") (V2DF  "16b")
+			  (DI   "8b")  (DF    "8b")])
 
 ;; Define element mode for each vector mode.
 (define_mode_attr VEL [(V8QI "QI") (V16QI "QI")
@@ -843,6 +864,13 @@
 
 (define_int_iterator FRECP [UNSPEC_FRECPE UNSPEC_FRECPX])
 
+(define_int_iterator CRYPTO_AES [UNSPEC_AESE UNSPEC_AESD])
+(define_int_iterator CRYPTO_AESMC [UNSPEC_AESMC UNSPEC_AESIMC])
+
+(define_int_iterator CRYPTO_SHA1 [UNSPEC_SHA1C UNSPEC_SHA1M UNSPEC_SHA1P])
+
+(define_int_iterator CRYPTO_SHA256 [UNSPEC_SHA256H UNSPEC_SHA256H2])
+
 ;; -------------------------------------------------------------------
 ;; Int Iterators Attributes.
 ;; -------------------------------------------------------------------
@@ -959,3 +987,11 @@
 			    (UNSPEC_UZP1 "1") (UNSPEC_UZP2 "2")])
 
 (define_int_attr frecp_suffix  [(UNSPEC_FRECPE "e") (UNSPEC_FRECPX "x")])
+
+(define_int_attr aes_op [(UNSPEC_AESE "e") (UNSPEC_AESD "d")])
+(define_int_attr aesmc_op [(UNSPEC_AESMC "mc") (UNSPEC_AESIMC "imc")])
+
+(define_int_attr sha1_op [(UNSPEC_SHA1C "c") (UNSPEC_SHA1P "p")
+			  (UNSPEC_SHA1M "m")])
+
+(define_int_attr sha256_op [(UNSPEC_SHA256H "") (UNSPEC_SHA256H2 "2")])

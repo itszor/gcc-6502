@@ -1507,7 +1507,8 @@ build_aggr_init (tree exp, tree init, int flags, tsubst_flags_t complain)
       TREE_READONLY (exp) = was_const;
       TREE_THIS_VOLATILE (exp) = was_volatile;
       TREE_TYPE (exp) = type;
-      if (init)
+      /* Restore the type of init unless it was used directly.  */
+      if (init && TREE_CODE (stmt_expr) != INIT_EXPR)
 	TREE_TYPE (init) = itype;
       return stmt_expr;
     }
@@ -2528,7 +2529,7 @@ build_new_1 (vec<tree, va_gc> **placement, tree type, tree nelts,
 	    }
 	  /* Perform the overflow check.  */
 	  tree errval = TYPE_MAX_VALUE (sizetype);
-	  if (cxx_dialect >= cxx11)
+	  if (cxx_dialect >= cxx11 && flag_exceptions)
 	    errval = throw_bad_array_new_length ();
 	  if (outer_nelts_check != NULL_TREE)
             size = fold_build3 (COND_EXPR, sizetype, outer_nelts_check,
@@ -3398,7 +3399,8 @@ build_vec_init (tree base, tree maxindex, tree init,
      is big enough for all the initializers.  */
   if (init && TREE_CODE (init) == CONSTRUCTOR
       && CONSTRUCTOR_NELTS (init) > 0
-      && !TREE_CONSTANT (maxindex))
+      && !TREE_CONSTANT (maxindex)
+      && flag_exceptions)
     length_check = fold_build2 (LT_EXPR, boolean_type_node, maxindex,
 				size_int (CONSTRUCTOR_NELTS (init) - 1));
 
@@ -3420,6 +3422,8 @@ build_vec_init (tree base, tree maxindex, tree init,
 	 brace-enclosed initializers.  In this case, digest_init and
 	 store_constructor will handle the semantics for us.  */
 
+      if (BRACE_ENCLOSED_INITIALIZER_P (init))
+	init = digest_init (atype, init, complain);
       stmt_expr = build2 (INIT_EXPR, atype, base, init);
       if (length_check)
 	stmt_expr = build3 (COND_EXPR, atype, length_check,

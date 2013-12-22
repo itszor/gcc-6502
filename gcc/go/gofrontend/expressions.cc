@@ -4305,8 +4305,9 @@ Unary_expression::do_get_tree(Translate_context* context)
 					       expr,
 					       fold_convert(TREE_TYPE(expr),
 							    null_pointer_node));
-		tree crash = gogo->runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE,
-						 loc);
+		Expression* crash_expr =
+		    gogo->runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE, loc);
+		tree crash = crash_expr->get_tree(context);
 		expr = fold_build2_loc(loc.gcc_location(), COMPOUND_EXPR,
 				       TREE_TYPE(expr), build3(COND_EXPR,
 							       void_type_node,
@@ -6183,9 +6184,9 @@ Binary_expression::do_get_tree(Translate_context* context)
 
 	  // __go_runtime_error(RUNTIME_ERROR_DIVISION_BY_ZERO), 0
 	  int errcode = RUNTIME_ERROR_DIVISION_BY_ZERO;
+	  Expression* crash = gogo->runtime_error(errcode, this->location());
 	  tree panic = fold_build2_loc(gccloc, COMPOUND_EXPR, TREE_TYPE(ret),
-				       gogo->runtime_error(errcode,
-							   this->location()),
+				       crash->get_tree(context),
 				       fold_convert_loc(gccloc, TREE_TYPE(ret),
 							integer_zero_node));
 
@@ -6975,8 +6976,9 @@ Bound_method_expression::do_get_tree(Translate_context* context)
   if (nil_check != NULL)
     {
       tree nil_check_tree = nil_check->get_tree(context);
-      tree crash =
+      Expression* crash_expr =
 	context->gogo()->runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE, loc);
+      tree crash = crash_expr->get_tree(context);
       if (ret_tree == error_mark_node
 	  || nil_check_tree == error_mark_node
 	  || crash == error_mark_node)
@@ -7310,7 +7312,11 @@ Builtin_call_expression::do_lower(Gogo* gogo, Named_object* function,
 	Type* slice_type = args->front()->type();
 	if (!slice_type->is_slice_type())
 	  {
-	    error_at(args->front()->location(), "argument 1 must be a slice");
+	    if (slice_type->is_nil_type())
+	      error_at(args->front()->location(), "use of untyped nil");
+	    else
+	      error_at(args->front()->location(),
+		       "argument 1 must be a slice");
 	    this->set_is_error();
 	    return this;
 	  }
@@ -8008,7 +8014,10 @@ Builtin_call_expression::do_type()
 	const Expression_list* args = this->args();
 	if (args == NULL || args->empty())
 	  return Type::make_error_type();
-	return args->front()->type();
+	Type *ret = args->front()->type();
+	if (!ret->is_slice_type())
+	  return Type::make_error_type();
+	return ret;
       }
 
     case BUILTIN_REAL:
@@ -9863,8 +9872,11 @@ Call_expression::do_get_tree(Translate_context* context)
     fndecl = TREE_OPERAND(fndecl, 0);
 
   // Add a type cast in case the type of the function is a recursive
-  // type which refers to itself.
-  if (!DECL_P(fndecl) || !DECL_IS_BUILTIN(fndecl))
+  // type which refers to itself.  We don't do this for an interface
+  // method because 1) an interface method never refers to itself, so
+  // we always have a function type here; 2) we pass an extra first
+  // argument to an interface method, so fnfield_type is not correct.
+  if ((!DECL_P(fndecl) || !DECL_IS_BUILTIN(fndecl)) && !is_interface_method)
     fn = fold_convert_loc(location.gcc_location(), fnfield_type, fn);
 
   // This is to support builtin math functions when using 80387 math.
@@ -10249,6 +10261,14 @@ Index_expression::do_lower(Gogo*, Named_object*, Statement_inserter*, int)
     {
       Expression* deref = Expression::make_unary(OPERATOR_MULT, left,
 						 location);
+
+      // For an ordinary index into the array, the pointer will be
+      // dereferenced.  For a slice it will not--the resulting slice
+      // will simply reuse the pointer, which is incorrect if that
+      // pointer is nil.
+      if (end != NULL || cap != NULL)
+	deref->issue_nil_check();
+
       return Expression::make_array_index(deref, start, end, cap, location);
     }
   else if (type->is_string_type())
@@ -10697,7 +10717,7 @@ Array_index_expression::do_get_tree(Translate_context* context)
 	      : (this->end_ == NULL
 		 ? RUNTIME_ERROR_SLICE_INDEX_OUT_OF_BOUNDS
 		 : RUNTIME_ERROR_SLICE_SLICE_OUT_OF_BOUNDS));
-  tree crash = gogo->runtime_error(code, loc);
+  tree crash = gogo->runtime_error(code, loc)->get_tree(context);
 
   if (this->end_ == NULL)
     {
@@ -11071,7 +11091,7 @@ String_index_expression::do_get_tree(Translate_context* context)
   int code = (this->end_ == NULL
 	      ? RUNTIME_ERROR_STRING_INDEX_OUT_OF_BOUNDS
 	      : RUNTIME_ERROR_STRING_SLICE_OUT_OF_BOUNDS);
-  tree crash = context->gogo()->runtime_error(code, loc);
+  tree crash = context->gogo()->runtime_error(code, loc)->get_tree(context);
 
   if (this->end_ == NULL)
     {
@@ -11521,28 +11541,12 @@ Field_reference_expression::do_check_types(Gogo*)
 tree
 Field_reference_expression::do_get_tree(Translate_context* context)
 {
-  tree struct_tree = this->expr_->get_tree(context);
-  if (struct_tree == error_mark_node
-      || TREE_TYPE(struct_tree) == error_mark_node)
-    return error_mark_node;
-  go_assert(TREE_CODE(TREE_TYPE(struct_tree)) == RECORD_TYPE);
-  tree field = TYPE_FIELDS(TREE_TYPE(struct_tree));
-  if (field == NULL_TREE)
-    {
-      // This can happen for a type which refers to itself indirectly
-      // and then turns out to be erroneous.
-      go_assert(saw_errors());
-      return error_mark_node;
-    }
-  for (unsigned int i = this->field_index_; i > 0; --i)
-    {
-      field = DECL_CHAIN(field);
-      go_assert(field != NULL_TREE);
-    }
-  if (TREE_TYPE(field) == error_mark_node)
-    return error_mark_node;
-  return build3(COMPONENT_REF, TREE_TYPE(field), struct_tree, field,
-		NULL_TREE);
+  Bexpression* bstruct = tree_to_expr(this->expr_->get_tree(context));
+  Bexpression* ret =
+      context->gogo()->backend()->struct_field_expression(bstruct,
+                                                          this->field_index_,
+                                                          this->location());
+  return expr_to_tree(ret);
 }
 
 // Dump ast representation for a field reference expression.
@@ -11877,8 +11881,9 @@ Interface_field_reference_expression::do_get_tree(Translate_context* context)
 						    this->expr_,
 						    Expression::make_nil(loc),
 						    loc);
-  tree crash = context->gogo()->runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE,
-					      loc);
+  Expression* crash_expr =
+      context->gogo()->runtime_error(RUNTIME_ERROR_NIL_DEREFERENCE, loc);
+  tree crash = crash_expr->get_tree(context);
   if (closure_tree == error_mark_node
       || nil_check_tree == error_mark_node
       || crash == error_mark_node)

@@ -82,6 +82,9 @@
 ;; Processor type.  This is created automatically from arm-cores.def.
 (include "arm-tune.md")
 
+;; Instruction classification types
+(include "types.md")
+
 ; IS_THUMB is set to 'yes' when we are generating Thumb code, and 'no' when
 ; generating ARM code.  This is used to control the length of some insn
 ; patterns that share the same RTL in both ARM and Thumb code.
@@ -191,6 +194,12 @@
 	 (const_string "yes")]
 	(const_string "no")))
 
+(define_attr "use_literal_pool" "no,yes"
+   (cond [(and (eq_attr "type" "f_loads,f_loadd")
+	       (match_test "CONSTANT_P (operands[1])"))
+	  (const_string "yes")]
+	 (const_string "no")))
+
 ; Allows an insn to disable certain alternatives for reasons other than
 ; arch support.
 (define_attr "insn_enabled" "no,yes"
@@ -208,6 +217,10 @@
 
 	  (and (eq_attr "enabled_for_depr_it" "no")
 	       (match_test "arm_restrict_it"))
+	  (const_string "no")
+
+	  (and (eq_attr "use_literal_pool" "yes")
+	       (match_test "arm_disable_literal_pool"))
 	  (const_string "no")
 
 	  (eq_attr "arch_enabled" "no")
@@ -245,9 +258,6 @@
   (set_attr "length" "4")
   (set_attr "pool_range" "250")])
 
-;; Instruction classification types
-(include "types.md")
-
 ; Load scheduling, set from the arm_ld_sched variable
 ; initialized by arm_option_override()
 (define_attr "ldsched" "no,yes" (const (symbol_ref "arm_ld_sched")))
@@ -283,7 +293,7 @@
           neon_ext, neon_ext_q, neon_rbit, neon_rbit_q,\
           neon_rev, neon_rev_q, neon_mul_b, neon_mul_b_q, neon_mul_h,\
           neon_mul_h_q, neon_mul_s, neon_mul_s_q, neon_mul_b_long,\
-          neon_mul_h_long, neon_mul_s_long, neon_mul_h_scalar,\
+          neon_mul_h_long, neon_mul_s_long, neon_mul_d_long, neon_mul_h_scalar,\
           neon_mul_h_scalar_q, neon_mul_s_scalar, neon_mul_s_scalar_q,\
           neon_mul_h_scalar_long, neon_mul_s_scalar_long, neon_sat_mul_b,\
           neon_sat_mul_b_q, neon_sat_mul_h, neon_sat_mul_h_q,\
@@ -345,7 +355,9 @@
           neon_fp_mla_s_scalar, neon_fp_mla_s_scalar_q, neon_fp_mla_d,\
           neon_fp_mla_d_q, neon_fp_mla_d_scalar_q, neon_fp_sqrt_s,\
           neon_fp_sqrt_s_q, neon_fp_sqrt_d, neon_fp_sqrt_d_q,\
-          neon_fp_div_s, neon_fp_div_s_q, neon_fp_div_d, neon_fp_div_d_q")
+          neon_fp_div_s, neon_fp_div_s_q, neon_fp_div_d, neon_fp_div_d_q, crypto_aes,\
+          crypto_sha1_xor, crypto_sha1_fast, crypto_sha1_slow, crypto_sha256_fast,\
+          crypto_sha256_slow")
         (const_string "yes")
         (const_string "no")))
 
@@ -459,7 +471,7 @@
 
 (define_attr "generic_sched" "yes,no"
   (const (if_then_else
-          (ior (eq_attr "tune" "fa526,fa626,fa606te,fa626te,fmp626,fa726te,arm926ejs,arm1020e,arm1026ejs,arm1136js,arm1136jfs,cortexa5,cortexa7,cortexa8,cortexa9,cortexa15,cortexa53,cortexm4,marvell_pj4")
+          (ior (eq_attr "tune" "fa526,fa626,fa606te,fa626te,fmp626,fa726te,arm926ejs,arm1020e,arm1026ejs,arm1136js,arm1136jfs,cortexa5,cortexa7,cortexa8,cortexa9,cortexa12,cortexa15,cortexa53,cortexm4,marvell_pj4")
 	       (eq_attr "tune_cortexr4" "yes"))
           (const_string "no")
           (const_string "yes"))))
@@ -3716,7 +3728,7 @@
 	 [(match_operand:SI 1 "s_register_operand" "r")
 	  (match_operand:SI 2 "s_register_operand" "r")]))
    (clobber (reg:CC CC_REGNUM))]
-  "TARGET_32BIT && optimize_insn_for_size_p()"
+  "TARGET_32BIT && optimize_function_for_size_p (cfun)"
   "*
   operands[3] = gen_rtx_fmt_ee (minmax_code (operands[3]), SImode,
 				operands[1], operands[2]);
@@ -4707,6 +4719,24 @@
 	(neg:DF (match_operand:DF 1 "s_register_operand" "")))]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP_DOUBLE"
   "")
+
+(define_insn_and_split "*zextendsidi_negsi"
+  [(set (match_operand:DI 0 "s_register_operand" "=r")
+        (zero_extend:DI (neg:SI (match_operand:SI 1 "s_register_operand" "r"))))]
+   "TARGET_32BIT"
+   "#"
+   ""
+   [(set (match_dup 2)
+         (neg:SI (match_dup 1)))
+    (set (match_dup 3)
+         (const_int 0))]
+   {
+      operands[2] = gen_lowpart (SImode, operands[0]);
+      operands[3] = gen_highpart (SImode, operands[0]);
+   }
+ [(set_attr "length" "8")
+  (set_attr "type" "multiple")]
+)
 
 ;; Negate an extended 32-bit value.
 (define_insn_and_split "*negdi_extendsidi"
@@ -6049,7 +6079,7 @@
   "TARGET_32BIT
    && reload_completed
    && (arm_const_double_inline_cost (operands[1])
-       <= ((optimize_size || arm_ld_sched) ? 3 : 4))"
+       <= arm_max_const_double_inline_cost ())"
   [(const_int 0)]
   "
   arm_split_constant (SET, SImode, curr_insn,
@@ -6309,6 +6339,47 @@
   arm_split_constant (SET, SImode, NULL_RTX, 
                       INTVAL (operands[1]), operands[0], NULL_RTX, 0);
   DONE;
+  "
+)
+
+;; A normal way to do (symbol + offset) requires three instructions at least
+;; (depends on how big the offset is) as below:
+;; movw r0, #:lower16:g
+;; movw r0, #:upper16:g
+;; adds r0, #4
+;;
+;; A better way would be:
+;; movw r0, #:lower16:g+4
+;; movw r0, #:upper16:g+4
+;;
+;; The limitation of this way is that the length of offset should be a 16-bit
+;; signed value, because current assembler only supports REL type relocation for
+;; such case.  If the more powerful RELA type is supported in future, we should
+;; update this pattern to go with better way.
+(define_split
+  [(set (match_operand:SI 0 "arm_general_register_operand" "")
+	(const:SI (plus:SI (match_operand:SI 1 "general_operand" "")
+			   (match_operand:SI 2 "const_int_operand" ""))))]
+  "TARGET_THUMB2
+   && arm_disable_literal_pool
+   && reload_completed
+   && GET_CODE (operands[1]) == SYMBOL_REF"
+  [(clobber (const_int 0))]
+  "
+    int offset = INTVAL (operands[2]);
+
+    if (offset < -0x8000 || offset > 0x7fff)
+      {
+	arm_emit_movpair (operands[0], operands[1]);
+	emit_insn (gen_rtx_SET (SImode, operands[0],
+				gen_rtx_PLUS (SImode, operands[0], operands[2])));
+      }
+    else
+      {
+	rtx op = gen_rtx_CONST (SImode,
+				gen_rtx_PLUS (SImode, operands[1], operands[2]));
+	arm_emit_movpair (operands[0], op);
+      }
   "
 )
 
@@ -9858,6 +9929,23 @@
    (set_attr "type" "mov_reg")]
 )
 
+(define_insn "trap"
+  [(trap_if (const_int 1) (const_int 0))]
+  ""
+  "*
+  if (TARGET_ARM)
+    return \".inst\\t0xe7f000f0\";
+  else
+    return \".inst\\t0xdeff\";
+  "
+  [(set (attr "length")
+	(if_then_else (eq_attr "is_thumb" "yes")
+		      (const_int 2)
+		      (const_int 4)))
+   (set_attr "type" "trap")
+   (set_attr "conds" "unconditional")]
+)
+
 
 ;; Patterns to allow combination of arithmetic, cond code and shifts
 
@@ -12167,7 +12255,7 @@
     [(set (match_operand:SI 1 "s_register_operand" "+rk")
           (plus:SI (match_dup 1)
                    (match_operand:SI 2 "const_int_operand" "I")))
-     (set (match_operand:DF 3 "arm_hard_register_operand" "")
+     (set (match_operand:DF 3 "vfp_hard_register_operand" "")
           (mem:DF (match_dup 1)))])]
   "TARGET_32BIT && TARGET_HARD_FLOAT && TARGET_VFP"
   "*
@@ -12784,6 +12872,17 @@
    (set_attr "predicable" "yes")
    (set_attr "predicable_short_it" "no")])
 
+;; ARMv8 CRC32 instructions.
+(define_insn "<crc_variant>"
+  [(set (match_operand:SI 0 "s_register_operand" "=r")
+        (unspec:SI [(match_operand:SI 1 "s_register_operand" "r")
+                    (match_operand:<crc_mode> 2 "s_register_operand" "r")]
+         CRC))]
+  "TARGET_CRC32"
+  "<crc_variant>\\t%0, %1, %2"
+  [(set_attr "type" "crc")
+   (set_attr "conds" "unconditional")]
+)
 
 ;; Load the load/store double peephole optimizations.
 (include "ldrdstrd.md")
@@ -12821,6 +12920,8 @@
 (include "thumb2.md")
 ;; Neon patterns
 (include "neon.md")
+;; Crypto patterns
+(include "crypto.md")
 ;; Synchronization Primitives
 (include "sync.md")
 ;; Fixed-point patterns

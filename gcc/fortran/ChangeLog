@@ -1,3 +1,143 @@
+2013-12-18  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59493
+	* gfortran.h (gfc_find_intrinsic_vtab): Removed prototype.
+	(gfc_find_vtab): New prototype.
+	* class.c (gfc_find_intrinsic_vtab): Rename to 'find_intrinsic_vtab' and
+	make static. Minor modifications.
+	(gfc_find_vtab): New function.
+	(gfc_class_initializer): Use new function 'gfc_find_vtab'.
+	* check.c (gfc_check_move_alloc): Ditto.
+	* expr.c (gfc_check_pointer_assign): Ditto.
+	* interface.c (compare_actual_formal): Ditto.
+	* resolve.c (resolve_allocate_expr, resolve_select_type): Ditto.
+	* trans-expr.c (gfc_conv_intrinsic_to_class, gfc_trans_class_assign):
+	Ditto.
+	* trans-intrinsic.c (conv_intrinsic_move_alloc): Ditto.
+	* trans-stmt.c (gfc_trans_allocate): Ditto.
+
+2013-12-16  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/54949
+	* symbol.c (check_conflict): Forbid abstract procedure pointers.
+	(gfc_add_abstract): Check for attribute conflicts.
+
+2013-12-16  Jakub Jelinek  <jakub@redhat.com>
+
+	PR libgomp/59337
+	* openmp.c (resolve_omp_atomic): Adjust error message.
+
+2013-12-15  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59493
+	* class.c (gfc_find_intrinsic_vtab): Handle BT_CLASS.
+
+2013-12-14  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59502
+	* primary.c (gfc_match_varspec): Check for 'class_ok'.
+
+2013-12-14  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59450
+	* module.c (mio_expr): Handle type-bound function expressions.
+
+2013-12-12  Tobias Burnus  <burnus@net-b.de>
+
+	PR fortran/59440
+	* trans-decl.c (generate_namelist_decl): Ensure debug DIE
+	is created by setting DECL_IGNORED_P to 0.
+
+2013-12-11  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/58916
+	* resolve.c (conformable_arrays): Treat scalar 'e2'.
+	(resolve_allocate_expr): Check rank also for unlimited-polymorphic
+	variables.
+
+2013-12-10  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/35831
+	* interface.c (check_dummy_characteristics): Add checks for several
+	attributes.
+
+2013-12-10  Janus Weil  <janus@gcc.gnu.org>
+
+	* gfortran.texi: Add possible kind values (and default) for
+	DOUBLE PRECISION.
+	* invoke.texi: Correct documentation of -fdefault-integer-8,
+	-fdefault-real-8 and -fdefault-double-8.
+
+2013-12-10  Janus Weil  <janus@gcc.gnu.org>
+
+	* gfortran.texi: Modify documentation of kind type parameters.
+	* invoke.texi: Extend documentation of -fdefault-integer-8 and
+	-fdefault-real-8.
+
+2013-12-10  Janus Weil  <janus@gcc.gnu.org>
+
+	* invoke.texi: Add -freal-4-real-16. Rearrange kind promotion options.
+
+2013-12-08  Tobias Burnus  <burnus@net-b.de>
+	    Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/58099
+	PR fortran/58676
+	PR fortran/41724
+	* resolve.c (gfc_resolve_intrinsic): Set elemental/pure.
+	(resolve_fl_procedure): Reject pure dummy procedures/procedure
+	pointers.
+	(gfc_explicit_interface_required): Don't require a
+	match of ELEMENTAL for intrinsics.
+
+2013-12-07  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59414
+	* resolve.c (resolve_specific_f0): Handle CLASS-valued functions.
+
+2013-12-04  Tobias Burnus  <burnus@net-b.de>
+
+	PR debug/37132
+	* trans-decl.c (generate_namelist_decl, create_module_nml_decl):
+	New static functions.
+	(gfc_generate_module_vars, generate_local_vars): Call them.
+	(gfc_trans_use_stmts): Handle namelists for debug genertion.
+
+2013-12-01  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/57354
+	* trans-array.c (gfc_conv_resolve_dependencies): For other than
+	SS_SECTION, do a dependency check if the lhs is liable to be
+	reallocated.
+
+2013-12-01  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/58410
+	* trans-array.c (gfc_alloc_allocatable_for_assignment): Do not
+	use the array bounds of an unallocated array but set its size
+	to zero instead.
+
+2013-12-01  Paul Thomas  <pault@gcc.gnu.org>
+
+	PR fortran/34547
+	* resolve.c (resolve_transfer): EXPR_NULL is always in an
+	invalid context in a transfer statement.
+
+2013-11-28  Sergey Ostanevich  <sergos.gnu@gmail.com>
+
+	* lang.opt (Wopenmp-simd): New.
+
+2013-11-25  Janus Weil  <janus@gcc.gnu.org>
+
+	PR fortran/59143
+	* interface.c (get_expr_storage_size): Handle array-valued type-bound
+	procedures.
+
+2013-11-24  Francois-Xavier Coudert  <fxcoudert@gcc.gnu.org>
+
+	* scanner.c (gfc_open_intrinsic_module): Remove function.
+	* gfortran.h (gfc_open_intrinsic_module): Remove prototype.
+
 2013-11-23  Janus Weil  <janus@gcc.gnu.org>
 
 	PR fortran/59228

@@ -421,27 +421,22 @@ create_edge_and_update_destination_phis (struct redirection_data *rd,
   e->probability = REG_BR_PROB_BASE;
   e->count = bb->count;
 
-  /* We have to copy path -- which means creating a new vector as well
-     as all the jump_thread_edge entries.  */
-  if (rd->path->last ()->e->aux)
-    {
-      vec<jump_thread_edge *> *path = THREAD_PATH (rd->path->last ()->e);
-      vec<jump_thread_edge *> *copy = new vec<jump_thread_edge *> ();
+  /* We used to copy the thread path here.  That was added in 2007
+     and dutifully updated through the representation changes in 2013.
 
-      /* Sadly, the elements of the vector are pointers and need to
-	 be copied as well.  */
-      for (unsigned int i = 0; i < path->length (); i++)
-	{
-	  jump_thread_edge *x
-	    = new jump_thread_edge ((*path)[i]->e, (*path)[i]->type);
-	  copy->safe_push (x);
-	}
-      e->aux = (void *)copy;
-    }
-  else
-    {
-      e->aux = NULL;
-    }
+     In 2013 we added code to thread from an interior node through
+     the backedge to another interior node.  That runs after the code
+     to thread through loop headers from outside the loop.
+
+     The latter may delete edges in the CFG, including those
+     which appeared in the jump threading path we copied here.  Thus
+     we'd end up using a dangling pointer.
+
+     After reviewing the 2007/2011 code, I can't see how anything
+     depended on copying the AUX field and clearly copying the jump
+     threading path is problematical due to embedded edge pointers.
+     It has been removed.  */
+  e->aux = NULL;
 
   /* If there are any PHI nodes at the destination of the outgoing edge
      from the duplicate block, then we will need to add a new argument
@@ -1417,7 +1412,7 @@ mark_threaded_blocks (bitmap threaded_blocks)
     {
       EXECUTE_IF_SET_IN_BITMAP (tmp, 0, i, bi)
 	{
-	  bb = BASIC_BLOCK (i);
+	  bb = BASIC_BLOCK_FOR_FN (cfun, i);
 	  if (EDGE_COUNT (bb->preds) > 1
 	      && !redirection_block_p (bb))
 	    {
@@ -1447,51 +1442,39 @@ mark_threaded_blocks (bitmap threaded_blocks)
      by trimming off the end of the jump thread path.  */
   EXECUTE_IF_SET_IN_BITMAP (tmp, 0, i, bi)
     {
-      basic_block bb = BASIC_BLOCK (i);
+      basic_block bb = BASIC_BLOCK_FOR_FN (cfun, i);
       FOR_EACH_EDGE (e, ei, bb->preds)
 	{
 	  if (e->aux)
 	    {
 	      vec<jump_thread_edge *> *path = THREAD_PATH (e);
 
-	      /* Basically we're looking for a situation where we can see
-	  	 3 or more loop structures on a jump threading path.  */
-
-	      struct loop *first_father = (*path)[0]->e->src->loop_father;
-	      struct loop *second_father = NULL;
-	      for (unsigned int i = 0; i < path->length (); i++)
+	      for (unsigned int i = 0, crossed_headers = 0;
+		   i < path->length ();
+		   i++)
 		{
-		  /* See if this is a loop father we have not seen before.  */
-		  if ((*path)[i]->e->dest->loop_father != first_father
-		      && (*path)[i]->e->dest->loop_father != second_father)
+		  basic_block dest = (*path)[i]->e->dest;
+		  crossed_headers += (dest == dest->loop_father->header);
+		  if (crossed_headers > 1)
 		    {
-		      /* We've already seen two loop fathers, so we
-			 need to trim this jump threading path.  */
-		      if (second_father != NULL)
-			{
-			  /* Trim from entry I onwards.  */
-			  for (unsigned int j = i; j < path->length (); j++)
-			    delete (*path)[j];
-			  path->truncate (i);
+		      /* Trim from entry I onwards.  */
+		      for (unsigned int j = i; j < path->length (); j++)
+			delete (*path)[j];
+		      path->truncate (i);
 
-			  /* Now that we've truncated the path, make sure
-			     what's left is still valid.   We need at least
-			     two edges on the path and the last edge can not
-			     be a joiner.  This should never happen, but let's
-			     be safe.  */
-			  if (path->length () < 2
-			      || (path->last ()->type
-				  == EDGE_COPY_SRC_JOINER_BLOCK))
-			    {
-			      delete_jump_thread_path (path);
-			      e->aux = NULL;
-			    }
-			  break;
-			}
-		      else
+		      /* Now that we've truncated the path, make sure
+			 what's left is still valid.   We need at least
+			 two edges on the path and the last edge can not
+			 be a joiner.  This should never happen, but let's
+			 be safe.  */
+		      if (path->length () < 2
+			  || (path->last ()->type
+			      == EDGE_COPY_SRC_JOINER_BLOCK))
 			{
-			  second_father = (*path)[i]->e->dest->loop_father;
+			  delete_jump_thread_path (path);
+			  e->aux = NULL;
 			}
+		      break;
 		    }
 		}
 	    }
@@ -1517,7 +1500,7 @@ mark_threaded_blocks (bitmap threaded_blocks)
      we have to iterate on those rather than the threaded_edges vector.  */
   EXECUTE_IF_SET_IN_BITMAP (tmp, 0, i, bi)
     {
-      bb = BASIC_BLOCK (i);
+      bb = BASIC_BLOCK_FOR_FN (cfun, i);
       FOR_EACH_EDGE (e, ei, bb->preds)
 	{
 	  if (e->aux)
@@ -1579,7 +1562,6 @@ thread_through_all_blocks (bool may_peel_loop_headers)
   bitmap_iterator bi;
   bitmap threaded_blocks;
   struct loop *loop;
-  bool totally_clobbered_loops = false;
 
   /* We must know about loops in order to preserve them.  */
   gcc_assert (current_loops != NULL);
@@ -1598,7 +1580,7 @@ thread_through_all_blocks (bool may_peel_loop_headers)
      loop structure.  */
   EXECUTE_IF_SET_IN_BITMAP (threaded_blocks, 0, i, bi)
     {
-      basic_block bb = BASIC_BLOCK (i);
+      basic_block bb = BASIC_BLOCK_FOR_FN (cfun, i);
 
       if (EDGE_COUNT (bb->preds) > 0)
 	retval |= thread_block (bb, true);
@@ -1637,7 +1619,7 @@ thread_through_all_blocks (bool may_peel_loop_headers)
      ahead and thread it, else ignore it.  */
   basic_block bb;
   edge e;
-  FOR_EACH_BB (bb)
+  FOR_EACH_BB_FN (bb, cfun)
     {
       /* If we do end up threading here, we can remove elements from
 	 BB->preds.  Thus we can not use the FOR_EACH_EDGE iterator.  */
@@ -1675,9 +1657,22 @@ thread_through_all_blocks (bool may_peel_loop_headers)
 		/* Our path is still valid, thread it.  */
 	        if (e->aux)
 		  {
-		    totally_clobbered_loops
-		      |= thread_block ((*path)[0]->e->dest, false);
-		    e->aux = NULL;
+		    struct loop *loop = (*path)[0]->e->dest->loop_father;
+
+		    if (thread_block ((*path)[0]->e->dest, false))
+		      {
+			/* This jump thread likely totally scrambled this loop.
+			   So arrange for it to be fixed up.  */
+			loop->header = NULL;
+			loop->latch = NULL;
+			e->aux = NULL;
+		      }
+		    else
+		      {
+		        delete_jump_thread_path (path);
+			e->aux = NULL;
+			ei_next (&ei);
+		      }
 		  }
 	      }
 	   else
@@ -1700,32 +1695,7 @@ thread_through_all_blocks (bool may_peel_loop_headers)
   threaded_blocks = NULL;
   paths.release ();
 
-  /* If we made changes to the CFG that might have totally messed
-     up the loop structure, then drop the old loop structure and
-     rebuild.  */
-  if (totally_clobbered_loops)
-    {
-      /* Release the current loop structures, they are totally
-	 clobbered at this point.  */
-      loop_optimizer_finalize ();
-      current_loops = NULL;
-
-      /* Similarly for dominance information.  */
-      free_dominance_info (CDI_DOMINATORS);
-      free_dominance_info (CDI_POST_DOMINATORS);
-
-      /* Before we can rebuild the loop structures, we need dominators,
-	 which requires no unreachable code.  So remove unreachable code.  */
-      delete_unreachable_blocks ();
-
-      /* Now rebuild the loop structures.  */
-      cfun->curr_properties &= ~PROP_loops;
-      loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
-      cfun->curr_properties |= PROP_loops;
-      retval = 1;
-    }
-
-  if (retval && current_loops)
+  if (retval)
     loops_state_set (LOOPS_NEED_FIXUP);
 
   return retval;

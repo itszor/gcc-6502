@@ -1679,6 +1679,9 @@ gfc_resolve_intrinsic (gfc_symbol *sym, locus *loc)
 
   gfc_copy_formal_args_intr (sym, isym);
 
+  sym->attr.pure = isym->pure;
+  sym->attr.elemental = isym->elemental;
+
   /* Check it is actually available in the standard settings.  */
   if (!gfc_check_intrinsic_standard (isym, &symstd, false, sym->declared_at))
     {
@@ -2314,7 +2317,7 @@ gfc_explicit_interface_required (gfc_symbol *sym, char *errmsg, int err_len)
 	}
     }
 
-  if (sym->attr.elemental)  /* (4)  */
+  if (sym->attr.elemental && !sym->attr.intrinsic)  /* (4)  */
     {
       strncpy (errmsg, _("elemental procedure"), err_len);
       return true;
@@ -2616,7 +2619,9 @@ found:
     expr->ts = sym->ts;
   expr->value.function.name = sym->name;
   expr->value.function.esym = sym;
-  if (sym->as != NULL)
+  if (sym->ts.type == BT_CLASS && CLASS_DATA (sym)->as)
+    expr->rank = CLASS_DATA (sym)->as->rank;
+  else if (sym->as != NULL)
     expr->rank = sym->as->rank;
 
   return MATCH_YES;
@@ -6592,7 +6597,8 @@ conformable_arrays (gfc_expr *e1, gfc_expr *e2)
   for (tail = e2->ref; tail && tail->next; tail = tail->next);
 
   /* First compare rank.  */
-  if (tail && e1->rank != tail->u.ar.as->rank)
+  if ((tail && e1->rank != tail->u.ar.as->rank)
+      || (!tail && e1->rank != e2->rank))
     {
       gfc_error ("Source-expr at %L must be scalar or have the "
 		 "same rank as the allocate-object at %L",
@@ -6789,8 +6795,7 @@ resolve_allocate_expr (gfc_expr *e, gfc_code *code)
 	}
 
       /* Check F03:C632 and restriction following Note 6.18.  */
-      if (code->expr3->rank > 0 && !unlimited
-	  && !conformable_arrays (code->expr3, e))
+      if (code->expr3->rank > 0 && !conformable_arrays (code->expr3, e))
 	goto failure;
 
       /* Check F03:C633.  */
@@ -6925,10 +6930,7 @@ resolve_allocate_expr (gfc_expr *e, gfc_code *code)
 
       gcc_assert (ts);
 
-      if (ts->type == BT_CLASS || ts->type == BT_DERIVED)
-        gfc_find_derived_vtab (ts->u.derived);
-      else
-        gfc_find_intrinsic_vtab (ts);
+      gfc_find_vtab (ts);
 
       if (dimension)
 	e = gfc_expr_to_initialize (e);
@@ -8049,7 +8051,7 @@ resolve_select_type (gfc_code *code, gfc_namespace *old_ns)
 	  gfc_symbol *ivtab;
 	  gfc_expr *e;
 
-	  ivtab = gfc_find_intrinsic_vtab (&c->ts);
+	  ivtab = gfc_find_vtab (&c->ts);
 	  gcc_assert (ivtab && CLASS_DATA (ivtab)->initializer);
 	  e = CLASS_DATA (ivtab)->initializer;
 	  c->low = c->high = gfc_copy_expr (e);
@@ -8247,10 +8249,11 @@ resolve_transfer (gfc_code *code)
 	 && exp->value.op.op == INTRINSIC_PARENTHESES)
     exp = exp->value.op.op1;
 
-  if (exp && exp->expr_type == EXPR_NULL && exp->ts.type == BT_UNKNOWN)
+  if (exp && exp->expr_type == EXPR_NULL
+      && code->ext.dt)
     {
-      gfc_error ("NULL intrinsic at %L in data transfer statement requires "
-		 "MOLD=", &exp->where);
+      gfc_error ("Invalid context for NULL () intrinsic at %L",
+		 &exp->where);
       return;
     }
 
@@ -11089,6 +11092,23 @@ resolve_fl_procedure (gfc_symbol *sym, int mp_flag)
 	gfc_notify_std (GFC_STD_F95_OBS,
 			"CHARACTER(*) function '%s' at %L",
 			sym->name, &sym->declared_at);
+    }
+
+  /* F2008, C1218.  */
+  if (sym->attr.elemental)
+    {
+      if (sym->attr.proc_pointer)
+	{
+	  gfc_error ("Procedure pointer '%s' at %L shall not be elemental",
+		     sym->name, &sym->declared_at);
+	  return false;
+	}
+      if (sym->attr.dummy)
+	{
+	  gfc_error ("Dummy procedure '%s' at %L shall not be elemental",
+		     sym->name, &sym->declared_at);
+	  return false;
+	}
     }
 
   if (sym->attr.is_bind_c && sym->attr.is_c_interop != 1)

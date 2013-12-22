@@ -2029,7 +2029,7 @@ vect_bb_vectorization_profitable_p (bb_vec_info bb_vinfo)
   /* Calculate scalar cost.  */
   FOR_EACH_VEC_ELT (slp_instances, i, instance)
     {
-      stack_vec<bool, 20> life;
+      auto_vec<bool, 20> life;
       life.safe_grow_cleared (SLP_INSTANCE_GROUP_SIZE (instance));
       scalar_cost += vect_bb_slp_scalar_cost (BB_VINFO_BB (bb_vinfo),
 					      SLP_INSTANCE_TREE (instance),
@@ -2176,7 +2176,7 @@ vect_slp_analyze_bb_1 (basic_block bb)
     }
 
   /* Cost model: check if the vectorization is worthwhile.  */
-  if (!unlimited_cost_model ()
+  if (!unlimited_cost_model (NULL)
       && !vect_bb_vectorization_profitable_p (bb_vinfo))
     {
       if (dump_enabled_p ())

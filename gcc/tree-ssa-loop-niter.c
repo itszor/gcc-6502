@@ -173,7 +173,15 @@ determine_value_range (struct loop *loop, tree type, tree var, mpz_t off,
 		{
 		  minv = minv.max (minc, TYPE_UNSIGNED (type));
 		  maxv = maxv.min (maxc, TYPE_UNSIGNED (type));
-		  gcc_assert (minv.cmp (maxv, TYPE_UNSIGNED (type)) <= 0);
+		  /* If the PHI result range are inconsistent with
+		     the VAR range, give up on looking at the PHI
+		     results.  This can happen if VR_UNDEFINED is
+		     involved.  */
+		  if (minv.cmp (maxv, TYPE_UNSIGNED (type)) > 0)
+		    {
+		      rtype = get_range_info (var, &minv, &maxv);
+		      break;
+		    }
 		}
 	    }
 	}
@@ -2167,7 +2175,8 @@ chain_of_csts_start (struct loop *loop, tree x)
       return NULL;
     }
 
-  if (gimple_code (stmt) != GIMPLE_ASSIGN)
+  if (gimple_code (stmt) != GIMPLE_ASSIGN
+      || gimple_assign_rhs_class (stmt) == GIMPLE_TERNARY_RHS)
     return NULL;
 
   code = gimple_assign_rhs_code (stmt);
@@ -2235,7 +2244,7 @@ get_val_for (tree x, tree base)
 {
   gimple stmt;
 
-  gcc_assert (is_gimple_min_invariant (base));
+  gcc_checking_assert (is_gimple_min_invariant (base));
 
   if (!x)
     return base;
@@ -2244,7 +2253,7 @@ get_val_for (tree x, tree base)
   if (gimple_code (stmt) == GIMPLE_PHI)
     return base;
 
-  gcc_assert (is_gimple_assign (stmt));
+  gcc_checking_assert (is_gimple_assign (stmt));
 
   /* STMT must be either an assignment of a single SSA name or an
      expression involving an SSA name and a constant.  Try to fold that
