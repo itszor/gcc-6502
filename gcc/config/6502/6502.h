@@ -196,14 +196,18 @@ enum reg_class
   WORD_Y_REGS,
   Y_REGS,
   HARD_INDEX_REGS,
+  WORD_INDEX_REGS,
   INDEX_REGS,
+  ACTUALLY_HARD_REGS,
+  WORD_HARD_REGS,
   HARD_REGS,
-  HARDISH_REGS,
   STACK_REG,
   ARG_REGS,
   CALLEE_SAVED_REGS,
   CC_REGS,
   GENERAL_REGS,
+  VFP_REG,
+  VAP_REG,
   ALL_REGS,
   LIM_REG_CLASSES
 };
@@ -223,14 +227,18 @@ enum reg_class
   "WORD_Y_REGS",		\
   "Y_REGS",			\
   "HARD_INDEX_REGS",		\
+  "WORD_INDEX_REGS",		\
   "INDEX_REGS",			\
+  "ACTUALLY_HARD_REGS",		\
+  "WORD_HARD_REGS",		\
   "HARD_REGS",			\
-  "HARDISH_REGS",		\
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
   "CC_REGS",			\
   "GENERAL_REGS",		\
+  "VFP_REG",			\
+  "VAP_REG",			\
   "ALL_REGS"			\
 }
 
@@ -248,14 +256,18 @@ enum reg_class
   { 0x00000f00, 0x000 },	\
   { 0x00000110, 0x000 },	\
   { 0x00000330, 0x000 },	\
+  { 0x00000ff0, 0x000 },	\
   { 0x00000111, 0x000 },	\
   { 0x00000333, 0x000 },	\
+  { 0x00000fff, 0x000 },	\
   { 0x0000f000, 0x000 },	\
   { 0x00ff0000, 0x000 },	\
   { 0xff000000, 0x000 },	\
   { 0x00000000, 0x0f0 },	\
   { 0xfffffeee, 0x600 },	\
-  { 0xffffffff, 0x7ff },	\
+  { 0x00000000, 0x003 },	\
+  { 0x00000000, 0x00c },	\
+  { 0xffffffff, 0x7f0 },	\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -281,7 +293,7 @@ enum reg_class
    (REGNO) == TMP0_REGNUM || (REGNO) == TMP1_REGNUM			\
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
-     ? ALL_REGS :							\
+     ? GENERAL_REGS :							\
    (REGNO) >= CC_REGNUM && (REGNO) <= (CC_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
@@ -307,12 +319,14 @@ enum reg_class
 #define HARD_REG_CLASS_P(CLASS)					\
   ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\
    || (CLASS) == HARD_Y_REG || (CLASS) == HARD_INDEX_REGS	\
-   || (CLASS) == HARD_REGS)
+   || (CLASS) == ACTUALLY_HARD_REGS)
 
 #define HARDISH_REG_CLASS_P(CLASS)				\
-  ((CLASS) == ACCUM_REGS || (CLASS) == X_REGS			\
-   || (CLASS) == Y_REGS || (CLASS) == INDEX_REGS		\
-   || (CLASS) == HARDISH_REGS)
+  ((CLASS) == WORD_ACCUM_REGS || (CLASS) == ACCUM_REGS		\
+   || (CLASS) == WORD_X_REGS || (CLASS) == X_REGS		\
+   || (CLASS) == WORD_Y_REGS || (CLASS) == Y_REGS		\
+   || (CLASS) == WORD_INDEX_REGS || (CLASS) == INDEX_REGS	\
+   || (CLASS) == WORD_HARD_REGS || (CLASS) == HARD_REGS)
 
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
@@ -485,7 +499,7 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
     assemble_name ((STREAM), (NAME));				\
-    fprintf ((STREAM), "\n");					\
+    fprintf ((STREAM), ":\n");					\
   } while (0)
 
 #define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
@@ -531,5 +545,6 @@ typedef int CUMULATIVE_ARGS;
 #undef LIBGCC_SPEC
 #define LIBGCC_SPEC "libgcc.a"
 
+/* Hard-wire the semi65x linker script for now.  */
 #undef LINK_SPEC
-#define LINK_SPEC "--target bbc"
+#define LINK_SPEC "--config %R/lib/cc65/cfg/semi65x.cfg"
