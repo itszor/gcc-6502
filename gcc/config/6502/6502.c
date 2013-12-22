@@ -577,8 +577,9 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
 		   bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
+  int modesize = GET_MODE_SIZE (mode);
 
-  if (*pcum < 8)
+  if ((*pcum) + modesize <= 8)
     return gen_rtx_REG (mode, (*pcum) + FIRST_ARG_REGISTER);
   else
     return NULL_RTX;
@@ -604,6 +605,14 @@ m65x_function_value (const_tree ret_type,
   mode = TYPE_MODE (ret_type);
   
   return gen_rtx_REG (mode, ACC_REGNUM);
+}
+
+static void
+m65x_setup_incoming_varargs (cumulative_args_t ca, enum machine_mode mode,
+			     tree type, int *pretend_size, int second_time)
+{
+  CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
+  *pretend_size = 8 - *pcum;
 }
 
 static rtx
@@ -715,37 +724,6 @@ m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
     }
 }
 
-const char * __attribute__ ((used))
-m65x_reg_class_name (reg_class_t c)
-{
-  switch (c)
-    {
-    case NO_REGS: return "NO_REGS";
-    case HARD_ACCUM_REG: return "HARD_ACCUM_REG";
-    case ACCUM_REGS: return "ACCUM_REGS";
-    case WORD_ACCUM_REGS: return "WORD_ACCUM_REGS";
-    case HARD_X_REG: return "HARD_X_REG";
-    case WORD_X_REGS: return "WORD_X_REGS";
-    case X_REGS: return "X_REGS";
-    case HARD_Y_REG: return "HARD_Y_REG";
-    case WORD_Y_REGS: return "WORD_Y_REGS";
-    case Y_REGS: return "Y_REGS";
-    case HARD_INDEX_REGS: return "HARD_INDEX_REGS";
-    case INDEX_REGS: return "INDEX_REGS";
-    case HARD_REGS: return "HARD_REGS";
-    case HARDISH_REGS: return "HARDISH_REGS";
-    case STACK_REG: return "STACK_REG";
-    case ARG_REGS: return "ARG_REGS";
-    case CALLEE_SAVED_REGS: return "CALLEE_SAVED_REGS";
-    case CC_REGS: return "CC_REGS";
-    case GENERAL_REGS: return "GENERAL_REGS";
-    case ALL_REGS: return "ALL_REGS";
-    default: gcc_unreachable ();
-    }
-  
-  return NULL;
-}
-
 static bool
 base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
 {
@@ -828,8 +806,18 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	  else
 	    return WORD_ACCUM_REGS;
 	}
-      else if (in_p && REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
-	sri->icode = CODE_FOR_reload_inhi_indexreg;
+      /*else if (in_p && REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
+	sri->icode = CODE_FOR_reload_inhi_indexreg;*/
+    }
+  else if (reload_mode == SImode)
+    {
+      if (base_plus_const_byte_offset_mem (SImode, x))
+	{
+	  if (reload_class == ACCUM_REGS)
+	    return NO_REGS;
+	  else
+	    return ACCUM_REGS;
+	}
     }
 
   return NO_REGS;
@@ -872,16 +860,16 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 	return (register_operand (operands[1], mode)
 		|| immediate_operand (operands[1], mode));
       else
-        return (mode == QImode && hard_reg_operand (operands[1], mode))
-		|| (mode != QImode && accumulator_operand (operands[1], mode));
+        return /*(mode == QImode &&*/ hard_reg_operand (operands[1], mode)/*)
+		|| (mode != QImode && accumulator_operand (operands[1], mode))*/;
     }
   else if (MEM_P (operands[1]))
     {
       if (CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
 	return register_operand (operands[0], mode);
       else
-        return (mode == QImode && hard_reg_operand (operands[0], mode))
-	       || (mode != QImode && accumulator_operand (operands[0], mode));
+        return /*(mode == QImode &&*/ hard_reg_operand (operands[0], mode)/*)
+	       || (mode != QImode && accumulator_operand (operands[0], mode))*/;
     }
   else
     return (accumulator_operand (operands[0], mode)
@@ -1140,6 +1128,16 @@ m65x_elimination_offset (int from, int to)
     gcc_unreachable ();
 }
 
+static bool
+m65x_can_eliminate (const int from, const int to)
+{
+  if ((from == ARG_POINTER_REGNUM && to == FRAME_POINTER_REGNUM)
+      || (frame_pointer_needed && to == STACK_POINTER_REGNUM))
+    return false;
+  
+  return true;
+}
+
 void
 m65x_expand_prologue (void)
 {
@@ -1147,20 +1145,45 @@ m65x_expand_prologue (void)
   rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
   HOST_WIDE_INT frame_size = get_frame_size ();
   HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  int args_pushed = crtl->args.pretend_args_size;
   
   if (frame_pointer_needed)
     {
       insn = emit_insn (gen_movhi (hard_frame_pointer_rtx, stack_pointer_rtx));
-      RTX_FRAME_RELATED_P (insn) = 1;
+      /* FIXME: Frame-related insns can't be split, so this should be an insn
+         which doesn't need splitting.  I think it should still look like a
+	 register move though.  */
+      //RTX_FRAME_RELATED_P (insn) = 1;
     }
   
-  if (stack_offset != 0)
+  if (stack_offset + args_pushed != 0)
     {
       insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			GEN_INT (-stack_offset)));
+			GEN_INT (-(stack_offset + args_pushed))));
       RTX_FRAME_RELATED_P (insn) = 1;
     }
-  
+
+  if (crtl->args.pretend_args_size > 0)
+    {
+      insn = emit_move_insn (yreg, GEN_INT (stack_offset));
+      RTX_FRAME_RELATED_P (insn) = 1;
+
+      for (regno = 8 - crtl->args.pretend_args_size; regno < 8; regno++)
+        {
+	  insn = emit_move_insn (accum,
+		   gen_rtx_REG (QImode, FIRST_ARG_REGISTER + regno));
+	  RTX_FRAME_RELATED_P (insn) = 1;
+	  insn = emit_insn (gen_storeqi_indy (yreg, stack_pointer_rtx, accum));
+	  RTX_FRAME_RELATED_P (insn) = 1;
+	  if (regno < 7)
+	    {
+	      insn = emit_insn (gen_addqi3 (yreg, yreg, const1_rtx));
+	      RTX_FRAME_RELATED_P (insn) = 1;
+	    }
+	}
+    }
+    
   for (regno = LAST_CALLER_SAVED; regno >= FIRST_CALLER_SAVED; regno--)
     if (df_regs_ever_live_p (regno))
       {
@@ -1249,6 +1272,9 @@ m65x_scalar_mode_supported_p (enum machine_mode mode)
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE m65x_function_value
 
+#undef TARGET_SETUP_INCOMING_VARARGS
+#define TARGET_SETUP_INCOMING_VARARGS m65x_setup_incoming_varargs
+
 #undef TARGET_LIBCALL_VALUE
 #define TARGET_LIBCALL_VALUE m65x_libcall_value
 
@@ -1296,5 +1322,8 @@ m65x_scalar_mode_supported_p (enum machine_mode mode)
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
 #define TARGET_ASM_GLOBALIZE_LABEL m65x_asm_globalize_label
+
+#undef TARGET_CAN_ELIMINATE
+#define TARGET_CAN_ELIMINATE m65x_can_eliminate
 
 struct gcc_target targetm = TARGET_INITIALIZER;
