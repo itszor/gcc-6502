@@ -355,7 +355,11 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
   if (m65x_address_register_p (x, strict))
     return true;
 
-  if (m65x_indirect_indexed_addr_p (mode, x, strict))
+  if (0 && m65x_indirect_indexed_addr_p (mode, x, strict))
+    return true;
+
+  if (0 && !strict && GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
+      && CONST_INT_P (XEXP (x, 1)))
     return true;
 
   if (0 && !strict)
@@ -396,7 +400,7 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
   if (CONSTANT_ADDRESS_P (x))
     return x;
 
-  return force_reg (Pmode, x);
+  return x; // force_reg (Pmode, x);
       
   if (REG_P (x))
     x = gen_rtx_PLUS (Pmode, x, GEN_INT (0));
@@ -473,8 +477,8 @@ m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 {
   if (mode == QImode && (HARD_REG_CLASS_P (to) || HARD_REG_CLASS_P (from)))
     return 2;
-  else if (mode == HImode && HARDISH_REG_CLASS_P (to))
-    return 2;
+  /*else if (mode == HImode && HARDISH_REG_CLASS_P (to))
+    return 2;*/
   else if (ZP_REG_CLASS_P (from) && ZP_REG_CLASS_P (to))
     return 6;
 
@@ -604,7 +608,7 @@ m65x_function_value (const_tree ret_type,
   
   mode = TYPE_MODE (ret_type);
   
-  return gen_rtx_REG (mode, ACC_REGNUM);
+  return gen_rtx_REG (mode, FIRST_ARG_REGISTER);
 }
 
 static void
@@ -618,7 +622,7 @@ m65x_setup_incoming_varargs (cumulative_args_t ca, enum machine_mode mode,
 static rtx
 m65x_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
 {
-  return gen_rtx_REG (mode, ACC_REGNUM);
+  return gen_rtx_REG (mode, FIRST_ARG_REGISTER);
 }
 
 static void
@@ -693,7 +697,7 @@ m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
   /* For the "hard" registers, force values to have the actual LSB in the hard
      register for greater-than-byte-size modes.  */
   if (regno < 12)
-    return (regno % modesize) == 0;
+    return false; // (regno % modesize) == 0;
   else
     return true;
 }
@@ -769,6 +773,8 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   debug_rtx (x);
 #endif
 
+  return NO_REGS;
+
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
      else a register of class RELOAD_CLASS needs to be copied to X.  */
 
@@ -776,7 +782,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     {
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
-	  if (reload_class == HARD_ACCUM_REG || reload_class == WORD_ACCUM_REGS)
+	  if (reload_class == HARD_ACCUM_REG/* || reload_class == WORD_ACCUM_REGS*/)
 	    return NO_REGS;
 	  else
 	    return HARD_ACCUM_REG;
@@ -797,6 +803,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	}
 #endif
     }
+#if 0
   else if (reload_mode == HImode)
     {
       if (base_plus_const_byte_offset_mem (HImode, x))
@@ -819,6 +826,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	    return ACCUM_REGS;
 	}
     }
+#endif
 
   return NO_REGS;
 }
@@ -856,7 +864,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
   
   if (MEM_P (operands[0]))
     {
-      if (CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
+      if (1 || CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
 	return (register_operand (operands[1], mode)
 		|| immediate_operand (operands[1], mode));
       else
@@ -865,7 +873,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
     }
   else if (MEM_P (operands[1]))
     {
-      if (CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
+      if (1 || CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
 	return register_operand (operands[0], mode);
       else
         return /*(mode == QImode &&*/ hard_reg_operand (operands[0], mode)/*)

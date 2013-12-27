@@ -1,22 +1,22 @@
 (define_register_constraint "Aq" "HARD_ACCUM_REG")
-(define_register_constraint "Ah" "WORD_ACCUM_REGS")
-(define_register_constraint "As" "ACCUM_REGS")
+;(define_register_constraint "Ah" "WORD_ACCUM_REGS")
+;(define_register_constraint "As" "ACCUM_REGS")
 
 (define_register_constraint "xq" "HARD_X_REG")
-(define_register_constraint "xh" "WORD_X_REGS")
-(define_register_constraint "xs" "X_REGS")
+;(define_register_constraint "xh" "WORD_X_REGS")
+;(define_register_constraint "xs" "X_REGS")
 
 (define_register_constraint "yq" "HARD_Y_REG")
-(define_register_constraint "yh" "WORD_Y_REGS")
-(define_register_constraint "ys" "Y_REGS")
+;(define_register_constraint "yh" "WORD_Y_REGS")
+;(define_register_constraint "ys" "Y_REGS")
 
 (define_register_constraint "jq" "HARD_INDEX_REGS")
-(define_register_constraint "jh" "WORD_INDEX_REGS")
-(define_register_constraint "js" "INDEX_REGS")
+;(define_register_constraint "jh" "WORD_INDEX_REGS")
+;(define_register_constraint "js" "INDEX_REGS")
 
 (define_register_constraint "hq" "ACTUALLY_HARD_REGS")
-(define_register_constraint "hh" "WORD_HARD_REGS")
-(define_register_constraint "hs" "HARD_REGS")
+;(define_register_constraint "hh" "WORD_HARD_REGS")
+;(define_register_constraint "hs" "HARD_REGS")
 
 (define_constraint "I"
   "An integer 0-255."
