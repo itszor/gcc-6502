@@ -226,7 +226,7 @@
   (match_code "eq,ne,lt,ge"))
 
 (define_predicate "compareqi_src_operand"
-  (match_code "reg,subreg,const_int,mem,label_ref,const")
+  (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
   int regno;
   
@@ -238,6 +238,10 @@
 
   if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
+  
+  if (GET_CODE (op) == LABEL_REF || GET_CODE (op) == SYMBOL_REF
+      || GET_CODE (op) == CONST)
+    return true;
   
   if (!REG_P (op))
     return false;
