@@ -16,7 +16,7 @@
 #define WORDS_BIG_ENDIAN		0
 /*#define LIBGCC2_WORDS_BIG_ENDIAN 	WORDS_BIG_ENDIAN*/
 
-#define BITS_PER_UNIT			8
+/*#define BITS_PER_UNIT			8*/
 #define UNITS_PER_WORD			1
 #define POINTER_SIZE			16
 #define POINTERS_EXTEND_UNSIGNED	1
@@ -187,20 +187,20 @@ enum reg_class
 {
   NO_REGS,
   HARD_ACCUM_REG,
-  WORD_ACCUM_REGS,
-  ACCUM_REGS,
+  /*WORD_ACCUM_REGS,
+  ACCUM_REGS,*/
   HARD_X_REG,
-  WORD_X_REGS,
-  X_REGS,
+  /*WORD_X_REGS,
+  X_REGS,*/
   HARD_Y_REG,
-  WORD_Y_REGS,
-  Y_REGS,
+  /*WORD_Y_REGS,
+  Y_REGS,*/
   HARD_INDEX_REGS,
-  WORD_INDEX_REGS,
-  INDEX_REGS,
+  /*WORD_INDEX_REGS,
+  INDEX_REGS,*/
   ACTUALLY_HARD_REGS,
-  WORD_HARD_REGS,
-  HARD_REGS,
+  /*WORD_HARD_REGS,
+  HARD_REGS,*/
   STACK_REG,
   ARG_REGS,
   CALLEE_SAVED_REGS,
@@ -218,20 +218,20 @@ enum reg_class
 {				\
   "NO_REGS",			\
   "HARD_ACCUM_REG",		\
-  "WORD_ACCUM_REGS",		\
-  "ACCUM_REGS",			\
+  /*"WORD_ACCUM_REGS",		\
+  "ACCUM_REGS",*/			\
   "HARD_X_REG",			\
-  "WORD_X_REGS",		\
-  "X_REGS",			\
+  /*"WORD_X_REGS",		\
+  "X_REGS",*/			\
   "HARD_Y_REG",			\
-  "WORD_Y_REGS",		\
-  "Y_REGS",			\
+  /*"WORD_Y_REGS",		\
+  "Y_REGS",*/			\
   "HARD_INDEX_REGS",		\
-  "WORD_INDEX_REGS",		\
-  "INDEX_REGS",			\
+  /*"WORD_INDEX_REGS",		\
+  "INDEX_REGS",*/			\
   "ACTUALLY_HARD_REGS",		\
-  "WORD_HARD_REGS",		\
-  "HARD_REGS",			\
+  /*"WORD_HARD_REGS",		\
+  "HARD_REGS",*/			\
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
@@ -246,20 +246,20 @@ enum reg_class
 {				\
   { 0x00000000, 0x000 },	\
   { 0x00000001, 0x000 },	\
-  { 0x00000003, 0x000 },	\
-  { 0x0000000f, 0x000 },	\
+  /*{ 0x00000003, 0x000 },	\
+  { 0x0000000f, 0x000 },*/	\
   { 0x00000010, 0x000 },	\
-  { 0x00000030, 0x000 },	\
-  { 0x000000f0, 0x000 },	\
+  /*{ 0x00000030, 0x000 },	\
+  { 0x000000f0, 0x000 },*/	\
   { 0x00000100, 0x000 },	\
-  { 0x00000300, 0x000 },	\
-  { 0x00000f00, 0x000 },	\
+  /*{ 0x00000300, 0x000 },	\
+  { 0x00000f00, 0x000 },*/	\
   { 0x00000110, 0x000 },	\
-  { 0x00000330, 0x000 },	\
-  { 0x00000ff0, 0x000 },	\
+  /*{ 0x00000330, 0x000 },	\
+  { 0x00000ff0, 0x000 },*/	\
   { 0x00000111, 0x000 },	\
-  { 0x00000333, 0x000 },	\
-  { 0x00000fff, 0x000 },	\
+  /*{ 0x00000333, 0x000 },	\
+  { 0x00000fff, 0x000 },*/	\
   { 0x0000f000, 0x000 },	\
   { 0x00ff0000, 0x000 },	\
   { 0xff000000, 0x000 },	\
@@ -272,17 +272,17 @@ enum reg_class
 
 #define REGNO_REG_CLASS(REGNO)						\
   ((REGNO) == ACC_REGNUM ? HARD_ACCUM_REG :				\
-   (REGNO) == (ACC_REGNUM + 1) ? WORD_ACCUM_REGS :			\
+   /*(REGNO) == (ACC_REGNUM + 1) ? WORD_ACCUM_REGS :			\
    (REGNO) >= (ACC_REGNUM + 2) && (REGNO) < (ACC_REGNUM + 4)		\
-    ? ACCUM_REGS :							\
+    ? ACCUM_REGS :*/							\
    (REGNO) == X_REGNUM ? HARD_X_REG :					\
-   (REGNO) == (X_REGNUM + 1) ? WORD_X_REGS :				\
+   /*(REGNO) == (X_REGNUM + 1) ? WORD_X_REGS :				\
    (REGNO) >= (X_REGNUM + 2) && (REGNO) < (X_REGNUM + 4)		\
-     ? X_REGS :								\
+     ? X_REGS :*/							\
    (REGNO) == Y_REGNUM ? HARD_Y_REG :					\
-   (REGNO) == (Y_REGNUM + 1) ? WORD_Y_REGS :				\
+   /*(REGNO) == (Y_REGNUM + 1) ? WORD_Y_REGS :				\
    (REGNO) >= (Y_REGNUM + 2) && (REGNO) < (Y_REGNUM + 4)		\
-     ? Y_REGS :								\
+     ? Y_REGS :	*/							\
    (REGNO) >= SP_REGNUM && (REGNO) < (SP_REGNUM + 4) ? STACK_REG :	\
    (REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER	\
      ? ARG_REGS :							\
@@ -297,7 +297,7 @@ enum reg_class
    (REGNO) >= CC_REGNUM && (REGNO) <= (CC_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
-#define INDEX_REG_CLASS	WORD_Y_REGS
+#define INDEX_REG_CLASS	NO_REGS
 
 #define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))
 
@@ -321,12 +321,12 @@ enum reg_class
    || (CLASS) == HARD_Y_REG || (CLASS) == HARD_INDEX_REGS	\
    || (CLASS) == ACTUALLY_HARD_REGS)
 
-#define HARDISH_REG_CLASS_P(CLASS)				\
+/*#define HARDISH_REG_CLASS_P(CLASS)				\
   ((CLASS) == WORD_ACCUM_REGS || (CLASS) == ACCUM_REGS		\
    || (CLASS) == WORD_X_REGS || (CLASS) == X_REGS		\
    || (CLASS) == WORD_Y_REGS || (CLASS) == Y_REGS		\
    || (CLASS) == WORD_INDEX_REGS || (CLASS) == INDEX_REGS	\
-   || (CLASS) == WORD_HARD_REGS || (CLASS) == HARD_REGS)
+   || (CLASS) == WORD_HARD_REGS || (CLASS) == HARD_REGS)*/
 
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
@@ -376,7 +376,7 @@ enum reg_class
   ((REGNO) >= FIRST_ARG_REGISTER && (REGNO) <= LAST_ARG_REGISTER)
 
 #define FUNCTION_VALUE_REGNO_P(REGNO) \
-  ((REGNO) >= ACC_REGNUM && (REGNO) < (ACC_REGNUM + 4))
+  ((REGNO) >= FIRST_ARG_REGISTER && (REGNO) < (FIRST_ARG_REGISTER + 4))
 
 /* Scalar return.  */
 
@@ -409,7 +409,7 @@ typedef int CUMULATIVE_ARGS;
  * Addressing modes.
  *****************************************************************************/
 
-#define MAX_REGS_PER_ADDRESS		2
+#define MAX_REGS_PER_ADDRESS		1
 
 /*#define LEGITIMATE_CONSTANT_P(X)	1*/
 
