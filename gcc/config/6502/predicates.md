@@ -80,6 +80,10 @@
   (and (match_code "mem")
        (match_test "CONSTANT_ADDRESS_P (XEXP (op, 0))")))
 
+(define_predicate "indirect_mem_operand"
+  (and (match_code "mem")
+       (match_test "REG_P (XEXP (op, 0))")))
+
 (define_predicate "ind_y_mem_operand"
   (and (match_code "mem")
        (match_test "GET_CODE (XEXP (op, 0)) == PLUS
