@@ -465,7 +465,7 @@ typedef int CUMULATIVE_ARGS;
     "a", "ah", "ah2", "ah3",					\
     "x", "xh", "xh2", "xh3",					\
     "y", "yh", "yh2", "yh3",					\
-    "sp", "sph", "fp", "fph",					\
+    "sp0", "sp1", "fp0", "fp1",					\
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",		\
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
