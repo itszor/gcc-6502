@@ -741,7 +741,7 @@ base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
   if (REG_P (x))
     return true;
 
-  if (GET_CODE (x) == PLUS
+  if (0 && GET_CODE (x) == PLUS
       && REG_P (XEXP (x, 0))
       && CONST_INT_P (XEXP (x, 1))
       && INTVAL (XEXP (x, 1)) >= 0
@@ -773,8 +773,6 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   debug_rtx (x);
 #endif
 
-  return NO_REGS;
-
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
      else a register of class RELOAD_CLASS needs to be copied to X.  */
 
@@ -782,7 +780,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     {
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
-	  if (reload_class == HARD_ACCUM_REG/* || reload_class == WORD_ACCUM_REGS*/)
+	  if (reload_class == HARD_ACCUM_REG)
 	    return NO_REGS;
 	  else
 	    return HARD_ACCUM_REG;
@@ -863,22 +861,10 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 #endif
   
   if (MEM_P (operands[0]))
-    {
-      if (1 || CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
-	return (register_operand (operands[1], mode)
-		|| immediate_operand (operands[1], mode));
-      else
-        return /*(mode == QImode &&*/ hard_reg_operand (operands[1], mode)/*)
-		|| (mode != QImode && accumulator_operand (operands[1], mode))*/;
-    }
+    return (register_operand (operands[1], mode)
+	    || immediate_operand (operands[1], mode));
   else if (MEM_P (operands[1]))
-    {
-      if (1 || CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
-	return register_operand (operands[0], mode);
-      else
-        return /*(mode == QImode &&*/ hard_reg_operand (operands[0], mode)/*)
-	       || (mode != QImode && accumulator_operand (operands[0], mode))*/;
-    }
+    return register_operand (operands[0], mode);
   else
     return (accumulator_operand (operands[0], mode)
             && (index_reg_operand (operands[1], mode)
