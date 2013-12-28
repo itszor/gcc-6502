@@ -55,10 +55,10 @@ m65x_file_start (void)
   fprintf (asm_out_file, "\t.define _yh2 $%x\n", zploc++);
   fprintf (asm_out_file, "\t.define _yh3 $%x\n", zploc++);
   
-  fprintf (asm_out_file, "\t.define _sp $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _sph $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _fp $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _fph $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _sp0 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _sp1 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _fp0 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.define _fp1 $%x\n", zploc++);
   
   for (i = 0; i < 8; i++)
     fprintf (asm_out_file, "\t.define _r%d $%x\n", i, zploc++);
