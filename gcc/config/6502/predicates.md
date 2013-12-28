@@ -220,6 +220,10 @@
   (and (match_code "const_int")
        (match_test "INTVAL (op) >= 1 && INTVAL (op) <= 8")))
 
+(define_predicate "const_one_amount"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 1")))
+
 (define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
