@@ -455,6 +455,18 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_OUTPUT_ASCII(STREAM, PTR, LEN) \
   m65x_output_ascii ((STREAM), (PTR), (LEN))
 
+#define ASM_OUTPUT_LABEL(STREAM, NAME)	\
+  do {					\
+    assemble_name ((STREAM), (NAME));	\
+    fputs (":\n", (STREAM));		\
+  } while (0)
+
+/* The ca65 assembler does not like single-character labels (especially ones
+   which look like the a,x,y registers).  Suffix such names with "$".  */
+
+#define ASM_OUTPUT_LABELREF(STREAM, NAME) \
+  fprintf ((STREAM), "%s%s", (NAME), strlen (NAME) == 1 ? "$" : "")
+
 #define ASM_GENERATE_INTERNAL_LABEL(LABEL, PREFIX, NUM) \
   sprintf (LABEL, "%s@%u", PREFIX, (unsigned) (NUM))
 
@@ -491,15 +503,17 @@ typedef int CUMULATIVE_ARGS;
 
 #define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
+    bool needs_dollar = strlen (NAME) == 1;			\
     fprintf ((STREAM), "\t.global ");				\
     assemble_name ((STREAM), (NAME));				\
-    fprintf ((STREAM), "\n%s:\n\t.res %d\n", (NAME), (int) (SIZE)); \
+    fprintf ((STREAM), "\n%s%s:\n\t.res %d\n", (NAME),		\
+	     needs_dollar ? "$" : "", (int) (SIZE));		\
   } while (0)
 
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
     assemble_name ((STREAM), (NAME));				\
-    fprintf ((STREAM), ":\n");					\
+    fprintf ((STREAM), "%s:\n", strlen (NAME) == 1 ? "$" : "");	\
   } while (0)
 
 #define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
@@ -511,7 +525,7 @@ typedef int CUMULATIVE_ARGS;
 
 #define HAS_INIT_SECTION
 
-#define NO_DOLLAR_IN_LABEL
+#undef NO_DOLLAR_IN_LABEL
 
 #define NO_DOT_IN_LABEL
 
@@ -548,3 +562,22 @@ typedef int CUMULATIVE_ARGS;
 /* Hard-wire the semi65x linker script for now.  */
 #undef LINK_SPEC
 #define LINK_SPEC "--config %R/lib/cc65/cfg/semi65x.cfg"
+
+extern const char *m65x_fix_dash_l_libs (int argc, const char **argv);
+
+#define EXTRA_SPEC_FUNCTIONS \
+  { "fix_dash_l_libs", m65x_fix_dash_l_libs },
+
+/* A simplified version of LINK_COMMAND_SPEC in gcc.c: the principal
+   difference, other than removing things which aren't interesting for 6502,
+   is the fix_dash_l_libs wrapping the %o specifier.  */
+
+#define LINK_COMMAND_SPEC "\
+%{!fsyntax-only:%{!c:%{!M:%{!MM:%{!E:%{!S:\
+    %(linker) \
+    %l %X %{o*} %{e*} %{N} %{n} %{r}\
+    %{s} %{t} %{u*} %{z} %{Z} %{!nostdlib:%{!nostartfiles:%S}} \
+    %{static:} %{L*} %(mfwrap) %(link_libgcc)  %:fix_dash_l_libs(%o) \
+    %{fprofile-arcs|fprofile-generate*|coverage:-lgcov}  \
+    %{!nostdlib:%{!nodefaultlibs:%(link_gcc_c_sequence)}}\
+    %{!nostdlib:%{!nostartfiles:%E}} %{T*} }}}}}}"
