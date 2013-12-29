@@ -578,11 +578,16 @@ m65x_legitimize_reload_address (rtx *px, enum machine_mode mode, int opnum,
 
 static rtx
 m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
-		   const_tree type ATTRIBUTE_UNUSED,
+		   const_tree type,
 		   bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
-  int modesize = GET_MODE_SIZE (mode);
+  int modesize;
+
+  if (mode == BLKmode)
+    modesize = int_size_in_bytes (type);
+  else
+    modesize = GET_MODE_SIZE (mode);
 
   if ((*pcum) + modesize <= 8)
     return gen_rtx_REG (mode, (*pcum) + FIRST_ARG_REGISTER);
