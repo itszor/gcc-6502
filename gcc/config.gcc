@@ -883,6 +883,8 @@ aarch64*-*-elf)
 	;;
 6502-*-*)
 	tm_file="${tm_file} 6502/6502-stdint.h"
+	tmake_file="6502/t-6502"
+	extra_gcc_objs="driver-6502.o"
 	;;
 65816-*-*)
 	;;

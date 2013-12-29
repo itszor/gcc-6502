@@ -42,6 +42,7 @@ m65x_file_start (void)
   int zploc = 0x70;
   
   fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
+  fprintf (asm_out_file, "\t.feature dollar_in_identifiers\n");
   fprintf (asm_out_file, "\t.autoimport +\n");
   fprintf (asm_out_file, "\t.psc02\n");
   
@@ -628,7 +629,7 @@ m65x_libcall_value (enum machine_mode mode, const_rtx fun ATTRIBUTE_UNUSED)
 static void
 m65x_asm_globalize_label (FILE *stream, const char *name)
 {
-  fprintf (stream, "\t.export %s\n", name);
+  fprintf (stream, "\t.export %s%s\n", name, strlen (name) == 1 ? "$" : "");
 }
 
 static void
