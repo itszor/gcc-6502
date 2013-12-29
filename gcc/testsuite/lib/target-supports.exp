@@ -480,7 +480,8 @@ proc check_effective_target_trampolines { } {
     if [target_info exists no_trampolines] {
       return 0
     }
-    if { [istarget avr-*-*]
+    if { [istarget 6502-*-*]
+	 || [istarget avr-*-*]
 	 || [istarget msp430-*-*]
 	 || [istarget nvptx-*-*]
 	 || [istarget hppa2.0w-hp-hpux11.23]

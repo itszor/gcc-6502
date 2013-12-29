@@ -551,7 +551,7 @@ typedef int CUMULATIVE_ARGS;
    fixing that.  FIXME.  */
 
 #undef CC1_SPEC
-#define CC1_SPEC "-P"
+#define CC1_SPEC "-P %<g*"
 
 #undef LIB_SPEC
 #define LIB_SPEC "-L%R/usr/lib libtinyc.a"
