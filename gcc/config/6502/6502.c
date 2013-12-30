@@ -1097,6 +1097,26 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     }
 }
 
+/* We have:
+
+    __________________________
+    |                        |
+    |     incoming args      |
+    |                        |
+    |________________________|  <-- old stack pointer
+    |      pretend args      |
+    |________________________|  <-- soft arg pointer
+    |                        |
+    |   locals (frame size)  |
+    |                        |
+    |________________________|  <-- soft/hard frame pointer
+    |                        |
+    |      outgoing args     |
+    |                        |
+    |________________________|  <-- current/outgoing stack pointer
+    
+*/
+
 HOST_WIDE_INT
 m65x_elimination_offset (int from, int to)
 {
@@ -1106,11 +1126,11 @@ m65x_elimination_offset (int from, int to)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return crtl->outgoing_args_size + frame_size;
+        return -(crtl->outgoing_args_size + frame_size);
       case FRAME_POINTER_REGNUM:
-        return 0;
-      case FP_REGNUM:
-        return 0;
+        return -frame_size;
+      case HARD_FRAME_POINTER_REGNUM:
+        return -frame_size;
       default:
         gcc_unreachable ();
       }
@@ -1118,8 +1138,8 @@ m65x_elimination_offset (int from, int to)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return -(crtl->outgoing_args_size + frame_size);
-      case FP_REGNUM:
+        return -crtl->outgoing_args_size;
+      case HARD_FRAME_POINTER_REGNUM:
         return 0;
       default:
         gcc_unreachable ();
@@ -1138,35 +1158,26 @@ m65x_can_eliminate (const int from, const int to)
   return true;
 }
 
+/* See ASCII diagram for m65x_elimination_offset.  */
+
 void
 m65x_expand_prologue (void)
 {
   int regno;
   rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
   HOST_WIDE_INT frame_size = get_frame_size ();
-  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;
+  /*HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;*/
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   int args_pushed = crtl->args.pretend_args_size;
   
-  if (frame_pointer_needed)
-    {
-      insn = emit_insn (gen_movhi (hard_frame_pointer_rtx, stack_pointer_rtx));
-      /* FIXME: Frame-related insns can't be split, so this should be an insn
-         which doesn't need splitting.  I think it should still look like a
-	 register move though.  */
-      //RTX_FRAME_RELATED_P (insn) = 1;
-    }
-  
-  if (stack_offset + args_pushed != 0)
-    {
-      insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			GEN_INT (-(stack_offset + args_pushed))));
-      RTX_FRAME_RELATED_P (insn) = 1;
-    }
-
   if (crtl->args.pretend_args_size > 0)
     {
-      insn = emit_move_insn (yreg, GEN_INT (stack_offset));
+      /* We don't even pretend (no pun intended!) to make varargs functions
+         efficient...  */
+      insn = gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+			 GEN_INT (-args_pushed));
+      RTX_FRAME_RELATED_P (insn) = 1;
+      insn = emit_move_insn (yreg, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
 
       for (regno = 8 - crtl->args.pretend_args_size; regno < 8; regno++)
@@ -1183,7 +1194,23 @@ m65x_expand_prologue (void)
 	    }
 	}
     }
-    
+
+  /* SP now points at "soft arg pointer".  */
+
+  if (frame_pointer_needed)
+    {
+      insn = emit_insn (gen_addhi3 (hard_frame_pointer_rtx, stack_pointer_rtx,
+				    GEN_INT (-frame_size)));
+      RTX_FRAME_RELATED_P (insn) = 1;
+    }
+  
+  if (frame_size + crtl->outgoing_args_size != 0)
+    {
+      insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+			  GEN_INT (-(frame_size + crtl->outgoing_args_size))));
+      RTX_FRAME_RELATED_P (insn) = 1;
+    }
+
   for (regno = LAST_CALLER_SAVED; regno >= FIRST_CALLER_SAVED; regno--)
     if (df_regs_ever_live_p (regno))
       {
@@ -1199,7 +1226,8 @@ m65x_expand_epilogue (void)
   int regno;
   rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
   HOST_WIDE_INT frame_size = get_frame_size ();
-  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;
+  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size
+			       + crtl->args.pretend_args_size;
 
   emit_insn (gen_blockage ());
 
@@ -1210,16 +1238,10 @@ m65x_expand_epilogue (void)
 	emit_insn (gen_movqi (gen_rtx_REG (QImode, regno), accum));
       }
   
+  /* FIXME: Push initial stack pointer onto HW stack instead?  */
   if (stack_offset != 0)
-    {
-      /* If we have a frame pointer, it's easier to copy the caller's SP
-         directly from it rather than do a two-byte addition.  */
-      if (frame_pointer_needed)
-	emit_insn (gen_movhi (stack_pointer_rtx, hard_frame_pointer_rtx));
-      else
-	emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			       GEN_INT (stack_offset)));
-    }
+    emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+			   GEN_INT (stack_offset)));
   
   emit_jump_insn (gen_m65x_return ());
 }
