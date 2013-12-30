@@ -37,5 +37,7 @@
 	sta _r2
 	sta _r3
 	jsr main
+	; Retrieve exit code
+	lda _r0
 	; This is a special hack to exit the semi65x emulator.
 	jmp 0
