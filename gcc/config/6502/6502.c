@@ -111,13 +111,17 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	case REG:
 	  asm_fprintf (stream, "%r", REGNO (x));
 	  break;
-	  
+	
 	case MEM:
 	  output_address (XEXP (x, 0));
 	  break;
 	
+	case CONST_INT:
+	  asm_fprintf (stream, "$%.2x", (int) INTVAL (x) & 0xff);
+	  break;
+	
 	default:
-	  output_addr_const (stream, x);
+	  m65x_print_operand_address (stream, x);
 	}
     }
 }
@@ -161,6 +165,19 @@ m65x_print_operand_address (FILE *stream, rtx x)
 
     case CONST_INT:
       asm_fprintf (stream, "$%.4x", (int) INTVAL (x) & 0xffff);
+      break;
+
+    case SUBREG:
+      /* If we have this, we're probably dealing with the address of a label
+         or similar -- that is, we're outputting an immediate.  */
+      if (SUBREG_BYTE (x) == 0)
+	asm_fprintf (stream, "<(");
+      else if (SUBREG_BYTE (x) == 1)
+        asm_fprintf (stream, ">(");
+      else
+        output_operand_lossage ("invalid subreg operand");
+      output_addr_const (stream, x);
+      asm_fprintf (stream, ")");
       break;
 
     default:
@@ -998,10 +1015,10 @@ void
 m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 			     rtx scratch)
 {
-  rtx op0_lo = gen_lowpart (QImode, op0);
-  rtx op1_lo = gen_lowpart (QImode, op1);
-  rtx op0_hi = gen_highpart_mode (QImode, HImode, op0);
-  rtx op1_hi = gen_highpart_mode (QImode, HImode, op1);
+  rtx op0_lo = simplify_gen_subreg (QImode, op0, HImode, 0);
+  rtx op1_lo = simplify_gen_subreg (QImode, op1, HImode, 0);
+  rtx op0_hi = simplify_gen_subreg (QImode, op0, HImode, 1);
+  rtx op1_hi = simplify_gen_subreg (QImode, op1, HImode, 1);
   rtx cc_reg = gen_rtx_REG (CCmode, CC_REGNUM);
   rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
   rtx new_label = NULL_RTX;
