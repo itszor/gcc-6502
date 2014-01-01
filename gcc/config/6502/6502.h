@@ -411,8 +411,6 @@ typedef int CUMULATIVE_ARGS;
 
 #define MAX_REGS_PER_ADDRESS		1
 
-/*#define LEGITIMATE_CONSTANT_P(X)	1*/
-
 #define LEGITIMIZE_RELOAD_ADDRESS(X, MODE, OPNUM, TYPE, IND_L, WIN)	\
   do {									\
     rtx new_x = m65x_legitimize_reload_address (&(X), (MODE), (OPNUM),	\
