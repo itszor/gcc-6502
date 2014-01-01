@@ -233,6 +233,9 @@
 (define_special_predicate "qimode_sgn_comparison"
   (match_code "eq,ne,lt,ge"))
 
+(define_special_predicate "qimode_nonly_comparison"
+  (match_code "lt,ge"))
+
 (define_predicate "compareqi_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
