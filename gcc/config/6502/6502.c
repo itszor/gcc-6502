@@ -215,7 +215,16 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    default: gcc_unreachable ();
 	    }
 	  break;
-	
+
+	case CC_Nmode:
+	  switch (GET_CODE (cond))
+	    {
+	    case GE: br = "bmi :+"; break;
+	    case LT: br = "bpl :+"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+
 	default:
 	  gcc_unreachable ();
 	}
@@ -248,6 +257,15 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    {
 	    case EQ: fmt = "bvc %0"; break;
 	    case NE: fmt = "bvs %0"; break;
+	    case GE: fmt = "bpl %0"; break;
+	    case LT: fmt = "bmi %0"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+
+	case CC_Nmode:
+	  switch (GET_CODE (cond))
+	    {
 	    case GE: fmt = "bpl %0"; break;
 	    case LT: fmt = "bmi %0"; break;
 	    default: gcc_unreachable ();
