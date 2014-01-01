@@ -17,3 +17,9 @@ CC_MODE (CC_C);
    LT -- N is 1.  */
 
 CC_MODE (CC_NV);
+
+/* CC_N codes (when only N is valid):
+   LT -- N is 1
+   GE -- N is 0.  */
+
+CC_MODE (CC_N);
