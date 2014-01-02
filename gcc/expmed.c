@@ -3370,7 +3370,9 @@ expand_mult_const (machine_mode mode, rtx op0, HOST_WIDE_INT val,
 	    {
 	      accum_inner = SUBREG_REG (accum);
 	      nmode = GET_MODE (accum_inner);
-	      tem = gen_lowpart (nmode, op0);
+	      /* ??? Previously gen_lowpart, which would fail to create a
+	         paradoxical subreg and then crash.  */
+	      tem = gen_lowpart_common (nmode, op0);
 	    }
 
 	  /* Don't add a REG_EQUAL note if tem is a paradoxical SUBREG.
