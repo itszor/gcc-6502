@@ -386,6 +386,13 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
   if (CONSTANT_ADDRESS_P (x))
     return true;
 
+  /* Allow pre-increment/post-decrement only for the hardware stack pointer,
+     i.e. ph* and pl* instructions.  */
+  if ((GET_CODE (x) == PRE_INC || GET_CODE (x) == POST_DEC)
+      && mode == QImode
+      && REG_P (XEXP (x, 0)) && REGNO (XEXP (x, 0)) == HARDSP_REGNUM)
+    return true;
+
   /* Plain (mem (reg)) can't be disallowed, else the middle end gets very
      upset.  */
   if (m65x_address_register_p (x, strict))
@@ -902,10 +909,22 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 #endif
   
   if (MEM_P (operands[0]))
-    return (register_operand (operands[1], mode)
-	    || immediate_operand (operands[1], mode));
+    {
+      if (GET_CODE (XEXP (operands[0], 0)) == POST_DEC
+	  || GET_CODE (XEXP (operands[0], 0)) == PRE_INC)
+        return mode == QImode && accumulator_operand (operands[1], mode);
+      else
+	return (register_operand (operands[1], mode)
+		|| immediate_operand (operands[1], mode));
+    }
   else if (MEM_P (operands[1]))
-    return register_operand (operands[0], mode);
+    {
+      if (GET_CODE (XEXP (operands[1], 0)) == POST_DEC
+	  || GET_CODE (XEXP (operands[1], 0)) == PRE_INC)
+	return mode == QImode && accumulator_operand (operands[0], mode);
+      else
+	return register_operand (operands[0], mode);
+    }
   else
     return (accumulator_operand (operands[0], mode)
             && (index_reg_operand (operands[1], mode)
@@ -1204,6 +1223,27 @@ m65x_expand_prologue (void)
   /*HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;*/
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   int args_pushed = crtl->args.pretend_args_size;
+  rtx push_rtx = gen_rtx_MEM (QImode,
+		   gen_rtx_POST_DEC (HImode,
+				     gen_rtx_REG (HImode, HARDSP_REGNUM)));
+  
+  /* Push SP if we modify it.  */
+  if (crtl->args.pretend_args_size + frame_size + crtl->outgoing_args_size != 0)
+    for (regno = 1; regno >= 0; regno--)
+      {
+	emit_insn (gen_movqi (accum, gen_rtx_REG (QImode, SP_REGNUM + regno)));
+	insn = emit_insn (gen_pushqi1 (push_rtx, accum));
+	RTX_FRAME_RELATED_P (insn) = 1;
+      }
+  
+  /* Likewise, push FP if we are going to modify/use it.  */
+  if (frame_pointer_needed)
+    for (regno = 1; regno >= 0; regno--)
+      {
+	emit_insn (gen_movqi (accum, gen_rtx_REG (QImode, FP_REGNUM + regno)));
+	insn = emit_insn (gen_pushqi1 (push_rtx, accum));
+	RTX_FRAME_RELATED_P (insn) = 1;
+      }
   
   if (crtl->args.pretend_args_size > 0)
     {
@@ -1250,7 +1290,7 @@ m65x_expand_prologue (void)
     if (df_regs_ever_live_p (regno))
       {
         emit_insn (gen_movqi (accum, gen_rtx_REG (QImode, regno)));
-	insn = emit_insn (gen_pushqi1 (accum));
+	insn = emit_insn (gen_pushqi1 (push_rtx, accum));
 	RTX_FRAME_RELATED_P (insn) = 1;
       }
 }
@@ -1263,20 +1303,40 @@ m65x_expand_epilogue (void)
   HOST_WIDE_INT frame_size = get_frame_size ();
   HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size
 			       + crtl->args.pretend_args_size;
+  rtx pop_rtx = gen_rtx_MEM (QImode,
+		   gen_rtx_PRE_INC (HImode,
+				    gen_rtx_REG (HImode, HARDSP_REGNUM)));
 
   emit_insn (gen_blockage ());
 
   for (regno = FIRST_CALLER_SAVED; regno <= LAST_CALLER_SAVED; regno++)
     if (df_regs_ever_live_p (regno))
       {
-        emit_insn (gen_popqi1 (accum));
+        emit_insn (gen_popqi1 (accum, pop_rtx));
 	emit_insn (gen_movqi (gen_rtx_REG (QImode, regno), accum));
       }
   
-  /* FIXME: Push initial stack pointer onto HW stack instead?  */
+  if (frame_pointer_needed)
+    for (regno = 0; regno <= 1; regno++)
+      {
+        emit_insn (gen_popqi1 (accum, pop_rtx));
+	emit_insn (gen_movqi (gen_rtx_REG (QImode, FP_REGNUM + regno), accum));
+      }
+  
   if (stack_offset != 0)
-    emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			   GEN_INT (stack_offset)));
+    {
+      for (regno = 0; regno <= 1; regno++)
+	{
+          emit_insn (gen_popqi1 (accum, pop_rtx));
+	  emit_insn (gen_movqi (gen_rtx_REG (QImode, SP_REGNUM + regno),
+				accum));
+	}
+  
+      emit_use (gen_rtx_REG (HImode, SP_REGNUM));
+    }
+  
+  if (frame_pointer_needed)
+    emit_use (gen_rtx_REG (HImode, FP_REGNUM));
   
   emit_jump_insn (gen_m65x_return ());
 }
