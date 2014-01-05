@@ -116,9 +116,12 @@
 #define FIRST_ZP_REGISTER SP_REGNUM
 #define LAST_ZP_REGISTER LAST_CALLER_SAVED
 #define CC_REGNUM 36
+/* We pretend this is 2 bytes because it is used as a pointer, and pointers are
+   supposed to be HImode.  It's an opaque quantity anyway so it doesn't matter
+   if it's a lie.  */
 #define HARDSP_REGNUM 40
-#define TMP0_REGNUM 41
-#define TMP1_REGNUM 42
+#define TMP0_REGNUM 42
+#define TMP1_REGNUM 43
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
@@ -137,7 +140,7 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1 }
+    1, 1, 1, 1 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -148,9 +151,9 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1 }
+    1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 43
+#define FIRST_PSEUDO_REGISTER 44
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -158,7 +161,7 @@
     16, 17, 18, 19, 20, 21, 22, 23, \
     24, 25, 26, 27, 28, 29, 30, 31, \
     32, 33, 34, 35, 36, 37, 38, 39, \
-    40, 41, 42 }
+    40, 41, 42, 43 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -264,10 +267,10 @@ enum reg_class
   { 0x00ff0000, 0x000 },	\
   { 0xff000000, 0x000 },	\
   { 0x00000000, 0x0f0 },	\
-  { 0xfffffeee, 0x600 },	\
+  { 0xfffffeee, 0xc00 },	\
   { 0x00000000, 0x003 },	\
   { 0x00000000, 0x00c },	\
-  { 0xffffffff, 0x7f0 },	\
+  { 0xffffffff, 0xff0 },	\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -422,6 +425,11 @@ typedef int CUMULATIVE_ARGS;
       }									\
   } while (0)
 
+#define HAVE_PRE_INCREMENT 1
+#define HAVE_POST_INCREMENT 0
+#define HAVE_PRE_DECREMENT 0
+#define HAVE_POST_DECREMENT 1
+
 /*****************************************************************************
  * Costs.
  *****************************************************************************/
@@ -480,7 +488,7 @@ typedef int CUMULATIVE_ARGS;
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
     "?cc", "?cc1", "?cc2", "?cc3",				\
-    "?hardsp", "tmp0", "tmp1"					\
+    "?hardsp0", "?hardsp1", "tmp0", "tmp1"			\
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
