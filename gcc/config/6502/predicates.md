@@ -93,6 +93,11 @@
 		    && INTVAL (XEXP (XEXP (op, 0), 1)) >= 0
 		    && INTVAL (XEXP (XEXP (op, 0), 1)) < 256")))
 
+(define_predicate "hard_sp_operand"
+  (and (match_code "mem")
+       (match_test "REG_P (XEXP (op, 0))
+		    && REGNO (XEXP (op, 0)) == HARDSP_REGNUM")))
+
 (define_predicate "strict_zp_reg_operand"
   (match_code "reg")
 {
