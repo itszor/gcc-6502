@@ -639,12 +639,17 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
 
 static void
 m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
-			   const_tree type ATTRIBUTE_UNUSED,
-			   bool named ATTRIBUTE_UNUSED)
+			   const_tree type, bool named ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
+  int modesize;
   
-  (*pcum) += GET_MODE_SIZE (mode);
+  if (mode == BLKmode)
+    modesize = int_size_in_bytes (type);
+  else
+    modesize = GET_MODE_SIZE (mode);
+  
+  (*pcum) += modesize;
 }
 
 static rtx
@@ -833,6 +838,9 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	  else
 	    return HARD_ACCUM_REG;
 	}
+      else if (ZP_REG_CLASS_P (reload_class) && REG_P (x)
+	       && IS_ZP_REGNUM (REGNO (x)))
+	return ACTUALLY_HARD_REGS;
       /*else if (REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
         {
 	  if (reg_classes_intersect_p (reload_class, GENERAL_REGS))
@@ -912,7 +920,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
     {
       if (GET_CODE (XEXP (operands[0], 0)) == POST_DEC
 	  || GET_CODE (XEXP (operands[0], 0)) == PRE_INC)
-        return mode == QImode && accumulator_operand (operands[1], mode);
+        return mode == QImode && hard_reg_operand (operands[1], mode);
       else
 	return (register_operand (operands[1], mode)
 		|| immediate_operand (operands[1], mode));
@@ -921,7 +929,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
     {
       if (GET_CODE (XEXP (operands[1], 0)) == POST_DEC
 	  || GET_CODE (XEXP (operands[1], 0)) == PRE_INC)
-	return mode == QImode && accumulator_operand (operands[0], mode);
+	return mode == QImode && hard_reg_operand (operands[0], mode);
       else
 	return register_operand (operands[0], mode);
     }
@@ -936,7 +944,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 		   || immediate_operand (operands[1], mode)))
 	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
-		   || ptr_reg_operand (operands[1], mode)
+		   /*|| ptr_reg_operand (operands[1], mode)*/
 		   || immediate_operand (operands[1], mode)))
 	   || (y_reg_operand (operands[0], mode)
 	       && x_reg_operand (operands[1], mode))
@@ -1249,8 +1257,8 @@ m65x_expand_prologue (void)
     {
       /* We don't even pretend (no pun intended!) to make varargs functions
          efficient...  */
-      insn = gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			 GEN_INT (-args_pushed));
+      insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
+				    GEN_INT (-args_pushed)));
       RTX_FRAME_RELATED_P (insn) = 1;
       insn = emit_move_insn (yreg, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;

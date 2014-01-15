@@ -313,11 +313,8 @@ enum reg_class
 #define CLASS_MAX_NREGS(CLASS, MODE)		\
   (GET_MODE_SIZE (MODE))
 
-#if 0
-#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, M) \
-  (((CLASS1) == HARD_X_REG && (CLASS2) == HARD_Y_REG) \
-   || ((CLASS1) == HARD_Y_REG && (CLASS2) == HARD_X_REG))
-#endif
+/*#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE) \
+  ((MODE) == QImode && ZP_REG_CLASS_P (CLASS1) && ZP_REG_CLASS_P (CLASS2))*/
 
 #define HARD_REG_CLASS_P(CLASS)					\
   ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\

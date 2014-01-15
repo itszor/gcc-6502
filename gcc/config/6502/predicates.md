@@ -99,12 +99,12 @@
 		    && REGNO (XEXP (op, 0)) == HARDSP_REGNUM")))
 
 (define_predicate "strict_zp_reg_operand"
-  (match_code "reg")
+  (match_code "subreg,reg")
 {
-  /*if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);*/
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
   
-  return /*REG_P (op) &&*/ IS_ZP_REGNUM (REGNO (op));
+  return REG_P (op) && IS_ZP_REGNUM (REGNO (op));
 })
 
 (define_predicate "zp_reg_operand"
@@ -138,6 +138,23 @@
   
   return IS_ZP_REGNUM (regno) || regno == ARG_POINTER_REGNUM
 	 || regno == FRAME_POINTER_REGNUM || regno >= FIRST_PSEUDO_REGISTER;
+})
+
+(define_predicate "strict_ptr_reg_operand"
+  (match_code "reg,subreg")
+{
+  int regno;
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  if (!REG_P (op))
+    return false;
+  
+  regno = REGNO (op);
+  
+  return IS_ZP_REGNUM (regno) || regno == ARG_POINTER_REGNUM
+	 || regno == FRAME_POINTER_REGNUM;
 })
 
 (define_predicate "reload_zpreg_operand"
