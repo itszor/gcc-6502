@@ -95,13 +95,22 @@
    33 : virtual FP/hi
    34 : virtual AP/lo
    35 : virtual AP/hi
-   36 : virtual CC reg. CCMODE is always 4 bytes!
+   36 : virtual NZ reg. CCMODE is always 4 bytes!
    37: "
    38: "
    39: "
-   40: hard SP register
-   41: fixed/local tmp0 (zp)
-   42: fixed/local tmp1 (zp)
+   40: virtual carry reg.
+   41: "
+   42: "
+   43: "
+   44: virtual overflow reg.
+   45: "
+   46: "
+   47: "
+   48: hard SP register
+   49: "
+   50: fixed/local tmp0 (zp)
+   51: fixed/local tmp1 (zp)
 */
 
 #define ACC_REGNUM 0
@@ -115,13 +124,15 @@
 #define LAST_CALLER_SAVED (FIRST_CALLER_SAVED + 7)
 #define FIRST_ZP_REGISTER SP_REGNUM
 #define LAST_ZP_REGISTER LAST_CALLER_SAVED
-#define CC_REGNUM 36
+#define NZ_REGNUM 36
+#define CARRY_REGNUM 40
+#define OVERFLOW_REGNUM 44
 /* We pretend this is 2 bytes because it is used as a pointer, and pointers are
    supposed to be HImode.  It's an opaque quantity anyway so it doesn't matter
    if it's a lie.  */
-#define HARDSP_REGNUM 40
-#define TMP0_REGNUM 42
-#define TMP1_REGNUM 43
+#define HARDSP_REGNUM 48
+#define TMP0_REGNUM 50
+#define TMP1_REGNUM 51
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
@@ -140,6 +151,7 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1 }
 
 #define CALL_USED_REGISTERS	\
@@ -151,9 +163,10 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 44
+#define FIRST_PSEUDO_REGISTER 52
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -161,7 +174,8 @@
     16, 17, 18, 19, 20, 21, 22, 23, \
     24, 25, 26, 27, 28, 29, 30, 31, \
     32, 33, 34, 35, 36, 37, 38, 39, \
-    40, 41, 42, 43 }
+    40, 41, 42, 43, 44, 45, 46, 47, \
+    48, 49, 50, 51 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -247,30 +261,30 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000, 0x000 },	\
-  { 0x00000001, 0x000 },	\
+  { 0x00000000, 0x00000 },	\
+  { 0x00000001, 0x00000 },	\
   /*{ 0x00000003, 0x000 },	\
   { 0x0000000f, 0x000 },*/	\
-  { 0x00000010, 0x000 },	\
+  { 0x00000010, 0x00000 },	\
   /*{ 0x00000030, 0x000 },	\
   { 0x000000f0, 0x000 },*/	\
-  { 0x00000100, 0x000 },	\
+  { 0x00000100, 0x00000 },	\
   /*{ 0x00000300, 0x000 },	\
   { 0x00000f00, 0x000 },*/	\
-  { 0x00000110, 0x000 },	\
+  { 0x00000110, 0x00000 },	\
   /*{ 0x00000330, 0x000 },	\
   { 0x00000ff0, 0x000 },*/	\
-  { 0x00000111, 0x000 },	\
+  { 0x00000111, 0x00000 },	\
   /*{ 0x00000333, 0x000 },	\
   { 0x00000fff, 0x000 },*/	\
-  { 0x0000f000, 0x000 },	\
-  { 0x00ff0000, 0x000 },	\
-  { 0xff000000, 0x000 },	\
-  { 0x00000000, 0x0f0 },	\
-  { 0xfffffeee, 0xc00 },	\
-  { 0x00000000, 0x003 },	\
-  { 0x00000000, 0x00c },	\
-  { 0xffffffff, 0xff0 },	\
+  { 0x0000f000, 0x00000 },	\
+  { 0x00ff0000, 0x00000 },	\
+  { 0xff000000, 0x00000 },	\
+  { 0x00000000, 0x0fff0 },	\
+  { 0xfffffeee, 0xc0000 },	\
+  { 0x00000000, 0x00003 },	\
+  { 0x00000000, 0x0000c },	\
+  { 0xffffffff, 0xffff0 },	\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -297,7 +311,7 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
      ? GENERAL_REGS :							\
-   (REGNO) >= CC_REGNUM && (REGNO) <= (CC_REGNUM + 3) ? CC_REGS : NO_REGS)
+   (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
 #define INDEX_REG_CLASS	NO_REGS
@@ -484,7 +498,9 @@ typedef int CUMULATIVE_ARGS;
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",		\
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
-    "?cc", "?cc1", "?cc2", "?cc3",				\
+    "?nz0", "?nz1", "?nz2", "?nz3",				\
+    "?carry0", "?carry1", "?carry2", "?carry3",			\
+    "?ovf0", "?ovf1", "?ovf2", "?ovf3",				\
     "?hardsp0", "?hardsp1", "tmp0", "tmp1"			\
   }
 
