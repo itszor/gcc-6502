@@ -10,16 +10,10 @@ CC_MODE (CC_V);
 
 CC_MODE (CC_C);
 
-/* CC_NV codes:
-   EQ -- V is 0
-   NE -- V is 1
+/* CC_NZ codes:
+   EQ -- Z is 0
+   NE -- Z is 1
    GE -- N is 0
    LT -- N is 1.  */
 
-CC_MODE (CC_NV);
-
-/* CC_N codes (when only N is valid):
-   LT -- N is 1
-   GE -- N is 0.  */
-
-CC_MODE (CC_N);
+CC_MODE (CC_NZ);

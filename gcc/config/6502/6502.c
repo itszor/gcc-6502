@@ -194,33 +194,31 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 
       switch (mode)
         {
-	case CCmode:
+	case CC_NZmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: br = "bne :+"; break;
 	    case NE: br = "beq :+"; break;
-	    case LTU: br = "bcs :+"; break;
-	    case GEU: br = "bcc :+"; break;
+	    case LT: br = "bpl :+"; break;
+	    case GE: br = "bmi :+"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 	
-	case CC_NVmode:
+	case CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: br = "bvs :+"; break;
 	    case NE: br = "bvc :+"; break;
-	    case GE: br = "bmi :+"; break;
-	    case LT: br = "bpl :+"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 
-	case CC_Nmode:
+	case CC_Cmode:
 	  switch (GET_CODE (cond))
 	    {
-	    case GE: br = "bmi :+"; break;
-	    case LT: br = "bpl :+"; break;
+	    case EQ: br = "bcs :+"; break;
+	    case NE: br = "bcc :+"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
@@ -239,35 +237,31 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 
       switch (mode)
 	{
-	case CCmode:
-	  /* These are used for unsigned comparisons.  */
+	case CC_NZmode:
 	  switch (GET_CODE (cond))
             {
 	    case EQ: fmt = "beq %0"; break;
 	    case NE: fmt = "bne %0"; break;
-	    case LTU: fmt = "bcc %0"; break;
-	    case GEU: fmt = "bcs %0"; break;
+	    case LT: fmt = "bmi %0"; break;
+	    case GE: fmt = "bpl %0"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 
-	case CC_NVmode:
-	  /* These are used to synthesize signed comparisons.  */
+	case CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: fmt = "bvc %0"; break;
 	    case NE: fmt = "bvs %0"; break;
-	    case GE: fmt = "bpl %0"; break;
-	    case LT: fmt = "bmi %0"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 
-	case CC_Nmode:
+	case CC_Cmode:
 	  switch (GET_CODE (cond))
 	    {
-	    case GE: fmt = "bpl %0"; break;
-	    case LT: fmt = "bmi %0"; break;
+	    case EQ: fmt = "bcc %0"; break;
+	    case NE: fmt = "bcs %0"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
@@ -964,35 +958,10 @@ m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
   rtx tmp;
   bool swap = false;
 
-  switch (*code)
+  if (!op0_preserve_value
+      && (*code == GTU || *code == LEU || *code == GT || *code == LE))
     {
-    case GTU:
-      swap = true;
-      *code = LTU;
-      break;
-
-    case LEU:
-      swap = true;
-      *code = GEU;
-      break;
-
-    case GT:
-      swap = true;
-      *code = LT;
-      break;
-
-    case LE:
-      swap = true;
-      *code = GE;
-      break;
-
-    default:
-      ;
-    }
-  
-  if (swap)
-    {
-      gcc_assert (!op0_preserve_value);
+      *code = (int) swap_condition ((enum rtx_code) *code);
       tmp = *op0;
       *op0 = *op1;
       *op1 = tmp;
@@ -1017,7 +986,9 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
   rtx cmp;
   rtx scratch;
   rtx new_label;
-  rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
+  rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
+  rtx vflags = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
+  rtx cmpreg;
 
   if (CONSTANT_P (op0))
     op0 = force_reg (QImode, op0);
@@ -1026,11 +997,15 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
     {
     case EQ:
     case NE:
+      cmpreg = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
+      goto emit_cmp;
     case LTU:
     case GEU:
-      emit_insn (gen_compareqi_cc (op0, op1));
-      cmp = gen_rtx_fmt_ee (cond, VOIDmode, gen_rtx_REG (CCmode, CC_REGNUM),
-			    const0_rtx);
+      cmpreg = gen_rtx_REG (CC_Cmode, CARRY_REGNUM);
+      cond = (cond == LTU) ? EQ : NE;
+    emit_cmp:
+      emit_insn (gen_compareqi (op0, op1));
+      cmp = gen_rtx_fmt_ee (cond, VOIDmode, cmpreg, const0_rtx);
       emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
 				   gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
 				     gen_rtx_LABEL_REF (Pmode, dest), pc_rtx)));
@@ -1042,13 +1017,13 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
       new_label = gen_label_rtx ();
       emit_move_insn (scratch, op0);
       emit_insn (gen_sec ());
-      emit_insn (gen_sbcqi3_nv (scratch, scratch, op1));
-      m65x_emit_cbranchqi (EQ, nvflags,
+      emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1));
+      m65x_emit_cbranchqi (EQ, vflags,
 			   split_branch_probability == -1 ? -1 :
 			   split_branch_probability / 2, new_label);
       emit_insn (gen_negate_highbit (scratch, scratch));
       emit_label (new_label);
-      m65x_emit_cbranchqi (cond, nvflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (cond, nzflags, split_branch_probability, dest);
       break;
     
     default:
@@ -1064,15 +1039,16 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx op1_lo = simplify_gen_subreg (QImode, op1, HImode, 0);
   rtx op0_hi = simplify_gen_subreg (QImode, op0, HImode, 1);
   rtx op1_hi = simplify_gen_subreg (QImode, op1, HImode, 1);
-  rtx cc_reg = gen_rtx_REG (CCmode, CC_REGNUM);
-  rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
+  rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
+  rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
+  rtx cflag = gen_rtx_REG (CC_Cmode, CARRY_REGNUM);
   rtx new_label = NULL_RTX;
   int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
 
   if ((cond == EQ || cond == NE || cond == LT || cond == GE)
       && REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
     {
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+      emit_move_insn (scratch, op0_lo);
       op0_lo = scratch;
     }
   
@@ -1083,75 +1059,75 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     {
     case EQ:
       /* Low part.  */
-      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (NE, cc_reg, rev_prob, new_label);
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (NE, nzflags, rev_prob, new_label);
 
       /* High part.  */
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi_cc (scratch, op1_hi));
-      m65x_emit_cbranchqi (EQ, cc_reg, split_branch_probability, dest);
+      emit_move_insn (scratch, op0_hi);
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (EQ, nzflags, split_branch_probability, dest);
       emit_label (new_label);
       break;
 
     case NE:
       /* Low part.  */
-      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, dest);
 
       /* High part.  */
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi_cc (scratch, op1_hi));
-      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, dest);
+      emit_move_insn (scratch, op0_hi);
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, dest);
       break;
     
     case LTU:
       /* High part.  */
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_compareqi_cc (scratch, op1_hi));
-      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
-      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
+      emit_move_insn (scratch, op0_hi);
+      emit_insn (gen_compareqi (scratch, op1_hi));
+      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
       if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
 	{
-	  emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+	  emit_move_insn (scratch, op0_lo);
 	  op0_lo = scratch;
 	}
 
-      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
       emit_label (new_label);
       break;
     
     case GEU:
       /* High part.  */
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op1_hi));
-      emit_insn (gen_compareqi_cc (scratch, op0_hi));
-      m65x_emit_cbranchqi (LTU, cc_reg, split_branch_probability, dest);
-      m65x_emit_cbranchqi (NE, cc_reg, split_branch_probability, new_label);
+      emit_move_insn (scratch, op1_hi);
+      emit_insn (gen_compareqi (scratch, op0_hi));
+      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
       if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
 	{
-	  emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_lo));
+	  emit_move_insn (scratch, op0_lo);
 	  op0_lo = scratch;
 	}
 
-      emit_insn (gen_compareqi_cc (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (GEU, cc_reg, split_branch_probability, dest);
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      m65x_emit_cbranchqi (NE, cflag, split_branch_probability, dest);
       emit_label (new_label);
       break;
     
     case LT:
     case GE:
-      emit_insn (gen_compareqi_cc_c (op0_lo, op1_lo));
-      emit_insn (gen_rtx_SET (VOIDmode, scratch, op0_hi));
-      emit_insn (gen_sbcqi3_nv (scratch, scratch, op1_hi));
-      m65x_emit_cbranchqi (EQ, nvflags, split_branch_probability / 2,
+      emit_insn (gen_compareqi (op0_lo, op1_lo));
+      emit_move_insn (scratch, op0_hi);
+      emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1_hi));
+      m65x_emit_cbranchqi (EQ, vflag, split_branch_probability / 2,
 			   new_label);
       emit_insn (gen_negate_highbit (scratch, scratch));
       emit_label (new_label);
-      m65x_emit_cbranchqi (cond, nvflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (cond, nzflags, split_branch_probability, dest);
       break;
     
     default:
