@@ -249,14 +249,14 @@
 (define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
-(define_special_predicate "qimode_uns_comparison"
-  (match_code "eq,ne,ltu,geu"))
+(define_special_predicate "qimode_c_comparison"
+  (match_code "eq,ne"))
 
-(define_special_predicate "qimode_sgn_comparison"
+(define_special_predicate "qimode_v_comparison"
+  (match_code "eq,ne"))
+
+(define_special_predicate "qimode_nz_comparison"
   (match_code "eq,ne,lt,ge"))
-
-(define_special_predicate "qimode_nonly_comparison"
-  (match_code "lt,ge"))
 
 (define_predicate "compareqi_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
