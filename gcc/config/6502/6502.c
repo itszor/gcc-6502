@@ -105,6 +105,26 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	}
       break;
 
+    case 'L':
+      if (GET_CODE (x) == CONST_INT)
+	asm_fprintf (stream, "<$%.4x", (int) INTVAL (x) & 0xffff);
+      else
+        {
+	  asm_fprintf (stream, "<");
+	  m65x_print_operand_address (stream, x);
+	}
+      break;
+    
+    case 'H':
+      if (GET_CODE (x) == CONST_INT)
+	asm_fprintf (stream, ">$%.4x", (int) INTVAL (x) & 0xffff);
+      else
+        {
+	  asm_fprintf (stream, ">");
+	  m65x_print_operand_address (stream, x);
+	}
+      break;
+
     default:
       switch (GET_CODE (x))
         {

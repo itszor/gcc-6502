@@ -215,6 +215,10 @@
   (ior (match_operand 0 "immediate_operand")
        (match_operand 0 "zp_reg_operand")))
 
+(define_predicate "ptr_reg_or_int_operand"
+  (ior (match_operand 0 "const_int_operand")
+       (match_operand 0 "ptr_reg_operand")))
+
 (define_predicate "zp_acc_imm_operand"
   (ior (match_operand 0 "accumulator_operand")
        (match_operand 0 "zp_reg_operand")
