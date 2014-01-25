@@ -1,5 +1,5 @@
 /* GCC instrumentation plugin for ThreadSanitizer.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
    Contributed by Dmitry Vyukov <dvyukov@google.com>
 
 This file is part of GCC.
@@ -609,7 +609,7 @@ instrument_gimple (gimple_stmt_iterator *gsi)
       && (gimple_call_fndecl (stmt)
 	  != builtin_decl_implicit (BUILT_IN_TSAN_INIT)))
     {
-      if (is_gimple_builtin_call (stmt))
+      if (gimple_call_builtin_p (stmt, BUILT_IN_NORMAL))
 	instrument_builtin_call (gsi);
       return true;
     }

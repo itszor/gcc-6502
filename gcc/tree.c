@@ -1,5 +1,5 @@
 /* Language-independent node constructors for parse phase of GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -11527,6 +11527,28 @@ build_target_option_node (struct gcc_options *opts)
   return t;
 }
 
+/* Reset TREE_TARGET_GLOBALS cache for TARGET_OPTION_NODE.
+   Called through htab_traverse.  */
+
+static int
+prepare_target_option_node_for_pch (void **slot, void *)
+{
+  tree node = (tree) *slot;
+  if (TREE_CODE (node) == TARGET_OPTION_NODE)
+    TREE_TARGET_GLOBALS (node) = NULL;
+  return 1;
+}
+
+/* Clear TREE_TARGET_GLOBALS of all TARGET_OPTION_NODE trees,
+   so that they aren't saved during PCH writing.  */
+
+void
+prepare_target_option_nodes_for_pch (void)
+{
+  htab_traverse (cl_option_hash_table, prepare_target_option_node_for_pch,
+		 NULL);
+}
+
 /* Determine the "ultimate origin" of a block.  The block may be an inlined
    instance of an inlined instance of a block which is local to an inline
    function, so we have to trace all of the way back through the origin chain
@@ -11973,16 +11995,35 @@ get_binfo_at_offset (tree binfo, HOST_WIDE_INT offset, tree expected_type)
 	 represented in the binfo for the derived class.  */
       else if (offset != 0)
 	{
-	  tree base_binfo, found_binfo = NULL_TREE;
-	  for (i = 0; BINFO_BASE_ITERATE (binfo, i, base_binfo); i++)
-	    if (types_same_for_odr (TREE_TYPE (base_binfo), TREE_TYPE (fld)))
-	      {
-		found_binfo = base_binfo;
-		break;
-	      }
-	  if (!found_binfo)
-	    return NULL_TREE;
-	  binfo = found_binfo;
+	  tree base_binfo, binfo2 = binfo;
+
+	  /* Find BINFO corresponding to FLD.  This is bit harder
+	     by a fact that in virtual inheritance we may need to walk down
+	     the non-virtual inheritance chain.  */
+	  while (true)
+	    {
+	      tree containing_binfo = NULL, found_binfo = NULL;
+	      for (i = 0; BINFO_BASE_ITERATE (binfo2, i, base_binfo); i++)
+		if (types_same_for_odr (TREE_TYPE (base_binfo), TREE_TYPE (fld)))
+		  {
+		    found_binfo = base_binfo;
+		    break;
+		  }
+		else
+		  if (BINFO_OFFSET (base_binfo) - BINFO_OFFSET (binfo) < pos
+		      && (!containing_binfo
+			  || (BINFO_OFFSET (containing_binfo)
+			      < BINFO_OFFSET (base_binfo))))
+		    containing_binfo = base_binfo;
+	      if (found_binfo)
+		{
+		  binfo = found_binfo;
+		  break;
+		}
+	      if (!containing_binfo)
+		return NULL_TREE;
+	      binfo2 = containing_binfo;
+	    }
 	}
 
       type = TREE_TYPE (fld);

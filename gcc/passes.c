@@ -1,5 +1,5 @@
 /* Top level of GCC compilers (cc1, cc1plus, etc.)
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -187,6 +187,8 @@ rest_of_decl_compilation (tree decl,
 			  int top_level,
 			  int at_end)
 {
+  bool finalize = true;
+
   /* We deferred calling assemble_alias so that we could collect
      other attributes such as visibility.  Emit the alias now.  */
   if (!in_lto_p)
@@ -203,6 +205,7 @@ rest_of_decl_compilation (tree decl,
 	DECL_EXTERNAL (decl) = 0;
 	TREE_STATIC (decl) = 1;
 	assemble_alias (decl, alias);
+	finalize = false;
       }
   }
 
@@ -234,7 +237,7 @@ rest_of_decl_compilation (tree decl,
 	     rebuild it.  */
 	  if (in_lto_p && !at_end)
 	    ;
-	  else if (TREE_CODE (decl) != FUNCTION_DECL)
+	  else if (finalize && TREE_CODE (decl) != FUNCTION_DECL)
 	    varpool_finalize_decl (decl);
 	}
 

@@ -1,5 +1,5 @@
 /* Process declarations and variables for C++ compiler.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -7674,7 +7674,7 @@ grokfndecl (tree ctype,
   if (TYPE_NOTHROW_P (type) || nothrow_libfn_p (decl))
     TREE_NOTHROW (decl) = 1;
 
-  if (flag_openmp)
+  if (flag_openmp || flag_cilkplus)
     {
       /* Adjust "omp declare simd" attributes.  */
       tree ods = lookup_attribute ("omp declare simd", *attrlist);
@@ -9599,9 +9599,14 @@ grokdeclarator (const cp_declarator *declarator,
 			    && LAMBDA_TYPE_P (current_class_type))
 			  /* OK for C++11 lambdas.  */;
 			else if (cxx_dialect < cxx1y)
-			  pedwarn (input_location, 0, "%qs function uses "
+			  {
+			    error ("%qs function uses "
 				   "%<auto%> type specifier without trailing "
 				   "return type", name);
+			    inform (input_location, "deduced return type "
+				    "only available with -std=c++1y or "
+				    "-std=gnu++1y");
+			  }
 			else if (virtualp)
 			  permerror (input_location, "virtual function cannot "
 				     "have deduced return type");
@@ -10185,7 +10190,9 @@ grokdeclarator (const cp_declarator *declarator,
 	    /* The TYPE_DECL is "abstract" because there will be
 	       clones of this constructor/destructor, and there will
 	       be copies of this TYPE_DECL generated in those
-	       clones.  */
+	       clones.  The decloning optimization (for space) may
+               revert this subsequently if it determines that
+               the clones should share a common implementation.  */
 	    DECL_ABSTRACT (decl) = 1;
 	}
       else if (current_class_type
@@ -13998,6 +14005,8 @@ finish_function (int flags)
       && !current_function_returns_value && !current_function_returns_null
       /* Don't complain if we abort or throw.  */
       && !current_function_returns_abnormally
+      /* Don't complain if there's an infinite loop.  */
+      && !current_function_infinite_loop
       /* Don't complain if we are declared noreturn.  */
       && !TREE_THIS_VOLATILE (fndecl)
       && !DECL_NAME (DECL_RESULT (fndecl))
@@ -14062,6 +14071,7 @@ finish_function (int flags)
       f->x_return_value = NULL;
       f->bindings = NULL;
       f->extern_decl_map = NULL;
+      f->infinite_loops = NULL;
     }
   /* Clear out the bits we don't need.  */
   local_names = NULL;

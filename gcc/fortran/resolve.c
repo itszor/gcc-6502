@@ -1,5 +1,5 @@
 /* Perform type resolution on the various structures.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
 This file is part of GCC.
@@ -2351,6 +2351,7 @@ resolve_global_procedure (gfc_symbol *sym, locus *where,
   if ((sym->attr.if_source == IFSRC_UNKNOWN
        || sym->attr.if_source == IFSRC_IFBODY)
       && gsym->type != GSYM_UNKNOWN
+      && !gsym->binding_label
       && gsym->ns
       && gsym->ns->resolved != -1
       && gsym->ns->proc_name
@@ -10163,7 +10164,6 @@ gfc_verify_binding_labels (gfc_symbol *sym)
       gsym->where = sym->declared_at;
       gsym->sym_name = sym->name;
       gsym->binding_label = sym->binding_label;
-      gsym->binding_label = sym->binding_label;
       gsym->ns = sym->ns;
       gsym->mod_name = module;
       if (sym->attr.function)
@@ -10200,11 +10200,11 @@ gfc_verify_binding_labels (gfc_symbol *sym)
 	   && ((gsym->type != GSYM_SUBROUTINE && gsym->type != GSYM_FUNCTION)
 	       || (gsym->defined && sym->attr.if_source != IFSRC_IFBODY))
 	   && sym != gsym->ns->proc_name
-	   && (strcmp (gsym->sym_name, sym->name) != 0
-	       || module != gsym->mod_name
+	   && (module != gsym->mod_name
+	       || strcmp (gsym->sym_name, sym->name) != 0
 	       || (module && strcmp (module, gsym->mod_name) != 0)))
     {
-      /* Print an error if the procdure is defined multiple times; we have to
+      /* Print an error if the procedure is defined multiple times; we have to
 	 exclude references to the same procedure via module association or
 	 multiple checks for the same procedure.  */
       gfc_error ("Procedure %s with binding label %s at %L uses the same "
@@ -11903,9 +11903,6 @@ resolve_typebound_procedures (gfc_symbol* derived)
   resolve_bindings_derived = derived;
   resolve_bindings_result = true;
 
-  /* Make sure the vtab has been generated.  */
-  gfc_find_derived_vtab (derived);
-
   if (derived->f2k_derived->tb_sym_root)
     gfc_traverse_symtree (derived->f2k_derived->tb_sym_root,
 			  &resolve_typebound_procedure);
@@ -12732,7 +12729,8 @@ resolve_symbol (gfc_symbol *sym)
   if (sym->attr.flavor == FL_UNKNOWN
       || (sym->attr.flavor == FL_PROCEDURE && !sym->attr.intrinsic
 	  && !sym->attr.generic && !sym->attr.external
-	  && sym->attr.if_source == IFSRC_UNKNOWN))
+	  && sym->attr.if_source == IFSRC_UNKNOWN
+	  && sym->ts.type == BT_UNKNOWN))
     {
 
     /* If we find that a flavorless symbol is an interface in one of the

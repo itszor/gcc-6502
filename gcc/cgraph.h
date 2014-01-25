@@ -1,5 +1,5 @@
 /* Callgraph handling code.
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -82,7 +82,7 @@ public:
 
   /* Set when function is visible by other units.  */
   unsigned externally_visible : 1;
-  /* The symbol will be assumed to be used in an invisiable way (like 
+  /* The symbol will be assumed to be used in an invisible way (like
      by an toplevel asm statement).  */
   unsigned force_output : 1;
   /* Like FORCE_OUTPUT, but in the case it is ABI requiring the symbol to be
@@ -428,6 +428,9 @@ public:
   unsigned tm_clone : 1;
   /* True if this decl is a dispatcher for function versions.  */
   unsigned dispatcher_function : 1;
+  /* True if this decl calls a COMDAT-local function.  This is set up in
+     compute_inline_parameters and inline_call.  */
+  unsigned calls_comdat_local : 1;
 };
 
 
@@ -515,11 +518,17 @@ struct varpool_node_set_iterator
   unsigned index;
 };
 
-#define DEFCIFCODE(code, string)	CIF_ ## code,
+#define DEFCIFCODE(code, type, string)	CIF_ ## code,
 /* Reasons for inlining failures.  */
 enum cgraph_inline_failed_t {
 #include "cif-code.def"
   CIF_N_REASONS
+};
+
+enum cgraph_inline_failed_type_t
+{
+  CIF_FINAL_NORMAL = 0,
+  CIF_FINAL_ERROR
 };
 
 /* Structure containing additional information about an indirect call.  */
@@ -771,6 +780,7 @@ void cgraph_unnest_node (struct cgraph_node *);
 enum availability cgraph_function_body_availability (struct cgraph_node *);
 void cgraph_add_new_function (tree, bool);
 const char* cgraph_inline_failed_string (cgraph_inline_failed_t);
+cgraph_inline_failed_type_t cgraph_inline_failed_type (cgraph_inline_failed_t);
 
 void cgraph_set_nothrow_flag (struct cgraph_node *, bool);
 void cgraph_set_const_flag (struct cgraph_node *, bool, bool);
@@ -1423,8 +1433,12 @@ varpool_variable_node (varpool_node *node,
 {
   varpool_node *n;
 
-  n = dyn_cast <varpool_node> (symtab_alias_ultimate_target (node,
-							     availability));
+  if (node)
+    n = dyn_cast <varpool_node> (symtab_alias_ultimate_target (node,
+							       availability));
+  else
+    n = NULL;
+
   if (!n && availability)
     *availability = AVAIL_NOT_AVAILABLE;
   return n;
@@ -1489,5 +1503,23 @@ symtab_can_be_discarded (symtab_node *node)
 	      && node->resolution != LDPR_PREVAILING_DEF
 	      && node->resolution != LDPR_PREVAILING_DEF_IRONLY
 	      && node->resolution != LDPR_PREVAILING_DEF_IRONLY_EXP));
+}
+
+/* Return true if NODE is local to a particular COMDAT group, and must not
+   be named from outside the COMDAT.  This is used for C++ decloned
+   constructors.  */
+
+static inline bool
+symtab_comdat_local_p (symtab_node *node)
+{
+  return (node->same_comdat_group && !TREE_PUBLIC (node->decl));
+}
+
+/* Return true if ONE and TWO are part of the same COMDAT group.  */
+
+static inline bool
+symtab_in_same_comdat_p (symtab_node *one, symtab_node *two)
+{
+  return DECL_COMDAT_GROUP (one->decl) == DECL_COMDAT_GROUP (two->decl);
 }
 #endif  /* GCC_CGRAPH_H  */

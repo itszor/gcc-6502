@@ -1,5 +1,5 @@
 /* IRA hard register and memory cost calculation for allocnos or pseudos.
-   Copyright (C) 2006-2013 Free Software Foundation, Inc.
+   Copyright (C) 2006-2014 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov <vmakarov@redhat.com>.
 
 This file is part of GCC.
@@ -154,8 +154,9 @@ cost_classes_hasher::hash (const value_type *hv)
 inline bool
 cost_classes_hasher::equal (const value_type *hv1, const compare_type *hv2)
 {
-  return hv1->num == hv2->num && memcmp (hv1->classes, hv2->classes,
-					 sizeof (enum reg_class) * hv1->num);
+  return (hv1->num == hv2->num
+	  && memcmp (hv1->classes, hv2->classes,
+		     sizeof (enum reg_class) * hv1->num) == 0);
 }
 
 /* Delete cost classes info V from the hash table.  */
@@ -1827,6 +1828,7 @@ find_costs_and_classes (FILE *dump_file)
 		  int ind = cost_classes_ptr->index[aclass];
 
 		  ira_assert (ind >= 0);
+		  ira_init_register_move_cost_if_necessary (ALLOCNO_MODE (a));
 		  ira_add_allocno_pref (a, ira_class_hard_regs[best][0],
 					(a_costs[ind] - ALLOCNO_CLASS_COST (a))
 					/ (ira_register_move_cost

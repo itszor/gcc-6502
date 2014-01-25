@@ -1,5 +1,5 @@
 ;; Predicate definitions for ARM and Thumb
-;; Copyright (C) 2004-2013 Free Software Foundation, Inc.
+;; Copyright (C) 2004-2014 Free Software Foundation, Inc.
 ;; Contributed by ARM Ltd.
 
 ;; This file is part of GCC.
@@ -645,8 +645,13 @@
 
 (define_predicate "const_double_vcvt_power_of_two_reciprocal"
   (and (match_code "const_double")
-       (match_test "TARGET_32BIT && TARGET_VFP 
-       		   && vfp3_const_double_for_fract_bits (op)")))
+       (match_test "TARGET_32BIT && TARGET_VFP
+                   && vfp3_const_double_for_fract_bits (op)")))
+
+(define_predicate "const_double_vcvt_power_of_two"
+  (and (match_code "const_double")
+       (match_test "TARGET_32BIT && TARGET_VFP
+                   && vfp3_const_double_for_bits (op)")))
 
 (define_predicate "neon_struct_operand"
   (and (match_code "mem")

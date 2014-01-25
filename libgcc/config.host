@@ -1,5 +1,5 @@
 # libgcc host-specific configuration file.
-# Copyright (C) 1997-2013 Free Software Foundation, Inc.
+# Copyright (C) 1997-2014 Free Software Foundation, Inc.
 
 #This file is part of GCC.
 
@@ -148,6 +148,9 @@ mips*-*-*)
 	;;
 nds32*-*)
 	cpu_type=nds32
+	;;
+nios2*-*-*)
+	cpu_type=nios2
 	;;
 powerpc*-*-*)
 	cpu_type=rs6000
@@ -887,6 +890,15 @@ nds32*-elf*)
 		;;
 	esac
 	;;
+nios2-*-linux*)
+	tmake_file="$tmake_file nios2/t-nios2 nios2/t-linux t-libgcc-pic t-slibgcc-libgcc"
+	extra_parts="$extra_parts crti.o crtn.o"
+	md_unwind_header=nios2/linux-unwind.h
+	;;
+nios2-*-*)
+	tmake_file="$tmake_file nios2/t-nios2 t-softfp-sfdf t-softfp-excl t-softfp"
+	extra_parts="$extra_parts crti.o crtn.o"
+	;;
 pdp11-*-*)
 	tmake_file="pdp11/t-pdp11 t-fdpbit"
 	;;
@@ -1188,7 +1200,7 @@ xtensa*-*-elf*)
 	extra_parts="$extra_parts crti.o crtn.o"
 	;;
 xtensa*-*-linux*)
-	tmake_file="$tmake_file xtensa/t-xtensa xtensa/t-linux"
+	tmake_file="$tmake_file xtensa/t-xtensa xtensa/t-linux t-slibgcc-libgcc"
 	md_unwind_header=xtensa/linux-unwind.h
 	;;
 am33_2.0-*-linux*)

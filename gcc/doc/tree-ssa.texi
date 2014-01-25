@@ -1,4 +1,4 @@
-@c Copyright (C) 2004-2013 Free Software Foundation, Inc.
+@c Copyright (C) 2004-2014 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -52,9 +52,6 @@ optimization process.  For instance, we need to know whether a
 variable has aliases.  All these attributes are stored in data
 structures called annotations which are then linked to the field
 @code{ann} in @code{struct tree_common}.
-
-Presently, we define annotations for variables (@code{var_ann_t}).
-Annotations are defined and documented in @file{tree-flow.h}.
 
 
 @node SSA Operands

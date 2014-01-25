@@ -1,5 +1,5 @@
 /* Process declarations and variables for C++ compiler.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -3817,7 +3817,7 @@ build_java_method_aliases (struct pointer_set_t *candidates)
 /* Return C++ property of T, based on given operation OP.  */
 
 static int
-cpp_check (const_tree t, cpp_operation op)
+cpp_check (tree t, cpp_operation op)
 {
   switch (op)
     {

@@ -1,5 +1,5 @@
 /* Process declarations and variables for C compiler.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4840,7 +4840,8 @@ check_bitfield_type_and_width (tree *type, tree *width, tree orig_name)
   if (!in_system_header_at (input_location)
       && type_mv != integer_type_node
       && type_mv != unsigned_type_node
-      && type_mv != boolean_type_node)
+      && type_mv != boolean_type_node
+      && !flag_isoc99)
     pedwarn (input_location, OPT_Wpedantic,
 	     "type of bit-field %qs is a GCC extension", name);
 

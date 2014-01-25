@@ -1,5 +1,5 @@
 /* Expand builtin functions.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -191,7 +191,6 @@ static tree fold_builtin_varargs (location_t, tree, tree, bool);
 static tree fold_builtin_strpbrk (location_t, tree, tree, tree);
 static tree fold_builtin_strstr (location_t, tree, tree, tree);
 static tree fold_builtin_strrchr (location_t, tree, tree, tree);
-static tree fold_builtin_strcat (location_t, tree, tree);
 static tree fold_builtin_strncat (location_t, tree, tree, tree);
 static tree fold_builtin_strspn (location_t, tree, tree);
 static tree fold_builtin_strcspn (location_t, tree, tree);
@@ -245,7 +244,7 @@ is_builtin_name (const char *name)
     return true;
   if (strncmp (name, "__atomic_", 9) == 0)
     return true;
-  if (flag_enable_cilkplus 
+  if (flag_cilkplus 
       && (!strcmp (name, "__cilkrts_detach")   
 	  || !strcmp (name, "__cilkrts_pop_frame")))
     return true;
@@ -434,7 +433,7 @@ get_object_alignment_2 (tree exp, unsigned int *alignp,
      alignment that can prevail.  */
   if (offset)
     {
-      int trailing_zeros = tree_ctz (offset);
+      unsigned int trailing_zeros = tree_ctz (offset);
       if (trailing_zeros < HOST_BITS_PER_INT)
 	{
 	  unsigned int inner = (1U << trailing_zeros) * BITS_PER_UNIT;
@@ -3117,7 +3116,7 @@ determine_block_size (tree len, rtx len_rtx,
 {
   if (CONST_INT_P (len_rtx))
     {
-      *min_size = *max_size = UINTVAL (len_rtx);
+      *min_size = *max_size = *probable_max_size = UINTVAL (len_rtx);
       return;
     }
   else
@@ -3131,7 +3130,8 @@ determine_block_size (tree len, rtx len_rtx,
       else
 	*min_size = 0;
       if (tree_fits_uhwi_p (TYPE_MAX_VALUE (TREE_TYPE (len))))
-	*probable_max_size = *max_size = tree_to_uhwi (TYPE_MAX_VALUE (TREE_TYPE (len)));
+	*probable_max_size = *max_size
+	  = tree_to_uhwi (TYPE_MAX_VALUE (TREE_TYPE (len)));
       else
 	*probable_max_size = *max_size = GET_MODE_MASK (GET_MODE (len_rtx));
 
@@ -3391,7 +3391,8 @@ expand_movstr (tree dest, tree src, rtx target, int endp)
   create_output_operand (&ops[0], endp ? target : NULL_RTX, Pmode);
   create_fixed_operand (&ops[1], dest_mem);
   create_fixed_operand (&ops[2], src_mem);
-  expand_insn (CODE_FOR_movstr, 3, ops);
+  if (!maybe_expand_insn (CODE_FOR_movstr, 3, ops))
+    return NULL_RTX;
 
   if (endp && target != const0_rtx)
     {
@@ -10785,7 +10786,7 @@ fold_builtin_2 (location_t loc, tree fndecl, tree arg0, tree arg1, bool ignore)
       return fold_builtin_strstr (loc, arg0, arg1, type);
 
     case BUILT_IN_STRCAT:
-      return fold_builtin_strcat (loc, arg0, arg1);
+      return fold_builtin_strcat (loc, arg0, arg1, NULL_TREE);
 
     case BUILT_IN_STRSPN:
       return fold_builtin_strspn (loc, arg0, arg1);
@@ -11734,8 +11735,9 @@ fold_builtin_strpbrk (location_t loc, tree s1, tree s2, tree type)
    COMPOUND_EXPR in the chain will contain the tree for the simplified
    form of the builtin function call.  */
 
-static tree
-fold_builtin_strcat (location_t loc ATTRIBUTE_UNUSED, tree dst, tree src)
+tree
+fold_builtin_strcat (location_t loc ATTRIBUTE_UNUSED, tree dst, tree src,
+		     tree len)
 {
   if (!validate_arg (dst, POINTER_TYPE)
       || !validate_arg (src, POINTER_TYPE))
@@ -11753,22 +11755,17 @@ fold_builtin_strcat (location_t loc ATTRIBUTE_UNUSED, tree dst, tree src)
 	  /* See if we can store by pieces into (dst + strlen(dst)).  */
 	  tree newdst, call;
 	  tree strlen_fn = builtin_decl_implicit (BUILT_IN_STRLEN);
-	  tree strcpy_fn = builtin_decl_implicit (BUILT_IN_STRCPY);
+	  tree memcpy_fn = builtin_decl_implicit (BUILT_IN_MEMCPY);
 
-	  if (!strlen_fn || !strcpy_fn)
+	  if (!strlen_fn || !memcpy_fn)
 	    return NULL_TREE;
 
-	  /* If we don't have a movstr we don't want to emit an strcpy
-	     call.  We have to do that if the length of the source string
-	     isn't computable (in that case we can use memcpy probably
-	     later expanding to a sequence of mov instructions).  If we
-	     have movstr instructions we can emit strcpy calls.  */
-	  if (!HAVE_movstr)
-	    {
-	      tree len = c_strlen (src, 1);
-	      if (! len || TREE_SIDE_EFFECTS (len))
-		return NULL_TREE;
-	    }
+	  /* If the length of the source string isn't computable don't
+	     split strcat into strlen and memcpy.  */
+	  if (! len)
+	    len = c_strlen (src, 1);
+	  if (! len || TREE_SIDE_EFFECTS (len))
+	    return NULL_TREE;
 
 	  /* Stabilize the argument list.  */
 	  dst = builtin_save_expr (dst);
@@ -11780,7 +11777,11 @@ fold_builtin_strcat (location_t loc ATTRIBUTE_UNUSED, tree dst, tree src)
 	  newdst = fold_build_pointer_plus_loc (loc, dst, newdst);
 	  newdst = builtin_save_expr (newdst);
 
-	  call = build_call_expr_loc (loc, strcpy_fn, 2, newdst, src);
+	  len = fold_convert_loc (loc, size_type_node, len);
+	  len = size_binop_loc (loc, PLUS_EXPR, len,
+				build_int_cst (size_type_node, 1));
+
+	  call = build_call_expr_loc (loc, memcpy_fn, 3, newdst, src, len);
 	  return build2 (COMPOUND_EXPR, TREE_TYPE (dst), call, dst);
 	}
       return NULL_TREE;

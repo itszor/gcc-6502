@@ -1,5 +1,5 @@
 /* Build expressions with type checking for C++ compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Hacked by Michael Tiemann (tiemann@cygnus.com)
 
 This file is part of GCC.
@@ -3012,7 +3012,7 @@ cp_build_array_ref (location_t loc, tree array, tree idx,
 
   /* If an array's index is an array notation, then its rank cannot be
      greater than one.  */ 
-  if (flag_enable_cilkplus && contains_array_notation_expr (idx))
+  if (flag_cilkplus && contains_array_notation_expr (idx))
     {
       size_t rank = 0;
 
@@ -4838,7 +4838,8 @@ cp_build_binary_op (location_t location,
 	  tree xop0 = op0, xop1 = op1, xresult_type = result_type;
 	  enum tree_code xresultcode = resultcode;
 	  tree val
-	    = shorten_compare (&xop0, &xop1, &xresult_type, &xresultcode);
+	    = shorten_compare (location, &xop0, &xop1, &xresult_type,
+			       &xresultcode);
 	  if (val != 0)
 	    return cp_convert (boolean_type_node, val, complain);
 	  op0 = xop0, op1 = xop1;
@@ -4944,12 +4945,25 @@ build_x_vec_perm_expr (location_t loc,
 			tree arg0, tree arg1, tree arg2,
 			tsubst_flags_t complain)
 {
-  if (processing_template_decl
-      && (type_dependent_expression_p (arg0)
+  tree orig_arg0 = arg0;
+  tree orig_arg1 = arg1;
+  tree orig_arg2 = arg2;
+  if (processing_template_decl)
+    {
+      if (type_dependent_expression_p (arg0)
 	  || type_dependent_expression_p (arg1)
-	  || type_dependent_expression_p (arg2)))
-    return build_min_nt_loc (loc, VEC_PERM_EXPR, arg0, arg1, arg2);
-  return c_build_vec_perm_expr (loc, arg0, arg1, arg2, complain & tf_error);
+	  || type_dependent_expression_p (arg2))
+	return build_min_nt_loc (loc, VEC_PERM_EXPR, arg0, arg1, arg2);
+      arg0 = build_non_dependent_expr (arg0);
+      if (arg1)
+	arg1 = build_non_dependent_expr (arg1);
+      arg2 = build_non_dependent_expr (arg2);
+    }
+  tree exp = c_build_vec_perm_expr (loc, arg0, arg1, arg2, complain & tf_error);
+  if (processing_template_decl && exp != error_mark_node)
+    return build_min_non_dep (VEC_PERM_EXPR, exp, orig_arg0,
+			      orig_arg1, orig_arg2);
+  return exp;
 }
 
 /* Return a tree for the sum or difference (RESULTCODE says which)
@@ -5026,6 +5040,14 @@ pointer_diff (tree op0, tree op1, tree ptrtype, tsubst_flags_t complain)
       if (complain & tf_error)
 	error ("invalid use of a pointer to an incomplete type in "
 	       "pointer arithmetic");
+      else
+	return error_mark_node;
+    }
+
+  if (pointer_to_zero_sized_aggr_p (TREE_TYPE (op1)))
+    {
+      if (complain & tf_error)
+	error ("arithmetic on pointer to an empty aggregate");
       else
 	return error_mark_node;
     }
@@ -6166,7 +6188,7 @@ cp_build_compound_expr (tree lhs, tree rhs, tsubst_flags_t complain)
   if (lhs == error_mark_node || rhs == error_mark_node)
     return error_mark_node;
 
-  if (flag_enable_cilkplus
+  if (flag_cilkplus
       && (TREE_CODE (lhs) == CILK_SPAWN_STMT
 	  || TREE_CODE (rhs) == CILK_SPAWN_STMT))
     {
@@ -8301,7 +8323,7 @@ check_return_expr (tree retval, bool *no_warning)
 
   *no_warning = false;
 
-  if (flag_enable_cilkplus && retval && TREE_CODE (retval) == CILK_SPAWN_STMT)
+  if (flag_cilkplus && retval && TREE_CODE (retval) == CILK_SPAWN_STMT)
     {
       error_at (EXPR_LOCATION (retval), "use of %<_Cilk_spawn%> in a return "
 		"statement is not allowed");

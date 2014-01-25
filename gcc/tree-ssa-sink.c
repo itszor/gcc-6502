@@ -1,5 +1,5 @@
 /* Code sinking for trees
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dan@dberlin.org>
 
 This file is part of GCC.
@@ -567,7 +567,7 @@ static void
 execute_sink_code (void)
 {
   loop_optimizer_init (LOOPS_NORMAL);
-
+  split_critical_edges ();
   connect_infinite_loops_to_exit ();
   memset (&sink_stats, 0, sizeof (sink_stats));
   calculate_dominance_info (CDI_DOMINATORS);
@@ -604,7 +604,9 @@ const pass_data pass_data_sink_code =
   true, /* has_gate */
   true, /* has_execute */
   TV_TREE_SINK, /* tv_id */
-  ( PROP_no_crit_edges | PROP_cfg | PROP_ssa ), /* properties_required */
+  /* PROP_no_crit_edges is ensured by running split_critical_edges in
+     execute_sink_code.  */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */

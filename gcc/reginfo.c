@@ -1,5 +1,5 @@
 /* Compute different info about registers.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -86,7 +86,7 @@ static const char initial_call_really_used_regs[] = CALL_REALLY_USED_REGISTERS;
 char global_regs[FIRST_PSEUDO_REGISTER];
 
 /* Declaration for the global register. */
-static tree GTY(()) global_regs_decl[FIRST_PSEUDO_REGISTER];
+tree global_regs_decl[FIRST_PSEUDO_REGISTER];
 
 /* Same information as REGS_INVALIDATED_BY_CALL but in regset form to be used
    in dataflow more conveniently.  */

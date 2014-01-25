@@ -1,5 +1,5 @@
 /* Vectorizer Specific Loop Manipulations
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Dorit Naishlos <dorit@il.ibm.com>
    and Ira Rosen <irar@il.ibm.com>
 
@@ -483,7 +483,18 @@ slpeel_update_phi_nodes_for_guard1 (edge guard_edge, struct loop *loop,
 	  if (!current_new_name)
 	    continue;
         }
-      gcc_assert (get_current_def (current_new_name) == NULL_TREE);
+      tree new_name = get_current_def (current_new_name);
+      /* Because of peeled_chrec optimization it is possible that we have
+	 set this earlier.  Verify the PHI has the same value.  */
+      if (new_name)
+	{
+	  gimple phi = SSA_NAME_DEF_STMT (new_name);
+	  gcc_assert (gimple_code (phi) == GIMPLE_PHI
+		      && gimple_bb (phi) == *new_exit_bb
+		      && (PHI_ARG_DEF_FROM_EDGE (phi, single_exit (loop))
+			  == loop_arg));
+	  continue;
+	}
 
       set_current_def (current_new_name, PHI_RESULT (new_phi));
     }
@@ -2240,13 +2251,24 @@ vect_create_cond_for_alias_checks (loop_vec_info loop_vinfo, tree * cond_expr)
 
       tree seg_a_min = addr_base_a;
       tree seg_a_max = fold_build_pointer_plus (addr_base_a, segment_length_a);
+      /* For negative step, we need to adjust address range by TYPE_SIZE_UNIT
+	 bytes, e.g., int a[3] -> a[1] range is [a+4, a+16) instead of
+	 [a, a+12) */
       if (tree_int_cst_compare (DR_STEP (dr_a.dr), size_zero_node) < 0)
-	seg_a_min = seg_a_max, seg_a_max = addr_base_a;
+	{
+	  tree unit_size = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr_a.dr)));
+	  seg_a_min = fold_build_pointer_plus (seg_a_max, unit_size);
+	  seg_a_max = fold_build_pointer_plus (addr_base_a, unit_size);
+	}
 
       tree seg_b_min = addr_base_b;
       tree seg_b_max = fold_build_pointer_plus (addr_base_b, segment_length_b);
       if (tree_int_cst_compare (DR_STEP (dr_b.dr), size_zero_node) < 0)
-	seg_b_min = seg_b_max, seg_b_max = addr_base_b;
+	{
+	  tree unit_size = TYPE_SIZE_UNIT (TREE_TYPE (DR_REF (dr_b.dr)));
+	  seg_b_min = fold_build_pointer_plus (seg_b_max, unit_size);
+	  seg_b_max = fold_build_pointer_plus (addr_base_b, unit_size);
+	}
 
       part_cond_expr =
       	fold_build2 (TRUTH_OR_EXPR, boolean_type_node,
@@ -2410,73 +2432,6 @@ vect_loop_versioning (loop_vec_info loop_vinfo,
 	  add_phi_arg (new_phi, arg, new_exit_e,
 		       gimple_phi_arg_location_from_edge (orig_phi, e));
 	  adjust_phi_and_debug_stmts (orig_phi, e, PHI_RESULT (new_phi));
-	}
-    }
-
-
-  /* Extract load statements on memrefs with zero-stride accesses.  */
-
-  if (LOOP_REQUIRES_VERSIONING_FOR_ALIAS (loop_vinfo))
-    {
-      /* In the loop body, we iterate each statement to check if it is a load.
-	 Then we check the DR_STEP of the data reference.  If DR_STEP is zero,
-	 then we will hoist the load statement to the loop preheader.  */
-
-      basic_block *bbs = LOOP_VINFO_BBS (loop_vinfo);
-      int nbbs = loop->num_nodes;
-
-      for (int i = 0; i < nbbs; ++i)
-	{
-	  for (gimple_stmt_iterator si = gsi_start_bb (bbs[i]);
-	       !gsi_end_p (si);)
-	    {
-	      gimple stmt = gsi_stmt (si);
-	      stmt_vec_info stmt_info = vinfo_for_stmt (stmt);
-	      struct data_reference *dr = STMT_VINFO_DATA_REF (stmt_info);
-
-	      if (is_gimple_assign (stmt)
-		  && (!dr
-		      || (DR_IS_READ (dr) && integer_zerop (DR_STEP (dr)))))
-		{
-		  bool hoist = true;
-		  ssa_op_iter iter;
-		  tree var;
-
-		  /* We hoist a statement if all SSA uses in it are defined
-		     outside of the loop.  */
-		  FOR_EACH_SSA_TREE_OPERAND (var, stmt, iter, SSA_OP_USE)
-		    {
-		      gimple def = SSA_NAME_DEF_STMT (var);
-		      if (!gimple_nop_p (def)
-			  && flow_bb_inside_loop_p (loop, gimple_bb (def)))
-			{
-			  hoist = false;
-			  break;
-			}
-		    }
-
-		  if (hoist)
-		    {
-		      if (dr)
-			gimple_set_vuse (stmt, NULL);
-
-		      gsi_remove (&si, false);
-		      gsi_insert_on_edge_immediate (loop_preheader_edge (loop),
-						    stmt);
-
-		      if (dump_enabled_p ())
-			{
-			  dump_printf_loc
-			      (MSG_NOTE, vect_location,
-			       "hoisting out of the vectorized loop: ");
-			  dump_gimple_stmt (MSG_NOTE, TDF_SLIM, stmt, 0);
-			  dump_printf (MSG_NOTE, "\n");
-			}
-		      continue;
-		    }
-		}
-	      gsi_next (&si);
-	    }
 	}
     }
 

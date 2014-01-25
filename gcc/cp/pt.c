@@ -1,5 +1,5 @@
 /* Handle parameterized types (templates) for GNU C++.
-   Copyright (C) 1992-2013 Free Software Foundation, Inc.
+   Copyright (C) 1992-2014 Free Software Foundation, Inc.
    Written by Ken Raeburn (raeburn@cygnus.com) while at Watchmaker Computing.
    Rewritten by Jason Merrill (jason@cygnus.com).
 
@@ -5149,6 +5149,15 @@ alias_template_specialization_p (const_tree t)
 	  && DECL_ALIAS_TEMPLATE_P (TYPE_TI_TEMPLATE (t)));
 }
 
+/* Return the number of innermost template parameters in TMPL.  */
+
+static int
+num_innermost_template_parms (tree tmpl)
+{
+  tree parms = INNERMOST_TEMPLATE_PARMS (DECL_TEMPLATE_PARMS (tmpl));
+  return TREE_VEC_LENGTH (parms);
+}
+
 /* Return either TMPL or another template that it is equivalent to under DR
    1286: An alias that just changes the name of a template is equivalent to
    the other template.  */
@@ -5164,6 +5173,8 @@ get_underlying_template (tree tmpl)
 	{
 	  tree sub = TYPE_TI_TEMPLATE (result);
 	  if (PRIMARY_TEMPLATE_P (sub)
+	      && (num_innermost_template_parms (tmpl)
+		  == num_innermost_template_parms (sub))
 	      && same_type_p (result, TREE_TYPE (sub)))
 	    {
 	      /* The alias type is equivalent to the pattern of the
@@ -8602,7 +8613,7 @@ apply_late_template_attributes (tree *decl_p, tree attributes, int attr_flags,
 	    {
 	      *p = TREE_CHAIN (t);
 	      TREE_CHAIN (t) = NULL_TREE;
-	      if (flag_openmp
+	      if ((flag_openmp || flag_cilkplus)
 		  && is_attribute_p ("omp declare simd",
 				     get_attribute_name (t))
 		  && TREE_VALUE (t))
@@ -13035,6 +13046,10 @@ tsubst_omp_for_iterator (tree t, int i, tree declv, tree initv,
   init_decl = (init && TREE_CODE (init) == DECL_EXPR);
   init = RECUR (init);
   decl = RECUR (decl);
+
+  if (decl == error_mark_node || init == error_mark_node)
+    return;
+
   if (init_decl)
     {
       gcc_assert (!processing_template_decl);
@@ -14490,8 +14505,7 @@ tsubst_copy_and_build (tree t,
 	       into a non-dependent call.  */
 	    && type_dependent_expression_p_push (t)
 	    && !any_type_dependent_arguments_p (call_args))
-	  function = perform_koenig_lookup (function, call_args, false,
-					    tf_none);
+	  function = perform_koenig_lookup (function, call_args, tf_none);
 
 	if (identifier_p (function)
 	    && !any_type_dependent_arguments_p (call_args))
@@ -19656,6 +19670,10 @@ instantiate_decl (tree d, int defer_ok,
 	     so that finish_function knows where we are.  */
 	  input_location
 	    = DECL_STRUCT_FUNCTION (code_pattern)->function_end_locus;
+
+	  /* Remember if we saw an infinite loop in the template.  */
+	  current_function_infinite_loop
+	    = DECL_STRUCT_FUNCTION (code_pattern)->language->infinite_loop;
 	}
 
       /* We don't need the local specializations any more.  */

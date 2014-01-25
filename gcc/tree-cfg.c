@@ -1,5 +1,5 @@
 /* Control flow functions for trees.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
 This file is part of GCC.
@@ -159,7 +159,6 @@ static void make_goto_expr_edges (basic_block);
 static void make_gimple_asm_edges (basic_block);
 static edge gimple_redirect_edge_and_branch (edge, basic_block);
 static edge gimple_try_redirect_by_replacing_jump (edge, basic_block);
-static unsigned int split_critical_edges (void);
 
 /* Various helpers.  */
 static inline bool stmt_starts_bb_p (gimple, gimple);
@@ -7929,7 +7928,7 @@ struct cfg_hooks gimple_cfg_hooks = {
 
 /* Split all critical edges.  */
 
-static unsigned int
+unsigned int
 split_critical_edges (void)
 {
   basic_block bb;

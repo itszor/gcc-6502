@@ -1,5 +1,5 @@
 /* Command line option handling.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Neil Booth.
 
 This file is part of GCC.
@@ -454,6 +454,9 @@ static const struct default_options default_options_table[] =
     { OPT_LEVELS_1_PLUS, OPT_fcombine_stack_adjustments, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_fcompare_elim, NULL, 1 },
     { OPT_LEVELS_1_PLUS, OPT_ftree_slsr, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_fbranch_count_reg, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_fmove_loop_invariants, NULL, 1 },
+    { OPT_LEVELS_1_PLUS_NOT_DEBUG, OPT_ftree_pta, NULL, 1 },
 
     /* -O2 optimizations.  */
     { OPT_LEVELS_2_PLUS, OPT_finline_small_functions, NULL, 1 },

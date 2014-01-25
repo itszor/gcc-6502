@@ -1,6 +1,6 @@
 /* Code to analyze doloop loops in order for targets to perform late
    optimizations converting doloops to other forms of hardware loops.
-   Copyright (C) 2011-2013 Free Software Foundation, Inc.
+   Copyright (C) 2011-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -661,6 +661,7 @@ reorg_loops (bool do_reorder, struct hw_doloop_hooks *hooks)
     }
 
   free_loops (loops);
+  bitmap_obstack_release (&loop_stack);
 
   if (dump_file)
     print_rtl (dump_file, get_insns ());

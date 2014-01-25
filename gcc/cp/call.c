@@ -1,5 +1,5 @@
 /* Functions related to invoking methods and overloaded functions.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) and
    modified by Brendan Kehoe (brendan@cygnus.com).
 
@@ -4402,6 +4402,12 @@ build_conditional_expr_1 (location_t loc, tree arg1, tree arg2, tree arg3,
       arg2 = force_rvalue (arg2, complain);
       arg3 = force_rvalue (arg3, complain);
 
+      /* force_rvalue can return error_mark on valid arguments.  */
+      if (error_operand_p (arg1)
+	  || error_operand_p (arg2)
+	  || error_operand_p (arg3))
+	return error_mark_node;
+
       tree arg1_type = TREE_TYPE (arg1);
       arg2_type = TREE_TYPE (arg2);
       arg3_type = TREE_TYPE (arg3);
@@ -5708,13 +5714,12 @@ build_op_delete_call (enum tree_code code, tree addr, tree size,
       else
 	{
 	  tree ret;
-	  vec<tree, va_gc> *args;
-	  vec_alloc (args, 2);
+	  vec<tree, va_gc> *args = make_tree_vector ();
 	  args->quick_push (addr);
 	  if (FUNCTION_ARG_CHAIN (fn) != void_list_node)
 	    args->quick_push (size);
 	  ret = cp_build_function_call_vec (fn, &args, complain);
-	  vec_free (args);
+	  release_tree_vector (args);
 	  return ret;
 	}
     }
@@ -5934,6 +5939,8 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	    && !(BRACE_ENCLOSED_INITIALIZER_P (expr)
 		 && CONSTRUCTOR_IS_DIRECT_INIT (expr)))
 	  {
+	    if (!(complain & tf_error))
+	      return error_mark_node;
 	    error ("converting to %qT from initializer list would use "
 		   "explicit constructor %qD", totype, convfn);
 	  }
@@ -6561,7 +6568,7 @@ convert_for_arg_passing (tree type, tree val, tsubst_flags_t complain)
 bool
 magic_varargs_p (tree fn)
 {
-  if (flag_enable_cilkplus && is_cilkplus_reduce_builtin (fn) != BUILT_IN_NONE)
+  if (flag_cilkplus && is_cilkplus_reduce_builtin (fn) != BUILT_IN_NONE)
     return true;
 
   if (DECL_BUILT_IN (fn))
@@ -7184,7 +7191,7 @@ build_cxx_call (tree fn, int nargs, tree *argarray,
     /* If it is a built-in array notation function, then the return type of
      the function is the element type of the array passed in as array 
      notation (i.e. the first parameter of the function).  */
-  if (flag_enable_cilkplus && TREE_CODE (fn) == CALL_EXPR) 
+  if (flag_cilkplus && TREE_CODE (fn) == CALL_EXPR) 
     {
       enum built_in_function bif = 
 	is_cilkplus_reduce_builtin (CALL_EXPR_FN (fn));

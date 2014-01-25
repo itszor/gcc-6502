@@ -1,6 +1,6 @@
 /* This file is part of the Intel(R) Cilk(TM) Plus support
    This file contains Cilk Support files.
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
    Contributed by Balaji V. Iyer <balaji.v.iyer@intel.com>,
                   Intel Corporation
 
@@ -97,7 +97,7 @@ extern tree cilk_call_setjmp (tree);
 inline bool
 fn_contains_cilk_spawn_p (function *f)
 {
-  return (flag_enable_cilkplus 
+  return (flag_cilkplus 
 	  && (f->calls_cilk_spawn || f->cilk_frame_decl != NULL_TREE));
 }
 

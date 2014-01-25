@@ -1,5 +1,5 @@
 /* Subroutines used by or related to instruction recognition.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1618,6 +1618,50 @@ decode_asm_operands (rtx body, rtx *operands, rtx **operand_locs,
     *loc = ASM_OPERANDS_SOURCE_LOCATION (asmop);
 
   return ASM_OPERANDS_TEMPLATE (asmop);
+}
+
+/* Parse inline assembly string STRING and determine which operands are
+   referenced by % markers.  For the first NOPERANDS operands, set USED[I]
+   to true if operand I is referenced.
+
+   This is intended to distinguish barrier-like asms such as:
+
+      asm ("" : "=m" (...));
+
+   from real references such as:
+
+      asm ("sw\t$0, %0" : "=m" (...));  */
+
+void
+get_referenced_operands (const char *string, bool *used,
+			 unsigned int noperands)
+{
+  memset (used, 0, sizeof (bool) * noperands);
+  const char *p = string;
+  while (*p)
+    switch (*p)
+      {
+      case '%':
+	p += 1;
+	/* A letter followed by a digit indicates an operand number.  */
+	if (ISALPHA (p[0]) && ISDIGIT (p[1]))
+	  p += 1;
+	if (ISDIGIT (*p))
+	  {
+	    char *endptr;
+	    unsigned long opnum = strtoul (p, &endptr, 10);
+	    if (endptr != p && opnum < noperands)
+	      used[opnum] = true;
+	    p = endptr;
+	  }
+	else
+	  p += 1;
+	break;
+
+      default:
+	p++;
+	break;
+      }
 }
 
 /* Check if an asm_operand matches its constraints.

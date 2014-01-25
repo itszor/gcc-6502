@@ -1,5 +1,5 @@
 /* Output routines for GCC for ARM.
-   Copyright (C) 1991-2013 Free Software Foundation, Inc.
+   Copyright (C) 1991-2014 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com).
@@ -1696,7 +1696,7 @@ const struct tune_params arm_v7m_tune =
   &v7m_extra_costs,
   NULL,						/* Sched adj cost.  */
   1,						/* Constant limit.  */
-  5,						/* Max cond insns.  */
+  2,						/* Max cond insns.  */
   ARM_PREFETCH_NOT_BENEFICIAL,
   true,						/* Prefer constant pool.  */
   arm_cortex_m_branch_cost,
@@ -9092,6 +9092,9 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
     {
     case SET:
       *cost = 0;
+      /* SET RTXs don't have a mode so we get it from the destination.  */
+      mode = GET_MODE (SET_DEST (x));
+
       if (REG_P (SET_SRC (x))
 	  && REG_P (SET_DEST (x)))
 	{
@@ -9106,6 +9109,8 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	     in 16 bits in Thumb mode.  */
 	  if (!speed_p && TARGET_THUMB && outer_code == COND_EXEC)
 	    *cost >>= 1;
+
+	  return true;
 	}
 
       if (CONST_INT_P (SET_SRC (x)))
@@ -9113,7 +9118,6 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	  /* Handle CONST_INT here, since the value doesn't have a mode
 	     and we would otherwise be unable to work out the true cost.  */
 	  *cost = rtx_cost (SET_DEST (x), SET, 0, speed_p);
-	  mode = GET_MODE (SET_DEST (x));
 	  outer_code = SET;
 	  /* Slightly lower the cost of setting a core reg to a constant.
 	     This helps break up chains and allows for better scheduling.  */
@@ -12435,7 +12439,7 @@ arm_coproc_mem_operand (rtx op, bool wb)
   rtx ind;
 
   /* Reject eliminable registers.  */
-  if (! (reload_in_progress || reload_completed)
+  if (! (reload_in_progress || reload_completed || lra_in_progress)
       && (   reg_mentioned_p (frame_pointer_rtx, op)
 	  || reg_mentioned_p (arg_pointer_rtx, op)
 	  || reg_mentioned_p (virtual_incoming_args_rtx, op)
@@ -20316,8 +20320,10 @@ arm_get_frame_offsets (void)
   offsets->saved_args = crtl->args.pretend_args_size;
 
   /* In Thumb mode this is incorrect, but never used.  */
-  offsets->frame = offsets->saved_args + (frame_pointer_needed ? 4 : 0) +
-                   arm_compute_static_chain_stack_bytes();
+  offsets->frame
+    = (offsets->saved_args
+       + arm_compute_static_chain_stack_bytes ()
+       + (frame_pointer_needed ? 4 : 0));
 
   if (TARGET_32BIT)
     {
@@ -20357,9 +20363,10 @@ arm_get_frame_offsets (void)
     }
 
   /* Saved registers include the stack frame.  */
-  offsets->saved_regs = offsets->saved_args + saved +
-                        arm_compute_static_chain_stack_bytes();
+  offsets->saved_regs
+    = offsets->saved_args + arm_compute_static_chain_stack_bytes () + saved;
   offsets->soft_frame = offsets->saved_regs + CALLER_INTERWORKING_SLOT_SIZE;
+
   /* A leaf function does not need any stack alignment if it has nothing
      on the stack.  */
   if (leaf && frame_size == 0
@@ -21594,7 +21601,11 @@ arm_print_operand (FILE *stream, rtx x, int code)
 
     case 'v':
 	gcc_assert (CONST_DOUBLE_P (x));
-	fprintf (stream, "#%d", vfp3_const_double_for_fract_bits (x));
+	int result;
+	result = vfp3_const_double_for_fract_bits (x);
+	if (result == 0)
+	  result = vfp3_const_double_for_bits (x);
+	fprintf (stream, "#%d", result);
 	return;
 
     /* Register specifier for vld1.16/vst1.16.  Translate the S register
@@ -22127,11 +22138,11 @@ thumb2_final_prescan_insn (rtx insn)
   int mask;
   int max;
 
-  /* Maximum number of conditionally executed instructions in a block
-     is minimum of the two max values: maximum allowed in an IT block
-     and maximum that is beneficial according to the cost model and tune.  */
-  max = (max_insns_skipped < MAX_INSN_PER_IT_BLOCK) ?
-    max_insns_skipped : MAX_INSN_PER_IT_BLOCK;
+  /* max_insns_skipped in the tune was already taken into account in the
+     cost model of ifcvt pass when generating COND_EXEC insns.  At this stage
+     just emit the IT blocks as we can.  It does not make sense to split
+     the IT blocks.  */
+  max = MAX_INSN_PER_IT_BLOCK;
 
   /* Remove the previous insn from the count of insns to be output.  */
   if (arm_condexec_count)
@@ -24237,7 +24248,7 @@ arm_init_iwmmxt_builtins (void)
       enum machine_mode mode;
       tree type;
 
-      if (d->name == 0)
+      if (d->name == 0 || !(d->mask == FL_IWMMXT || d->mask == FL_IWMMXT2))
 	continue;
 
       mode = insn_data[d->icode].operand[1].mode;
@@ -24834,7 +24845,11 @@ arm_expand_neon_args (rtx target, int icode, int have_retval,
 						    type_mode);
             }
 
-          op[argc] = expand_normal (arg[argc]);
+	  /* Use EXPAND_MEMORY for NEON_ARG_MEMORY to ensure a MEM_P
+	     be returned.  */
+	  op[argc] = expand_expr (arg[argc], NULL_RTX, VOIDmode,
+				  (thisarg == NEON_ARG_MEMORY
+				   ? EXPAND_MEMORY : EXPAND_NORMAL));
 
           switch (thisarg)
             {
@@ -24853,6 +24868,9 @@ arm_expand_neon_args (rtx target, int icode, int have_retval,
               break;
 
             case NEON_ARG_MEMORY:
+	      /* Check if expand failed.  */
+	      if (op[argc] == const0_rtx)
+		return 0;
 	      gcc_assert (MEM_P (op[argc]));
 	      PUT_MODE (op[argc], mode[argc]);
 	      /* ??? arm_neon.h uses the same built-in functions for signed
@@ -27044,7 +27062,10 @@ arm_expand_epilogue_apcs_frame (bool really_return)
   saved_regs_mask = offsets->saved_regs_mask;
 
   /* Find the offset of the floating-point save area in the frame.  */
-  floats_from_frame = offsets->saved_args - offsets->frame;
+  floats_from_frame
+    = (offsets->saved_args
+       + arm_compute_static_chain_stack_bytes ()
+       - offsets->frame);
 
   /* Compute how many core registers saved and how far away the floats are.  */
   for (i = 0; i <= LAST_ARM_REGNUM; i++)
@@ -29705,6 +29726,26 @@ vfp3_const_double_for_fract_bits (rtx operand)
 	    return int_log2 (value);
 	}
     }
+  return 0;
+}
+
+int
+vfp3_const_double_for_bits (rtx operand)
+{
+  REAL_VALUE_TYPE r0;
+
+  if (!CONST_DOUBLE_P (operand))
+    return 0;
+
+  REAL_VALUE_FROM_CONST_DOUBLE (r0, operand);
+  if (exact_real_truncate (DFmode, &r0))
+    {
+      HOST_WIDE_INT value = real_to_integer (&r0);
+      value = value & 0xffffffff;
+      if ((value != 0) && ( (value & (value - 1)) == 0))
+	return int_log2 (value);
+    }
+
   return 0;
 }
 

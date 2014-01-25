@@ -1,5 +1,5 @@
 /* Expand the basic unary and binary arithmetic operations, for GNU compiler.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -6245,7 +6245,7 @@ init_tree_optimization_optabs (tree optnode)
 
   /* If the optabs changed, record it.  */
   if (memcmp (tmp_optabs, this_target_optabs, sizeof (struct target_optabs)))
-    TREE_OPTIMIZATION_OPTABS (optnode) = (unsigned char *) tmp_optabs;
+    TREE_OPTIMIZATION_OPTABS (optnode) = tmp_optabs;
   else
     {
       TREE_OPTIMIZATION_OPTABS (optnode) = NULL;

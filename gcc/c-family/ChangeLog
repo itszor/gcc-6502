@@ -1,3 +1,73 @@
+2014-01-24  Balaji V. Iyer  <balaji.v.iyer@intel.com>
+
+	* c-common.c (c_define_builtins): Replaced flag_enable_cilkplus with
+	flag_cilkplus.
+	* c-pragma.c (init_pragma): Likewise.
+	* c.opt: Likewise.
+
+2014-01-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c/59846
+	* c-common.c (shorten_compare): Add location_t parameter.
+	* c-common.h (shorten_binary_op): Adjust declaration.
+
+2014-01-23  Marek Polacek  <polacek@redhat.com>
+
+	PR c/58346
+	* c-common.c (pointer_to_zero_sized_aggr_p): New function.
+	* c-common.h: Declare it.
+
+2014-01-20  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.h (dump_ada_specs): Revert prototype change.
+	* c-ada-spec.c (dump_ads): Likewise.
+	(cpp_check): Likewise.
+	(dump_ada_specs): Likewise.
+
+2014-01-15  Laurent Alfonsi  <laurent.alfonsi@st.com>
+
+	PR c++/49718
+	* c-common.c (handle_no_instrument_function_attribute): Allow
+	no_instrument_function attribute in class member
+	definition/declaration.
+
+2014-01-15  Jakub Jelinek  <jakub@redhat.com>
+
+	PR c/58943
+	* c-omp.c (c_finish_omp_atomic): Set in_late_binary_op around
+	build_modify_expr with non-NOP_EXPR opcode.  Handle return from it
+	being COMPOUND_EXPR.
+	(c_finish_omp_for): Handle incr being COMPOUND_EXPR with first
+	operand a SAVE_EXPR and second MODIFY_EXPR.
+
+2014-01-09  Jakub Jelinek  <jakub@redhat.com>
+
+	PR target/58115
+	* c-pch.c (c_common_write_pch): Call
+	prepare_target_option_nodes_for_pch.
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	Update copyright years
+
+2014-01-02  Richard Sandiford  <rdsandiford@googlemail.com>
+
+	* array-notation-common.c, c-cilkplus.c: Use the standard form for
+	the copyright notice.
+
+2013-12-28  Eric Botcazou  <ebotcazou@adacore.com>
+
+	* c-ada-spec.c (print_constructor): New function.
+	(print_destructor): Retrieve the origin of the destructor.
+	(print_ada_declaration): Revamp handling of constructors/destructors.
+
+2013-12-23  Stuart Hastings <stuart@apple.com>
+	    Bill Maddox  <maddox@google.com>
+	    Jason Merrill  <jason@redhat.com>
+
+	* c.opt: Add -fdeclone-ctor-dtor.
+	* c-opts.c (c_common_post_options): Default to on iff -Os.
+
 2013-12-18  Balaji V. Iyer  <balaji.v.iyer@intel.com>
 
 	* c-common.c (c_common_attribute_table): Added "cilk simd function"
@@ -3355,7 +3425,7 @@
 	* c-common.c: Include gt-c-family-c-common.h.
 	* c-pragma.c: Include gt-c-family-c-pragma.h.
 
-Copyright (C) 2010-2013 Free Software Foundation, Inc.
+Copyright (C) 2010-2014 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for ARM.
-   Copyright (C) 1991-2013 Free Software Foundation, Inc.
+   Copyright (C) 1991-2014 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com)
@@ -189,7 +189,7 @@ extern arm_cc arm_current_cc;
 
 #define ARM_INVERSE_CONDITION_CODE(X)  ((arm_cc) (((int)X) ^ 1))
 
-/* The maximaum number of instructions that is beneficial to
+/* The maximum number of instructions that is beneficial to
    conditionally execute. */
 #undef MAX_CONDITIONAL_EXECUTE
 #define MAX_CONDITIONAL_EXECUTE arm_max_conditional_execute ()

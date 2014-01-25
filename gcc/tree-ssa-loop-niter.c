@@ -1,5 +1,5 @@
 /* Functions to determine/estimate number of iterations of a loop.
-   Copyright (C) 2004-2013 Free Software Foundation, Inc.
+   Copyright (C) 2004-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1311,7 +1311,7 @@ dump_affine_iv (FILE *file, affine_iv *iv)
    if EVERY_ITERATION is true, we know the test is executed on every iteration.
 
    The results (number of iterations and assumptions as described in
-   comments at struct tree_niter_desc in tree-flow.h) are stored to NITER.
+   comments at struct tree_niter_desc in tree-ssa-loop.h) are stored to NITER.
    Returns false if it fails to determine number of iterations, true if it
    was determined (possibly with some assumptions).  */
 

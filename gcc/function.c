@@ -1,5 +1,5 @@
 /* Expands front end tree to back end RTL for GCC.
-   Copyright (C) 1987-2013 Free Software Foundation, Inc.
+   Copyright (C) 1987-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -4405,6 +4405,7 @@ invoke_set_current_function_hook (tree fndecl)
 	  cl_optimization_restore (&global_options, TREE_OPTIMIZATION (opts));
 	}
 
+      targetm.set_current_function (fndecl);
       this_fn_optabs = this_target_optabs;
 
       if (opts != optimization_default_node)
@@ -4414,8 +4415,6 @@ invoke_set_current_function_hook (tree fndecl)
 	    this_fn_optabs = (struct target_optabs *)
 	      TREE_OPTIMIZATION_OPTABS (opts);
 	}
-
-      targetm.set_current_function (fndecl);
     }
 }
 

@@ -1,5 +1,5 @@
 /* Driver of optimization process
-   Copyright (C) 2003-2013 Free Software Foundation, Inc.
+   Copyright (C) 2003-2014 Free Software Foundation, Inc.
    Contributed by Jan Hubicka
 
 This file is part of GCC.
@@ -1244,7 +1244,8 @@ mark_functions_to_output (void)
 	      for (next = cgraph (node->same_comdat_group);
 		   next != node;
 		   next = cgraph (next->same_comdat_group))
-		if (!next->thunk.thunk_p && !next->alias)
+		if (!next->thunk.thunk_p && !next->alias
+		    && !symtab_comdat_local_p (next))
 		  next->process = 1;
 	    }
 	}

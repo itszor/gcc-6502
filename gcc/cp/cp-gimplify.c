@@ -1,6 +1,6 @@
 /* C++-specific tree lowering bits; see also c-gimplify.c and tree-gimple.c.
 
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Contributed by Jason Merrill <jason@redhat.com>
 
 This file is part of GCC.
@@ -1311,7 +1311,7 @@ cp_genericize (tree fndecl)
     return;
 
   /* Expand all the array notations here.  */
-  if (flag_enable_cilkplus 
+  if (flag_cilkplus 
       && contains_array_notation_expr (DECL_SAVED_TREE (fndecl)))
     DECL_SAVED_TREE (fndecl) = 
       expand_array_notation_exprs (DECL_SAVED_TREE (fndecl));

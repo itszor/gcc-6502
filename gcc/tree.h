@@ -1,5 +1,5 @@
 /* Definitions for the ubiquitous 'tree' type for GNU compilers.
-   Copyright (C) 1989-2013 Free Software Foundation, Inc.
+   Copyright (C) 1989-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1113,9 +1113,6 @@ extern void protected_set_expr_location (tree, location_t);
 /* LABEL_EXPR accessor. This gives access to the label associated with
    the given label expression.  */
 #define LABEL_EXPR_LABEL(NODE)  TREE_OPERAND (LABEL_EXPR_CHECK (NODE), 0)
-
-/* VDEF_EXPR accessors are specified in tree-flow.h, along with the other
-   accessors for SSA operands.  */
 
 /* CATCH_EXPR accessors.  */
 #define CATCH_TYPES(NODE)	TREE_OPERAND (CATCH_EXPR_CHECK (NODE), 0)
@@ -2695,8 +2692,13 @@ extern tree build_optimization_node (struct gcc_options *opts);
 #define TREE_TARGET_OPTION(NODE) \
   (&TARGET_OPTION_NODE_CHECK (NODE)->target_option.opts)
 
+#define TREE_TARGET_GLOBALS(NODE) \
+  (TARGET_OPTION_NODE_CHECK (NODE)->target_option.globals)
+
 /* Return a tree node that encapsulates the target options in OPTS.  */
 extern tree build_target_option_node (struct gcc_options *opts);
+
+extern void prepare_target_option_nodes_for_pch (void);
 
 #if defined ENABLE_TREE_CHECKING && (GCC_VERSION >= 2007)
 
@@ -4525,6 +4527,7 @@ extern tree fold_call_expr (location_t, tree, bool);
 extern tree fold_builtin_fputs (location_t, tree, tree, bool, bool, tree);
 extern tree fold_builtin_strcpy (location_t, tree, tree, tree, tree);
 extern tree fold_builtin_strncpy (location_t, tree, tree, tree, tree, tree);
+extern tree fold_builtin_strcat (location_t, tree, tree, tree);
 extern tree fold_builtin_memory_chk (location_t, tree, tree, tree, tree, tree, tree, bool,
 				     enum built_in_function);
 extern tree fold_builtin_stxcpy_chk (location_t, tree, tree, tree, tree, tree, bool,

@@ -1,5 +1,5 @@
 /* Tree inlining.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -4116,7 +4116,8 @@ expand_call_inline (basic_block bb, gimple stmt, copy_body_data *id)
 	  /* During early inline pass, report only when optimization is
 	     not turned on.  */
 	  && (cgraph_global_info_ready
-	      || !optimize)
+	      || !optimize
+	      || cgraph_inline_failed_type (reason) == CIF_FINAL_ERROR)
 	  /* PR 20090218-1_0.c. Body can be provided by another module. */
 	  && (reason != CIF_BODY_NOT_AVAILABLE || !flag_generate_lto))
 	{

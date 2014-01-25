@@ -1,6 +1,6 @@
 /* Tree lowering pass.  This pass converts the GENERIC functions-as-trees
    tree representation into the GIMPLE form.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
    Major work done by Sebastian Pop <s.pop@laposte.net>,
    Diego Novillo <dnovillo@redhat.com> and Jason Merrill <jason@redhat.com>.
 
@@ -7373,12 +7373,22 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 					TREE_TYPE (*expr_p));
 	  break;
 
+	case VIEW_CONVERT_EXPR:
+	  if (is_gimple_reg_type (TREE_TYPE (*expr_p))
+	      && is_gimple_reg_type (TREE_TYPE (TREE_OPERAND (*expr_p, 0))))
+	    {
+	      ret = gimplify_expr (&TREE_OPERAND (*expr_p, 0), pre_p,
+				   post_p, is_gimple_val, fb_rvalue);
+	      recalculate_side_effects (*expr_p);
+	      break;
+	    }
+	  /* Fallthru.  */
+
 	case ARRAY_REF:
 	case ARRAY_RANGE_REF:
 	case REALPART_EXPR:
 	case IMAGPART_EXPR:
 	case COMPONENT_REF:
-	case VIEW_CONVERT_EXPR:
 	  ret = gimplify_compound_lval (expr_p, pre_p, post_p,
 					fallback ? fallback : fb_rvalue);
 	  break;
@@ -7481,7 +7491,14 @@ gimplify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 	  {
 	    tree cond = TREE_OPERAND (*expr_p, 0);
 	    tree id = TREE_OPERAND (*expr_p, 1);
-	    tree tmp = create_tmp_var_raw (TREE_TYPE(cond), NULL);
+	    tree type = TREE_TYPE (cond);
+	    if (!INTEGRAL_TYPE_P (type))
+	      {
+		*expr_p = cond;
+		ret = GS_OK;
+		break;
+	      }
+	    tree tmp = create_tmp_var (type, NULL);
 	    gimplify_arg (&cond, pre_p, EXPR_LOCATION (*expr_p));
 	    gimple call = gimple_build_call_internal (IFN_ANNOTATE, 2,
 						      cond, id);

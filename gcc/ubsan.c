@@ -1,5 +1,5 @@
 /* UndefinedBehaviorSanitizer, undefined behavior detector.
-   Copyright (C) 2013 Free Software Foundation, Inc.
+   Copyright (C) 2013-2014 Free Software Foundation, Inc.
    Contributed by Marek Polacek <polacek@redhat.com>
 
 This file is part of GCC.
@@ -310,6 +310,9 @@ ubsan_type_descriptor (tree type, bool want_pointer_type_p)
       if (TREE_CODE (type2) == METHOD_TYPE)
         type2 = TYPE_METHOD_BASETYPE (type2);
     }
+
+  /* If an array, get its type.  */
+  type2 = strip_array_types (type2);
 
   if (TYPE_NAME (type2) != NULL)
     {

@@ -1,5 +1,5 @@
 /* params.h - Run-time parameters.
-   Copyright (C) 2001-2013 Free Software Foundation, Inc.
+   Copyright (C) 2001-2014 Free Software Foundation, Inc.
    Written by Mark Mitchell <mark@codesourcery.com>.
 
 This file is part of GCC.
@@ -218,5 +218,17 @@ extern void init_param_values (int *params);
   PARAM_VALUE (PARAM_ALLOW_PACKED_LOAD_DATA_RACES)
 #define ALLOW_PACKED_STORE_DATA_RACES \
   PARAM_VALUE (PARAM_ALLOW_PACKED_STORE_DATA_RACES)
+#define ASAN_STACK \
+  PARAM_VALUE (PARAM_ASAN_STACK)
+#define ASAN_GLOBALS \
+  PARAM_VALUE (PARAM_ASAN_GLOBALS)
+#define ASAN_INSTRUMENT_READS \
+  PARAM_VALUE (PARAM_ASAN_INSTRUMENT_READS)
+#define ASAN_INSTRUMENT_WRITES \
+  PARAM_VALUE (PARAM_ASAN_INSTRUMENT_WRITES)
+#define ASAN_MEMINTRIN \
+  PARAM_VALUE (PARAM_ASAN_MEMINTRIN)
+#define ASAN_USE_AFTER_RETURN \
+  PARAM_VALUE (PARAM_ASAN_USE_AFTER_RETURN)
 
 #endif /* ! GCC_PARAMS_H */

@@ -1,5 +1,5 @@
 /* Loop manipulation code for GNU compiler.
-   Copyright (C) 2002-2013 Free Software Foundation, Inc.
+   Copyright (C) 2002-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -1022,6 +1022,8 @@ copy_loop_info (struct loop *loop, struct loop *target)
   target->any_estimate = loop->any_estimate;
   target->nb_iterations_estimate = loop->nb_iterations_estimate;
   target->estimate_state = loop->estimate_state;
+  target->warned_aggressive_loop_optimizations
+    |= loop->warned_aggressive_loop_optimizations;
 }
 
 /* Copies copy of LOOP as subloop of TARGET loop, placing newly

@@ -1,5 +1,5 @@
 /* Definitions of target machine for GCC for IA-32.
-   Copyright (C) 1988-2013 Free Software Foundation, Inc.
+   Copyright (C) 1988-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -102,6 +102,8 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 #define TARGET_CRC32_P(x)	TARGET_ISA_CRC32_P(x)
 #define TARGET_AES	TARGET_ISA_AES
 #define TARGET_AES_P(x)	TARGET_ISA_AES_P(x)
+#define TARGET_SHA	TARGET_ISA_SHA
+#define TARGET_SHA_P(x)	TARGET_ISA_SHA_P(x)
 #define TARGET_PCLMUL	TARGET_ISA_PCLMUL
 #define TARGET_PCLMUL_P(x)	TARGET_ISA_PCLMUL_P(x)
 #define TARGET_CMPXCHG16B	TARGET_ISA_CX16
@@ -247,10 +249,10 @@ extern const struct processor_costs ix86_size_cost;
 
 /* Macros used in the machine description to test the flags.  */
 
-/* configure can arrange to make this 2, to force a 486.  */
+/* configure can arrange to change it.  */
 
 #ifndef TARGET_CPU_DEFAULT
-#define TARGET_CPU_DEFAULT TARGET_CPU_DEFAULT_generic
+#define TARGET_CPU_DEFAULT PROCESSOR_GENERIC
 #endif
 
 #ifndef TARGET_FPMATH_DEFAULT
@@ -301,9 +303,12 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_ATHLON_K8 (TARGET_K8 || TARGET_ATHLON)
 #define TARGET_NOCONA (ix86_tune == PROCESSOR_NOCONA)
 #define TARGET_CORE2 (ix86_tune == PROCESSOR_CORE2)
-#define TARGET_COREI7 (ix86_tune == PROCESSOR_COREI7)
-#define TARGET_COREI7_AVX (ix86_tune == PROCESSOR_COREI7_AVX)
+#define TARGET_NEHALEM (ix86_tune == PROCESSOR_NEHALEM)
+#define TARGET_SANDYBRIDGE (ix86_tune == PROCESSOR_SANDYBRIDGE)
 #define TARGET_HASWELL (ix86_tune == PROCESSOR_HASWELL)
+#define TARGET_BONNELL (ix86_tune == PROCESSOR_BONNELL)
+#define TARGET_SILVERMONT (ix86_tune == PROCESSOR_SILVERMONT)
+#define TARGET_INTEL (ix86_tune == PROCESSOR_INTEL)
 #define TARGET_GENERIC (ix86_tune == PROCESSOR_GENERIC)
 #define TARGET_AMDFAM10 (ix86_tune == PROCESSOR_AMDFAM10)
 #define TARGET_BDVER1 (ix86_tune == PROCESSOR_BDVER1)
@@ -312,8 +317,6 @@ extern const struct processor_costs ix86_size_cost;
 #define TARGET_BDVER4 (ix86_tune == PROCESSOR_BDVER4)
 #define TARGET_BTVER1 (ix86_tune == PROCESSOR_BTVER1)
 #define TARGET_BTVER2 (ix86_tune == PROCESSOR_BTVER2)
-#define TARGET_ATOM (ix86_tune == PROCESSOR_ATOM)
-#define TARGET_SLM (ix86_tune == PROCESSOR_SLM)
 
 /* Feature tests against the various tunings.  */
 enum ix86_tune_indices {
@@ -427,6 +430,8 @@ extern unsigned char ix86_tune_features[X86_TUNE_LAST];
 #define TARGET_FUSE_ALU_AND_BRANCH \
 	ix86_tune_features[X86_TUNE_FUSE_ALU_AND_BRANCH]
 #define TARGET_OPT_AGU ix86_tune_features[X86_TUNE_OPT_AGU]
+#define TARGET_AVOID_LEA_FOR_ADDR \
+	ix86_tune_features[X86_TUNE_AVOID_LEA_FOR_ADDR]
 #define TARGET_VECTORIZE_DOUBLE \
 	ix86_tune_features[X86_TUNE_VECTORIZE_DOUBLE]
 #define TARGET_SOFTWARE_PREFETCHING_BENEFICIAL \
@@ -606,47 +611,6 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 
 /* Target Pragmas.  */
 #define REGISTER_TARGET_PRAGMAS() ix86_register_pragmas ()
-
-enum target_cpu_default
-{
-  TARGET_CPU_DEFAULT_generic = 0,
-
-  TARGET_CPU_DEFAULT_i386,
-  TARGET_CPU_DEFAULT_i486,
-  TARGET_CPU_DEFAULT_pentium,
-  TARGET_CPU_DEFAULT_pentium_mmx,
-  TARGET_CPU_DEFAULT_pentiumpro,
-  TARGET_CPU_DEFAULT_pentium2,
-  TARGET_CPU_DEFAULT_pentium3,
-  TARGET_CPU_DEFAULT_pentium4,
-  TARGET_CPU_DEFAULT_pentium_m,
-  TARGET_CPU_DEFAULT_prescott,
-  TARGET_CPU_DEFAULT_nocona,
-  TARGET_CPU_DEFAULT_core2,
-  TARGET_CPU_DEFAULT_corei7,
-  TARGET_CPU_DEFAULT_corei7_avx,
-  TARGET_CPU_DEFAULT_haswell,
-  TARGET_CPU_DEFAULT_atom,
-  TARGET_CPU_DEFAULT_slm,
-  TARGET_CPU_DEFAULT_intel,
-
-  TARGET_CPU_DEFAULT_geode,
-  TARGET_CPU_DEFAULT_k6,
-  TARGET_CPU_DEFAULT_k6_2,
-  TARGET_CPU_DEFAULT_k6_3,
-  TARGET_CPU_DEFAULT_athlon,
-  TARGET_CPU_DEFAULT_athlon_sse,
-  TARGET_CPU_DEFAULT_k8,
-  TARGET_CPU_DEFAULT_amdfam10,
-  TARGET_CPU_DEFAULT_bdver1,
-  TARGET_CPU_DEFAULT_bdver2,
-  TARGET_CPU_DEFAULT_bdver3,
-  TARGET_CPU_DEFAULT_bdver4,
-  TARGET_CPU_DEFAULT_btver1,
-  TARGET_CPU_DEFAULT_btver2,
-
-  TARGET_CPU_DEFAULT_max
-};
 
 #ifndef CC1_SPEC
 #define CC1_SPEC "%(cc1_cpu) "
@@ -1086,7 +1050,7 @@ enum target_cpu_default
    || (MODE) == V4DImode || (MODE) == V2TImode || (MODE) == V8SFmode	\
    || (MODE) == V4DFmode)
 
-#define VALID_AVX256_REG_OR_OI_MODE(MODE)					\
+#define VALID_AVX256_REG_OR_OI_MODE(MODE)		\
   (VALID_AVX256_REG_MODE (MODE) || (MODE) == OImode)
 
 #define VALID_AVX512F_SCALAR_MODE(MODE)					\
@@ -2205,25 +2169,29 @@ do {									\
    with x86-64 medium memory model */
 #define DEFAULT_LARGE_SECTION_THRESHOLD 65536
 
-/* Which processor to tune code generation for.  */
+/* Which processor to tune code generation for.  These must be in sync
+   with processor_target_table in i386.c.  */ 
 
 enum processor_type
 {
-  PROCESSOR_I386 = 0,			/* 80386 */
+  PROCESSOR_GENERIC = 0,
+  PROCESSOR_I386,			/* 80386 */
   PROCESSOR_I486,			/* 80486DX, 80486SX, 80486DX[24] */
   PROCESSOR_PENTIUM,
   PROCESSOR_PENTIUMPRO,
+  PROCESSOR_PENTIUM4,
+  PROCESSOR_NOCONA,
+  PROCESSOR_CORE2,
+  PROCESSOR_NEHALEM,
+  PROCESSOR_SANDYBRIDGE,
+  PROCESSOR_HASWELL,
+  PROCESSOR_BONNELL,
+  PROCESSOR_SILVERMONT,
+  PROCESSOR_INTEL,
   PROCESSOR_GEODE,
   PROCESSOR_K6,
   PROCESSOR_ATHLON,
-  PROCESSOR_PENTIUM4,
   PROCESSOR_K8,
-  PROCESSOR_NOCONA,
-  PROCESSOR_CORE2,
-  PROCESSOR_COREI7,
-  PROCESSOR_COREI7_AVX,
-  PROCESSOR_HASWELL,
-  PROCESSOR_GENERIC,
   PROCESSOR_AMDFAM10,
   PROCESSOR_BDVER1,
   PROCESSOR_BDVER2,
@@ -2231,8 +2199,6 @@ enum processor_type
   PROCESSOR_BDVER4,
   PROCESSOR_BTVER1,
   PROCESSOR_BTVER2,
-  PROCESSOR_ATOM,
-  PROCESSOR_SLM,
   PROCESSOR_max
 };
 
@@ -2457,6 +2423,9 @@ struct GTY(()) machine_function {
      stack below the return address.  */
   BOOL_BITFIELD static_chain_on_stack : 1;
 
+  /* If true, it is safe to not save/restore DRAP register.  */
+  BOOL_BITFIELD no_drap_save_restore : 1;
+
   /* During prologue/epilogue generation, the current frame state.
      Otherwise, the frame state at the end of the prologue.  */
   struct machine_frame_state fs;
@@ -2544,6 +2513,9 @@ extern void debug_dispatch_window (int);
 
 #define IX86_HLE_ACQUIRE (1 << 16)
 #define IX86_HLE_RELEASE (1 << 17)
+
+/* For switching between functions with different target attributes.  */
+#define SWITCHABLE_TARGET 1
 
 /*
 Local variables:

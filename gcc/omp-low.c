@@ -3,7 +3,7 @@
    marshalling to implement data sharing and copying clauses.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
-   Copyright (C) 2005-2013 Free Software Foundation, Inc.
+   Copyright (C) 2005-2014 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -7536,12 +7536,21 @@ expand_omp_atomic_pipeline (basic_block load_bb, basic_block store_bb,
       loadedi = loaded_val;
     }
 
+  fncode = (enum built_in_function) (BUILT_IN_ATOMIC_LOAD_N + index + 1);
+  tree loaddecl = builtin_decl_explicit (fncode);
+  if (loaddecl)
+    initial
+      = fold_convert (TREE_TYPE (TREE_TYPE (iaddr)),
+		      build_call_expr (loaddecl, 2, iaddr,
+				       build_int_cst (NULL_TREE,
+						      MEMMODEL_RELAXED)));
+  else
+    initial = build2 (MEM_REF, TREE_TYPE (TREE_TYPE (iaddr)), iaddr,
+		      build_int_cst (TREE_TYPE (iaddr), 0));
+
   initial
-    = force_gimple_operand_gsi (&si,
-				build2 (MEM_REF, TREE_TYPE (TREE_TYPE (iaddr)),
-					iaddr,
-					build_int_cst (TREE_TYPE (iaddr), 0)),
-				true, NULL_TREE, true, GSI_SAME_STMT);
+    = force_gimple_operand_gsi (&si, initial, true, NULL_TREE, true,
+				GSI_SAME_STMT);
 
   /* Move the value to the LOADEDI temporary.  */
   if (gimple_in_ssa_p (cfun))
@@ -8319,7 +8328,7 @@ static bool
 gate_expand_omp (void)
 {
   return ((flag_openmp != 0 || flag_openmp_simd != 0
-	   || flag_enable_cilkplus != 0) && !seen_error ());
+	   || flag_cilkplus != 0) && !seen_error ());
 }
 
 namespace {
@@ -10130,7 +10139,7 @@ execute_lower_omp (void)
 
   /* This pass always runs, to provide PROP_gimple_lomp.
      But there is nothing to do unless -fopenmp is given.  */
-  if (flag_openmp == 0 && flag_openmp_simd == 0 && flag_enable_cilkplus == 0)
+  if (flag_openmp == 0 && flag_openmp_simd == 0 && flag_cilkplus == 0)
     return 0;
 
   all_contexts = splay_tree_new (splay_tree_compare_pointers, 0,
@@ -10249,7 +10258,7 @@ diagnose_sb_0 (gimple_stmt_iterator *gsi_p,
 #endif
 
   bool cilkplus_block = false;
-  if (flag_enable_cilkplus)
+  if (flag_cilkplus)
     {
       if ((branch_ctx
 	   && gimple_code (branch_ctx) == GIMPLE_OMP_FOR
@@ -10578,7 +10587,7 @@ diagnose_omp_structured_block_errors (void)
 static bool
 gate_diagnose_omp_blocks (void)
 {
-  return flag_openmp || flag_enable_cilkplus;
+  return flag_openmp || flag_cilkplus;
 }
 
 namespace {
@@ -10687,7 +10696,7 @@ simd_clone_clauses_extract (struct cgraph_node *node, tree clauses,
      be cloned have a distinctive artificial label in addition to "omp
      declare simd".  */
   bool cilk_clone
-    = (flag_enable_cilkplus
+    = (flag_cilkplus
        && lookup_attribute ("cilk simd function",
 			    DECL_ATTRIBUTES (node->decl)));
 
@@ -11537,7 +11546,7 @@ simd_clone_adjust (struct cgraph_node *node)
 	unsigned int alignment = node->simdclone->args[i].alignment;
 	tree orig_arg = node->simdclone->args[i].orig_arg;
 	tree def = ssa_default_def (cfun, orig_arg);
-	if (!has_zero_uses (def))
+	if (def && !has_zero_uses (def))
 	  {
 	    tree fn = builtin_decl_explicit (BUILT_IN_ASSUME_ALIGNED);
 	    gimple_seq seq = NULL;
@@ -11587,7 +11596,7 @@ simd_clone_adjust (struct cgraph_node *node)
 	tree def = ssa_default_def (cfun, orig_arg);
 	gcc_assert (INTEGRAL_TYPE_P (TREE_TYPE (orig_arg))
 		    || POINTER_TYPE_P (TREE_TYPE (orig_arg)));
-	if (!has_zero_uses (def))
+	if (def && !has_zero_uses (def))
 	  {
 	    iter1 = make_ssa_name (orig_arg, NULL);
 	    iter2 = make_ssa_name (orig_arg, NULL);
@@ -11772,7 +11781,7 @@ public:
 
   /* opt_pass methods: */
   bool gate () { return ((flag_openmp || flag_openmp_simd
-			  || flag_enable_cilkplus || (in_lto_p && !flag_wpa))
+			  || flag_cilkplus || (in_lto_p && !flag_wpa))
 			 && (targetm.simd_clone.compute_vecsize_and_simdlen
 			     != NULL)); }
   unsigned int execute () { return ipa_omp_simd_clone (); }
