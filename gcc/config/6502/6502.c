@@ -228,17 +228,17 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	case CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
-	    case EQ: br = "bvs :+"; break;
-	    case NE: br = "bvc :+"; break;
+	    case LTU: br = "bvs :+"; break;
+	    case GEU: br = "bvc :+"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 
-	case CC_Cmode:
+	case CC_UImode:
 	  switch (GET_CODE (cond))
 	    {
-	    case EQ: br = "bcs :+"; break;
-	    case NE: br = "bcc :+"; break;
+	    case LTU: br = "bcs :+"; break;
+	    case GEU: br = "bcc :+"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
@@ -271,17 +271,17 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	case CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
-	    case EQ: fmt = "bvc %0"; break;
-	    case NE: fmt = "bvs %0"; break;
+	    case LTU: fmt = "bvc %0"; break;
+	    case GEU: fmt = "bvs %0"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
 
-	case CC_Cmode:
+	case CC_UImode:
 	  switch (GET_CODE (cond))
 	    {
-	    case EQ: fmt = "bcc %0"; break;
-	    case NE: fmt = "bcs %0"; break;
+	    case LTU: fmt = "bcc %0"; break;
+	    case GEU: fmt = "bcs %0"; break;
 	    default: gcc_unreachable ();
 	    }
 	  break;
@@ -634,8 +634,7 @@ m65x_legitimize_reload_address (rtx *px, enum machine_mode mode, int opnum,
 
 static rtx
 m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
-		   const_tree type,
-		   bool named ATTRIBUTE_UNUSED)
+		   const_tree type, bool named)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
   int modesize;
@@ -644,6 +643,9 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
     modesize = int_size_in_bytes (type);
   else
     modesize = GET_MODE_SIZE (mode);
+
+  if (!named)
+    return NULL_RTX;
 
   if ((*pcum) + modesize <= 8)
     return gen_rtx_REG (mode, (*pcum) + FIRST_ARG_REGISTER);
@@ -653,7 +655,7 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
 
 static void
 m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
-			   const_tree type, bool named ATTRIBUTE_UNUSED)
+			   const_tree type, bool named)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
   int modesize;
@@ -662,6 +664,9 @@ m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
     modesize = int_size_in_bytes (type);
   else
     modesize = GET_MODE_SIZE (mode);
+  
+  if (!named)
+    return;
   
   (*pcum) += modesize;
 }
@@ -1007,7 +1012,7 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
   rtx scratch;
   rtx new_label;
   rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
-  rtx vflags = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
+  rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cmpreg;
 
   if (CONSTANT_P (op0))
@@ -1021,8 +1026,7 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
       goto emit_cmp;
     case LTU:
     case GEU:
-      cmpreg = gen_rtx_REG (CC_Cmode, CARRY_REGNUM);
-      cond = (cond == LTU) ? EQ : NE;
+      cmpreg = gen_rtx_REG (CC_UImode, CARRY_REGNUM);
     emit_cmp:
       emit_insn (gen_compareqi (op0, op1));
       cmp = gen_rtx_fmt_ee (cond, VOIDmode, cmpreg, const0_rtx);
@@ -1038,7 +1042,7 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
       emit_move_insn (scratch, op0);
       emit_insn (gen_sec ());
       emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1));
-      m65x_emit_cbranchqi (EQ, vflags,
+      m65x_emit_cbranchqi (LTU, vflag,
 			   split_branch_probability == -1 ? -1 :
 			   split_branch_probability / 2, new_label);
       emit_insn (gen_negate_highbit (scratch, scratch));
@@ -1061,7 +1065,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx op1_hi = simplify_gen_subreg (QImode, op1, HImode, 1);
   rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
-  rtx cflag = gen_rtx_REG (CC_Cmode, CARRY_REGNUM);
+  rtx cflag = gen_rtx_REG (CC_UImode, CARRY_REGNUM);
   rtx new_label = NULL_RTX;
   int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
 
@@ -1104,7 +1108,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       /* High part.  */
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_compareqi (scratch, op1_hi));
-      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
       m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
@@ -1115,7 +1119,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	}
 
       emit_insn (gen_compareqi (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
       emit_label (new_label);
       break;
     
@@ -1123,7 +1127,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       /* High part.  */
       emit_move_insn (scratch, op1_hi);
       emit_insn (gen_compareqi (scratch, op0_hi));
-      m65x_emit_cbranchqi (EQ, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
       m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
@@ -1134,7 +1138,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	}
 
       emit_insn (gen_compareqi (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (NE, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (GEU, cflag, split_branch_probability, dest);
       emit_label (new_label);
       break;
     
@@ -1143,7 +1147,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1_hi));
-      m65x_emit_cbranchqi (EQ, vflag, split_branch_probability / 2,
+      m65x_emit_cbranchqi (LTU, vflag, split_branch_probability / 2,
 			   new_label);
       emit_insn (gen_negate_highbit (scratch, scratch));
       emit_label (new_label);
@@ -1214,6 +1218,14 @@ m65x_can_eliminate (const int from, const int to)
     return false;
   
   return true;
+}
+
+void
+m65x_asm_function_prologue (FILE *out, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
+{
+  fprintf (out, "; frame size %d, pretend size %d, outgoing size %d\n",
+	   (int) get_frame_size (), (int) crtl->args.pretend_args_size,
+	   (int) crtl->outgoing_args_size);
 }
 
 /* See ASCII diagram for m65x_elimination_offset.  */
@@ -1443,6 +1455,9 @@ m65x_scalar_mode_supported_p (enum machine_mode mode)
 
 #undef TARGET_ASM_GLOBALIZE_LABEL
 #define TARGET_ASM_GLOBALIZE_LABEL m65x_asm_globalize_label
+
+#undef TARGET_ASM_FUNCTION_PROLOGUE
+#define TARGET_ASM_FUNCTION_PROLOGUE m65x_asm_function_prologue
 
 #undef TARGET_CAN_ELIMINATE
 #define TARGET_CAN_ELIMINATE m65x_can_eliminate
