@@ -95,8 +95,10 @@
 
 (define_predicate "hard_sp_operand"
   (and (match_code "mem")
-       (match_test "REG_P (XEXP (op, 0))
-		    && REGNO (XEXP (op, 0)) == HARDSP_REGNUM")))
+       (match_test "(GET_CODE (XEXP (op, 0)) == POST_DEC
+		     || GET_CODE (XEXP (op, 0)) == PRE_INC)
+		    && REG_P (XEXP (XEXP (op, 0), 0))
+		    && REGNO (XEXP (XEXP (op, 0), 0)) == HARDSP_REGNUM")))
 
 (define_predicate "strict_zp_reg_operand"
   (match_code "subreg,reg")

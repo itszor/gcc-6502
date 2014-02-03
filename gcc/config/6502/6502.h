@@ -350,7 +350,7 @@ enum reg_class
  * Stack layout/calling conventions.
  *****************************************************************************/
 
-#define STACK_GROWS_DOWNWARDS		1
+#define STACK_GROWS_DOWNWARDS
 
 /* Hardware stack has "empty" discipline.  */
 

@@ -1,3 +1,6 @@
 mlra
 Target Report Var(m65x_lra_flag) Init(1) Save
 Use LRA instead of reload.
+
+mdebug-stack
+Target Undocumented Var(TARGET_DEBUG_STACK)
