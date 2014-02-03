@@ -30,6 +30,7 @@
 #include "dbxout.h"
 #include "langhooks.h"
 #include "df.h"
+#include "varasm.h"
 
 #undef DEBUG_LEGIT_RELOAD
 #undef DEBUG_SECONDARY_RELOAD
@@ -308,7 +309,7 @@ m65x_output_ascii (FILE *f, const char *str, int len)
   for (i = 0; i < len; i++)
     {
       /* This doesn't pay much attention to character encoding issues...  */
-      if (str[i] < 32 || str[i] >= 127)
+      if (str[i] == '\\' || str[i] == '"' || str[i] < 32 || str[i] >= 127)
         {
 	  switch (state)
 	    {
@@ -1159,22 +1160,47 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     }
 }
 
-/* We have:
+typedef struct {
+  unsigned HOST_WIDE_INT frame_size;
+  unsigned HOST_WIDE_INT pretend_size;
+  unsigned HOST_WIDE_INT outgoing_args_size;
+  unsigned HOST_WIDE_INT stack_adj_total;
+} m65x_stack_info;
+
+static m65x_stack_info *
+m65x_compute_frame_layout (void)
+{
+  static m65x_stack_info info;
+  
+  if (reload_completed)
+    return &info;
+  
+  info.frame_size = get_frame_size ();
+  info.pretend_size = crtl->args.pretend_args_size;
+  info.outgoing_args_size = crtl->outgoing_args_size;
+  info.stack_adj_total = info.frame_size + info.pretend_size
+			 + info.outgoing_args_size;
+
+  return &info;
+}
+
+/* We have a stack layout as follows:
 
     __________________________
     |                        |
     |     incoming args      |
-    |                        |
     |________________________|  <-- old stack pointer
+    |                        |
     |      pretend args      |
     |________________________|  <-- soft arg pointer
     |                        |
     |   locals (frame size)  |
-    |                        |
     |________________________|  <-- soft/hard frame pointer
     |                        |
-    |      outgoing args     |
+    |      alloca space      |
+    |________________________|
     |                        |
+    |      outgoing args     |
     |________________________|  <-- current/outgoing stack pointer
     
 */
@@ -1182,17 +1208,21 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 HOST_WIDE_INT
 m65x_elimination_offset (int from, int to)
 {
-  HOST_WIDE_INT frame_size = get_frame_size ();
+  m65x_stack_info *info = m65x_compute_frame_layout ();
+  HOST_WIDE_INT adjust;
   
   if (from == ARG_POINTER_REGNUM)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return -(crtl->outgoing_args_size + frame_size);
+        adjust = info->outgoing_args_size + info->frame_size;
+	break;
       case FRAME_POINTER_REGNUM:
-        return -frame_size;
+        adjust = info->frame_size;
+	break;
       case HARD_FRAME_POINTER_REGNUM:
-        return -frame_size;
+        adjust = info->frame_size;
+	break;
       default:
         gcc_unreachable ();
       }
@@ -1200,14 +1230,22 @@ m65x_elimination_offset (int from, int to)
     switch (to)
       {
       case STACK_POINTER_REGNUM:
-        return -crtl->outgoing_args_size;
+        adjust = info->outgoing_args_size;
+	break;
       case HARD_FRAME_POINTER_REGNUM:
-        return 0;
+        adjust = 0;
+	break;
       default:
         gcc_unreachable ();
       }
   else
     gcc_unreachable ();
+  
+  if (TARGET_DEBUG_STACK)
+    fprintf (stderr, "eliminate %s to %s, adding %d\n", reg_names[from],
+	     reg_names[to], (int) adjust);
+
+  return adjust;
 }
 
 static bool
@@ -1223,6 +1261,10 @@ m65x_can_eliminate (const int from, const int to)
 void
 m65x_asm_function_prologue (FILE *out, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
 {
+  if (TARGET_DEBUG_STACK)
+    fprintf (stderr, "function: '%s'\n",
+	     (const char *) XSTR (XEXP (DECL_RTL (current_function_decl), 0),
+				  0));
   fprintf (out, "; frame size %d, pretend size %d, outgoing size %d\n",
 	   (int) get_frame_size (), (int) crtl->args.pretend_args_size,
 	   (int) crtl->outgoing_args_size);
@@ -1235,16 +1277,15 @@ m65x_expand_prologue (void)
 {
   int regno;
   rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
-  HOST_WIDE_INT frame_size = get_frame_size ();
+  m65x_stack_info *info = m65x_compute_frame_layout ();
   /*HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size;*/
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
-  int args_pushed = crtl->args.pretend_args_size;
   rtx push_rtx = gen_rtx_MEM (QImode,
 		   gen_rtx_POST_DEC (HImode,
 				     gen_rtx_REG (HImode, HARDSP_REGNUM)));
   
   /* Push SP if we modify it.  */
-  if (crtl->args.pretend_args_size + frame_size + crtl->outgoing_args_size != 0)
+  if (info->stack_adj_total != 0)
     for (regno = 1; regno >= 0; regno--)
       {
 	emit_insn (gen_movqi (accum, gen_rtx_REG (QImode, SP_REGNUM + regno)));
@@ -1261,17 +1302,17 @@ m65x_expand_prologue (void)
 	RTX_FRAME_RELATED_P (insn) = 1;
       }
   
-  if (crtl->args.pretend_args_size > 0)
+  if (info->pretend_size > 0)
     {
       /* We don't even pretend (no pun intended!) to make varargs functions
          efficient...  */
       insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-				    GEN_INT (-args_pushed)));
+				    GEN_INT (-info->pretend_size)));
       RTX_FRAME_RELATED_P (insn) = 1;
       insn = emit_move_insn (yreg, const0_rtx);
       RTX_FRAME_RELATED_P (insn) = 1;
 
-      for (regno = 8 - crtl->args.pretend_args_size; regno < 8; regno++)
+      for (regno = 8 - info->pretend_size; regno < 8; regno++)
         {
 	  insn = emit_move_insn (accum,
 		   gen_rtx_REG (QImode, FIRST_ARG_REGISTER + regno));
@@ -1291,14 +1332,15 @@ m65x_expand_prologue (void)
   if (frame_pointer_needed)
     {
       insn = emit_insn (gen_addhi3 (hard_frame_pointer_rtx, stack_pointer_rtx,
-				    GEN_INT (-frame_size)));
+				    GEN_INT (-info->frame_size)));
       RTX_FRAME_RELATED_P (insn) = 1;
     }
   
-  if (frame_size + crtl->outgoing_args_size != 0)
+  if (info->frame_size + info->outgoing_args_size != 0)
     {
       insn = emit_insn (gen_addhi3 (stack_pointer_rtx, stack_pointer_rtx,
-			  GEN_INT (-(frame_size + crtl->outgoing_args_size))));
+			  GEN_INT (-(info->frame_size
+				     + info->outgoing_args_size))));
       RTX_FRAME_RELATED_P (insn) = 1;
     }
 
@@ -1309,6 +1351,9 @@ m65x_expand_prologue (void)
 	insn = emit_insn (gen_pushqi1 (push_rtx, accum));
 	RTX_FRAME_RELATED_P (insn) = 1;
       }
+  
+  if (frame_pointer_needed)
+    emit_insn (gen_blockage ());
 }
 
 void
@@ -1316,9 +1361,7 @@ m65x_expand_epilogue (void)
 {
   int regno;
   rtx accum = gen_rtx_REG (QImode, ACC_REGNUM), insn;
-  HOST_WIDE_INT frame_size = get_frame_size ();
-  HOST_WIDE_INT stack_offset = frame_size + crtl->outgoing_args_size
-			       + crtl->args.pretend_args_size;
+  m65x_stack_info *info = m65x_compute_frame_layout ();
   rtx pop_rtx = gen_rtx_MEM (QImode,
 		   gen_rtx_PRE_INC (HImode,
 				    gen_rtx_REG (HImode, HARDSP_REGNUM)));
@@ -1339,7 +1382,7 @@ m65x_expand_epilogue (void)
 	emit_insn (gen_movqi (gen_rtx_REG (QImode, FP_REGNUM + regno), accum));
       }
   
-  if (stack_offset != 0)
+  if (info->stack_adj_total != 0)
     {
       for (regno = 0; regno <= 1; regno++)
 	{
@@ -1353,6 +1396,10 @@ m65x_expand_epilogue (void)
   
   if (frame_pointer_needed)
     emit_use (gen_rtx_REG (HImode, FP_REGNUM));
+  
+  emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
+  emit_insn (gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (QImode, TMP0_REGNUM)));
+  emit_insn (gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (QImode, TMP1_REGNUM)));
   
   emit_jump_insn (gen_m65x_return ());
 }

@@ -31,6 +31,10 @@
         .define _s7 $8c
 
 	.segment "STARTUP"
+	lda #<$ffe0
+	sta _sp
+	lda #>$ffe0
+	sta _sph
 	lda #0
 	sta _r0
 	sta _r1
