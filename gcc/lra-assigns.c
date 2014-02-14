@@ -1280,6 +1280,11 @@ assign_by_spills (void)
 		    }
 		}
 	    }
+	  if (!asm_p)
+	    {
+	      fprintf (stderr, "lra_assigns:\n");
+	      debug_rtx (insn);
+	    }
 	  lra_assert (asm_p);
 	  break;
 	}

@@ -4,3 +4,12 @@ Use LRA instead of reload.
 
 mdebug-stack
 Target Undocumented Var(TARGET_DEBUG_STACK)
+
+mdebug-address
+Target Undocumented Var(TARGET_DEBUG_ADDRESS)
+
+mdebug-legitimize-addr
+Target Undocumented Var(TARGET_DEBUG_LEGITIMIZE_ADDR)
+
+mdebug-secondary-reload
+Target Undocumented Var(TARGET_DEBUG_SECONDARY_RELOAD)

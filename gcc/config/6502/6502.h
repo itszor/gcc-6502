@@ -314,7 +314,7 @@ enum reg_class
    (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
 
 #define BASE_REG_CLASS	GENERAL_REGS
-#define INDEX_REG_CLASS	NO_REGS
+#define INDEX_REG_CLASS	HARD_Y_REG
 
 #define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))
 
@@ -423,7 +423,7 @@ typedef int CUMULATIVE_ARGS;
  * Addressing modes.
  *****************************************************************************/
 
-#define MAX_REGS_PER_ADDRESS		1
+#define MAX_REGS_PER_ADDRESS		2
 
 #define LEGITIMIZE_RELOAD_ADDRESS(X, MODE, OPNUM, TYPE, IND_L, WIN)	\
   do {									\

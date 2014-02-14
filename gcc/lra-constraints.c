@@ -235,8 +235,6 @@ get_reg_class (int regno)
   return NO_REGS;
 }
 
-extern const char * __attribute__ ((used)) m65x_reg_class_name (reg_class_t c);
-
 /* Return true if REG satisfies (or will satisfy) reg class constraint
    CL.  Use elimination first if REG is a hard register.  If REG is a
    reload pseudo created by this constraints pass, assume that it will
@@ -3485,12 +3483,23 @@ curr_insn_transform (void)
 	  }
       }
 
+#ifdef DEBUGGING_HACKS
+  fprintf (stderr, "insn: ");
+  dump_insn_slim (stderr, curr_insn);
+#endif
+
   for (i = 0; i < n_operands; i++)
     {
       int regno;
       bool optional_p = false;
       rtx old, new_reg;
       rtx op = *curr_id->operand_loc[i];
+
+#ifdef DEBUGGING_HACKS
+      fprintf (stderr, "checking operand %d: ", i);
+      dump_value_slim (stderr, op, 0);
+      fputc ('\n', stderr);
+#endif
 
       if (goal_alt_win[i])
 	{
@@ -4056,6 +4065,13 @@ lra_constraints (bool first_p)
   while ((new_min_len = lra_insn_stack_length ()) != 0)
     {
       curr_insn = lra_pop_insn ();
+
+//#define DEBUGGING_HACKS
+#ifdef DEBUGGING_HACKS
+      fprintf (stderr, "processing insn:\n");
+      debug_rtx (curr_insn);
+#endif
+      
       --new_min_len;
       curr_bb = BLOCK_FOR_INSN (curr_insn);
       if (curr_bb != last_bb)

@@ -1073,6 +1073,13 @@ lra_set_insn_recog_data (rtx insn)
       data->operand_loc = data->dup_loc = NULL;
       if (nop < 0)
 	{
+	  if (GET_CODE (PATTERN (insn)) != USE
+	      && GET_CODE (PATTERN (insn)) != CLOBBER
+	      && GET_CODE (PATTERN (insn)) != ASM_INPUT)
+	    {
+	      fprintf (stderr, "LRA about to fail on:\n");
+	      debug_rtx (insn);
+	    }
 	  /* Its is a special insn like USE or CLOBBER.  We should
 	     recognize any regular insn otherwise LRA can do nothing
 	     with this insn.  */
@@ -2065,8 +2072,15 @@ check_rtl (bool final_p)
       {
 	if (final_p)
 	  {
+	    bool rval;
 	    extract_insn (insn);
-	    lra_assert (constrain_operands (1));
+	    rval = constrain_operands (1);
+	    if (!rval)
+	      {
+	        fprintf (stderr, "about to fail on insn:\n");
+		debug_rtx (insn);
+	      }
+	    lra_assert (rval);
 	    continue;
 	  }
 	/* LRA code is based on assumption that all addresses can be

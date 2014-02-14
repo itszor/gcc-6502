@@ -84,14 +84,16 @@
   (and (match_code "mem")
        (match_test "REG_P (XEXP (op, 0))")))
 
+(define_predicate "indirect_offset_mem_operand"
+  (and (match_code "mem")
+       (match_test "m65x_indirect_offset_addr_p (mode, XEXP (op, 0), false)")))
+
 (define_predicate "ind_y_mem_operand"
   (and (match_code "mem")
        (match_test "GET_CODE (XEXP (op, 0)) == PLUS
-		    && zp_reg_operand (XEXP (XEXP (op, 0), 0),
-				       GET_MODE (XEXP (XEXP (op, 0), 0)))
-		    && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT
-		    && INTVAL (XEXP (XEXP (op, 0), 1)) >= 0
-		    && INTVAL (XEXP (XEXP (op, 0), 1)) < 256")))
+		    && GET_CODE (XEXP (XEXP (op, 0), 0)) == ZERO_EXTEND
+		    && REG_P (XEXP (XEXP (XEXP (op, 0), 0), 0))
+		    && REG_P (XEXP (XEXP (op, 0), 1))")))
 
 (define_predicate "hard_sp_operand"
   (and (match_code "mem")
@@ -193,9 +195,22 @@
   (ior (match_operand 0 "hard_reg_operand")
        (match_operand 0 "zp_reg_operand")))
 
+(define_predicate "zp_or_index_reg_operand"
+  (ior (match_operand 0 "index_reg_operand")
+       (match_operand 0 "zp_reg_operand")))
+
 (define_predicate "zp_reg_or_const_mem_operand"
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
+
+(define_predicate "zp_reg_or_ind_y_mem_operand"
+  (ior (match_operand 0 "zp_reg_operand")
+       (match_operand 0 "ind_y_mem_operand")))
+
+(define_predicate "zp_reg_or_ind_y_mem_imm_operand"
+  (ior (match_operand 0 "zp_reg_operand")
+       (match_operand 0 "ind_y_mem_operand")
+       (match_operand 0 "immediate_operand")))
 
 (define_predicate "reg_or_const_mem_operand"
   (ior (match_operand 0 "register_operand")
