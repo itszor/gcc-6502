@@ -21,6 +21,10 @@ extern void m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1,
 extern void m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1,
 					 rtx dest, rtx scratch);
 extern HOST_WIDE_INT m65x_elimination_offset (int from, int to);
+
+extern rtx m65x_push (enum machine_mode mode, rtx src);
+extern rtx m65x_pop (enum machine_mode mode, rtx dest);
+
 #endif
 
 extern void m65x_expand_prologue (void);
