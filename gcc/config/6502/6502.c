@@ -1540,6 +1540,24 @@ m65x_peephole_find_temp_regs (int from, int to, ...)
   return all_allocated;
 }
 
+rtx
+m65x_push (enum machine_mode mode, rtx src)
+{
+  rtx push_rtx = gen_rtx_MEM (mode,
+		   gen_rtx_POST_DEC (Pmode,
+				     gen_rtx_REG (Pmode, HARDSP_REGNUM)));
+  return gen_pushqi1 (push_rtx, src);
+}
+
+rtx
+m65x_pop (enum machine_mode mode, rtx dest)
+{
+  rtx pop_rtx = gen_rtx_MEM (mode,
+		  gen_rtx_PRE_INC (Pmode,
+				   gen_rtx_REG (Pmode, HARDSP_REGNUM)));
+  return gen_popqi1 (dest, pop_rtx);
+}
+
 #undef TARGET_ASM_FILE_START
 #define TARGET_ASM_FILE_START m65x_file_start
 
