@@ -532,7 +532,7 @@ typedef int CUMULATIVE_ARGS;
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
     assemble_name ((STREAM), (NAME));				\
-    fprintf ((STREAM), "%s:\n", strlen (NAME) == 1 ? "$" : "");	\
+    fprintf ((STREAM), ":\n");					\
   } while (0)
 
 #define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
