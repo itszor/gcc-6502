@@ -1,10 +1,47 @@
+#include "6502-opts.h"
+
+#define TARGET_6502 1
+#define TARGET_6502X (m65x_cpu_option == m6502x || m65x_cpu_option == m6502)
+#define TARGET_NMOS (m65x_cpu_option == m6502x || m65x_cpu_option == m6502)
+#define TARGET_65C02 (m65x_cpu_option == m6502 || m65x_cpu_option == w65sc02 \
+		      || m65x_cpu_option == w65c02)
+#define TARGET_65SC02 (m65x_cpu_option == m6502 || m65x_cpu_option == w65sc02)
+#define TARGET_HUC6280 (m65x_cpu_option == m6502 \
+			|| m65x_cpu_option == w65sc02 \
+			|| m65x_cpu_option == w65c02 \
+			|| m65x_cpu_option == huc6280)
+#define TARGET_CMOS (m65x_cpu_option == w65sc02 || m65x_cpu_option == w65c02 \
+		     || m65x_cpu_option == huc6280)
+
+/* Target features: index register pushes/pops  */
+#define TARGET_PHX TARGET_CMOS
+/* Store zero.  */
+#define TARGET_STZ TARGET_CMOS
+/* ZP-indirect addressing mode.  */
+#define TARGET_ZPIND TARGET_CMOS
+/* Accumulator increment/decrement.  */
+#define TARGET_INCA TARGET_CMOS
+
 /*****************************************************************************
  * Run-time target.
  *****************************************************************************/
 
 #define TARGET_CPU_CPP_BUILTINS()		\
   do {						\
-    builtin_define ("__6502__");		\
+    if (TARGET_6502)				\
+      builtin_define ("__6502__");		\
+    if (TARGET_6502X)				\
+      builtin_define ("__6502X__");		\
+    if (TARGET_65C02)				\
+      builtin_define ("__65C02__");		\
+    if (TARGET_65SC02)				\
+      builtin_define ("__65SC02__");		\
+    if (TARGET_HUC6280)				\
+      builtin_define ("__HUC6280__");		\
+    if (TARGET_NMOS)				\
+      builtin_define ("__NMOS__");		\
+    if (TARGET_CMOS)				\
+      builtin_define ("__CMOS__");		\
   } while (0)
 
 /*****************************************************************************
