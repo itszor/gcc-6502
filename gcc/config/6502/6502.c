@@ -31,6 +31,7 @@
 #include "langhooks.h"
 #include "df.h"
 #include "varasm.h"
+#include "diagnostic.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -43,7 +44,28 @@ m65x_file_start (void)
   fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
   fprintf (asm_out_file, "\t.feature dollar_in_identifiers\n");
   fprintf (asm_out_file, "\t.autoimport +\n");
-  fprintf (asm_out_file, "\t.psc02\n");
+  switch (m65x_cpu_option)
+    {
+    case m6502:
+      fprintf (asm_out_file, "\t.p02\n");
+      break;
+
+    case w65c02:
+      fprintf (asm_out_file, "\t.pc02\n");
+      break;
+
+    case w65sc02:
+      fprintf (asm_out_file, "\t.psc02\n");
+      break;
+    
+    case m6502x:
+      /* There isn't an assembler directive for this mode!  */
+      break;
+
+    default:
+      sorry ("CPU unsupported");
+      break;
+    }
   
   fprintf (asm_out_file, "\t.define _ah $%x\n", zploc++);
   fprintf (asm_out_file, "\t.define _ah2 $%x\n", zploc++);
@@ -985,7 +1007,9 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
     {
       if (GET_CODE (XEXP (operands[0], 0)) == POST_DEC
 	  || GET_CODE (XEXP (operands[0], 0)) == PRE_INC)
-        return mode == QImode && hard_reg_operand (operands[1], mode);
+        return mode == QImode
+	       && ((TARGET_PHX && hard_reg_operand (operands[1], mode))
+		   || (!TARGET_PHX && accumulator_operand (operands[1], mode)));
       else
         {
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
@@ -1001,7 +1025,9 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
     {
       if (GET_CODE (XEXP (operands[1], 0)) == POST_DEC
 	  || GET_CODE (XEXP (operands[1], 0)) == PRE_INC)
-	return mode == QImode && hard_reg_operand (operands[0], mode);
+	return mode == QImode
+	       && ((TARGET_PHX && hard_reg_operand (operands[0], mode))
+		   || (!TARGET_PHX && accumulator_operand (operands[0], mode)));
       else
         {
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
