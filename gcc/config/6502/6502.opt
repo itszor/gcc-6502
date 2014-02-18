@@ -1,3 +1,6 @@
+HeaderInclude
+config/6502/6502-opts.h
+
 mlra
 Target Report Var(m65x_lra_flag) Init(1) Save
 Use LRA instead of reload.
@@ -13,3 +16,26 @@ Target Undocumented Var(TARGET_DEBUG_LEGITIMIZE_ADDR)
 
 mdebug-secondary-reload
 Target Undocumented Var(TARGET_DEBUG_SECONDARY_RELOAD)
+
+mcpu=
+Target RejectNegative ToLower Joined Enum(processor_type) Var(m65x_cpu_option) Init(m6502)
+Specify the target CPU type
+
+Enum
+Name(processor_type) Type(enum processor_type)
+Types of 65xx series CPUs.
+
+EnumValue
+Enum(processor_type) String(6502) Value(m6502)
+
+EnumValue
+Enum(processor_type) String(6502x) Value(m6502x)
+
+EnumValue
+Enum(processor_type) String(65sc02) Value(w65sc02)
+
+EnumValue
+Enum(processor_type) String(65c02) Value(w65c02)
+
+EnumValue
+Enum(processor_type) String(huc6280) Value(huc6280)
