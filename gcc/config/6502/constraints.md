@@ -100,6 +100,11 @@
   (and (match_code "mem")
        (match_test "CONSTANT_ADDRESS_P (XEXP (op, 0))")))
 
+(define_constraint "Uo"
+  "An indirect offset mem."
+  (and (match_code "mem")
+       (match_test "m65x_indirect_offset_addr_p (mode, XEXP (op, 0), false)")))
+
 (define_constraint "Uy"
   "An indirect indexed mem."
   (and (match_code "mem")
