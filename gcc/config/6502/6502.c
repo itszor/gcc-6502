@@ -427,6 +427,23 @@ m65x_indirect_offset_addr_p (enum machine_mode mode, rtx x, bool strict)
 }
 
 bool
+m65x_absolute_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
+{
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  
+  if (GET_CODE (x) == PLUS
+      && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && REG_P (XEXP (XEXP (x, 0), 0))
+      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM
+	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+  
+  return false;
+}
+
+bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   bool legit = false;
@@ -451,6 +468,9 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
   
   else if ((mode == HImode || mode == SImode)
 	   && m65x_indirect_offset_addr_p (mode, x, strict))
+    legit = true;
+
+  else if (m65x_absolute_indexed_addr_p (mode, x, strict))
     legit = true;
 
   if (TARGET_DEBUG_ADDRESS)
@@ -497,7 +517,8 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
       rtx plus0 = XEXP (x, 0);
       rtx plus1 = XEXP (x, 1);
       
-      if (mode == QImode && CONST_INT_P (plus1) && INTVAL (plus1) >= 0
+      if (mode == QImode && !CONSTANT_ADDRESS_P (plus0)
+	  && CONST_INT_P (plus1) && INTVAL (plus1) >= 0
 	  && (INTVAL (plus1) + modesize - 1) < 256)
 	x = gen_rtx_PLUS (Pmode,
 			  gen_rtx_ZERO_EXTEND (Pmode,
@@ -579,17 +600,22 @@ static int
 m65x_address_cost (rtx address, enum machine_mode mode, addr_space_t as,
 		   bool speed)
 {
-  if (GET_CODE (address) == PLUS
+  if (mode != QImode
+      && GET_CODE (address) == PLUS
       && REG_P (XEXP (address, 0))
       && CONST_INT_P (XEXP (address, 1))
       && INTVAL (XEXP (address, 1)) >= 0
       && INTVAL (XEXP (address, 1)) < 256)
     return 4;
-  else if (GET_CODE (address) == PLUS
+  else if (mode == QImode
+	   && GET_CODE (address) == PLUS
 	   && GET_CODE (XEXP (address, 0)) == ZERO_EXTEND
 	   && REG_P (XEXP (address, 1)))
     return 4;
-  else if (CONSTANT_ADDRESS_P (address))
+  else if (CONSTANT_ADDRESS_P (address)
+	   || (GET_CODE (address) == PLUS
+	       && GET_CODE (XEXP (address, 0)) == ZERO_EXTEND
+	       && CONSTANT_ADDRESS_P (XEXP (address, 1))))
     return 2;
   else
     return 8;
