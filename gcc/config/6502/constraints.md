@@ -110,6 +110,16 @@
   (and (match_code "mem")
        (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), false)")))
 
+(define_constraint "UX"
+  "An absolute,X mem."
+  (and (match_code "mem")
+       (match_test "m65x_absolute_x_addr_p (mode, XEXP (op, 0), false)")))
+
+(define_constraint "UY"
+  "An absolute,Y mem."
+  (and (match_code "mem")
+       (match_test "m65x_absolute_y_addr_p (mode, XEXP (op, 0), false)")))
+
 (define_memory_constraint "Ur"
   "An indirect mem."
   (and (match_code "mem")

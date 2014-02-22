@@ -444,6 +444,38 @@ m65x_absolute_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 }
 
 bool
+m65x_absolute_x_addr_p (enum machine_mode mode, rtx x, bool strict)
+{
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  
+  if (GET_CODE (x) == PLUS
+      && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && REG_P (XEXP (XEXP (x, 0), 0))
+      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+  
+  return false;
+}
+
+bool
+m65x_absolute_y_addr_p (enum machine_mode mode, rtx x, bool strict)
+{
+  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  
+  if (GET_CODE (x) == PLUS
+      && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && REG_P (XEXP (XEXP (x, 0), 0))
+      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+  
+  return false;
+}
+
+bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
 {
   bool legit = false;
