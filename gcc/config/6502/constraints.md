@@ -110,6 +110,11 @@
   (and (match_code "mem")
        (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), false)")))
 
+(define_constraint "Uj"
+  "An absolute indexed mem."
+  (and (match_code "mem")
+       (match_test "m65x_absolute_indexed_addr_p (mode, XEXP (op, 0), false)")))
+
 (define_constraint "UX"
   "An absolute,X mem."
   (and (match_code "mem")
