@@ -2753,6 +2753,41 @@ process_address (int nop, rtx *before, rtx *after)
   else
     return false;
   change_p = equiv_address_substitution (&ad);
+  
+#if 0
+  fprintf (stderr, "process_address:\n");
+  if (ad.base != NULL)
+    {
+      fprintf (stderr, "base:\n");
+      debug_rtx (*ad.base);
+    }
+  if (ad.base_term != NULL)
+    {
+      fprintf (stderr, "base term:\n");
+      debug_rtx (*ad.base_term);
+    }
+  if (ad.index != NULL)
+    {
+      fprintf (stderr, "index:\n");
+      debug_rtx (*ad.index);
+    }
+  if (ad.index_term != NULL)
+    {
+      fprintf (stderr, "index term:\n");
+      debug_rtx (*ad.index_term);
+    }
+  if (ad.disp != NULL)
+    {
+      fprintf (stderr, "disp:\n");
+      debug_rtx (*ad.disp);
+    }
+  if (ad.disp_term != NULL)
+    {
+      fprintf (stderr, "disp term:\n");
+      debug_rtx (*ad.disp_term);
+    }
+#endif
+
   if (ad.base_term != NULL
       && (process_addr_reg
 	  (ad.base_term, before,
@@ -2879,35 +2914,49 @@ process_address (int nop, rtx *before, rtx *after)
 	 address reloads that have the same base and different
 	 displacements, so reloading into an index register would
 	 not necessarily be a win.  */
-      start_sequence ();
-      new_reg = base_plus_disp_to_reg (&ad);
-      insns = get_insns ();
-      last_insn = get_last_insn ();
-      /* If we generated at least two insns, try last insn source as
-	 an address.  If we succeed, we generate one less insn.  */
-      if (last_insn != insns && (set = single_set (last_insn)) != NULL_RTX
-	  && GET_CODE (SET_SRC (set)) == PLUS
-	  && REG_P (XEXP (SET_SRC (set), 0))
-	  && CONSTANT_P (XEXP (SET_SRC (set), 1)))
-	{
-	  *ad.inner = SET_SRC (set);
-	  if (valid_address_p (ad.mode, *ad.outer, ad.as))
-	    {
-	      *ad.base_term = XEXP (SET_SRC (set), 0);
-	      *ad.disp_term = XEXP (SET_SRC (set), 1);
-	      cl = base_reg_class (ad.mode, ad.as, ad.base_outer_code,
-				   get_index_code (&ad));
-	      regno = REGNO (*ad.base_term);
-	      if (regno >= FIRST_PSEUDO_REGISTER
-		  && cl != lra_get_allocno_class (regno))
-		lra_change_class (regno, cl, "      Change to", true);
-	      new_reg = SET_SRC (set);
-	      delete_insns_since (PREV_INSN (last_insn));
-	    }
+      if (ad.disp && CONST_INT_P (*ad.disp) && INTVAL (*ad.disp) >= 0
+	  && INTVAL (*ad.disp) < 256)
+        {
+	  /* Lovely bit of target-specific code.  Let's see how this goes...  */
+	  new_reg = lra_create_new_reg (QImode, NULL_RTX, HARD_Y_REG, "index");
+	  lra_emit_move (new_reg, gen_int_mode (INTVAL (*ad.disp), QImode));
+	  *ad.inner = simplify_gen_binary (PLUS, Pmode,
+			simplify_gen_unary (ZERO_EXTEND, Pmode, new_reg,
+					    QImode),
+			*ad.base);
 	}
-      end_sequence ();
-      emit_insn (insns);
-      *ad.inner = new_reg;
+      else
+        {
+	  start_sequence ();
+	  new_reg = base_plus_disp_to_reg (&ad);
+	  insns = get_insns ();
+	  last_insn = get_last_insn ();
+	  /* If we generated at least two insns, try last insn source as
+	     an address.  If we succeed, we generate one less insn.  */
+	  if (last_insn != insns && (set = single_set (last_insn)) != NULL_RTX
+	      && GET_CODE (SET_SRC (set)) == PLUS
+	      && REG_P (XEXP (SET_SRC (set), 0))
+	      && CONSTANT_P (XEXP (SET_SRC (set), 1)))
+	    {
+	      *ad.inner = SET_SRC (set);
+	      if (valid_address_p (ad.mode, *ad.outer, ad.as))
+		{
+		  *ad.base_term = XEXP (SET_SRC (set), 0);
+		  *ad.disp_term = XEXP (SET_SRC (set), 1);
+		  cl = base_reg_class (ad.mode, ad.as, ad.base_outer_code,
+				       get_index_code (&ad));
+		  regno = REGNO (*ad.base_term);
+		  if (regno >= FIRST_PSEUDO_REGISTER
+		      && cl != lra_get_allocno_class (regno))
+		    lra_change_class (regno, cl, "      Change to", true);
+		  new_reg = SET_SRC (set);
+		  delete_insns_since (PREV_INSN (last_insn));
+		}
+	    }
+	  end_sequence ();
+	  emit_insn (insns);
+	  *ad.inner = new_reg;
+	}
     }
   else
     {
