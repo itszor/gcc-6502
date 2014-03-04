@@ -6,6 +6,9 @@ LIB1ASMFUNCS =	\
   _ashlqi3	\
   _lshrqi3	\
   _ashrqi3	\
+  _ashlhi3	\
+  _lshrhi3	\
+  _ashrhi3	\
   _ashlsi3	\
   _lshrsi3	\
   _ashrsi3	\

@@ -21,6 +21,8 @@
 #define TARGET_ZPIND TARGET_CMOS
 /* Accumulator increment/decrement.  */
 #define TARGET_INCA TARGET_CMOS
+/* TRB/TSB opcodes.  */
+#define TARGET_TRB_TSB TARGET_CMOS
 
 /*****************************************************************************
  * Run-time target.

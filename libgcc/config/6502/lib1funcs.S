@@ -129,8 +129,63 @@ loop:
 	ror a
 	dex
 	bne loop
-done:
 	sta _r0
+done:
+	rts
+	.endscope
+#endif
+
+#ifdef L_ashlhi3
+	.export __ashlhi3
+__ashlhi3:
+	.scope
+	ldx _r2
+	beq done
+	lda _r0
+loop:
+	asl a
+	rol _r1
+	dex
+	bne loop
+	sta _r0
+done:
+	.endscope
+	rts
+#endif
+
+#ifdef L_lshrhi3
+	.export __lshrhi3
+__lshrhi3:
+	.scope
+	ldx _r2
+	beq done
+	lda _r1
+loop:
+	lsr a
+	ror _r0
+	dex
+	bne loop
+	sta _r1
+done:
+	.endscope
+	rts
+#endif
+
+#ifdef L_ashrhi3
+	.export __ashrhi3
+__ashrhi3:
+	.scope
+	ldx _r2
+	beq done
+	lda _r1
+loop:
+	cmp #$80
+	ror a
+	ror _r0
+	dex
+	bne loop
+	sta _r1
+done:
 	rts
 	.endscope
 #endif
@@ -140,8 +195,8 @@ done:
 __ashlsi3:
 	.scope
 	ldx _r4
-	lda _r0
 	beq done
+	lda _r0
 loop:
 	asl a
 	rol _r1
@@ -149,8 +204,8 @@ loop:
 	rol _r3
 	dex
 	bne loop
-done:
 	sta _r0
+done:
 	rts
 	.endscope
 #endif
@@ -160,8 +215,8 @@ done:
 __lshrsi3:
 	.scope
 	ldx _r4
-	lda _r3
 	beq done
+	lda _r3
 loop:
 	lsr a
 	ror _r2
@@ -169,8 +224,8 @@ loop:
 	ror _r0
 	dex
 	bne loop
-done:
 	sta _r3
+done:
 	rts
 	.endscope
 #endif
@@ -180,8 +235,8 @@ done:
 __ashrsi3:
 	.scope
 	ldx _r4
-	lda _r3
 	beq done
+	lda _r3
 loop:
 	cmp #$80
 	ror a
@@ -190,8 +245,8 @@ loop:
 	ror _r0
 	dex
 	bne loop
-done:
 	sta _r3
+done:
 	rts
 	.endscope
 #endif
