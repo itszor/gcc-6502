@@ -203,6 +203,11 @@
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "const_mem_operand")))
 
+(define_predicate "qimode_ior_dst_operand"
+  (ior (match_operand 0 "accumulator_operand")
+       (and (match_test "TARGET_TRB_TSB")
+	    (match_operand 0 "zp_reg_or_const_mem_operand"))))
+
 (define_predicate "zp_reg_or_ind_y_mem_operand"
   (ior (match_operand 0 "zp_reg_operand")
        (match_operand 0 "ind_y_mem_operand")))
@@ -310,3 +315,8 @@
 
 (define_predicate "qimode_src_operand"
   (match_operand 0 "compareqi_src_operand"))
+
+(define_predicate "qimode_ior_src_operand"
+  (ior (match_operand 0 "qimode_src_operand")
+       (and (match_test "TARGET_TRB_TSB")
+	    (match_operand 0 "accumulator_operand"))))
