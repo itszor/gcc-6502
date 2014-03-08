@@ -3031,6 +3031,25 @@ decode_ieee_single (const struct real_format *fmt, REAL_VALUE_TYPE *r,
     }
 }
 
+static void
+encode_m65x_single (const struct real_format *fmt, long *buf,
+		    const REAL_VALUE_TYPE *r)
+{
+  encode_ieee_single (fmt, buf, r);
+  buf[0] = ((buf[0] >> 8) & 0x800000) | ((buf[0] << 1) & 0xff000000)
+	   | (buf[0] & 0x007fffff);
+}
+
+static void
+decode_m65x_single (const struct real_format *fmt, REAL_VALUE_TYPE *r,
+		    const long *buf)
+{
+  long val;
+  val = ((buf[0] << 8) & 0x80000000) | ((buf[0] >> 1) & 0x7fe00000)
+	| (buf[0] & 0x007fffff);
+  decode_ieee_single (fmt, r, &val);
+}
+
 const struct real_format ieee_single_format =
   {
     encode_ieee_single,
@@ -3129,6 +3148,34 @@ const struct real_format spu_single_format =
     false,
     "spu_single"
   };
+
+/* M65x single precision format is the same as IEEE single precision format
+   except:
+     - the fields are arranged as 8 bit exponent, 1 bit sign, 23 bit mantissa.
+     - infs/nans are not supported.
+     - denormals truncate to zero.
+     - the only rounding mode is truncation (towards zero).  */
+const struct real_format m65x_single_format =
+  {
+    encode_m65x_single,
+    decode_m65x_single,
+    2,
+    24,
+    24,
+    -125,
+    128,
+    23,
+    23,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+    false,
+    false
+  };
+
 
 /* IEEE double-precision format.  */
 
