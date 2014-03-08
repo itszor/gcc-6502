@@ -17,7 +17,13 @@ LIB1ASMFUNCS =	\
   _udivqi3	\
   _umodqi3	\
   _udivsi3	\
-  _umodsi3
+  _umodsi3	\
+  _ltsf2	\
+  _gesf2	\
+  _gtsf2	\
+  _lesf2	\
+  _eqsf2	\
+  _nesf2
 
 LIB2ADDEH =
 
