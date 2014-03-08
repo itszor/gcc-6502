@@ -517,3 +517,177 @@ __umodsi3:
 	sta _r3
 	rts
 #endif
+
+#ifdef L_ltsf2
+	.export __m65x_fpcmp
+	; Helper routine used by ltsf/lesf/gtsf/gesf.  This has to go
+	; somewhere, so put it here.
+	; On entry the Y register has
+	;   - zero for a regular comparison
+	;   - nonzero for a reversed comparison
+	; On exit the accumulator has
+	;   - 0x80 for "less than" result
+	;   - zero for "greater than or equal" result.
+__m65x_fpcmp:
+	.scope
+	lda _r2
+	tax
+	and #$80
+	sta _tmp0
+	txa
+	and #$7f
+	sta _r2
+	
+	lda _r6
+	tax
+	and #$80
+	sta _tmp1
+	txa
+	and #$7f
+	sta _r6
+	
+	; -X < -Y == X > Y == Y < X
+	lda _tmp0
+	and _tmp1
+	bpl not_both_negative
+	jmp maybe_reverse_cmp
+not_both_negative:
+	lda _tmp0
+	eor _tmp1
+	bpl not_one_only
+	; Now we have one of:
+	; -X <  Y
+	;  X < -Y
+	; -X >  Y  (reversed)
+	;  X > -Y
+	cpy #0
+	bne reverse
+	lda _tmp0
+	rts
+reverse:
+	lda _tmp1
+	rts
+not_one_only:
+
+	cpy #0
+	bne reverse_cmp
+forward_cmp:
+	.scope
+	; mantissa
+	lda _r0
+	cmp _r4
+	lda _r1
+	sbc _r5
+	lda _r2
+	sbc _r6
+	; exponent
+	lda _r3
+	sbc _r7
+	bcc less
+	lda #0
+	rts
+less:
+	lda #$80
+	rts
+	.endscope
+
+maybe_reverse_cmp:
+	cpy #0
+	bne forward_cmp
+reverse_cmp:
+	.scope
+	; mantissa
+	lda _r4
+	cmp _r0
+	lda _r5
+	sbc _r1
+	lda _r6
+	sbc _r2
+	; exponent
+	lda _r7
+	sbc _r3
+	bcc less
+	lda #0
+	rts
+less:
+	lda #$80
+	rts
+	.endscope
+	.endscope
+
+	.export __ltsf2
+__ltsf2:
+	ldy #0
+	jsr __m65x_fpcmp
+	sta _r0
+	rts
+#endif
+
+#ifdef L_gesf2
+	.import __m65x_fpcmp
+	.export __gesf2
+__gesf2:
+	ldy #0
+	jsr __m65x_fpcmp
+	eor #$80
+	sta _r0
+	rts
+#endif
+
+#ifdef L_gtsf2
+	.import __m65x_fpcmp
+	.export __gtsf2
+__gtsf2:
+	ldy #1
+	jsr __m65x_fpcmp
+	sta _r0
+	rts
+#endif
+
+#ifdef L_lesf2
+	.import __m65x_fpcmp
+	.export __lesf2
+__lesf2:
+	ldy #1
+	jsr __m65x_fpcmp
+	eor #$80
+	sta _r0
+	rts
+#endif
+
+#ifdef L_eqsf2
+	.export __eqsf2
+__eqsf2:
+	.scope
+	lda _r0
+	cmp _r4
+	bne ne
+	lda _r1
+	cmp _r5
+	bne ne
+	lda _r2
+	cmp _r6
+	bne ne
+	lda _r3
+	cmp _r7
+	bne ne
+	lda #1
+	sta _r0
+	rts
+ne:
+	lda #0
+	sta _r0
+	rts
+	.endscope
+#endif
+
+#ifdef L_nesf2
+	.import __eqsf2
+	.export __nesf2
+__nesf2:
+	jsr __eqsf2
+	lda _r0
+	eor #1
+	sta _r0
+	rts
+#endif

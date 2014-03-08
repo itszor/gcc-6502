@@ -459,6 +459,14 @@ typedef int CUMULATIVE_ARGS;
 #endif
 
 /*****************************************************************************
+ * Library calls.
+ *****************************************************************************/
+
+/* Testing a tristate (<0, ==0, >0) result from these functions is quite
+   inefficient.  */
+#define FLOAT_LIB_COMPARE_RETURNS_BOOL(MODE, COMPARISON) true
+
+/*****************************************************************************
  * Addressing modes.
  *****************************************************************************/
 

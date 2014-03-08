@@ -36,6 +36,14 @@
 #undef DEBUG_LEGIT_RELOAD
 
 static void
+m65x_option_override (void)
+{
+  /* We can slightly speed up floating-point maths by rearranging the fields
+     in the IEEE754 single float format to line up with byte boundaries.  */
+  REAL_MODE_FORMAT (SFmode) = &m65x_single_format;
+}
+
+static void
 m65x_file_start (void)
 {
   int i;
@@ -1652,6 +1660,9 @@ m65x_pop (enum machine_mode mode, rtx dest)
 				   gen_rtx_REG (Pmode, HARDSP_REGNUM)));
   return gen_popqi1 (dest, pop_rtx);
 }
+
+#undef TARGET_OPTION_OVERRIDE
+#define TARGET_OPTION_OVERRIDE m65x_option_override
 
 #undef TARGET_ASM_FILE_START
 #define TARGET_ASM_FILE_START m65x_file_start
