@@ -27,6 +27,7 @@ extern HOST_WIDE_INT m65x_elimination_offset (int from, int to);
 
 extern rtx m65x_push (enum machine_mode mode, rtx src);
 extern rtx m65x_pop (enum machine_mode mode, rtx dest);
+extern void m65x_expand_addsub (enum machine_mode, bool, rtx[]);
 
 #endif
 
