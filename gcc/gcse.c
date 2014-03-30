@@ -3131,6 +3131,9 @@ hoist_code (void)
 		 note when we've inserted it.  */
 	      int insn_inserted_p;
 	      occr_t occr;
+#ifndef HAVE_cc0
+	      HARD_REG_SET expr_set_clobbers;
+#endif
 
 	      /* If an expression is computed in BB and is available at end of
 		 BB, hoist all occurrences dominated by BB to BB.  */
@@ -3140,6 +3143,32 @@ hoist_code (void)
 
 		  if (occr)
 		    {
+#ifndef HAVE_cc0
+		      rtx insert_insns, insn;
+		      rtx set, tmp = expr->reaching_reg;
+
+		      /* Hoisting inserts a set which might clobber the
+		         condition-code registers before a conditional jump.
+			 If that is going to happen, just give up on hoisting
+			 this expression.  */
+		      CLEAR_HARD_REG_SET (expr_set_clobbers);
+
+		      insn = occr->insn;
+		      set = single_set (insn);
+		      gcc_assert (set);
+
+		      if (expr->reaching_reg == NULL_RTX)
+			expr->reaching_reg
+		          = gen_reg_rtx_and_attrs (SET_DEST (set));
+		      insert_insns = process_insert_insn (expr);
+		      expr->reaching_reg = tmp;
+
+		      for (insn = insert_insns; insn; insn = NEXT_INSN (insn))
+	        	if (INSN_P (insn))
+			  note_stores (PATTERN (insn), record_hard_reg_sets,
+				       &expr_set_clobbers);
+#endif
+
 		      /* An occurrence might've been already deleted
 			 while processing a dominator of BB.  */
 		      if (!occr->deleted_p)
@@ -3176,6 +3205,24 @@ hoist_code (void)
 		  if (occr->deleted_p)
 		    continue;
 		  gcc_assert (NONDEBUG_INSN_P (occr->insn));
+
+#ifndef HAVE_cc0
+		  insn = BB_END (bb);
+		  if (JUMP_P (insn))
+		    {
+		      HARD_REG_SET jump_uses;
+		      CLEAR_HARD_REG_SET (jump_uses);
+		      
+		      note_uses (&PATTERN (insn), record_hard_reg_uses,
+				 &jump_uses);
+		      AND_HARD_REG_SET (jump_uses, expr_set_clobbers);
+		      if (!hard_reg_set_empty_p (jump_uses))
+		        {
+			  occrs_to_hoist.release ();
+		          break;
+			}
+		    }
+#endif
 
 		  max_distance = expr->max_distance;
 		  if (max_distance > 0)

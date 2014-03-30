@@ -235,6 +235,8 @@
    && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO))
 #endif
 
+#define AVOID_CCMODE_COPIES
+
 /*****************************************************************************
  * Register classes.
  *****************************************************************************/
@@ -580,6 +582,7 @@ typedef int CUMULATIVE_ARGS;
   do {								\
     assemble_name ((STREAM), (NAME));				\
     fprintf ((STREAM), ":\n");					\
+    fprintf ((STREAM), "\t.res %d\n", (int) (SIZE));		\
   } while (0)
 
 #define ASM_OUTPUT_SKIP(STREAM, NBYTES)				\
