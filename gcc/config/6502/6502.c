@@ -75,29 +75,15 @@ m65x_file_start (void)
       break;
     }
   
-  fprintf (asm_out_file, "\t.define _ah $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _ah2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _ah3 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _xh $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _xh2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _xh3 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _yh $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _yh2 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _yh3 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.importzp _sp0, _sp1, _fp0, _fp1\n");
   
-  fprintf (asm_out_file, "\t.define _sp0 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _sp1 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _fp0 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _fp1 $%x\n", zploc++);
-  
-  for (i = 0; i < 8; i++)
-    fprintf (asm_out_file, "\t.define _r%d $%x\n", i, zploc++);
+  fprintf (asm_out_file, "\t.importzp _r0, _r1, _r2, _r3, _r4, "
+			 "_r5, _r6, _r7\n");
 
-  for (i = 0; i < 8; i++)
-    fprintf (asm_out_file, "\t.define _s%d $%x\n", i, zploc++);
-  
-  fprintf (asm_out_file, "\t.define _tmp0 $%x\n", zploc++);
-  fprintf (asm_out_file, "\t.define _tmp1 $%x\n", zploc++);
+  fprintf (asm_out_file, "\t.importzp _s0, _s1, _s2, _s3, _s4, "
+			 "_s5, _s6, _s7\n");
+
+  fprintf (asm_out_file, "\t.importzp _tmp0, _tmp1\n");
 }
 
 static void m65x_asm_globalize_label (FILE *, const char *);
@@ -1659,6 +1645,77 @@ m65x_pop (enum machine_mode mode, rtx dest)
 		  gen_rtx_PRE_INC (Pmode,
 				   gen_rtx_REG (Pmode, HARDSP_REGNUM)));
   return gen_popqi1 (dest, pop_rtx);
+}
+
+void
+m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
+{
+  rtx acc, dstpart, op1part, op2part;
+  int i, modesize = GET_MODE_SIZE (mode);
+  bool need_clobber = false;
+  rtx dest = operands[0], seq;
+
+  /* References to virtual_<foo> can turn into adds/subs themselves.  */
+  for (i = 1; i <= 2; i++)
+    if (reg_mentioned_p (virtual_incoming_args_rtx, operands[i]))
+      operands[i] = copy_to_mode_reg (mode, operands[i]);
+
+  start_sequence ();
+
+  acc = gen_reg_rtx (QImode);
+
+  if (REG_P (operands[0])
+      && ((operands[0] != operands[1]
+	   && reg_overlap_mentioned_p (operands[0], operands[1]))
+	  || (operands[0] != operands[2]
+	      && reg_overlap_mentioned_p (operands[0], operands[2]))))
+    dest = gen_reg_rtx (mode);
+
+  if (add)
+    emit_insn (gen_clc ());
+  else
+    emit_insn (gen_sec ());
+
+  for (i = 0; i < modesize; i++)
+    {
+      dstpart = operand_subword (dest, i, 1, mode);
+      op1part = operand_subword (operands[1], i, 1, mode);
+      op2part = operand_subword (operands[2], i, 1, mode);
+
+      if (op2part == 0 && CONSTANT_P (operands[2]))
+        {
+	  operands[2] = use_anchored_address (force_const_mem (mode,
+					      operands[2]));
+	  op2part = operand_subword (operands[2], i, 1, mode);
+	}
+      else if (op2part == 0)
+	op2part = operand_subword_force (operands[2], i, mode);
+
+      gcc_assert (dstpart && op1part && op2part);
+
+      need_clobber |= (GET_CODE (dstpart) == SUBREG);
+
+      emit_move_insn (acc, op1part);
+      if (add)
+	emit_insn (gen_adcqi3_c (acc, acc, op2part));
+      else
+	emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+      emit_move_insn (dstpart, acc);
+    }
+
+  if (dest != operands[0])
+    emit_move_insn (operands[0], dest);
+
+  seq = get_insns ();
+  end_sequence ();
+
+  if (operands[0] != operands[1]
+      && operands[0] != operands[2]
+      && !(lra_in_progress || reload_in_progress || reload_completed)
+      && need_clobber)
+    emit_clobber (operands[0]);
+
+  emit_insn (seq);
 }
 
 #undef TARGET_OPTION_OVERRIDE

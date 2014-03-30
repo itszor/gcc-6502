@@ -1,34 +1,7 @@
-        .define _ah $70
-        .define _ah2 $71
-        .define _ah3 $72
-        .define _xh $73
-        .define _xh2 $74
-        .define _xh3 $75
-        .define _yh $76
-        .define _yh2 $77
-        .define _yh3 $78
-        .define _sp0 $79
-        .define _sp1 $7a
-        .define _fp0 $7b
-        .define _fp1 $7c
-        .define _r0 $7d
-        .define _r1 $7e
-        .define _r2 $7f
-        .define _r3 $80
-        .define _r4 $81
-        .define _r5 $82
-        .define _r6 $83
-        .define _r7 $84
-        .define _s0 $85
-        .define _s1 $86
-        .define _s2 $87
-        .define _s3 $88
-        .define _s4 $89
-        .define _s5 $8a
-        .define _s6 $8b
-        .define _s7 $8c
-        .define _tmp0 $8d
-        .define _tmp1 $8e
+        .importzp _sp0, _sp1, _fp0, _fp1
+        .importzp _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7
+        .importzp _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7
+        .importzp _tmp0, _tmp1
 
 #ifdef L_bswapsi2
 	.export __bswapsi2
@@ -691,3 +664,7 @@ __nesf2:
 	sta _r0
 	rts
 #endif
+
+/*#if defined(L_addsf3) || defined(L_subsf3)
+#include "addsf3.S"
+#endif*/

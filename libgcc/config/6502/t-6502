@@ -27,6 +27,9 @@ LIB1ASMFUNCS =	\
 
 LIB2ADDEH =
 
+LIB2ADD += $(srcdir)/config/6502/softregs.S \
+	   $(srcdir)/config/6502/softfpregs.S
+
 crt0.o: $(srcdir)/config/6502/crt0.S
 	$(gcc_compile) -c $<
 
