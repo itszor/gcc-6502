@@ -1,40 +1,47 @@
         .feature at_in_identifiers
-        .autoimport +
-        .define _ah $70
-        .define _ah2 $71
-        .define _ah3 $72
-        .define _xh $73
-        .define _xh2 $74
-        .define _xh3 $75
-        .define _yh $76
-        .define _yh2 $77
-        .define _yh3 $78
-        .define _sp $79
-        .define _sph $7a
-        .define _fp $7b
-        .define _fph $7c
-        .define _r0 $7d
-        .define _r1 $7e
-        .define _r2 $7f
-        .define _r3 $80
-        .define _r4 $81
-        .define _r5 $82
-        .define _r6 $83
-        .define _r7 $84
-        .define _s0 $85
-        .define _s1 $86
-        .define _s2 $87
-        .define _s3 $88
-        .define _s4 $89
-        .define _s5 $8a
-        .define _s6 $8b
-        .define _s7 $8c
+
+        .importzp _sp0, _sp1, _fp0, _fp1
+        .importzp _r0, _r1, _r2, _r3, _r4, _r5, _r6, _r7
+        .importzp _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7
+        .importzp _tmp0, _tmp1
+
+	.import main
+	.import __BSS_RUN__
+	.import __BSS_SIZE__
 
 	.segment "STARTUP"
 	lda #<$ffe0
-	sta _sp
+	sta _sp0
 	lda #>$ffe0
-	sta _sph
+	sta _sp1
+	; Clear BSS.
+	lda #<__BSS_RUN__
+	sta _r0
+	lda #>__BSS_RUN__
+	sta _r1
+	lda #<__BSS_SIZE__
+	sta _r2
+	ldx #>__BSS_SIZE__
+	stx _r3
+	ora _r3
+	beq nobss
+	.scope
+	ldy #0
+loop:
+	lda #0
+	sta (_r0),y
+	inc _r0
+	bne :+
+	inc _r1
+:	dec _r2
+	lda _r2
+	cmp #255
+	bne :+
+	dec _r3
+:	ora _r3
+	bne loop
+	.endscope
+nobss:
 	lda #0
 	sta _r0
 	sta _r1
