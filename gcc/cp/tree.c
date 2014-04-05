@@ -2170,6 +2170,7 @@ no_linkage_check (tree t, bool relaxed_p)
     case ARRAY_TYPE:
     case POINTER_TYPE:
     case REFERENCE_TYPE:
+    case VECTOR_TYPE:
       return no_linkage_check (TREE_TYPE (t), relaxed_p);
 
     case OFFSET_TYPE:
@@ -3249,6 +3250,7 @@ handle_init_priority_attribute (tree* node,
   int pri;
 
   STRIP_NOPS (initp_expr);
+  initp_expr = default_conversion (initp_expr);
 
   if (!initp_expr || TREE_CODE (initp_expr) != INTEGER_CST)
     {
@@ -3360,6 +3362,18 @@ handle_abi_tag_attribute (tree* node, tree name, tree args,
 	{
 	  error ("%qE attribute applied to %qT after its definition",
 		 name, *node);
+	  goto fail;
+	}
+      else if (CLASSTYPE_TEMPLATE_INSTANTIATION (*node))
+	{
+	  warning (OPT_Wattributes, "ignoring %qE attribute applied to "
+		   "template instantiation %qT", name, *node);
+	  goto fail;
+	}
+      else if (CLASSTYPE_TEMPLATE_SPECIALIZATION (*node))
+	{
+	  warning (OPT_Wattributes, "ignoring %qE attribute applied to "
+		   "template specialization %qT", name, *node);
 	  goto fail;
 	}
 

@@ -264,6 +264,11 @@ typedef struct _loop_vec_info {
 	     values unknown at compile time.  */
   int min_profitable_iters;
 
+  /* Threshold of number of iterations below which vectorzation will not be
+     performed. It is calculated from MIN_PROFITABLE_ITERS and
+     PARAM_MIN_VECT_LOOP_BOUND.  */
+  unsigned int th;
+
   /* Is the loop vectorizable? */
   bool vectorizable;
 
@@ -382,6 +387,7 @@ typedef struct _loop_vec_info {
    cost model.  */
 #define LOOP_VINFO_NITERS_UNCHANGED(L)     (L)->num_iters_unchanged
 #define LOOP_VINFO_COST_MODEL_MIN_ITERS(L) (L)->min_profitable_iters
+#define LOOP_VINFO_COST_MODEL_THRESHOLD(L) (L)->th
 #define LOOP_VINFO_VECTORIZABLE_P(L)       (L)->vectorizable
 #define LOOP_VINFO_VECT_FACTOR(L)          (L)->vectorization_factor
 #define LOOP_VINFO_PTR_MASK(L)             (L)->ptr_mask
@@ -622,6 +628,10 @@ typedef struct _stmt_vec_info {
      is 1.  */
   unsigned int gap;
 
+  /* The minimum negative dependence distance this stmt participates in
+     or zero if none.  */
+  unsigned int min_neg_dist;
+
   /* Not all stmts in the loop need to be vectorized. e.g, the increment
      of the loop induction variable and computation of array indexes. relevant
      indicates whether the stmt needs to be vectorized.  */
@@ -677,6 +687,7 @@ typedef struct _stmt_vec_info {
 #define STMT_VINFO_GROUP_SAME_DR_STMT(S)   (S)->same_dr_stmt
 #define STMT_VINFO_GROUPED_ACCESS(S)      ((S)->first_element != NULL && (S)->data_ref_info)
 #define STMT_VINFO_LOOP_PHI_EVOLUTION_PART(S) (S)->loop_phi_evolution_part
+#define STMT_VINFO_MIN_NEG_DIST(S)	(S)->min_neg_dist
 
 #define GROUP_FIRST_ELEMENT(S)          (S)->first_element
 #define GROUP_NEXT_ELEMENT(S)           (S)->next_element

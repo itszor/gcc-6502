@@ -447,7 +447,7 @@ package body Ch5 is
 
                   --  Otherwise we treat THEN as some kind of mess where we did
                   --  not see the associated IF, but we pick up assuming it had
-                  --  been there!
+                  --  been there.
 
                   Restore_Scan_State (Scan_State); -- to THEN
                   Append_To (Statement_List, P_If_Statement);
@@ -506,6 +506,24 @@ package body Ch5 is
                      Scan; -- past semicolon
                      Statement_Required := False;
 
+                     --  Here is the special test for a suspicious label, more
+                     --  accurately a suspicious name, which we think perhaps
+                     --  should have been a label. If next token is one of
+                     --  LOOP, FOR, WHILE, DECLARE, BEGIN, then make an entry
+                     --  in the suspicious label table.
+
+                     if Token = Tok_Loop    or else
+                        Token = Tok_For     or else
+                        Token = Tok_While   or else
+                        Token = Tok_Declare or else
+                        Token = Tok_Begin
+                     then
+                        Suspicious_Labels.Append
+                          ((Proc_Call     => Id_Node,
+                            Semicolon_Loc => Prev_Token_Ptr,
+                            Start_Token   => Token_Ptr));
+                     end if;
+
                   --  Check for case of "go to" in place of "goto"
 
                   elsif Token = Tok_Identifier
@@ -552,7 +570,7 @@ package body Ch5 is
 
                            --  We will set Error_name as the Block_Label since
                            --  we really don't know which of the labels might
-                           --  be used at the end of the loop or block!
+                           --  be used at the end of the loop or block.
 
                            Block_Label := Error_Name;
 
@@ -1085,8 +1103,7 @@ package body Ch5 is
       procedure Check_Then_Column;
       --  This procedure carries out the style checks for a THEN token
       --  Note that the caller has set Loc to the Source_Ptr value for
-      --  the previous IF or ELSIF token. These checks apply only to a
-      --  THEN at the start of a line.
+      --  the previous IF or ELSIF token.
 
       function Else_Should_Be_Elsif return Boolean;
       --  An internal routine used to do a special error recovery check when
@@ -1124,7 +1141,7 @@ package body Ch5 is
 
       procedure Check_Then_Column is
       begin
-         if Token_Is_At_Start_Of_Line and then Token = Tok_Then then
+         if Token = Tok_Then then
             Check_If_Column;
 
             if Style_Check then
@@ -1717,6 +1734,18 @@ package body Ch5 is
 
       elsif Token = Tok_In then
          Scan;  --  past IN
+
+      elsif Prev_Token = Tok_In
+        and then Present (Subtype_Indication (Node1))
+      then
+         --  Simplest recovery is to transform it into an element iterator.
+         --  Error message on 'in" has already been emitted when parsing the
+         --  optional constraint.
+
+         Set_Of_Present (Node1);
+         Error_Msg_N
+           ("subtype indication is only legal on an element iterator",
+              Subtype_Indication (Node1));
 
       else
          return Error;

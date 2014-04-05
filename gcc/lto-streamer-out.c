@@ -79,7 +79,7 @@ create_output_block (enum lto_section_type section_type)
   ob->decl_state = lto_get_out_decl_state ();
   ob->main_stream = XCNEW (struct lto_output_stream);
   ob->string_stream = XCNEW (struct lto_output_stream);
-  ob->writer_cache = streamer_tree_cache_create (!flag_wpa, true);
+  ob->writer_cache = streamer_tree_cache_create (!flag_wpa, true, false);
 
   if (section_type == LTO_section_function_body)
     ob->cfg_stream = XCNEW (struct lto_output_stream);
@@ -139,7 +139,8 @@ tree_is_indexable (tree t)
     return variably_modified_type_p (TREE_TYPE (DECL_CONTEXT (t)), NULL_TREE);
   else if (((TREE_CODE (t) == VAR_DECL && !TREE_STATIC (t))
 	    || TREE_CODE (t) == TYPE_DECL
-	    || TREE_CODE (t) == CONST_DECL)
+	    || TREE_CODE (t) == CONST_DECL
+	    || TREE_CODE (t) == NAMELIST_DECL)
 	   && decl_function_context (t))
     return false;
   else if (TREE_CODE (t) == DEBUG_EXPR_DECL)
@@ -255,19 +256,9 @@ lto_output_tree_ref (struct output_block *ob, tree expr)
       break;
 
     case NAMELIST_DECL:
-      {
-	unsigned i;
-	tree value, tmp;
-
-	streamer_write_record_start (ob, LTO_namelist_decl_ref);
-	stream_write_tree (ob, DECL_NAME (expr), true);
-	tmp = NAMELIST_DECL_ASSOCIATED_DECL (expr);
-	gcc_assert (tmp != NULL_TREE);
-	streamer_write_uhwi (ob, CONSTRUCTOR_ELTS (tmp)->length());
-	FOR_EACH_CONSTRUCTOR_VALUE (CONSTRUCTOR_ELTS (tmp), i, value)
-	  lto_output_var_decl_index (ob->decl_state, ob->main_stream, value);
-	break;
-      }
+      streamer_write_record_start (ob, LTO_namelist_decl_ref);
+      lto_output_var_decl_index (ob->decl_state, ob->main_stream, expr);
+      break;
 
     case NAMESPACE_DECL:
       streamer_write_record_start (ob, LTO_namespace_decl_ref);
@@ -559,7 +550,7 @@ DFS_write_tree_body (struct output_block *ob,
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     {
       DFS_follow_tree_edge (DECL_FUNCTION_PERSONALITY (expr));
-      DFS_follow_tree_edge (DECL_FUNCTION_SPECIFIC_TARGET (expr));
+      /* Do not DECL_FUNCTION_SPECIFIC_TARGET.  They will be regenerated.  */
       DFS_follow_tree_edge (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (expr));
     }
 
@@ -894,7 +885,7 @@ hash_tree (struct streamer_tree_cache_d *cache, tree t)
 			strlen (TRANSLATION_UNIT_LANGUAGE (t)), v);
 
   if (CODE_CONTAINS_STRUCT (code, TS_TARGET_OPTION))
-    v = iterative_hash (t, sizeof (struct cl_target_option), v);
+    gcc_unreachable ();
 
   if (CODE_CONTAINS_STRUCT (code, TS_OPTIMIZATION))
     v = iterative_hash (t, sizeof (struct cl_optimization), v);
@@ -995,7 +986,7 @@ hash_tree (struct streamer_tree_cache_d *cache, tree t)
   if (CODE_CONTAINS_STRUCT (code, TS_FUNCTION_DECL))
     {
       visit (DECL_FUNCTION_PERSONALITY (t));
-      visit (DECL_FUNCTION_SPECIFIC_TARGET (t));
+      /* Do not follow DECL_FUNCTION_SPECIFIC_TARGET.  */
       visit (DECL_FUNCTION_SPECIFIC_OPTIMIZATION (t));
     }
 
@@ -1286,7 +1277,6 @@ DFS_write_tree (struct output_block *ob, sccs *from_state,
 	     ???  We still wrap these in LTO_tree_scc so at the
 	     input side we can properly identify the tree we want
 	     to ultimatively return.  */
-	  size_t old_len = ob->writer_cache->nodes.length ();
 	  if (size == 1)
 	    lto_output_tree_1 (ob, expr, scc_hash, ref_p, this_ref_p);
 	  else
@@ -1324,7 +1314,6 @@ DFS_write_tree (struct output_block *ob, sccs *from_state,
 		  streamer_write_zero (ob);
 		}
 	    }
-	  gcc_assert (old_len + size == ob->writer_cache->nodes.length ());
 
 	  /* Finally truncate the vector.  */
 	  sccstack.truncate (first);
@@ -2432,10 +2421,18 @@ produce_asm_for_decls (void)
 
   gcc_assert (!alias_pairs);
 
-  /* Write the global symbols.  */
+  /* Get rid of the global decl state hash tables to save some memory.  */
   out_state = lto_get_out_decl_state ();
-  num_fns = lto_function_decl_states.length ();
+  for (int i = 0; i < LTO_N_DECL_STREAMS; i++)
+    if (out_state->streams[i].tree_hash_table)
+      {
+	delete out_state->streams[i].tree_hash_table;
+	out_state->streams[i].tree_hash_table = NULL;
+      }
+
+  /* Write the global symbols.  */
   lto_output_decl_state_streams (ob, out_state);
+  num_fns = lto_function_decl_states.length ();
   for (idx = 0; idx < num_fns; idx++)
     {
       fn_out_state =

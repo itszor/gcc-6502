@@ -933,6 +933,7 @@ new_loop_vec_info (struct loop *loop)
   LOOP_VINFO_NITERS (res) = NULL;
   LOOP_VINFO_NITERS_UNCHANGED (res) = NULL;
   LOOP_VINFO_COST_MODEL_MIN_ITERS (res) = 0;
+  LOOP_VINFO_COST_MODEL_THRESHOLD (res) = 0;
   LOOP_VINFO_VECTORIZABLE_P (res) = 0;
   LOOP_VINFO_PEELING_FOR_ALIGNMENT (res) = 0;
   LOOP_VINFO_VECT_FACTOR (res) = 0;
@@ -1579,6 +1580,8 @@ vect_analyze_loop_operations (loop_vec_info loop_vinfo, bool slp)
           || min_profitable_iters > min_scalar_loop_bound))
     th = (unsigned) min_profitable_iters;
 
+  LOOP_VINFO_COST_MODEL_THRESHOLD (loop_vinfo) = th;
+
   if (LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo)
       && LOOP_VINFO_INT_NITERS (loop_vinfo) <= th)
     {
@@ -1625,6 +1628,7 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo)
   bool ok, slp = false;
   int max_vf = MAX_VECTORIZATION_FACTOR;
   int min_vf = 2;
+  unsigned int th;
 
   /* Find all data references in the loop (which correspond to vdefs/vuses)
      and analyze their evolution in the loop.  Also adjust the minimal
@@ -1723,8 +1727,10 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo)
     {
       if (dump_enabled_p ())
 	dump_printf_loc (MSG_MISSED_OPTIMIZATION, vect_location,
-			 "too long list of versioning for alias "
-			 "run-time tests.\n");
+			 "number of versioning for alias "
+			 "run-time tests exceeds %d "
+			 "(--param vect-max-version-for-alias-checks)\n",
+			 PARAM_VALUE (PARAM_VECT_MAX_VERSION_FOR_ALIAS_CHECKS));
       return false;
     }
 
@@ -1767,6 +1773,10 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo)
 
   /* Decide whether we need to create an epilogue loop to handle
      remaining scalar iterations.  */
+  th = ((LOOP_VINFO_COST_MODEL_THRESHOLD (loop_vinfo) + 1)
+        / LOOP_VINFO_VECT_FACTOR (loop_vinfo))
+       * LOOP_VINFO_VECT_FACTOR (loop_vinfo);
+
   if (LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo)
       && LOOP_VINFO_PEELING_FOR_ALIGNMENT (loop_vinfo) > 0)
     {
@@ -1777,7 +1787,14 @@ vect_analyze_loop_2 (loop_vec_info loop_vinfo)
     }
   else if (LOOP_VINFO_PEELING_FOR_ALIGNMENT (loop_vinfo)
 	   || (tree_ctz (LOOP_VINFO_NITERS (loop_vinfo))
-	       < (unsigned)exact_log2 (LOOP_VINFO_VECT_FACTOR (loop_vinfo))))
+	       < (unsigned)exact_log2 (LOOP_VINFO_VECT_FACTOR (loop_vinfo))
+               /* In case of versioning, check if the maximum number of
+                  iterations is greater than th.  If they are identical,
+                  the epilogue is unnecessary.  */
+	       && ((!LOOP_REQUIRES_VERSIONING_FOR_ALIAS (loop_vinfo)
+	            && !LOOP_REQUIRES_VERSIONING_FOR_ALIGNMENT (loop_vinfo))
+                   || (unsigned HOST_WIDE_INT)max_stmt_executions_int
+		        (LOOP_VINFO_LOOP (loop_vinfo)) > th)))
     LOOP_VINFO_PEELING_FOR_NITER (loop_vinfo) = true;
 
   /* If an epilogue loop is required make sure we can create one.  */
@@ -1966,10 +1983,8 @@ vect_is_slp_reduction (loop_vec_info loop_info, gimple phi, gimple first_stmt)
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, lhs)
         {
 	  gimple use_stmt = USE_STMT (use_p);
-          if (is_gimple_debug (use_stmt))
-            continue;
-
-	  use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
 
           /* Check if we got back to the reduction phi.  */
 	  if (use_stmt == phi)
@@ -2193,6 +2208,12 @@ vect_is_simple_reduction_1 (loop_vec_info loop_info, gimple phi,
               || (!check_reduction && flow_loop_nested_p (vect_loop, loop)));
 
   name = PHI_RESULT (phi);
+  /* ???  If there are no uses of the PHI result the inner loop reduction
+     won't be detected as possibly double-reduction by vectorizable_reduction
+     because that tries to walk the PHI arg from the preheader edge which
+     can be constant.  See PR60382.  */
+  if (has_zero_uses (name))
+    return NULL;
   nloop_uses = 0;
   FOR_EACH_IMM_USE_FAST (use_p, imm_iter, name)
     {
@@ -3505,9 +3526,13 @@ get_initial_def_for_induction (gimple iv_phi)
       exit_phi = NULL;
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, loop_arg)
         {
-	  if (!flow_bb_inside_loop_p (iv_loop, gimple_bb (USE_STMT (use_p))))
+	  gimple use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
+
+	  if (!flow_bb_inside_loop_p (iv_loop, gimple_bb (use_stmt)))
 	    {
-	      exit_phi = USE_STMT (use_p);
+	      exit_phi = use_stmt;
 	      break;
 	    }
         }
@@ -5411,10 +5436,13 @@ vectorizable_induction (gimple phi, gimple_stmt_iterator *gsi ATTRIBUTE_UNUSED,
       loop_arg = PHI_ARG_DEF_FROM_EDGE (phi, latch_e);
       FOR_EACH_IMM_USE_FAST (use_p, imm_iter, loop_arg)
 	{
-	  if (!flow_bb_inside_loop_p (loop->inner,
-				      gimple_bb (USE_STMT (use_p))))
+	  gimple use_stmt = USE_STMT (use_p);
+	  if (is_gimple_debug (use_stmt))
+	    continue;
+
+	  if (!flow_bb_inside_loop_p (loop->inner, gimple_bb (use_stmt)))
 	    {
-	      exit_phi = USE_STMT (use_p);
+	      exit_phi = use_stmt;
 	      break;
 	    }
 	}
@@ -5512,7 +5540,7 @@ vectorizable_live_operation (gimple stmt,
 	    {
 	      gimple use_stmt = USE_STMT (use_p);
 	      if (gimple_code (use_stmt) == GIMPLE_PHI
-		  || gimple_bb (use_stmt) == merge_bb)
+		  && gimple_bb (use_stmt) == merge_bb)
 		{
 		  if (vec_stmt)
 		    {
@@ -5762,9 +5790,7 @@ vect_transform_loop (loop_vec_info loop_vinfo)
      by our caller.  If the threshold makes all loops profitable that
      run at least the vectorization factor number of times checking
      is pointless, too.  */
-  th = ((PARAM_VALUE (PARAM_MIN_VECT_LOOP_BOUND)
-	 * LOOP_VINFO_VECT_FACTOR (loop_vinfo)) - 1);
-  th = MAX (th, LOOP_VINFO_COST_MODEL_MIN_ITERS (loop_vinfo));
+  th = LOOP_VINFO_COST_MODEL_THRESHOLD (loop_vinfo);
   if (th >= LOOP_VINFO_VECT_FACTOR (loop_vinfo) - 1
       && !LOOP_VINFO_NITERS_KNOWN_P (loop_vinfo))
     {
@@ -5869,8 +5895,9 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 	      && !STMT_VINFO_LIVE_P (stmt_info))
 	    continue;
 
-	  if ((TYPE_VECTOR_SUBPARTS (STMT_VINFO_VECTYPE (stmt_info))
-	        != (unsigned HOST_WIDE_INT) vectorization_factor)
+	  if (STMT_VINFO_VECTYPE (stmt_info)
+	      && (TYPE_VECTOR_SUBPARTS (STMT_VINFO_VECTYPE (stmt_info))
+		  != (unsigned HOST_WIDE_INT) vectorization_factor)
 	      && dump_enabled_p ())
 	    dump_printf_loc (MSG_NOTE, vect_location, "multiple-types.\n");
 
@@ -6053,7 +6080,6 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 		     the chain.  */
 		  gsi_next (&si);
 		  vect_remove_stores (GROUP_FIRST_ELEMENT (stmt_info));
- 		  continue;
 		}
 	      else
 		{
@@ -6063,11 +6089,13 @@ vect_transform_loop (loop_vec_info loop_vinfo)
 		  unlink_stmt_vdef (store);
 		  gsi_remove (&si, true);
 		  release_defs (store);
-		  continue;
 		}
-	    }
 
-	  if (!transform_pattern_stmt && gsi_end_p (pattern_def_si))
+	      /* Stores can only appear at the end of pattern statements.  */
+	      gcc_assert (!transform_pattern_stmt);
+	      pattern_def_seq = NULL;
+	    }
+	  else if (!transform_pattern_stmt && gsi_end_p (pattern_def_si))
 	    {
 	      pattern_def_seq = NULL;
 	      gsi_next (&si);

@@ -338,6 +338,10 @@ cond_exec_process_insns (ce_if_block *ce_info ATTRIBUTE_UNUSED,
 
       gcc_assert (NONJUMP_INSN_P (insn) || CALL_P (insn));
 
+      /* dwarf2out can't cope with conditional unwind info.  */
+      if (RTX_FRAME_RELATED_P (insn))
+	return FALSE;
+
       /* Remove USE insns that get in the way.  */
       if (reload_completed && GET_CODE (PATTERN (insn)) == USE)
 	{
@@ -4138,6 +4142,21 @@ dead_or_predicable (basic_block test_bb, basic_block merge_bb,
       end = PREV_INSN (end);
       while (DEBUG_INSN_P (end) && end != head)
 	end = PREV_INSN (end);
+    }
+
+  /* Don't move frame-related insn across the conditional branch.  This
+     can lead to one of the paths of the branch having wrong unwind info.  */
+  if (epilogue_completed)
+    {
+      rtx insn = head;
+      while (1)
+	{
+	  if (INSN_P (insn) && RTX_FRAME_RELATED_P (insn))
+	    return FALSE;
+	  if (insn == end)
+	    break;
+	  insn = NEXT_INSN (insn);
+	}
     }
 
   /* Disable handling dead code by conditional execution if the machine needs

@@ -217,7 +217,7 @@ __extension__
 #endif
 static const struct tune_params generic_tunings =
 {
-  &generic_extra_costs,
+  &cortexa57_extra_costs,
   &generic_addrcost_table,
   &generic_regmove_cost,
   &generic_vector_cost,
@@ -233,6 +233,16 @@ static const struct tune_params cortexa53_tunings =
   &generic_vector_cost,
   NAMED_PARAM (memmov_cost, 4),
   NAMED_PARAM (issue_rate, 2)
+};
+
+static const struct tune_params cortexa57_tunings =
+{
+  &cortexa57_extra_costs,
+  &generic_addrcost_table,
+  &generic_regmove_cost,
+  &generic_vector_cost,
+  NAMED_PARAM (memmov_cost, 4),
+  NAMED_PARAM (issue_rate, 3)
 };
 
 /* A processor implementing AArch64.  */
@@ -304,10 +314,6 @@ static GTY(()) int gty_dummy;
 
 #define AARCH64_NUM_BITMASKS  5334
 static unsigned HOST_WIDE_INT aarch64_bitmasks[AARCH64_NUM_BITMASKS];
-
-/* Did we set flag_omit_frame_pointer just so
-   aarch64_frame_pointer_required would be called? */
-static bool faked_omit_frame_pointer;
 
 typedef enum aarch64_cond_code
 {
@@ -916,7 +922,7 @@ aarch64_expand_mov_immediate (rtx dest, rtx imm)
 	  if (offset != const0_rtx
 	      && targetm.cannot_force_const_mem (mode, imm))
 	    {
-	      gcc_assert(can_create_pseudo_p ());
+	      gcc_assert (can_create_pseudo_p ());
 	      base = aarch64_force_temporary (mode, dest, base);
 	      base = aarch64_add_offset (mode, NULL, base, INTVAL (offset));
 	      aarch64_emit_move (dest, base);
@@ -1187,14 +1193,10 @@ aarch64_pass_by_reference (cumulative_args_t pcum ATTRIBUTE_UNUSED,
   size = (mode == BLKmode && type)
     ? int_size_in_bytes (type) : (int) GET_MODE_SIZE (mode);
 
-  if (type)
+  /* Aggregates are passed by reference based on their size.  */
+  if (type && AGGREGATE_TYPE_P (type))
     {
-      /* Arrays always passed by reference.  */
-      if (TREE_CODE (type) == ARRAY_TYPE)
-	return true;
-      /* Other aggregates based on their size.  */
-      if (AGGREGATE_TYPE_P (type))
-	size = int_size_in_bytes (type);
+      size = int_size_in_bytes (type);
     }
 
   /* Variable sized arguments are always returned by reference.  */
@@ -1688,17 +1690,15 @@ aarch64_frame_pointer_required (void)
   if (cfun->calls_alloca)
     return true;
 
-  /* We may have turned flag_omit_frame_pointer on in order to have this
-     function called; if we did, we also set the 'faked_omit_frame_pointer' flag
-     and we'll check it here.
-     If we really did set flag_omit_frame_pointer normally, then we return false
-     (no frame pointer required) in all cases.  */
+  /* In aarch64_override_options_after_change
+     flag_omit_leaf_frame_pointer turns off the frame pointer by
+     default.  Turn it back on now if we've not got a leaf
+     function.  */
+  if (flag_omit_leaf_frame_pointer
+      && (!crtl->is_leaf || df_regs_ever_live_p (LR_REGNUM)))
+    return true;
 
-  if (flag_omit_frame_pointer && !faked_omit_frame_pointer)
-    return false;
-  else if (flag_omit_leaf_frame_pointer)
-    return !crtl->is_leaf || df_regs_ever_live_p (LR_REGNUM);
-  return true;
+  return false;
 }
 
 /* Mark the registers that need to be saved by the callee and calculate
@@ -1988,18 +1988,21 @@ aarch64_save_or_restore_callee_save_registers (HOST_WIDE_INT offset,
 	|  callee-allocated save area   |
 	|  for register varargs         |
 	|                               |
-	+-------------------------------+
+	+-------------------------------+ <-- frame_pointer_rtx
 	|                               |
 	|  local variables              |
 	|                               |
-	+-------------------------------+ <-- frame_pointer_rtx
-	|                               |
-	|  callee-saved registers       |
-	|                               |
 	+-------------------------------+
-	|  LR'                          |
-	+-------------------------------+
-	|  FP'                          |
+	|  padding0                     | \
+	+-------------------------------+  |
+	|                               |  |
+	|                               |  |
+	|  callee-saved registers       |  | frame.saved_regs_size
+	|                               |  |
+	+-------------------------------+  |
+	|  LR'                          |  |
+	+-------------------------------+  |
+	|  FP'                          | /
       P +-------------------------------+ <-- hard_frame_pointer_rtx
 	|  dynamic allocation           |
 	+-------------------------------+
@@ -3193,6 +3196,9 @@ aarch64_classify_address (struct aarch64_address_info *info,
 		}
 	      else if (SYMBOL_REF_DECL (sym))
 		align = DECL_ALIGN (SYMBOL_REF_DECL (sym));
+	      else if (SYMBOL_REF_HAS_BLOCK_INFO_P (sym)
+		       && SYMBOL_REF_BLOCK (sym) != NULL)
+		align = SYMBOL_REF_BLOCK (sym)->alignment;
 	      else
 		align = BITS_PER_UNIT;
 
@@ -3249,7 +3255,7 @@ aarch64_legitimate_address_hook_p (enum machine_mode mode, rtx x, bool strict_p)
    pair operation.  */
 bool
 aarch64_legitimate_address_p (enum machine_mode mode, rtx x,
-			   RTX_CODE outer_code, bool strict_p)
+			      RTX_CODE outer_code, bool strict_p)
 {
   struct aarch64_address_info addr;
 
@@ -4123,23 +4129,8 @@ aarch64_can_eliminate (const int from, const int to)
 	return true;
       if (from == FRAME_POINTER_REGNUM && to == HARD_FRAME_POINTER_REGNUM)
 	return true;
-    return false;
-    }
-  else
-    {
-      /* If we decided that we didn't need a leaf frame pointer but then used
-	 LR in the function, then we'll want a frame pointer after all, so
-	 prevent this elimination to ensure a frame pointer is used.
 
-	 NOTE: the original value of flag_omit_frame_pointer gets trashed
-	 IFF flag_omit_leaf_frame_pointer is true, so we check the value
-	 of faked_omit_frame_pointer here (which is true when we always
-	 wish to keep non-leaf frame pointers but only wish to keep leaf frame
-	 pointers when LR is clobbered).  */
-      if (to == STACK_POINTER_REGNUM
-	  && df_regs_ever_live_p (LR_REGNUM)
-	  && faked_omit_frame_pointer)
-	return false;
+      return false;
     }
 
   return true;
@@ -4256,7 +4247,7 @@ aarch64_class_max_nregs (reg_class_t regclass, enum machine_mode mode)
     case FP_LO_REGS:
       return
 	aarch64_vector_mode_p (mode) ? (GET_MODE_SIZE (mode) + 15) / 16 :
- 				       (GET_MODE_SIZE (mode) + 7) / 8;
+				       (GET_MODE_SIZE (mode) + 7) / 8;
     case STACK_REG:
       return 1;
 
@@ -5244,7 +5235,7 @@ aarch64_override_options (void)
 
   /* If the user did not specify a processor, choose the default
      one for them.  This will be the CPU set during configuration using
-     --with-cpu, otherwise it is "coretex-a53".  */
+     --with-cpu, otherwise it is "generic".  */
   if (!selected_cpu)
     {
       selected_cpu = &all_cores[TARGET_CPU_DEFAULT & 0x3f];
@@ -5269,17 +5260,10 @@ aarch64_override_options (void)
 static void
 aarch64_override_options_after_change (void)
 {
-  faked_omit_frame_pointer = false;
-
-  /* To omit leaf frame pointers, we need to turn flag_omit_frame_pointer on so
-     that aarch64_frame_pointer_required will be called.  We need to remember
-     whether flag_omit_frame_pointer was turned on normally or just faked.  */
-
-  if (flag_omit_leaf_frame_pointer && !flag_omit_frame_pointer)
-    {
-      flag_omit_frame_pointer = true;
-      faked_omit_frame_pointer = true;
-    }
+  if (flag_omit_frame_pointer)
+    flag_omit_leaf_frame_pointer = false;
+  else if (flag_omit_leaf_frame_pointer)
+    flag_omit_frame_pointer = true;
 }
 
 static struct machine_function *
@@ -5400,9 +5384,8 @@ aarch64_classify_symbol (rtx x,
 
   if (GET_CODE (x) == SYMBOL_REF)
     {
-      if (aarch64_cmodel == AARCH64_CMODEL_LARGE
-	  || CONSTANT_POOL_ADDRESS_P (x))
-	return SYMBOL_FORCE_TO_MEM;
+      if (aarch64_cmodel == AARCH64_CMODEL_LARGE)
+	  return SYMBOL_FORCE_TO_MEM;
 
       if (aarch64_tls_symbol_p (x))
 	return aarch64_classify_tls_symbol (x);
@@ -6558,7 +6541,9 @@ aarch64_simd_valid_immediate (rtx op, enum machine_mode mode, bool inverse,
   /* Splat vector constant out into a byte vector.  */
   for (i = 0; i < n_elts; i++)
     {
-      rtx el = CONST_VECTOR_ELT (op, i);
+      /* The vector is provided in gcc endian-neutral fashion.  For aarch64_be,
+         it must be laid out in the vector register in reverse order.  */
+      rtx el = CONST_VECTOR_ELT (op, BYTES_BIG_ENDIAN ? (n_elts - 1 - i) : i);
       unsigned HOST_WIDE_INT elpart;
       unsigned int part, parts;
 

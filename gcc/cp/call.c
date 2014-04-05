@@ -886,6 +886,8 @@ build_aggr_conv (tree type, tree ctor, int flags, tsubst_flags_t complain)
   if (ctor == error_mark_node)
     return NULL;
 
+  flags |= LOOKUP_NO_NARROWING;
+
   for (; field; field = next_initializable_field (DECL_CHAIN (field)))
     {
       tree ftype = TREE_TYPE (field);
@@ -894,6 +896,9 @@ build_aggr_conv (tree type, tree ctor, int flags, tsubst_flags_t complain)
 
       if (i < CONSTRUCTOR_NELTS (ctor))
 	val = CONSTRUCTOR_ELT (ctor, i)->value;
+      else if (TREE_CODE (ftype) == REFERENCE_TYPE)
+	/* Value-initialization of reference is ill-formed.  */
+	return NULL;
       else
 	{
 	  if (empty_ctor == NULL_TREE)
@@ -923,6 +928,7 @@ build_aggr_conv (tree type, tree ctor, int flags, tsubst_flags_t complain)
   c->type = type;
   c->rank = cr_exact;
   c->user_conv_p = true;
+  c->check_narrowing = true;
   c->u.next = NULL;
   return c;
 }
@@ -942,7 +948,11 @@ build_array_conv (tree type, tree ctor, int flags, tsubst_flags_t complain)
   bool user = false;
   enum conversion_rank rank = cr_exact;
 
-  if (TYPE_DOMAIN (type))
+  /* We might need to propagate the size from the element to the array.  */
+  complete_type (type);
+
+  if (TYPE_DOMAIN (type)
+      && !variably_modified_type_p (TYPE_DOMAIN (type), NULL_TREE))
     {
       unsigned HOST_WIDE_INT alen = tree_to_uhwi (array_type_nelts_top (type));
       if (alen < len)
@@ -1460,16 +1470,29 @@ reference_binding (tree rto, tree rfrom, tree expr, bool c_cast_p, int flags,
   if (expr && BRACE_ENCLOSED_INITIALIZER_P (expr))
     {
       maybe_warn_cpp0x (CPP0X_INITIALIZER_LISTS);
-      conv = implicit_conversion (to, from, expr, c_cast_p,
-				  flags, complain);
-      if (!CLASS_TYPE_P (to)
-	  && CONSTRUCTOR_NELTS (expr) == 1)
+      /* DR 1288: Otherwise, if the initializer list has a single element
+	 of type E and ... [T's] referenced type is reference-related to E,
+	 the object or reference is initialized from that element... */
+      if (CONSTRUCTOR_NELTS (expr) == 1)
 	{
-	  expr = CONSTRUCTOR_ELT (expr, 0)->value;
-	  if (error_operand_p (expr))
+	  tree elt = CONSTRUCTOR_ELT (expr, 0)->value;
+	  if (error_operand_p (elt))
 	    return NULL;
-	  from = TREE_TYPE (expr);
+	  tree etype = TREE_TYPE (elt);
+	  if (reference_related_p (to, etype))
+	    {
+	      expr = elt;
+	      from = etype;
+	      goto skip;
+	    }
 	}
+      /* Otherwise, if T is a reference type, a prvalue temporary of the
+	 type referenced by T is copy-list-initialized or
+	 direct-list-initialized, depending on the kind of initialization
+	 for the reference, and the reference is bound to that temporary. */
+      conv = implicit_conversion (to, from, expr, c_cast_p,
+				  flags|LOOKUP_NO_TEMP_BIND, complain);
+    skip:;
     }
 
   if (TREE_CODE (from) == REFERENCE_TYPE)
@@ -1621,9 +1644,9 @@ reference_binding (tree rto, tree rfrom, tree expr, bool c_cast_p, int flags,
 
   /* [dcl.init.ref]
 
-     Otherwise, the reference shall be to a non-volatile const type.
-
-     Under C++0x, [8.5.3/5 dcl.init.ref] it may also be an rvalue reference */
+     Otherwise, the reference shall be an lvalue reference to a
+     non-volatile const type, or the reference shall be an rvalue
+     reference.  */
   if (!CP_TYPE_CONST_NON_VOLATILE_P (to) && !TYPE_REF_IS_RVALUE (rto))
     return NULL;
 
@@ -1661,7 +1684,16 @@ reference_binding (tree rto, tree rfrom, tree expr, bool c_cast_p, int flags,
   /* This reference binding, unlike those above, requires the
      creation of a temporary.  */
   conv->need_temporary_p = true;
-  conv->rvaluedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+  if (TYPE_REF_IS_RVALUE (rto))
+    {
+      conv->rvaluedness_matches_p = 1;
+      /* In the second case, if the reference is an rvalue reference and
+	 the second standard conversion sequence of the user-defined
+	 conversion sequence includes an lvalue-to-rvalue conversion, the
+	 program is ill-formed.  */
+      if (conv->user_conv_p && next_conversion (conv)->kind == ck_rvalue)
+	conv->bad_p = 1;
+    }
 
   return conv;
 }
@@ -2304,7 +2336,6 @@ add_builtin_candidate (struct z_candidate **candidates, enum tree_code code,
 
     case INDIRECT_REF:
       if (TYPE_PTR_P (type1)
-	  && !uses_template_parms (TREE_TYPE (type1))
 	  && (TYPE_PTROB_P (type1)
 	      || TREE_CODE (TREE_TYPE (type1)) == FUNCTION_TYPE))
 	break;
@@ -2442,15 +2473,13 @@ add_builtin_candidate (struct z_candidate **candidates, enum tree_code code,
 	  && TREE_CODE (type2) == ENUMERAL_TYPE)
 	break;
       if (TYPE_PTR_P (type1) 
-	  && null_ptr_cst_p (args[1])
-	  && !uses_template_parms (type1))
+	  && null_ptr_cst_p (args[1]))
 	{
 	  type2 = type1;
 	  break;
 	}
       if (null_ptr_cst_p (args[0]) 
-	  && TYPE_PTR_P (type2)
-	  && !uses_template_parms (type2))
+	  && TYPE_PTR_P (type2))
 	{
 	  type1 = type2;
 	  break;
@@ -2615,6 +2644,28 @@ add_builtin_candidate (struct z_candidate **candidates, enum tree_code code,
  
     default:
       gcc_unreachable ();
+    }
+
+  /* Make sure we don't create builtin candidates with dependent types.  */
+  bool u1 = uses_template_parms (type1);
+  bool u2 = type2 ? uses_template_parms (type2) : false;
+  if (u1 || u2)
+    {
+      /* Try to recover if one of the types is non-dependent.  But if
+	 there's only one type, there's nothing we can do.  */
+      if (!type2)
+	return;
+      /* And we lose if both are dependent.  */
+      if (u1 && u2)
+	return;
+      /* Or if they have different forms.  */
+      if (TREE_CODE (type1) != TREE_CODE (type2))
+	return;
+
+      if (u1 && !u2)
+	type1 = type2;
+      else if (u2 && !u1)
+	type2 = type1;
     }
 
   /* If we're dealing with two pointer types or two enumeral types,
@@ -3132,6 +3183,10 @@ print_conversion_rejection (location_t loc, struct conversion_info *info)
     inform (loc, "  no known conversion for implicit "
 	    "%<this%> parameter from %qT to %qT",
 	    info->from_type, info->to_type);
+  else if (info->n_arg == -2)
+    /* Conversion of conversion function return value failed.  */
+    inform (loc, "  no known conversion from %qT to %qT",
+	    info->from_type, info->to_type);
   else
     inform (loc, "  no known conversion for argument %d from %qT to %qT",
 	    info->n_arg+1, info->from_type, info->to_type);
@@ -3185,7 +3240,7 @@ print_z_candidate (location_t loc, const char *msgstr,
     inform (cloc, "%s%T <conversion>", msg, candidate->fn);
   else if (candidate->viable == -1)
     inform (cloc, "%s%#D <near match>", msg, candidate->fn);
-  else if (DECL_DELETED_FN (STRIP_TEMPLATE (candidate->fn)))
+  else if (DECL_DELETED_FN (candidate->fn))
     inform (cloc, "%s%#D <deleted>", msg, candidate->fn);
   else
     inform (cloc, "%s%#D", msg, candidate->fn);
@@ -3556,7 +3611,7 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags,
 	  if (!ics)
 	    {
 	      cand->viable = 0;
-	      cand->reason = arg_conversion_rejection (NULL_TREE, -1,
+	      cand->reason = arg_conversion_rejection (NULL_TREE, -2,
 						       rettype, totype);
 	    }
 	  else if (DECL_NONCONVERTING_P (cand->fn)
@@ -3576,7 +3631,7 @@ build_user_type_conversion_1 (tree totype, tree expr, int flags,
 	    {
 	      cand->viable = -1;
 	      cand->reason
-		= bad_arg_conversion_rejection (NULL_TREE, -1,
+		= bad_arg_conversion_rejection (NULL_TREE, -2,
 						rettype, totype);
 	    }
 	  else if (primary_template_instantiation_p (cand->fn)
@@ -4440,14 +4495,14 @@ build_conditional_expr_1 (location_t loc, tree arg1, tree arg2, tree arg3,
 	     but the warnings (like Wsign-conversion) have already been
 	     given by the scalar build_conditional_expr_1. We still check
 	     unsafe_conversion_p to forbid truncating long long -> float.  */
-	  if (unsafe_conversion_p (stype, arg2, false))
+	  if (unsafe_conversion_p (loc, stype, arg2, false))
 	    {
 	      if (complain & tf_error)
 		error_at (loc, "conversion of scalar %qT to vector %qT "
 			       "involves truncation", arg2_type, vtype);
 	      return error_mark_node;
 	    }
-	  if (unsafe_conversion_p (stype, arg3, false))
+	  if (unsafe_conversion_p (loc, stype, arg3, false))
 	    {
 	      if (complain & tf_error)
 		error_at (loc, "conversion of scalar %qT to vector %qT "
@@ -5865,10 +5920,12 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
       && convs->kind != ck_list
       && convs->kind != ck_ambig
       && (convs->kind != ck_ref_bind
-	  || convs->user_conv_p)
-      && convs->kind != ck_rvalue
+	  || (convs->user_conv_p && next_conversion (convs)->bad_p))
+      && (convs->kind != ck_rvalue
+	  || SCALAR_TYPE_P (totype))
       && convs->kind != ck_base)
     {
+      bool complained = false;
       conversion *t = convs;
 
       /* Give a helpful error if this is bad because of excess braces.  */
@@ -5876,7 +5933,13 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	  && SCALAR_TYPE_P (totype)
 	  && CONSTRUCTOR_NELTS (expr) > 0
 	  && BRACE_ENCLOSED_INITIALIZER_P (CONSTRUCTOR_ELT (expr, 0)->value))
-	permerror (loc, "too many braces around initializer for %qT", totype);
+	{
+	  complained = permerror (loc, "too many braces around initializer "
+				  "for %qT", totype);
+	  while (BRACE_ENCLOSED_INITIALIZER_P (expr)
+		 && CONSTRUCTOR_NELTS (expr) == 1)
+	    expr = CONSTRUCTOR_ELT (expr, 0)->value;
+	}
 
       for (; t ; t = next_conversion (t))
 	{
@@ -5912,9 +5975,10 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	  else if (t->kind == ck_identity)
 	    break;
 	}
-       if (permerror (loc, "invalid conversion from %qT to %qT",
-                    TREE_TYPE (expr), totype)
-	   && fn)
+      if (!complained)
+	complained = permerror (loc, "invalid conversion from %qT to %qT",
+				TREE_TYPE (expr), totype);
+      if (complained && fn)
 	inform (DECL_SOURCE_LOCATION (fn),
 		"initializing argument %P of %qD", argnum, fn);
 
@@ -6058,6 +6122,8 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	   to avoid the error about taking the address of a temporary.  */
 	array = cp_build_addr_expr (array, complain);
 	array = cp_convert (build_pointer_type (elttype), array, complain);
+	if (array == error_mark_node)
+	  return error_mark_node;
 
 	/* Build up the initializer_list object.  */
 	totype = complete_type (totype);
@@ -6082,8 +6148,11 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	  return fold_if_not_in_template (expr);
 	}
       expr = reshape_init (totype, expr, complain);
-      return get_target_expr_sfinae (digest_init (totype, expr, complain),
+      expr = get_target_expr_sfinae (digest_init (totype, expr, complain),
 				     complain);
+      if (expr != error_mark_node)
+	TARGET_EXPR_LIST_INIT_P (expr) = true;
+      return expr;
 
     default:
       break;
@@ -6148,7 +6217,8 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	if (convs->bad_p && !next_conversion (convs)->bad_p)
 	  {
 	    gcc_assert (TYPE_REF_IS_RVALUE (ref_type)
-			&& real_lvalue_p (expr));
+			&& (real_lvalue_p (expr)
+			    || next_conversion(convs)->kind == ck_rvalue));
 
 	    error_at (loc, "cannot bind %qT lvalue to %qT",
 		      TREE_TYPE (expr), totype);
@@ -6344,8 +6414,7 @@ convert_arg_to_ellipsis (tree arg, tsubst_flags_t complain)
 	  if (complain & tf_error)
 	    error_at (loc, "cannot pass objects of non-trivially-copyable "
 		      "type %q#T through %<...%>", arg_type);
-	  else
-	    return error_mark_node;
+	  return error_mark_node;
 	}
     }
 
@@ -6465,20 +6534,10 @@ convert_default_arg (tree type, tree arg, tree fn, int parmnum,
   /* We must make a copy of ARG, in case subsequent processing
      alters any part of it.  */
   arg = break_out_target_exprs (arg);
-  if (TREE_CODE (arg) == CONSTRUCTOR)
-    {
-      arg = digest_init (type, arg, complain);
-      arg = convert_for_initialization (0, type, arg, LOOKUP_IMPLICIT,
-					ICR_DEFAULT_ARGUMENT, fn, parmnum,
-                                        complain);
-    }
-  else
-    {
-      arg = convert_for_initialization (0, type, arg, LOOKUP_IMPLICIT,
-					ICR_DEFAULT_ARGUMENT, fn, parmnum,
-                                        complain);
-      arg = convert_for_arg_passing (type, arg, complain);
-    }
+  arg = convert_for_initialization (0, type, arg, LOOKUP_IMPLICIT,
+				    ICR_DEFAULT_ARGUMENT, fn, parmnum,
+				    complain);
+  arg = convert_for_arg_passing (type, arg, complain);
   pop_deferring_access_checks();
 
   pop_defarg_context ();
@@ -7772,15 +7831,20 @@ build_new_method_call_1 (tree instance, tree fns, vec<tree, va_gc> **args,
 	  if (!(flags & LOOKUP_NONVIRTUAL)
 	      && DECL_PURE_VIRTUAL_P (fn)
 	      && instance == current_class_ref
-	      && (DECL_CONSTRUCTOR_P (current_function_decl)
-		  || DECL_DESTRUCTOR_P (current_function_decl))
 	      && (complain & tf_warning))
-	    /* This is not an error, it is runtime undefined
-	       behavior.  */
-	    warning (0, (DECL_CONSTRUCTOR_P (current_function_decl) ?
-		      "pure virtual %q#D called from constructor"
-		      : "pure virtual %q#D called from destructor"),
-		     fn);
+	    {
+	      /* This is not an error, it is runtime undefined
+		 behavior.  */
+	      if (!current_function_decl)
+		warning (0, "pure virtual %q#D called from "
+			 "non-static data member initializer", fn);
+	      else if (DECL_CONSTRUCTOR_P (current_function_decl)
+		       || DECL_DESTRUCTOR_P (current_function_decl))
+		warning (0, (DECL_CONSTRUCTOR_P (current_function_decl)
+			     ? "pure virtual %q#D called from constructor"
+			     : "pure virtual %q#D called from destructor"),
+			 fn);
+	    }
 
 	  if (TREE_CODE (TREE_TYPE (fn)) == METHOD_TYPE
 	      && is_dummy_object (instance))

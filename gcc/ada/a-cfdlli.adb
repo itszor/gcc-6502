@@ -229,6 +229,10 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
       P : List (C);
 
    begin
+      if 0 < Capacity and then Capacity < Source.Capacity then
+         raise Capacity_Error;
+      end if;
+
       N := 1;
       while N <= Source.Capacity loop
          P.Nodes (N).Prev := Source.Nodes (N).Prev;
@@ -252,6 +256,36 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
 
       return P;
    end Copy;
+
+   ---------------------
+   -- Current_To_Last --
+   ---------------------
+
+   function Current_To_Last
+     (Container : List;
+      Current : Cursor) return List is
+      Curs : Cursor := First (Container);
+      C    : List (Container.Capacity) := Copy (Container, Container.Capacity);
+      Node : Count_Type;
+
+   begin
+      if Curs = No_Element then
+         Clear (C);
+         return C;
+      end if;
+
+      if Current /= No_Element and not Has_Element (Container, Current) then
+         raise Constraint_Error;
+      end if;
+
+      while Curs.Node /= Current.Node loop
+         Node := Curs.Node;
+         Delete (C, Curs);
+         Curs := Next (Container, (Node => Node));
+      end loop;
+
+      return C;
+   end Current_To_Last;
 
    ------------
    -- Delete --
@@ -466,6 +500,36 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
          return Container.Nodes (F).Element;
       end if;
    end First_Element;
+
+   -----------------------
+   -- First_To_Previous --
+   -----------------------
+
+   function First_To_Previous
+     (Container : List;
+      Current   : Cursor) return List
+   is
+      Curs : Cursor := Current;
+      C    : List (Container.Capacity) := Copy (Container, Container.Capacity);
+      Node : Count_Type;
+
+   begin
+      if Curs = No_Element then
+         return C;
+
+      elsif not Has_Element (Container, Curs) then
+         raise Constraint_Error;
+
+      else
+         while Curs.Node /= 0 loop
+            Node := Curs.Node;
+            Delete (C, Curs);
+            Curs := Next (Container, (Node => Node));
+         end loop;
+
+         return C;
+      end if;
+   end First_To_Previous;
 
    ----------
    -- Free --
@@ -844,6 +908,7 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
       if Container.Last = 0 then
          return No_Element;
       end if;
+
       return (Node => Container.Last);
    end Last;
 
@@ -860,33 +925,6 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
          return Container.Nodes (L).Element;
       end if;
    end Last_Element;
-
-   ----------
-   -- Left --
-   ----------
-
-   function Left (Container : List; Position : Cursor) return List is
-      Curs : Cursor := Position;
-      C    : List (Container.Capacity) := Copy (Container, Container.Capacity);
-      Node : Count_Type;
-
-   begin
-      if Curs = No_Element then
-         return C;
-      end if;
-
-      if not Has_Element (Container, Curs) then
-         raise Constraint_Error;
-      end if;
-
-      while Curs.Node /= 0 loop
-         Node := Curs.Node;
-         Delete (C, Curs);
-         Curs := Next (Container, (Node => Node));
-      end loop;
-
-      return C;
-   end Left;
 
    ------------
    -- Length --
@@ -1156,45 +1194,19 @@ package body Ada.Containers.Formal_Doubly_Linked_Lists is
 
       if Container.Length = 0 then
          return No_Element;
+
+      else
+         while CFirst /= 0 loop
+            if Container.Nodes (CFirst).Element = Item then
+               return (Node => CFirst);
+            else
+               CFirst := Container.Nodes (CFirst).Prev;
+            end if;
+         end loop;
+
+         return No_Element;
       end if;
-
-      while CFirst /= 0 loop
-         if Container.Nodes (CFirst).Element = Item then
-            return (Node => CFirst);
-         end if;
-         CFirst := Container.Nodes (CFirst).Prev;
-      end loop;
-
-      return No_Element;
    end Reverse_Find;
-
-   -----------
-   -- Right --
-   -----------
-
-   function Right (Container : List; Position : Cursor) return List is
-      Curs : Cursor := First (Container);
-      C    : List (Container.Capacity) := Copy (Container, Container.Capacity);
-      Node : Count_Type;
-
-   begin
-      if Curs = No_Element then
-         Clear (C);
-         return C;
-      end if;
-
-      if Position /= No_Element and not Has_Element (Container, Position) then
-         raise Constraint_Error;
-      end if;
-
-      while Curs.Node /= Position.Node loop
-         Node := Curs.Node;
-         Delete (C, Curs);
-         Curs := Next (Container, (Node => Node));
-      end loop;
-
-      return C;
-   end Right;
 
    ------------
    -- Splice --

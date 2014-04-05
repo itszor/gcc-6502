@@ -1,5 +1,5 @@
-// { dg-options -std=c++1y }
-// { dg-final { scan-assembler "_ZN1AIiEcviEv" } }
+// { dg-do compile { target c++1y } }
+// { dg-final { scan-assembler "_ZN1AIiEcvDaEv" } }
 
 template <class T>
 struct A {

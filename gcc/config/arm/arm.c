@@ -177,7 +177,7 @@ static rtx arm_expand_builtin (tree, rtx, rtx, enum machine_mode, int);
 static tree arm_builtin_decl (unsigned, bool);
 static void emit_constant_insn (rtx cond, rtx pattern);
 static rtx emit_set_insn (rtx, rtx);
-static rtx emit_multi_reg_push (unsigned long);
+static rtx emit_multi_reg_push (unsigned long, unsigned long);
 static int arm_arg_partial_bytes (cumulative_args_t, enum machine_mode,
 				  tree, bool);
 static rtx arm_function_arg (cumulative_args_t, enum machine_mode,
@@ -235,7 +235,6 @@ static tree arm_gimplify_va_arg_expr (tree, tree, gimple_seq *, gimple_seq *);
 static void arm_option_override (void);
 static unsigned HOST_WIDE_INT arm_shift_truncation_mask (enum machine_mode);
 static bool arm_cannot_copy_insn_p (rtx);
-static bool arm_tls_symbol_p (rtx x);
 static int arm_issue_rate (void);
 static void arm_output_dwarf_dtprel (FILE *, int, rtx) ATTRIBUTE_UNUSED;
 static bool arm_output_addr_const_extra (FILE *, rtx);
@@ -764,11 +763,11 @@ static int thumb_call_reg_needed;
 #define FL_FOR_ARCH6M	(FL_FOR_ARCH6 & ~FL_NOTM)
 #define FL_FOR_ARCH7	((FL_FOR_ARCH6T2 & ~FL_NOTM) | FL_ARCH7)
 #define FL_FOR_ARCH7A	(FL_FOR_ARCH7 | FL_NOTM | FL_ARCH6K)
+#define FL_FOR_ARCH7VE	(FL_FOR_ARCH7A | FL_THUMB_DIV | FL_ARM_DIV)
 #define FL_FOR_ARCH7R	(FL_FOR_ARCH7A | FL_THUMB_DIV)
 #define FL_FOR_ARCH7M	(FL_FOR_ARCH7 | FL_THUMB_DIV)
 #define FL_FOR_ARCH7EM  (FL_FOR_ARCH7M | FL_ARCH7EM)
-#define FL_FOR_ARCH8A	(FL_FOR_ARCH7 | FL_ARCH6K | FL_ARCH8 | FL_THUMB_DIV \
-			 | FL_ARM_DIV | FL_NOTM)
+#define FL_FOR_ARCH8A	(FL_FOR_ARCH7VE | FL_ARCH8)
 
 /* The bits in this mask specify which
    instructions we are allowed to generate.  */
@@ -970,99 +969,99 @@ const struct cpu_cost_table cortexa9_extra_costs =
 {
   /* ALU */
   {
-    0,			/* Arith.  */
-    0,			/* Logical.  */
-    0,			/* Shift.  */
-    COSTS_N_INSNS (1),	/* Shift_reg.  */
-    COSTS_N_INSNS (1),	/* Arith_shift.  */
-    COSTS_N_INSNS (2),	/* Arith_shift_reg.  */
-    0,			/* Log_shift.  */
-    COSTS_N_INSNS (1),	/* Log_shift_reg.  */
-    COSTS_N_INSNS (1),	/* Extend.  */
-    COSTS_N_INSNS (2),	/* Extend_arith.  */
-    COSTS_N_INSNS (1),	/* Bfi.  */
-    COSTS_N_INSNS (1),	/* Bfx.  */
-    0,			/* Clz.  */
+    0,			/* arith.  */
+    0,			/* logical.  */
+    0,			/* shift.  */
+    COSTS_N_INSNS (1),	/* shift_reg.  */
+    COSTS_N_INSNS (1),	/* arith_shift.  */
+    COSTS_N_INSNS (2),	/* arith_shift_reg.  */
+    0,			/* log_shift.  */
+    COSTS_N_INSNS (1),	/* log_shift_reg.  */
+    COSTS_N_INSNS (1),	/* extend.  */
+    COSTS_N_INSNS (2),	/* extend_arith.  */
+    COSTS_N_INSNS (1),	/* bfi.  */
+    COSTS_N_INSNS (1),	/* bfx.  */
+    0,			/* clz.  */
     0,			/* non_exec.  */
     true		/* non_exec_costs_exec.  */
   },
   {
     /* MULT SImode */
     {
-      COSTS_N_INSNS (3),	/* Simple.  */
-      COSTS_N_INSNS (3),	/* Flag_setting.  */
-      COSTS_N_INSNS (2),	/* Extend.  */
-      COSTS_N_INSNS (3),	/* Add.  */
-      COSTS_N_INSNS (2),	/* Extend_add.  */
-      COSTS_N_INSNS (30)	/* Idiv.  No HW div on Cortex A9.  */
+      COSTS_N_INSNS (3),	/* simple.  */
+      COSTS_N_INSNS (3),	/* flag_setting.  */
+      COSTS_N_INSNS (2),	/* extend.  */
+      COSTS_N_INSNS (3),	/* add.  */
+      COSTS_N_INSNS (2),	/* extend_add.  */
+      COSTS_N_INSNS (30)	/* idiv.  No HW div on Cortex A9.  */
     },
     /* MULT DImode */
     {
-      0,			/* Simple (N/A).  */
-      0,			/* Flag_setting (N/A).  */
-      COSTS_N_INSNS (4),	/* Extend.  */
-      0,			/* Add (N/A).  */
-      COSTS_N_INSNS (4),	/* Extend_add.  */
-      0				/* Idiv (N/A).  */
+      0,			/* simple (N/A).  */
+      0,			/* flag_setting (N/A).  */
+      COSTS_N_INSNS (4),	/* extend.  */
+      0,			/* add (N/A).  */
+      COSTS_N_INSNS (4),	/* extend_add.  */
+      0				/* idiv (N/A).  */
     }
   },
   /* LD/ST */
   {
-    COSTS_N_INSNS (2),	/* Load.  */
-    COSTS_N_INSNS (2),	/* Load_sign_extend.  */
-    COSTS_N_INSNS (2),	/* Ldrd.  */
-    COSTS_N_INSNS (2),	/* Ldm_1st.  */
-    1,			/* Ldm_regs_per_insn_1st.  */
-    2,			/* Ldm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (5),	/* Loadf.  */
-    COSTS_N_INSNS (5),	/* Loadd.  */
-    COSTS_N_INSNS (1),  /* Load_unaligned.  */
-    COSTS_N_INSNS (2),	/* Store.  */
-    COSTS_N_INSNS (2),	/* Strd.  */
-    COSTS_N_INSNS (2),	/* Stm_1st.  */
-    1,			/* Stm_regs_per_insn_1st.  */
-    2,			/* Stm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (1),	/* Storef.  */
-    COSTS_N_INSNS (1),	/* Stored.  */
-    COSTS_N_INSNS (1)	/* Store_unaligned.  */
+    COSTS_N_INSNS (2),	/* load.  */
+    COSTS_N_INSNS (2),	/* load_sign_extend.  */
+    COSTS_N_INSNS (2),	/* ldrd.  */
+    COSTS_N_INSNS (2),	/* ldm_1st.  */
+    1,			/* ldm_regs_per_insn_1st.  */
+    2,			/* ldm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (5),	/* loadf.  */
+    COSTS_N_INSNS (5),	/* loadd.  */
+    COSTS_N_INSNS (1),  /* load_unaligned.  */
+    COSTS_N_INSNS (2),	/* store.  */
+    COSTS_N_INSNS (2),	/* strd.  */
+    COSTS_N_INSNS (2),	/* stm_1st.  */
+    1,			/* stm_regs_per_insn_1st.  */
+    2,			/* stm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (1),	/* storef.  */
+    COSTS_N_INSNS (1),	/* stored.  */
+    COSTS_N_INSNS (1)	/* store_unaligned.  */
   },
   {
     /* FP SFmode */
     {
-      COSTS_N_INSNS (14),	/* Div.  */
-      COSTS_N_INSNS (4),	/* Mult.  */
-      COSTS_N_INSNS (7),	/* Mult_addsub. */
-      COSTS_N_INSNS (30),	/* Fma.  */
-      COSTS_N_INSNS (3),	/* Addsub.  */
-      COSTS_N_INSNS (1),	/* Fpconst.  */
-      COSTS_N_INSNS (1),	/* Neg.  */
-      COSTS_N_INSNS (3),	/* Compare.  */
-      COSTS_N_INSNS (3),	/* Widen.  */
-      COSTS_N_INSNS (3),	/* Narrow.  */
-      COSTS_N_INSNS (3),	/* Toint.  */
-      COSTS_N_INSNS (3),	/* Fromint.  */
-      COSTS_N_INSNS (3)		/* Roundint.  */
+      COSTS_N_INSNS (14),	/* div.  */
+      COSTS_N_INSNS (4),	/* mult.  */
+      COSTS_N_INSNS (7),	/* mult_addsub. */
+      COSTS_N_INSNS (30),	/* fma.  */
+      COSTS_N_INSNS (3),	/* addsub.  */
+      COSTS_N_INSNS (1),	/* fpconst.  */
+      COSTS_N_INSNS (1),	/* neg.  */
+      COSTS_N_INSNS (3),	/* compare.  */
+      COSTS_N_INSNS (3),	/* widen.  */
+      COSTS_N_INSNS (3),	/* narrow.  */
+      COSTS_N_INSNS (3),	/* toint.  */
+      COSTS_N_INSNS (3),	/* fromint.  */
+      COSTS_N_INSNS (3)		/* roundint.  */
     },
     /* FP DFmode */
     {
-      COSTS_N_INSNS (24),	/* Div.  */
-      COSTS_N_INSNS (5),	/* Mult.  */
-      COSTS_N_INSNS (8),	/* Mult_addsub.  */
-      COSTS_N_INSNS (30),	/* Fma.  */
-      COSTS_N_INSNS (3),	/* Addsub.  */
-      COSTS_N_INSNS (1),	/* Fpconst.  */
-      COSTS_N_INSNS (1),	/* Neg.  */
-      COSTS_N_INSNS (3),	/* Compare.  */
-      COSTS_N_INSNS (3),	/* Widen.  */
-      COSTS_N_INSNS (3),	/* Narrow.  */
-      COSTS_N_INSNS (3),	/* Toint.  */
-      COSTS_N_INSNS (3),	/* Fromint.  */
-      COSTS_N_INSNS (3)		/* Roundint.  */
+      COSTS_N_INSNS (24),	/* div.  */
+      COSTS_N_INSNS (5),	/* mult.  */
+      COSTS_N_INSNS (8),	/* mult_addsub.  */
+      COSTS_N_INSNS (30),	/* fma.  */
+      COSTS_N_INSNS (3),	/* addsub.  */
+      COSTS_N_INSNS (1),	/* fpconst.  */
+      COSTS_N_INSNS (1),	/* neg.  */
+      COSTS_N_INSNS (3),	/* compare.  */
+      COSTS_N_INSNS (3),	/* widen.  */
+      COSTS_N_INSNS (3),	/* narrow.  */
+      COSTS_N_INSNS (3),	/* toint.  */
+      COSTS_N_INSNS (3),	/* fromint.  */
+      COSTS_N_INSNS (3)		/* roundint.  */
     }
   },
   /* Vector */
   {
-    COSTS_N_INSNS (1)	/* Alu.  */
+    COSTS_N_INSNS (1)	/* alu.  */
   }
 };
 
@@ -1071,19 +1070,19 @@ const struct cpu_cost_table cortexa7_extra_costs =
 {
   /* ALU */
   {
-    0,			/* Arith.  */
-    0,			/* Logical.  */
-    COSTS_N_INSNS (1),	/* Shift.  */
-    COSTS_N_INSNS (1),	/* Shift_reg.  */
-    COSTS_N_INSNS (1),	/* Arith_shift.  */
-    COSTS_N_INSNS (1),	/* Arith_shift_reg.  */
-    COSTS_N_INSNS (1),	/* Log_shift.  */
-    COSTS_N_INSNS (1),	/* Log_shift_reg.  */
-    COSTS_N_INSNS (1),	/* Extend.  */
-    COSTS_N_INSNS (1),	/* Extend_arith.  */
-    COSTS_N_INSNS (1),	/* Bfi.  */
-    COSTS_N_INSNS (1),	/* Bfx.  */
-    COSTS_N_INSNS (1),	/* Clz.  */
+    0,			/* arith.  */
+    0,			/* logical.  */
+    COSTS_N_INSNS (1),	/* shift.  */
+    COSTS_N_INSNS (1),	/* shift_reg.  */
+    COSTS_N_INSNS (1),	/* arith_shift.  */
+    COSTS_N_INSNS (1),	/* arith_shift_reg.  */
+    COSTS_N_INSNS (1),	/* log_shift.  */
+    COSTS_N_INSNS (1),	/* log_shift_reg.  */
+    COSTS_N_INSNS (1),	/* extend.  */
+    COSTS_N_INSNS (1),	/* extend_arith.  */
+    COSTS_N_INSNS (1),	/* bfi.  */
+    COSTS_N_INSNS (1),	/* bfx.  */
+    COSTS_N_INSNS (1),	/* clz.  */
     0,			/* non_exec.  */
     true		/* non_exec_costs_exec.  */
   },
@@ -1091,80 +1090,80 @@ const struct cpu_cost_table cortexa7_extra_costs =
   {
     /* MULT SImode */
     {
-      0,			/* Simple.  */
-      COSTS_N_INSNS (1),	/* Flag_setting.  */
-      COSTS_N_INSNS (1),	/* Extend.  */
-      COSTS_N_INSNS (1),	/* Add.  */
-      COSTS_N_INSNS (1),	/* Extend_add.  */
-      COSTS_N_INSNS (7)		/* Idiv.  */
+      0,			/* simple.  */
+      COSTS_N_INSNS (1),	/* flag_setting.  */
+      COSTS_N_INSNS (1),	/* extend.  */
+      COSTS_N_INSNS (1),	/* add.  */
+      COSTS_N_INSNS (1),	/* extend_add.  */
+      COSTS_N_INSNS (7)		/* idiv.  */
     },
     /* MULT DImode */
     {
-      0,			/* Simple (N/A).  */
-      0,			/* Flag_setting (N/A).  */
-      COSTS_N_INSNS (1),	/* Extend.  */
-      0,			/* Add.  */
-      COSTS_N_INSNS (2),	/* Extend_add.  */
-      0				/* Idiv (N/A).  */
+      0,			/* simple (N/A).  */
+      0,			/* flag_setting (N/A).  */
+      COSTS_N_INSNS (1),	/* extend.  */
+      0,			/* add.  */
+      COSTS_N_INSNS (2),	/* extend_add.  */
+      0				/* idiv (N/A).  */
     }
   },
   /* LD/ST */
   {
-    COSTS_N_INSNS (1),	/* Load.  */
-    COSTS_N_INSNS (1),	/* Load_sign_extend.  */
-    COSTS_N_INSNS (3),	/* Ldrd.  */
-    COSTS_N_INSNS (1),	/* Ldm_1st.  */
-    1,			/* Ldm_regs_per_insn_1st.  */
-    2,			/* Ldm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (2),	/* Loadf.  */
-    COSTS_N_INSNS (2),	/* Loadd.  */
-    COSTS_N_INSNS (1),	/* Load_unaligned.  */
-    COSTS_N_INSNS (1),	/* Store.  */
-    COSTS_N_INSNS (3),	/* Strd.  */
-    COSTS_N_INSNS (1),	/* Stm_1st.  */
-    1,			/* Stm_regs_per_insn_1st.  */
-    2,			/* Stm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (2),	/* Storef.  */
-    COSTS_N_INSNS (2),	/* Stored.  */
-    COSTS_N_INSNS (1)	/* Store_unaligned.  */
+    COSTS_N_INSNS (1),	/* load.  */
+    COSTS_N_INSNS (1),	/* load_sign_extend.  */
+    COSTS_N_INSNS (3),	/* ldrd.  */
+    COSTS_N_INSNS (1),	/* ldm_1st.  */
+    1,			/* ldm_regs_per_insn_1st.  */
+    2,			/* ldm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (2),	/* loadf.  */
+    COSTS_N_INSNS (2),	/* loadd.  */
+    COSTS_N_INSNS (1),	/* load_unaligned.  */
+    COSTS_N_INSNS (1),	/* store.  */
+    COSTS_N_INSNS (3),	/* strd.  */
+    COSTS_N_INSNS (1),	/* stm_1st.  */
+    1,			/* stm_regs_per_insn_1st.  */
+    2,			/* stm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (2),	/* storef.  */
+    COSTS_N_INSNS (2),	/* stored.  */
+    COSTS_N_INSNS (1)	/* store_unaligned.  */
   },
   {
     /* FP SFmode */
     {
-      COSTS_N_INSNS (15),	/* Div.  */
-      COSTS_N_INSNS (3),	/* Mult.  */
-      COSTS_N_INSNS (7),	/* Mult_addsub. */
-      COSTS_N_INSNS (7),	/* Fma.  */
-      COSTS_N_INSNS (3),	/* Addsub.  */
-      COSTS_N_INSNS (3),	/* Fpconst.  */
-      COSTS_N_INSNS (3),	/* Neg.  */
-      COSTS_N_INSNS (3),	/* Compare.  */
-      COSTS_N_INSNS (3),	/* Widen.  */
-      COSTS_N_INSNS (3),	/* Narrow.  */
-      COSTS_N_INSNS (3),	/* Toint.  */
-      COSTS_N_INSNS (3),	/* Fromint.  */
-      COSTS_N_INSNS (3)		/* Roundint.  */
+      COSTS_N_INSNS (15),	/* div.  */
+      COSTS_N_INSNS (3),	/* mult.  */
+      COSTS_N_INSNS (7),	/* mult_addsub. */
+      COSTS_N_INSNS (7),	/* fma.  */
+      COSTS_N_INSNS (3),	/* addsub.  */
+      COSTS_N_INSNS (3),	/* fpconst.  */
+      COSTS_N_INSNS (3),	/* neg.  */
+      COSTS_N_INSNS (3),	/* compare.  */
+      COSTS_N_INSNS (3),	/* widen.  */
+      COSTS_N_INSNS (3),	/* narrow.  */
+      COSTS_N_INSNS (3),	/* toint.  */
+      COSTS_N_INSNS (3),	/* fromint.  */
+      COSTS_N_INSNS (3)		/* roundint.  */
     },
     /* FP DFmode */
     {
-      COSTS_N_INSNS (30),	/* Div.  */
-      COSTS_N_INSNS (6),	/* Mult.  */
-      COSTS_N_INSNS (10),	/* Mult_addsub.  */
-      COSTS_N_INSNS (7),	/* Fma.  */
-      COSTS_N_INSNS (3),	/* Addsub.  */
-      COSTS_N_INSNS (3),	/* Fpconst.  */
-      COSTS_N_INSNS (3),	/* Neg.  */
-      COSTS_N_INSNS (3),	/* Compare.  */
-      COSTS_N_INSNS (3),	/* Widen.  */
-      COSTS_N_INSNS (3),	/* Narrow.  */
-      COSTS_N_INSNS (3),	/* Toint.  */
-      COSTS_N_INSNS (3),	/* Fromint.  */
-      COSTS_N_INSNS (3)		/* Roundint.  */
+      COSTS_N_INSNS (30),	/* div.  */
+      COSTS_N_INSNS (6),	/* mult.  */
+      COSTS_N_INSNS (10),	/* mult_addsub.  */
+      COSTS_N_INSNS (7),	/* fma.  */
+      COSTS_N_INSNS (3),	/* addsub.  */
+      COSTS_N_INSNS (3),	/* fpconst.  */
+      COSTS_N_INSNS (3),	/* neg.  */
+      COSTS_N_INSNS (3),	/* compare.  */
+      COSTS_N_INSNS (3),	/* widen.  */
+      COSTS_N_INSNS (3),	/* narrow.  */
+      COSTS_N_INSNS (3),	/* toint.  */
+      COSTS_N_INSNS (3),	/* fromint.  */
+      COSTS_N_INSNS (3)		/* roundint.  */
     }
   },
   /* Vector */
   {
-    COSTS_N_INSNS (1)	/* Alu.  */
+    COSTS_N_INSNS (1)	/* alu.  */
   }
 };
 
@@ -1172,99 +1171,99 @@ const struct cpu_cost_table cortexa12_extra_costs =
 {
   /* ALU */
   {
-    0,			/* Arith.  */
-    0,			/* Logical.  */
-    0,			/* Shift.  */
-    COSTS_N_INSNS (1),	/* Shift_reg.  */
-    COSTS_N_INSNS (1),	/* Arith_shift.  */
-    COSTS_N_INSNS (1),	/* Arith_shift_reg.  */
-    COSTS_N_INSNS (1),	/* Log_shift.  */
-    COSTS_N_INSNS (1),	/* Log_shift_reg.  */
-    0,			/* Extend.  */
-    COSTS_N_INSNS (1),	/* Extend_arith.  */
-    0,			/* Bfi.  */
-    COSTS_N_INSNS (1),	/* Bfx.  */
-    COSTS_N_INSNS (1),	/* Clz.  */
+    0,			/* arith.  */
+    0,			/* logical.  */
+    0,			/* shift.  */
+    COSTS_N_INSNS (1),	/* shift_reg.  */
+    COSTS_N_INSNS (1),	/* arith_shift.  */
+    COSTS_N_INSNS (1),	/* arith_shift_reg.  */
+    COSTS_N_INSNS (1),	/* log_shift.  */
+    COSTS_N_INSNS (1),	/* log_shift_reg.  */
+    0,			/* extend.  */
+    COSTS_N_INSNS (1),	/* extend_arith.  */
+    0,			/* bfi.  */
+    COSTS_N_INSNS (1),	/* bfx.  */
+    COSTS_N_INSNS (1),	/* clz.  */
     0,			/* non_exec.  */
     true		/* non_exec_costs_exec.  */
   },
   /* MULT SImode */
   {
     {
-      COSTS_N_INSNS (2),	/* Simple.  */
-      COSTS_N_INSNS (3),	/* Flag_setting.  */
-      COSTS_N_INSNS (2),	/* Extend.  */
-      COSTS_N_INSNS (3),	/* Add.  */
-      COSTS_N_INSNS (2),	/* Extend_add.  */
-      COSTS_N_INSNS (18)	/* Idiv.  */
+      COSTS_N_INSNS (2),	/* simple.  */
+      COSTS_N_INSNS (3),	/* flag_setting.  */
+      COSTS_N_INSNS (2),	/* extend.  */
+      COSTS_N_INSNS (3),	/* add.  */
+      COSTS_N_INSNS (2),	/* extend_add.  */
+      COSTS_N_INSNS (18)	/* idiv.  */
     },
     /* MULT DImode */
     {
-      0,			/* Simple (N/A).  */
-      0,			/* Flag_setting (N/A).  */
-      COSTS_N_INSNS (3),	/* Extend.  */
-      0,			/* Add (N/A).  */
-      COSTS_N_INSNS (3),	/* Extend_add.  */
-      0				/* Idiv (N/A).  */
+      0,			/* simple (N/A).  */
+      0,			/* flag_setting (N/A).  */
+      COSTS_N_INSNS (3),	/* extend.  */
+      0,			/* add (N/A).  */
+      COSTS_N_INSNS (3),	/* extend_add.  */
+      0				/* idiv (N/A).  */
     }
   },
   /* LD/ST */
   {
-    COSTS_N_INSNS (3),	/* Load.  */
-    COSTS_N_INSNS (3),	/* Load_sign_extend.  */
-    COSTS_N_INSNS (3),	/* Ldrd.  */
-    COSTS_N_INSNS (3),	/* Ldm_1st.  */
-    1,			/* Ldm_regs_per_insn_1st.  */
-    2,			/* Ldm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (3),	/* Loadf.  */
-    COSTS_N_INSNS (3),	/* Loadd.  */
-    0,			/* Load_unaligned.  */
-    0,			/* Store.  */
-    0,			/* Strd.  */
-    0,			/* Stm_1st.  */
-    1,			/* Stm_regs_per_insn_1st.  */
-    2,			/* Stm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (2),	/* Storef.  */
-    COSTS_N_INSNS (2),	/* Stored.  */
-    0			/* Store_unaligned.  */
+    COSTS_N_INSNS (3),	/* load.  */
+    COSTS_N_INSNS (3),	/* load_sign_extend.  */
+    COSTS_N_INSNS (3),	/* ldrd.  */
+    COSTS_N_INSNS (3),	/* ldm_1st.  */
+    1,			/* ldm_regs_per_insn_1st.  */
+    2,			/* ldm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (3),	/* loadf.  */
+    COSTS_N_INSNS (3),	/* loadd.  */
+    0,			/* load_unaligned.  */
+    0,			/* store.  */
+    0,			/* strd.  */
+    0,			/* stm_1st.  */
+    1,			/* stm_regs_per_insn_1st.  */
+    2,			/* stm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (2),	/* storef.  */
+    COSTS_N_INSNS (2),	/* stored.  */
+    0			/* store_unaligned.  */
   },
   {
     /* FP SFmode */
     {
-      COSTS_N_INSNS (17),	/* Div.  */
-      COSTS_N_INSNS (4),	/* Mult.  */
-      COSTS_N_INSNS (8),	/* Mult_addsub. */
-      COSTS_N_INSNS (8),	/* Fma.  */
-      COSTS_N_INSNS (4),	/* Addsub.  */
-      COSTS_N_INSNS (2),	/* Fpconst. */
-      COSTS_N_INSNS (2),	/* Neg.  */
-      COSTS_N_INSNS (2),	/* Compare.  */
-      COSTS_N_INSNS (4),	/* Widen.  */
-      COSTS_N_INSNS (4),	/* Narrow.  */
-      COSTS_N_INSNS (4),	/* Toint.  */
-      COSTS_N_INSNS (4),	/* Fromint.  */
-      COSTS_N_INSNS (4)		/* Roundint.  */
+      COSTS_N_INSNS (17),	/* div.  */
+      COSTS_N_INSNS (4),	/* mult.  */
+      COSTS_N_INSNS (8),	/* mult_addsub. */
+      COSTS_N_INSNS (8),	/* fma.  */
+      COSTS_N_INSNS (4),	/* addsub.  */
+      COSTS_N_INSNS (2),	/* fpconst. */
+      COSTS_N_INSNS (2),	/* neg.  */
+      COSTS_N_INSNS (2),	/* compare.  */
+      COSTS_N_INSNS (4),	/* widen.  */
+      COSTS_N_INSNS (4),	/* narrow.  */
+      COSTS_N_INSNS (4),	/* toint.  */
+      COSTS_N_INSNS (4),	/* fromint.  */
+      COSTS_N_INSNS (4)		/* roundint.  */
     },
     /* FP DFmode */
     {
-      COSTS_N_INSNS (31),	/* Div.  */
-      COSTS_N_INSNS (4),	/* Mult.  */
-      COSTS_N_INSNS (8),	/* Mult_addsub.  */
-      COSTS_N_INSNS (8),	/* Fma.  */
-      COSTS_N_INSNS (4),	/* Addsub.  */
-      COSTS_N_INSNS (2),	/* Fpconst.  */
-      COSTS_N_INSNS (2),	/* Neg.  */
-      COSTS_N_INSNS (2),	/* Compare.  */
-      COSTS_N_INSNS (4),	/* Widen.  */
-      COSTS_N_INSNS (4),	/* Narrow.  */
-      COSTS_N_INSNS (4),	/* Toint.  */
-      COSTS_N_INSNS (4),	/* Fromint.  */
-      COSTS_N_INSNS (4)		/* Roundint.  */
+      COSTS_N_INSNS (31),	/* div.  */
+      COSTS_N_INSNS (4),	/* mult.  */
+      COSTS_N_INSNS (8),	/* mult_addsub.  */
+      COSTS_N_INSNS (8),	/* fma.  */
+      COSTS_N_INSNS (4),	/* addsub.  */
+      COSTS_N_INSNS (2),	/* fpconst.  */
+      COSTS_N_INSNS (2),	/* neg.  */
+      COSTS_N_INSNS (2),	/* compare.  */
+      COSTS_N_INSNS (4),	/* widen.  */
+      COSTS_N_INSNS (4),	/* narrow.  */
+      COSTS_N_INSNS (4),	/* toint.  */
+      COSTS_N_INSNS (4),	/* fromint.  */
+      COSTS_N_INSNS (4)		/* roundint.  */
     }
   },
   /* Vector */
   {
-    COSTS_N_INSNS (1)	/* Alu.  */
+    COSTS_N_INSNS (1)	/* alu.  */
   }
 };
 
@@ -1272,99 +1271,99 @@ const struct cpu_cost_table cortexa15_extra_costs =
 {
   /* ALU */
   {
-    0,			/* Arith.  */
-    0,			/* Logical.  */
-    0,			/* Shift.  */
-    0,			/* Shift_reg.  */
-    COSTS_N_INSNS (1),	/* Arith_shift.  */
-    COSTS_N_INSNS (1),	/* Arith_shift_reg.  */
-    COSTS_N_INSNS (1),	/* Log_shift.  */
-    COSTS_N_INSNS (1),	/* Log_shift_reg.  */
-    0,			/* Extend.  */
-    COSTS_N_INSNS (1),	/* Extend_arith.  */
-    COSTS_N_INSNS (1),	/* Bfi.  */
-    0,			/* Bfx.  */
-    0,			/* Clz.  */
+    0,			/* arith.  */
+    0,			/* logical.  */
+    0,			/* shift.  */
+    0,			/* shift_reg.  */
+    COSTS_N_INSNS (1),	/* arith_shift.  */
+    COSTS_N_INSNS (1),	/* arith_shift_reg.  */
+    COSTS_N_INSNS (1),	/* log_shift.  */
+    COSTS_N_INSNS (1),	/* log_shift_reg.  */
+    0,			/* extend.  */
+    COSTS_N_INSNS (1),	/* extend_arith.  */
+    COSTS_N_INSNS (1),	/* bfi.  */
+    0,			/* bfx.  */
+    0,			/* clz.  */
     0,			/* non_exec.  */
     true		/* non_exec_costs_exec.  */
   },
   /* MULT SImode */
   {
     {
-      COSTS_N_INSNS (2),	/* Simple.  */
-      COSTS_N_INSNS (3),	/* Flag_setting.  */
-      COSTS_N_INSNS (2),	/* Extend.  */
-      COSTS_N_INSNS (2),	/* Add.  */
-      COSTS_N_INSNS (2),	/* Extend_add.  */
-      COSTS_N_INSNS (18)	/* Idiv.  */
+      COSTS_N_INSNS (2),	/* simple.  */
+      COSTS_N_INSNS (3),	/* flag_setting.  */
+      COSTS_N_INSNS (2),	/* extend.  */
+      COSTS_N_INSNS (2),	/* add.  */
+      COSTS_N_INSNS (2),	/* extend_add.  */
+      COSTS_N_INSNS (18)	/* idiv.  */
     },
     /* MULT DImode */
     {
-      0,			/* Simple (N/A).  */
-      0,			/* Flag_setting (N/A).  */
-      COSTS_N_INSNS (3),	/* Extend.  */
-      0,			/* Add (N/A).  */
-      COSTS_N_INSNS (3),	/* Extend_add.  */
-      0				/* Idiv (N/A).  */
+      0,			/* simple (N/A).  */
+      0,			/* flag_setting (N/A).  */
+      COSTS_N_INSNS (3),	/* extend.  */
+      0,			/* add (N/A).  */
+      COSTS_N_INSNS (3),	/* extend_add.  */
+      0				/* idiv (N/A).  */
     }
   },
   /* LD/ST */
   {
-    COSTS_N_INSNS (3),	/* Load.  */
-    COSTS_N_INSNS (3),	/* Load_sign_extend.  */
-    COSTS_N_INSNS (3),	/* Ldrd.  */
-    COSTS_N_INSNS (4),	/* Ldm_1st.  */
-    1,			/* Ldm_regs_per_insn_1st.  */
-    2,			/* Ldm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (4),	/* Loadf.  */
-    COSTS_N_INSNS (4),	/* Loadd.  */
-    0,			/* Load_unaligned.  */
-    0,			/* Store.  */
-    0,			/* Strd.  */
-    COSTS_N_INSNS (1),	/* Stm_1st.  */
-    1,			/* Stm_regs_per_insn_1st.  */
-    2,			/* Stm_regs_per_insn_subsequent.  */
-    0,			/* Storef.  */
-    0,			/* Stored.  */
-    0			/* Store_unaligned.  */
+    COSTS_N_INSNS (3),	/* load.  */
+    COSTS_N_INSNS (3),	/* load_sign_extend.  */
+    COSTS_N_INSNS (3),	/* ldrd.  */
+    COSTS_N_INSNS (4),	/* ldm_1st.  */
+    1,			/* ldm_regs_per_insn_1st.  */
+    2,			/* ldm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (4),	/* loadf.  */
+    COSTS_N_INSNS (4),	/* loadd.  */
+    0,			/* load_unaligned.  */
+    0,			/* store.  */
+    0,			/* strd.  */
+    COSTS_N_INSNS (1),	/* stm_1st.  */
+    1,			/* stm_regs_per_insn_1st.  */
+    2,			/* stm_regs_per_insn_subsequent.  */
+    0,			/* storef.  */
+    0,			/* stored.  */
+    0			/* store_unaligned.  */
   },
   {
     /* FP SFmode */
     {
-      COSTS_N_INSNS (17),	/* Div.  */
-      COSTS_N_INSNS (4),	/* Mult.  */
-      COSTS_N_INSNS (8),	/* Mult_addsub. */
-      COSTS_N_INSNS (8),	/* Fma.  */
-      COSTS_N_INSNS (4),	/* Addsub.  */
-      COSTS_N_INSNS (2),	/* Fpconst. */
-      COSTS_N_INSNS (2),	/* Neg.  */
-      COSTS_N_INSNS (5),	/* Compare.  */
-      COSTS_N_INSNS (4),	/* Widen.  */
-      COSTS_N_INSNS (4),	/* Narrow.  */
-      COSTS_N_INSNS (4),	/* Toint.  */
-      COSTS_N_INSNS (4),	/* Fromint.  */
-      COSTS_N_INSNS (4)		/* Roundint.  */
+      COSTS_N_INSNS (17),	/* div.  */
+      COSTS_N_INSNS (4),	/* mult.  */
+      COSTS_N_INSNS (8),	/* mult_addsub. */
+      COSTS_N_INSNS (8),	/* fma.  */
+      COSTS_N_INSNS (4),	/* addsub.  */
+      COSTS_N_INSNS (2),	/* fpconst. */
+      COSTS_N_INSNS (2),	/* neg.  */
+      COSTS_N_INSNS (5),	/* compare.  */
+      COSTS_N_INSNS (4),	/* widen.  */
+      COSTS_N_INSNS (4),	/* narrow.  */
+      COSTS_N_INSNS (4),	/* toint.  */
+      COSTS_N_INSNS (4),	/* fromint.  */
+      COSTS_N_INSNS (4)		/* roundint.  */
     },
     /* FP DFmode */
     {
-      COSTS_N_INSNS (31),	/* Div.  */
-      COSTS_N_INSNS (4),	/* Mult.  */
-      COSTS_N_INSNS (8),	/* Mult_addsub.  */
-      COSTS_N_INSNS (8),	/* Fma.  */
-      COSTS_N_INSNS (4),	/* Addsub.  */
-      COSTS_N_INSNS (2),	/* Fpconst.  */
-      COSTS_N_INSNS (2),	/* Neg.  */
-      COSTS_N_INSNS (2),	/* Compare.  */
-      COSTS_N_INSNS (4),	/* Widen.  */
-      COSTS_N_INSNS (4),	/* Narrow.  */
-      COSTS_N_INSNS (4),	/* Toint.  */
-      COSTS_N_INSNS (4),	/* Fromint.  */
-      COSTS_N_INSNS (4)		/* Roundint.  */
+      COSTS_N_INSNS (31),	/* div.  */
+      COSTS_N_INSNS (4),	/* mult.  */
+      COSTS_N_INSNS (8),	/* mult_addsub.  */
+      COSTS_N_INSNS (8),	/* fma.  */
+      COSTS_N_INSNS (4),	/* addsub.  */
+      COSTS_N_INSNS (2),	/* fpconst.  */
+      COSTS_N_INSNS (2),	/* neg.  */
+      COSTS_N_INSNS (2),	/* compare.  */
+      COSTS_N_INSNS (4),	/* widen.  */
+      COSTS_N_INSNS (4),	/* narrow.  */
+      COSTS_N_INSNS (4),	/* toint.  */
+      COSTS_N_INSNS (4),	/* fromint.  */
+      COSTS_N_INSNS (4)		/* roundint.  */
     }
   },
   /* Vector */
   {
-    COSTS_N_INSNS (1)	/* Alu.  */
+    COSTS_N_INSNS (1)	/* alu.  */
   }
 };
 
@@ -1372,99 +1371,99 @@ const struct cpu_cost_table v7m_extra_costs =
 {
   /* ALU */
   {
-    0,			/* Arith.  */
-    0,			/* Logical.  */
-    0,			/* Shift.  */
-    0,			/* Shift_reg.  */
-    0,			/* Arith_shift.  */
-    COSTS_N_INSNS (1),	/* Arith_shift_reg.  */
-    0,			/* Log_shift.  */
-    COSTS_N_INSNS (1),	/* Log_shift_reg.  */
-    0,			/* Extend.  */
-    COSTS_N_INSNS (1),	/* Extend_arith.  */
-    0,			/* Bfi.  */
-    0,			/* Bfx.  */
-    0,			/* Clz.  */
+    0,			/* arith.  */
+    0,			/* logical.  */
+    0,			/* shift.  */
+    0,			/* shift_reg.  */
+    0,			/* arith_shift.  */
+    COSTS_N_INSNS (1),	/* arith_shift_reg.  */
+    0,			/* log_shift.  */
+    COSTS_N_INSNS (1),	/* log_shift_reg.  */
+    0,			/* extend.  */
+    COSTS_N_INSNS (1),	/* extend_arith.  */
+    0,			/* bfi.  */
+    0,			/* bfx.  */
+    0,			/* clz.  */
     COSTS_N_INSNS (1),	/* non_exec.  */
     false		/* non_exec_costs_exec.  */
   },
   {
     /* MULT SImode */
     {
-      COSTS_N_INSNS (1),	/* Simple.  */
-      COSTS_N_INSNS (1),	/* Flag_setting.  */
-      COSTS_N_INSNS (2),	/* Extend.  */
-      COSTS_N_INSNS (1),	/* Add.  */
-      COSTS_N_INSNS (3),	/* Extend_add.  */
-      COSTS_N_INSNS (8)		/* Idiv.  */
+      COSTS_N_INSNS (1),	/* simple.  */
+      COSTS_N_INSNS (1),	/* flag_setting.  */
+      COSTS_N_INSNS (2),	/* extend.  */
+      COSTS_N_INSNS (1),	/* add.  */
+      COSTS_N_INSNS (3),	/* extend_add.  */
+      COSTS_N_INSNS (8)		/* idiv.  */
     },
     /* MULT DImode */
     {
-      0,			/* Simple (N/A).  */
-      0,			/* Flag_setting (N/A).  */
-      COSTS_N_INSNS (2),	/* Extend.  */
-      0,			/* Add (N/A).  */
-      COSTS_N_INSNS (3),	/* Extend_add.  */
-      0				/* Idiv (N/A).  */
+      0,			/* simple (N/A).  */
+      0,			/* flag_setting (N/A).  */
+      COSTS_N_INSNS (2),	/* extend.  */
+      0,			/* add (N/A).  */
+      COSTS_N_INSNS (3),	/* extend_add.  */
+      0				/* idiv (N/A).  */
     }
   },
   /* LD/ST */
   {
-    COSTS_N_INSNS (2),	/* Load.  */
-    0,			/* Load_sign_extend.  */
-    COSTS_N_INSNS (3),	/* Ldrd.  */
-    COSTS_N_INSNS (2),	/* Ldm_1st.  */
-    1,			/* Ldm_regs_per_insn_1st.  */
-    1,			/* Ldm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (2),	/* Loadf.  */
-    COSTS_N_INSNS (3),	/* Loadd.  */
-    COSTS_N_INSNS (1),  /* Load_unaligned.  */
-    COSTS_N_INSNS (2),	/* Store.  */
-    COSTS_N_INSNS (3),	/* Strd.  */
-    COSTS_N_INSNS (2),	/* Stm_1st.  */
-    1,			/* Stm_regs_per_insn_1st.  */
-    1,			/* Stm_regs_per_insn_subsequent.  */
-    COSTS_N_INSNS (2),	/* Storef.  */
-    COSTS_N_INSNS (3),	/* Stored.  */
-    COSTS_N_INSNS (1)  /* Store_unaligned.  */
+    COSTS_N_INSNS (2),	/* load.  */
+    0,			/* load_sign_extend.  */
+    COSTS_N_INSNS (3),	/* ldrd.  */
+    COSTS_N_INSNS (2),	/* ldm_1st.  */
+    1,			/* ldm_regs_per_insn_1st.  */
+    1,			/* ldm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (2),	/* loadf.  */
+    COSTS_N_INSNS (3),	/* loadd.  */
+    COSTS_N_INSNS (1),  /* load_unaligned.  */
+    COSTS_N_INSNS (2),	/* store.  */
+    COSTS_N_INSNS (3),	/* strd.  */
+    COSTS_N_INSNS (2),	/* stm_1st.  */
+    1,			/* stm_regs_per_insn_1st.  */
+    1,			/* stm_regs_per_insn_subsequent.  */
+    COSTS_N_INSNS (2),	/* storef.  */
+    COSTS_N_INSNS (3),	/* stored.  */
+    COSTS_N_INSNS (1)  /* store_unaligned.  */
   },
   {
     /* FP SFmode */
     {
-      COSTS_N_INSNS (7),	/* Div.  */
-      COSTS_N_INSNS (2),	/* Mult.  */
-      COSTS_N_INSNS (5),	/* Mult_addsub.  */
-      COSTS_N_INSNS (3),	/* Fma.  */
-      COSTS_N_INSNS (1),	/* Addsub.  */
-      0,			/* Fpconst.  */
-      0,			/* Neg.  */
-      0,			/* Compare.  */
-      0,			/* Widen.  */
-      0,			/* Narrow.  */
-      0,			/* Toint.  */
-      0,			/* Fromint.  */
-      0				/* Roundint.  */
+      COSTS_N_INSNS (7),	/* div.  */
+      COSTS_N_INSNS (2),	/* mult.  */
+      COSTS_N_INSNS (5),	/* mult_addsub.  */
+      COSTS_N_INSNS (3),	/* fma.  */
+      COSTS_N_INSNS (1),	/* addsub.  */
+      0,			/* fpconst.  */
+      0,			/* neg.  */
+      0,			/* compare.  */
+      0,			/* widen.  */
+      0,			/* narrow.  */
+      0,			/* toint.  */
+      0,			/* fromint.  */
+      0				/* roundint.  */
     },
     /* FP DFmode */
     {
-      COSTS_N_INSNS (15),	/* Div.  */
-      COSTS_N_INSNS (5),	/* Mult.  */
-      COSTS_N_INSNS (7),	/* Mult_addsub.  */
-      COSTS_N_INSNS (7),	/* Fma.  */
-      COSTS_N_INSNS (3),	/* Addsub.  */
-      0,			/* Fpconst.  */
-      0,			/* Neg.  */
-      0,			/* Compare.  */
-      0,			/* Widen.  */
-      0,			/* Narrow.  */
-      0,			/* Toint.  */
-      0,			/* Fromint.  */
-      0				/* Roundint.  */
+      COSTS_N_INSNS (15),	/* div.  */
+      COSTS_N_INSNS (5),	/* mult.  */
+      COSTS_N_INSNS (7),	/* mult_addsub.  */
+      COSTS_N_INSNS (7),	/* fma.  */
+      COSTS_N_INSNS (3),	/* addsub.  */
+      0,			/* fpconst.  */
+      0,			/* neg.  */
+      0,			/* compare.  */
+      0,			/* widen.  */
+      0,			/* narrow.  */
+      0,			/* toint.  */
+      0,			/* fromint.  */
+      0				/* roundint.  */
     }
   },
   /* Vector */
   {
-    COSTS_N_INSNS (1)	/* Alu.  */
+    COSTS_N_INSNS (1)	/* alu.  */
   }
 };
 
@@ -1630,6 +1629,22 @@ const struct tune_params arm_cortex_a53_tune =
   {true, true},					/* Prefer non short circuit.  */
   &arm_default_vec_cost,			/* Vectorizer costs.  */
   false						/* Prefer Neon for 64-bits bitops.  */
+};
+
+const struct tune_params arm_cortex_a57_tune =
+{
+  arm_9e_rtx_costs,
+  &cortexa57_extra_costs,
+  NULL,                                         /* Scheduler cost adjustment.  */
+  1,                                           /* Constant limit.  */
+  2,                                           /* Max cond insns.  */
+  ARM_PREFETCH_NOT_BENEFICIAL,
+  false,                                       /* Prefer constant pool.  */
+  arm_default_branch_cost,
+  true,                                       /* Prefer LDRD/STRD.  */
+  {true, true},                                /* Prefer non short circuit.  */
+  &arm_default_vec_cost,                       /* Vectorizer costs.  */
+  false                                        /* Prefer Neon for 64-bits bitops.  */
 };
 
 /* Branches can be dual-issued on Cortex-A5, so conditional execution is
@@ -7320,6 +7335,32 @@ legitimize_tls_address (rtx x, rtx reg)
 rtx
 arm_legitimize_address (rtx x, rtx orig_x, enum machine_mode mode)
 {
+  if (arm_tls_referenced_p (x))
+    {
+      rtx addend = NULL;
+
+      if (GET_CODE (x) == CONST && GET_CODE (XEXP (x, 0)) == PLUS)
+	{
+	  addend = XEXP (XEXP (x, 0), 1);
+	  x = XEXP (XEXP (x, 0), 0);
+	}
+
+      if (GET_CODE (x) != SYMBOL_REF)
+	return x;
+
+      gcc_assert (SYMBOL_REF_TLS_MODEL (x) != 0);
+
+      x = legitimize_tls_address (x, NULL_RTX);
+
+      if (addend)
+	{
+	  x = gen_rtx_PLUS (SImode, x, addend);
+	  orig_x = x;
+	}
+      else
+	return x;
+    }
+
   if (!TARGET_ARM)
     {
       /* TODO: legitimize_address for Thumb2.  */
@@ -7327,9 +7368,6 @@ arm_legitimize_address (rtx x, rtx orig_x, enum machine_mode mode)
         return x;
       return thumb_legitimize_address (x, orig_x, mode);
     }
-
-  if (arm_tls_symbol_p (x))
-    return legitimize_tls_address (x, NULL_RTX);
 
   if (GET_CODE (x) == PLUS)
     {
@@ -7443,9 +7481,6 @@ arm_legitimize_address (rtx x, rtx orig_x, enum machine_mode mode)
 rtx
 thumb_legitimize_address (rtx x, rtx orig_x, enum machine_mode mode)
 {
-  if (arm_tls_symbol_p (x))
-    return legitimize_tls_address (x, NULL_RTX);
-
   if (GET_CODE (x) == PLUS
       && CONST_INT_P (XEXP (x, 1))
       && (INTVAL (XEXP (x, 1)) >= 32 * GET_MODE_SIZE (mode)
@@ -7739,20 +7774,6 @@ thumb_legitimize_reload_address (rtx *x_p,
 }
 
 /* Test for various thread-local symbols.  */
-
-/* Return TRUE if X is a thread-local symbol.  */
-
-static bool
-arm_tls_symbol_p (rtx x)
-{
-  if (! TARGET_HAVE_TLS)
-    return false;
-
-  if (GET_CODE (x) != SYMBOL_REF)
-    return false;
-
-  return SYMBOL_REF_TLS_MODEL (x) != 0;
-}
 
 /* Helper for arm_tls_referenced_p.  */
 
@@ -9573,7 +9594,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	    {
 	      /* UXTA[BH] or SXTA[BH].  */
 	      if (speed_p)
-		*cost += extra_cost->alu.extnd_arith;
+		*cost += extra_cost->alu.extend_arith;
 	      *cost += (rtx_cost (XEXP (XEXP (x, 0), 0), ZERO_EXTEND, 0,
 				  speed_p)
 			+ rtx_cost (XEXP (x, 1), PLUS, 0, speed_p));
@@ -10290,7 +10311,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	  *cost = COSTS_N_INSNS (1);
 	  *cost += rtx_cost (XEXP (x, 0), code, 0, speed_p);
 	  if (speed_p)
-	    *cost += extra_cost->alu.extnd;
+	    *cost += extra_cost->alu.extend;
 	}
       else if (GET_MODE (XEXP (x, 0)) != SImode)
 	{
@@ -10343,7 +10364,7 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
 	  *cost = COSTS_N_INSNS (1);
 	  *cost += rtx_cost (XEXP (x, 0), code, 0, speed_p);
 	  if (speed_p)
-	    *cost += extra_cost->alu.extnd;
+	    *cost += extra_cost->alu.extend;
 	}
       else if (GET_MODE (XEXP (x, 0)) != SImode)
 	{
@@ -10390,7 +10411,6 @@ arm_new_rtx_costs (rtx x, enum rtx_code code, enum rtx_code outer_code,
     const_int_cost:
       if (mode == SImode)
 	{
-	  *cost += 0;
 	  *cost += COSTS_N_INSNS (arm_gen_constant (outer_code, SImode, NULL,
 						    INTVAL (x), NULL, NULL,
 						    0, 0));
@@ -19574,28 +19594,33 @@ arm_emit_strd_push (unsigned long saved_regs_mask)
 /* Generate and emit an insn that we will recognize as a push_multi.
    Unfortunately, since this insn does not reflect very well the actual
    semantics of the operation, we need to annotate the insn for the benefit
-   of DWARF2 frame unwind information.  */
+   of DWARF2 frame unwind information.  DWARF_REGS_MASK is a subset of
+   MASK for registers that should be annotated for DWARF2 frame unwind
+   information.  */
 static rtx
-emit_multi_reg_push (unsigned long mask)
+emit_multi_reg_push (unsigned long mask, unsigned long dwarf_regs_mask)
 {
   int num_regs = 0;
-  int num_dwarf_regs;
+  int num_dwarf_regs = 0;
   int i, j;
   rtx par;
   rtx dwarf;
   int dwarf_par_index;
   rtx tmp, reg;
 
+  /* We don't record the PC in the dwarf frame information.  */
+  dwarf_regs_mask &= ~(1 << PC_REGNUM);
+
   for (i = 0; i <= LAST_ARM_REGNUM; i++)
-    if (mask & (1 << i))
-      num_regs++;
+    {
+      if (mask & (1 << i))
+	num_regs++;
+      if (dwarf_regs_mask & (1 << i))
+	num_dwarf_regs++;
+    }
 
   gcc_assert (num_regs && num_regs <= 16);
-
-  /* We don't record the PC in the dwarf frame information.  */
-  num_dwarf_regs = num_regs;
-  if (mask & (1 << PC_REGNUM))
-    num_dwarf_regs--;
+  gcc_assert ((dwarf_regs_mask & ~mask) == 0);
 
   /* For the body of the insn we are going to generate an UNSPEC in
      parallel with several USEs.  This allows the insn to be recognized
@@ -19661,14 +19686,13 @@ emit_multi_reg_push (unsigned long mask)
 					   gen_rtvec (1, reg),
 					   UNSPEC_PUSH_MULT));
 
-	  if (i != PC_REGNUM)
+	  if (dwarf_regs_mask & (1 << i))
 	    {
 	      tmp = gen_rtx_SET (VOIDmode,
 				 gen_frame_mem (SImode, stack_pointer_rtx),
 				 reg);
 	      RTX_FRAME_RELATED_P (tmp) = 1;
-	      XVECEXP (dwarf, 0, dwarf_par_index) = tmp;
-	      dwarf_par_index++;
+	      XVECEXP (dwarf, 0, dwarf_par_index++) = tmp;
 	    }
 
 	  break;
@@ -19683,7 +19707,7 @@ emit_multi_reg_push (unsigned long mask)
 
 	  XVECEXP (par, 0, j) = gen_rtx_USE (VOIDmode, reg);
 
-	  if (i != PC_REGNUM)
+	  if (dwarf_regs_mask & (1 << i))
 	    {
 	      tmp
 		= gen_rtx_SET (VOIDmode,
@@ -19890,8 +19914,15 @@ arm_emit_vfp_multi_reg_pop (int first_reg, int num_regs, rtx base_reg)
   par = emit_insn (par);
   REG_NOTES (par) = dwarf;
 
-  arm_add_cfa_adjust_cfa_note (par, 2 * UNITS_PER_WORD * num_regs,
-			       base_reg, base_reg);
+  /* Make sure cfa doesn't leave with IP_REGNUM to allow unwinding fron FP.  */
+  if (TARGET_VFP && REGNO (base_reg) == IP_REGNUM)
+    {
+      RTX_FRAME_RELATED_P (par) = 1;
+      add_reg_note (par, REG_CFA_DEF_CFA, hard_frame_pointer_rtx);
+    }
+  else
+    arm_add_cfa_adjust_cfa_note (par, 2 * UNITS_PER_WORD * num_regs,
+				 base_reg, base_reg);
 }
 
 /* Generate and emit a pattern that will be recognized as LDRD pattern.  If even
@@ -20690,7 +20721,7 @@ arm_expand_prologue (void)
 	  /* Interrupt functions must not corrupt any registers.
 	     Creating a frame pointer however, corrupts the IP
 	     register, so we must push it first.  */
-	  emit_multi_reg_push (1 << IP_REGNUM);
+	  emit_multi_reg_push (1 << IP_REGNUM, 1 << IP_REGNUM);
 
 	  /* Do not set RTX_FRAME_RELATED_P on this insn.
 	     The dwarf stack unwinding code only wants to see one
@@ -20751,7 +20782,8 @@ arm_expand_prologue (void)
 	      if (cfun->machine->uses_anonymous_args)
 		{
 		  insn
-		    = emit_multi_reg_push ((0xf0 >> (args_to_push / 4)) & 0xf);
+		    = emit_multi_reg_push ((0xf0 >> (args_to_push / 4)) & 0xf,
+					   (0xf0 >> (args_to_push / 4)) & 0xf);
 		  emit_set_insn (gen_rtx_REG (SImode, 3), ip_rtx);
 		  saved_pretend_args = 1;
 		}
@@ -20795,7 +20827,8 @@ arm_expand_prologue (void)
       /* Push the argument registers, or reserve space for them.  */
       if (cfun->machine->uses_anonymous_args)
 	insn = emit_multi_reg_push
-	  ((0xf0 >> (args_to_push / 4)) & 0xf);
+	  ((0xf0 >> (args_to_push / 4)) & 0xf,
+	   (0xf0 >> (args_to_push / 4)) & 0xf);
       else
 	insn = emit_insn
 	  (gen_addsi3 (stack_pointer_rtx, stack_pointer_rtx,
@@ -20820,6 +20853,8 @@ arm_expand_prologue (void)
 
   if (live_regs_mask)
     {
+      unsigned long dwarf_regs_mask = live_regs_mask;
+
       saved_regs += bit_count (live_regs_mask) * 4;
       if (optimize_size && !frame_pointer_needed
 	  && saved_regs == offsets->saved_regs - offsets->saved_args)
@@ -20846,25 +20881,22 @@ arm_expand_prologue (void)
 	  && current_tune->prefer_ldrd_strd
           && !optimize_function_for_size_p (cfun))
         {
+	  gcc_checking_assert (live_regs_mask == dwarf_regs_mask);
           if (TARGET_THUMB2)
-            {
-              thumb2_emit_strd_push (live_regs_mask);
-            }
+	    thumb2_emit_strd_push (live_regs_mask);
           else if (TARGET_ARM
                    && !TARGET_APCS_FRAME
                    && !IS_INTERRUPT (func_type))
-            {
-              arm_emit_strd_push (live_regs_mask);
-            }
+	    arm_emit_strd_push (live_regs_mask);
           else
             {
-              insn = emit_multi_reg_push (live_regs_mask);
+	      insn = emit_multi_reg_push (live_regs_mask, live_regs_mask);
               RTX_FRAME_RELATED_P (insn) = 1;
             }
         }
       else
         {
-          insn = emit_multi_reg_push (live_regs_mask);
+	  insn = emit_multi_reg_push (live_regs_mask, dwarf_regs_mask);
           RTX_FRAME_RELATED_P (insn) = 1;
         }
     }
@@ -26235,6 +26267,11 @@ thumb_far_jump_used_p (void)
 	return 0;
     }
 
+  /* We should not change far_jump_used during or after reload, as there is
+     no chance to change stack frame layout.  */
+  if (reload_in_progress || reload_completed)
+    return 0;
+
   /* Check to see if the function contains a branch
      insn with the far jump attribute set.  */
   for (insn = get_insns (); insn; insn = NEXT_INSN (insn))
@@ -27078,15 +27115,19 @@ arm_expand_epilogue_apcs_frame (bool really_return)
   if (TARGET_HARD_FLOAT && TARGET_VFP)
     {
       int start_reg;
+      rtx ip_rtx = gen_rtx_REG (SImode, IP_REGNUM);
 
       /* The offset is from IP_REGNUM.  */
       int saved_size = arm_get_vfp_saved_size ();
       if (saved_size > 0)
         {
+	  rtx insn;
           floats_from_frame += saved_size;
-          emit_insn (gen_addsi3 (gen_rtx_REG (SImode, IP_REGNUM),
-                                 hard_frame_pointer_rtx,
-                                 GEN_INT (-floats_from_frame)));
+          insn = emit_insn (gen_addsi3 (ip_rtx,
+					hard_frame_pointer_rtx,
+					GEN_INT (-floats_from_frame)));
+	  arm_add_cfa_adjust_cfa_note (insn, -floats_from_frame,
+				       ip_rtx, hard_frame_pointer_rtx);
         }
 
       /* Generate VFP register multi-pop.  */
@@ -27159,11 +27200,15 @@ arm_expand_epilogue_apcs_frame (bool really_return)
   num_regs = bit_count (saved_regs_mask);
   if ((offsets->outgoing_args != (1 + num_regs)) || cfun->calls_alloca)
     {
+      rtx insn;
       emit_insn (gen_blockage ());
       /* Unwind the stack to just below the saved registers.  */
-      emit_insn (gen_addsi3 (stack_pointer_rtx,
-                             hard_frame_pointer_rtx,
-                             GEN_INT (- 4 * num_regs)));
+      insn = emit_insn (gen_addsi3 (stack_pointer_rtx,
+				    hard_frame_pointer_rtx,
+				    GEN_INT (- 4 * num_regs)));
+
+      arm_add_cfa_adjust_cfa_note (insn, - 4 * num_regs,
+				   stack_pointer_rtx, hard_frame_pointer_rtx);
     }
 
   arm_emit_multi_reg_pop (saved_regs_mask);
@@ -27860,20 +27905,34 @@ arm_file_start (void)
       const char *fpu_name;
       if (arm_selected_arch)
         {
-          const char* pos = strchr (arm_selected_arch->name, '+');
-	  if (pos)
+	  /* armv7ve doesn't support any extensions.  */
+	  if (strcmp (arm_selected_arch->name, "armv7ve") == 0)
 	    {
-	      char buf[15];
-	      gcc_assert (strlen (arm_selected_arch->name)
-	                  <= sizeof (buf) / sizeof (*pos));
-	      strncpy (buf, arm_selected_arch->name,
-	                    (pos - arm_selected_arch->name) * sizeof (*pos));
-	      buf[pos - arm_selected_arch->name] = '\0';
-	      asm_fprintf (asm_out_file, "\t.arch %s\n", buf);
-	      asm_fprintf (asm_out_file, "\t.arch_extension %s\n", pos + 1);
+	      /* Keep backward compatability for assemblers
+		 which don't support armv7ve.  */
+	      asm_fprintf (asm_out_file, "\t.arch armv7-a\n");
+	      asm_fprintf (asm_out_file, "\t.arch_extension virt\n");
+	      asm_fprintf (asm_out_file, "\t.arch_extension idiv\n");
+	      asm_fprintf (asm_out_file, "\t.arch_extension sec\n");
+	      asm_fprintf (asm_out_file, "\t.arch_extension mp\n");
 	    }
 	  else
-	    asm_fprintf (asm_out_file, "\t.arch %s\n", arm_selected_arch->name);
+	    {
+	      const char* pos = strchr (arm_selected_arch->name, '+');
+	      if (pos)
+		{
+		  char buf[15];
+		  gcc_assert (strlen (arm_selected_arch->name)
+			      <= sizeof (buf) / sizeof (*pos));
+		  strncpy (buf, arm_selected_arch->name,
+				(pos - arm_selected_arch->name) * sizeof (*pos));
+		  buf[pos - arm_selected_arch->name] = '\0';
+		  asm_fprintf (asm_out_file, "\t.arch %s\n", buf);
+		  asm_fprintf (asm_out_file, "\t.arch_extension %s\n", pos + 1);
+		}
+	      else
+		asm_fprintf (asm_out_file, "\t.arch %s\n", arm_selected_arch->name);
+	    }
         }
       else if (strncmp (arm_selected_cpu->name, "generic", 7) == 0)
 	asm_fprintf (asm_out_file, "\t.arch %s\n", arm_selected_cpu->name + 8);
@@ -28633,7 +28692,7 @@ arm_dwarf_register_span (rtx rtl)
 {
   enum machine_mode mode;
   unsigned regno;
-  rtx parts[8];
+  rtx parts[16];
   int nregs;
   int i;
 
@@ -28681,7 +28740,13 @@ arm_dwarf_register_span (rtx rtl)
 /* Emit unwind directives for a store-multiple instruction or stack pointer
    push during alignment.
    These should only ever be generated by the function prologue code, so
-   expect them to have a particular form.  */
+   expect them to have a particular form.
+   The store-multiple instruction sometimes pushes pc as the last register,
+   although it should not be tracked into unwind information, or for -Os
+   sometimes pushes some dummy registers before first register that needs
+   to be tracked in unwind information; such dummy registers are there just
+   to avoid separate stack adjustment, and will not be restored in the
+   epilogue.  */
 
 static void
 arm_unwind_emit_sequence (FILE * asm_out_file, rtx p)
@@ -28692,32 +28757,43 @@ arm_unwind_emit_sequence (FILE * asm_out_file, rtx p)
   int reg_size;
   unsigned reg;
   unsigned lastreg;
+  unsigned padfirst = 0, padlast = 0;
   rtx e;
 
   e = XVECEXP (p, 0, 0);
-  if (GET_CODE (e) != SET)
-    abort ();
+  gcc_assert (GET_CODE (e) == SET);
 
   /* First insn will adjust the stack pointer.  */
-  if (GET_CODE (e) != SET
-      || !REG_P (XEXP (e, 0))
-      || REGNO (XEXP (e, 0)) != SP_REGNUM
-      || GET_CODE (XEXP (e, 1)) != PLUS)
-    abort ();
+  gcc_assert (GET_CODE (e) == SET
+	      && REG_P (SET_DEST (e))
+	      && REGNO (SET_DEST (e)) == SP_REGNUM
+	      && GET_CODE (SET_SRC (e)) == PLUS);
 
-  offset = -INTVAL (XEXP (XEXP (e, 1), 1));
+  offset = -INTVAL (XEXP (SET_SRC (e), 1));
   nregs = XVECLEN (p, 0) - 1;
+  gcc_assert (nregs);
 
-  reg = REGNO (XEXP (XVECEXP (p, 0, 1), 1));
+  reg = REGNO (SET_SRC (XVECEXP (p, 0, 1)));
   if (reg < 16)
     {
+      /* For -Os dummy registers can be pushed at the beginning to
+	 avoid separate stack pointer adjustment.  */
+      e = XVECEXP (p, 0, 1);
+      e = XEXP (SET_DEST (e), 0);
+      if (GET_CODE (e) == PLUS)
+	padfirst = INTVAL (XEXP (e, 1));
+      gcc_assert (padfirst == 0 || optimize_size);
       /* The function prologue may also push pc, but not annotate it as it is
 	 never restored.  We turn this into a stack pointer adjustment.  */
-      if (nregs * 4 == offset - 4)
-	{
-	  fprintf (asm_out_file, "\t.pad #4\n");
-	  offset -= 4;
-	}
+      e = XVECEXP (p, 0, nregs);
+      e = XEXP (SET_DEST (e), 0);
+      if (GET_CODE (e) == PLUS)
+	padlast = offset - INTVAL (XEXP (e, 1)) - 4;
+      else
+	padlast = offset - 4;
+      gcc_assert (padlast == 0 || padlast == 4);
+      if (padlast == 4)
+	fprintf (asm_out_file, "\t.pad #4\n");
       reg_size = 4;
       fprintf (asm_out_file, "\t.save {");
     }
@@ -28728,14 +28804,13 @@ arm_unwind_emit_sequence (FILE * asm_out_file, rtx p)
     }
   else
     /* Unknown register type.  */
-    abort ();
+    gcc_unreachable ();
 
   /* If the stack increment doesn't match the size of the saved registers,
      something has gone horribly wrong.  */
-  if (offset != nregs * reg_size)
-    abort ();
+  gcc_assert (offset == padfirst + nregs * reg_size + padlast);
 
-  offset = 0;
+  offset = padfirst;
   lastreg = 0;
   /* The remaining insns will describe the stores.  */
   for (i = 1; i <= nregs; i++)
@@ -28743,14 +28818,12 @@ arm_unwind_emit_sequence (FILE * asm_out_file, rtx p)
       /* Expect (set (mem <addr>) (reg)).
          Where <addr> is (reg:SP) or (plus (reg:SP) (const_int)).  */
       e = XVECEXP (p, 0, i);
-      if (GET_CODE (e) != SET
-	  || !MEM_P (XEXP (e, 0))
-	  || !REG_P (XEXP (e, 1)))
-	abort ();
+      gcc_assert (GET_CODE (e) == SET
+		  && MEM_P (SET_DEST (e))
+		  && REG_P (SET_SRC (e)));
 
-      reg = REGNO (XEXP (e, 1));
-      if (reg < lastreg)
-	abort ();
+      reg = REGNO (SET_SRC (e));
+      gcc_assert (reg >= lastreg);
 
       if (i != 1)
 	fprintf (asm_out_file, ", ");
@@ -28763,23 +28836,22 @@ arm_unwind_emit_sequence (FILE * asm_out_file, rtx p)
 
 #ifdef ENABLE_CHECKING
       /* Check that the addresses are consecutive.  */
-      e = XEXP (XEXP (e, 0), 0);
+      e = XEXP (SET_DEST (e), 0);
       if (GET_CODE (e) == PLUS)
-	{
-	  offset += reg_size;
-	  if (!REG_P (XEXP (e, 0))
-	      || REGNO (XEXP (e, 0)) != SP_REGNUM
-	      || !CONST_INT_P (XEXP (e, 1))
-	      || offset != INTVAL (XEXP (e, 1)))
-	    abort ();
-	}
-      else if (i != 1
-	       || !REG_P (e)
-	       || REGNO (e) != SP_REGNUM)
-	abort ();
+	gcc_assert (REG_P (XEXP (e, 0))
+		    && REGNO (XEXP (e, 0)) == SP_REGNUM
+		    && CONST_INT_P (XEXP (e, 1))
+		    && offset == INTVAL (XEXP (e, 1)));
+      else
+	gcc_assert (i == 1
+		    && REG_P (e)
+		    && REGNO (e) == SP_REGNUM);
+      offset += reg_size;
 #endif
     }
   fprintf (asm_out_file, "}\n");
+  if (padfirst)
+    fprintf (asm_out_file, "\t.pad #%d\n", padfirst);
 }
 
 /*  Emit unwind directives for a SET.  */
@@ -28928,11 +29000,11 @@ arm_unwind_emit (FILE * asm_out_file, rtx insn)
 	   emit unwind information for it because these are used either for
 	   pretend arguments or notes to adjust sp and restore registers from
 	   stack.  */
+	case REG_CFA_DEF_CFA:
 	case REG_CFA_ADJUST_CFA:
 	case REG_CFA_RESTORE:
 	  return;
 
-	case REG_CFA_DEF_CFA:
 	case REG_CFA_EXPRESSION:
 	case REG_CFA_OFFSET:
 	  /* ??? Only handling here what we actually emit.  */
@@ -29321,6 +29393,7 @@ arm_issue_rate (void)
   switch (arm_tune)
     {
     case cortexa15:
+    case cortexa57:
       return 3;
 
     case cortexr4:
@@ -29538,7 +29611,7 @@ arm_vector_alignment_reachable (const_tree type, bool is_packed)
 {
   /* Vectors which aren't in packed structures will not be less aligned than
      the natural alignment of their element type, so this is safe.  */
-  if (TARGET_NEON && !BYTES_BIG_ENDIAN)
+  if (TARGET_NEON && !BYTES_BIG_ENDIAN && unaligned_access)
     return !is_packed;
 
   return default_builtin_vector_alignment_reachable (type, is_packed);
@@ -29549,7 +29622,7 @@ arm_builtin_support_vector_misalignment (enum machine_mode mode,
 					 const_tree type, int misalignment,
 					 bool is_packed)
 {
-  if (TARGET_NEON && !BYTES_BIG_ENDIAN)
+  if (TARGET_NEON && !BYTES_BIG_ENDIAN && unaligned_access)
     {
       HOST_WIDE_INT align = TYPE_ALIGN_UNIT (type);
 

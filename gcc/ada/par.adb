@@ -360,7 +360,7 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       Pbod : Boolean;                  -- True if proper body OK
       Rnam : Boolean;                  -- True if renaming declaration OK
       Stub : Boolean;                  -- True if body stub OK
-      Pexp : Boolean;                  -- True if parametrized expression OK
+      Pexp : Boolean;                  -- True if parameterized expression OK
       Fil2 : Boolean;                  -- Filler to fill to 8 bits
    end record;
    pragma Pack (Pf_Rec);
@@ -467,7 +467,7 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  expected column of the end assuming normal Ada indentation usage. If
       --  the RM_Column_Check mode is set, this value is used for generating
       --  error messages about indentation. Otherwise it is used only to
-      --  control heuristic error recovery actions.
+      --  control heuristic error recovery actions. This value is zero origin.
 
       Labl : Node_Id;
       --  This field is used to provide the name of the construct being parsed
@@ -534,6 +534,66 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
      Table_Initial        => 50,
      Table_Increment      => 100,
      Table_Name           => "Scope");
+
+   ------------------------------------------
+   -- Table for Handling Suspicious Labels --
+   ------------------------------------------
+
+   --  This is a special data structure which is used to deal very spefifically
+   --  with the following error case
+
+   --     label;
+   --     loop
+   --       ...
+   --     end loop label;
+
+   --  Similar cases apply to FOR, WHILE, DECLARE, or BEGIN
+
+   --  In each case the opening line looks like a procedure call because of
+   --  the semicolon. And the end line looks illegal because of an unexpected
+   --  label. If we did nothing special, we would just diagnose the label on
+   --  the end as unexpected. But that does not help point to the real error
+   --  which is that the semicolon after label should be a colon.
+
+   --  To deal with this, we build an entry in the Suspicious_Labels table
+   --  whenever we encounter an identifier followed by a semicolon, followed
+   --  by one of LOOP, FOR, WHILE, DECLARE, BEGIN. Then this entry is used to
+   --  issue the right message when we hit the END that confirms that this was
+   --  a bad label.
+
+   type Suspicious_Label_Entry is record
+      Proc_Call : Node_Id;
+      --  Node for the procedure call statement built for the label; construct
+
+      Semicolon_Loc : Source_Ptr;
+      --  Location of the possibly wrong semicolon
+
+      Start_Token : Source_Ptr;
+      --  Source location of the LOOP, FOR, WHILE, DECLARE, BEGIN token
+   end record;
+
+   package Suspicious_Labels is new Table.Table (
+     Table_Component_Type => Suspicious_Label_Entry,
+     Table_Index_Type     => Int,
+     Table_Low_Bound      => 1,
+     Table_Initial        => 50,
+     Table_Increment      => 100,
+     Table_Name           => "Suspicious_Labels");
+
+   --  Now when we are about to issue a message complaining about an END label
+   --  that should not be there because it appears to end a construct that has
+   --  no label, we first search the suspicious labels table entry, using the
+   --  source location stored in the scope table as a key. If we find a match,
+   --  then we check that the label on the end matches the name in the call,
+   --  and if so, we issue a message saying the semicolon should be a colon.
+
+   --  Quite a bit of work, but really helpful in the case where it helps, and
+   --  the need for this is based on actual experience with tracking down this
+   --  kind of error (the eye often easily mistakes semicolon for colon).
+
+   --  Note: we actually have enough information to patch up the tree, but
+   --  this may not be worth the effort. Also we could deal with the same
+   --  situation for EXIT with a label, but for now don't bother with that.
 
    ---------------------------------
    -- Parsing Routines by Chapter --
@@ -1019,6 +1079,10 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  advanced to the next vertical bar, arrow, or semicolon, whichever
       --  comes first. We also quit if we encounter an end of file.
 
+      procedure Resync_Cunit;
+      --  Synchronize to next token which could be the start of a compilation
+      --  unit, or to the end of file token.
+
       procedure Resync_Expression;
       --  Used if an error is detected during the parsing of an expression.
       --  It skips past tokens until either a token which cannot be part of
@@ -1027,6 +1091,11 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  current parenthesis level (a parenthesis level counter is maintained
       --  to carry out this test).
 
+      procedure Resync_Past_Malformed_Aspect;
+      --  Used when parsing aspect specifications to skip a malformed aspect.
+      --  The scan pointer is positioned next to a comma, a semicolon or "is"
+      --  when the aspect applies to a body.
+
       procedure Resync_Past_Semicolon;
       --  Used if an error occurs while scanning a sequence of declarations.
       --  The scan pointer is positioned past the next semicolon and the scan
@@ -1034,20 +1103,10 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  starts a declaration (but we make sure to skip at least one token
       --  in this case, to avoid getting stuck in a loop).
 
-      procedure Resync_To_Semicolon;
-      --  Similar to Resync_Past_Semicolon, except that the scan pointer is
-      --  left pointing to the semicolon rather than past it.
-
       procedure Resync_Past_Semicolon_Or_To_Loop_Or_Then;
       --  Used if an error occurs while scanning a sequence of statements. The
       --  scan pointer is positioned past the next semicolon, or to the next
       --  occurrence of either then or loop, and the scan resumes.
-
-      procedure Resync_To_When;
-      --  Used when an error occurs scanning an entry index specification. The
-      --  scan pointer is positioned to the next WHEN (or to IS or semicolon if
-      --  either of these appear before WHEN, indicating another error has
-      --  occurred).
 
       procedure Resync_Semicolon_List;
       --  Used if an error occurs while scanning a parenthesized list of items
@@ -1055,9 +1114,15 @@ function Par (Configuration_Pragmas : Boolean) return List_Id is
       --  semicolon or right parenthesis at the outer parenthesis level, or
       --  to the next is or RETURN keyword occurrence, whichever comes first.
 
-      procedure Resync_Cunit;
-      --  Synchronize to next token which could be the start of a compilation
-      --  unit, or to the end of file token.
+      procedure Resync_To_Semicolon;
+      --  Similar to Resync_Past_Semicolon, except that the scan pointer is
+      --  left pointing to the semicolon rather than past it.
+
+      procedure Resync_To_When;
+      --  Used when an error occurs scanning an entry index specification. The
+      --  scan pointer is positioned to the next WHEN (or to IS or semicolon if
+      --  either of these appear before WHEN, indicating another error has
+      --  occurred).
    end Sync;
 
    --------------

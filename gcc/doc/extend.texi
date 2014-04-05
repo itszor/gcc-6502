@@ -1592,6 +1592,18 @@ Jumping or breaking out of the scope of the array name deallocates the
 storage.  Jumping into the scope is not allowed; you get an error
 message for it.
 
+@cindex variable-length array in a structure
+As an extension, GCC accepts variable-length arrays as a member of
+a structure or a union.  For example:
+
+@smallexample
+void
+foo (int n)
+@{
+  struct S @{ int x[n]; @};
+@}
+@end smallexample
+
 @cindex @code{alloca} vs variable-length arrays
 You can use the function @code{alloca} to get an effect much like
 variable-length arrays.  The function @code{alloca} is available in
@@ -1967,6 +1979,9 @@ Another syntax that has the same meaning, obsolete since GCC 2.5, is
 struct point p = @{ y: yvalue, x: xvalue @};
 @end smallexample
 
+Omitted field members are implicitly initialized the same as objects
+that have static storage duration.
+
 @cindex designators
 The @samp{[@var{index}]} or @samp{.@var{fieldname}} is known as a
 @dfn{designator}.  You can also use a designator (or the obsolete colon
@@ -2154,8 +2169,8 @@ The keyword @code{__attribute__} allows you to specify special
 attributes when making a declaration.  This keyword is followed by an
 attribute specification inside double parentheses.  The following
 attributes are currently defined for functions on all targets:
-@code{aligned}, @code{alloc_size}, @code{noreturn},
-@code{returns_twice}, @code{noinline}, @code{noclone},
+@code{aligned}, @code{alloc_size}, @code{alloc_align}, @code{assume_aligned},
+@code{noreturn}, @code{returns_twice}, @code{noinline}, @code{noclone},
 @code{always_inline}, @code{flatten}, @code{pure}, @code{const},
 @code{nothrow}, @code{sentinel}, @code{format}, @code{format_arg},
 @code{no_instrument_function}, @code{no_split_stack},
@@ -2241,13 +2256,53 @@ For instance,
 
 @smallexample
 void* my_calloc(size_t, size_t) __attribute__((alloc_size(1,2)))
-void my_realloc(void*, size_t) __attribute__((alloc_size(2)))
+void* my_realloc(void*, size_t) __attribute__((alloc_size(2)))
 @end smallexample
 
 @noindent
 declares that @code{my_calloc} returns memory of the size given by
 the product of parameter 1 and 2 and that @code{my_realloc} returns memory
 of the size given by parameter 2.
+
+@item alloc_align
+@cindex @code{alloc_align} attribute
+The @code{alloc_align} attribute is used to tell the compiler that the
+function return value points to memory, where the returned pointer minimum
+alignment is given by one of the functions parameters.  GCC uses this
+information to improve pointer alignment analysis.
+
+The function parameter denoting the allocated alignment is specified by
+one integer argument, whose number is the argument of the attribute.
+Argument numbering starts at one.
+
+For instance,
+
+@smallexample
+void* my_memalign(size_t, size_t) __attribute__((alloc_align(1)))
+@end smallexample
+
+@noindent
+declares that @code{my_memalign} returns memory with minimum alignment
+given by parameter 1.
+
+@item assume_aligned
+@cindex @code{assume_aligned} attribute
+The @code{assume_aligned} attribute is used to tell the compiler that the
+function return value points to memory, where the returned pointer minimum
+alignment is given by the first argument.
+If the attribute has two arguments, the second argument is misalignment offset.
+
+For instance
+
+@smallexample
+void* my_alloc1(size_t) __attribute__((assume_aligned(16)))
+void* my_alloc2(size_t) __attribute__((assume_aligned(32, 8)))
+@end smallexample
+
+@noindent
+declares that @code{my_alloc1} returns 16-byte aligned pointer and
+that @code{my_alloc2} returns a pointer whose value modulo 32 is equal
+to 8.
 
 @item always_inline
 @cindex @code{always_inline} function attribute
@@ -6303,7 +6358,7 @@ int foo ()
   int *y = &x;
   int result;
   asm ("magic stuff accessing an 'int' pointed to by '%1'"
-       : "=&d" (r) : "a" (y), "m" (*y));
+       : "=&d" (result) : "a" (y), "m" (*y));
   return result;
 @}
 @end smallexample
@@ -7232,6 +7287,19 @@ v4si c;
 c = a >  b;     /* The result would be @{0, 0,-1, 0@}  */
 c = a == b;     /* The result would be @{0,-1, 0,-1@}  */
 @end smallexample
+
+In C++, the ternary operator @code{?:} is available. @code{a?b:c}, where
+@code{b} and @code{c} are vectors of the same type and @code{a} is an
+integer vector with the same number of elements of the same size as @code{b}
+and @code{c}, computes all three arguments and creates a vector
+@code{@{a[0]?b[0]:c[0], a[1]?b[1]:c[1], @dots{}@}}.  Note that unlike in
+OpenCL, @code{a} is thus interpreted as @code{a != 0} and not @code{a < 0}.
+As in the case of binary operations, this syntax is also accepted when
+one of @code{b} or @code{c} is a scalar that is then transformed into a
+vector. If both @code{b} and @code{c} are scalars and the type of
+@code{true?b:c} has the same size as the element type of @code{a}, then
+@code{b} and @code{c} are converted to a vector type whose elements have
+this type and with the same number of elements as @code{a}.
 
 Vector shuffling is available using functions
 @code{__builtin_shuffle (vec, mask)} and
@@ -8910,7 +8978,7 @@ Similar to @code{__builtin_nans}, except the return type is @code{float}.
 Similar to @code{__builtin_nans}, except the return type is @code{long double}.
 @end deftypefn
 
-@deftypefn {Built-in Function} int __builtin_ffs (unsigned int x)
+@deftypefn {Built-in Function} int __builtin_ffs (int x)
 Returns one plus the index of the least significant 1-bit of @var{x}, or
 if @var{x} is zero, returns zero.
 @end deftypefn
@@ -8940,9 +9008,9 @@ Returns the parity of @var{x}, i.e.@: the number of 1-bits in @var{x}
 modulo 2.
 @end deftypefn
 
-@deftypefn {Built-in Function} int __builtin_ffsl (unsigned long)
+@deftypefn {Built-in Function} int __builtin_ffsl (long)
 Similar to @code{__builtin_ffs}, except the argument type is
-@code{unsigned long}.
+@code{long}.
 @end deftypefn
 
 @deftypefn {Built-in Function} int __builtin_clzl (unsigned long)
@@ -8970,9 +9038,9 @@ Similar to @code{__builtin_parity}, except the argument type is
 @code{unsigned long}.
 @end deftypefn
 
-@deftypefn {Built-in Function} int __builtin_ffsll (unsigned long long)
+@deftypefn {Built-in Function} int __builtin_ffsll (long long)
 Similar to @code{__builtin_ffs}, except the argument type is
-@code{unsigned long long}.
+@code{long long}.
 @end deftypefn
 
 @deftypefn {Built-in Function} int __builtin_clzll (unsigned long long)
@@ -12604,6 +12672,15 @@ GCC provides other MIPS-specific built-in functions:
 Insert a @samp{cache} instruction with operands @var{op} and @var{addr}.
 GCC defines the preprocessor macro @code{___GCC_HAVE_BUILTIN_MIPS_CACHE}
 when this function is available.
+
+@item unsigned int __builtin_mips_get_fcsr (void)
+@itemx void __builtin_mips_set_fcsr (unsigned int @var{value})
+Get and set the contents of the floating-point control and status register
+(FPU control register 31).  These functions are only available in hard-float
+code but can be called in both MIPS16 and non-MIPS16 contexts.
+
+@code{__builtin_mips_set_fcsr} can be used to change any bit of the
+register except the condition codes, which GCC assumes are preserved.
 @end table
 
 @node MSP430 Built-in Functions
@@ -14782,6 +14859,35 @@ void vec_vsx_st (vector unsigned char, int, unsigned char *);
 void vec_vsx_st (vector bool char, int, vector bool char *);
 void vec_vsx_st (vector bool char, int, unsigned char *);
 void vec_vsx_st (vector bool char, int, signed char *);
+
+vector double vec_xxpermdi (vector double, vector double, int);
+vector float vec_xxpermdi (vector float, vector float, int);
+vector long long vec_xxpermdi (vector long long, vector long long, int);
+vector unsigned long long vec_xxpermdi (vector unsigned long long,
+                                        vector unsigned long long, int);
+vector int vec_xxpermdi (vector int, vector int, int);
+vector unsigned int vec_xxpermdi (vector unsigned int,
+                                  vector unsigned int, int);
+vector short vec_xxpermdi (vector short, vector short, int);
+vector unsigned short vec_xxpermdi (vector unsigned short,
+                                    vector unsigned short, int);
+vector signed char vec_xxpermdi (vector signed char, vector signed char, int);
+vector unsigned char vec_xxpermdi (vector unsigned char,
+                                   vector unsigned char, int);
+
+vector double vec_xxsldi (vector double, vector double, int);
+vector float vec_xxsldi (vector float, vector float, int);
+vector long long vec_xxsldi (vector long long, vector long long, int);
+vector unsigned long long vec_xxsldi (vector unsigned long long,
+                                      vector unsigned long long, int);
+vector int vec_xxsldi (vector int, vector int, int);
+vector unsigned int vec_xxsldi (vector unsigned int, vector unsigned int, int);
+vector short vec_xxsldi (vector short, vector short, int);
+vector unsigned short vec_xxsldi (vector unsigned short,
+                                  vector unsigned short, int);
+vector signed char vec_xxsldi (vector signed char, vector signed char, int);
+vector unsigned char vec_xxsldi (vector unsigned char,
+                                 vector unsigned char, int);
 @end smallexample
 
 Note that the @samp{vec_ld} and @samp{vec_st} built-in functions always
@@ -14969,6 +15075,9 @@ vector unsigned long long vec_vaddudm (vector bool unsigned long long,
 vector unsigned long long vec_vaddudm (vector unsigned long long,
                                        vector bool unsigned long long);
 
+vector long long vec_vbpermq (vector signed char, vector signed char);
+vector long long vec_vbpermq (vector unsigned char, vector unsigned char);
+
 vector long long vec_vclz (vector long long);
 vector unsigned long long vec_vclz (vector unsigned long long);
 vector int vec_vclz (vector int);
@@ -14989,6 +15098,9 @@ vector unsigned short vec_vclzh (vector unsigned short);
 
 vector int vec_vclzw (vector int);
 vector unsigned int vec_vclzw (vector int);
+
+vector signed char vec_vgbbd (vector signed char);
+vector unsigned char vec_vgbbd (vector unsigned char);
 
 vector long long vec_vmaxsd (vector long long, vector long long);
 
@@ -15063,6 +15175,51 @@ vector unsigned long long vec_vupkhsw (vector unsigned int);
 
 vector long long vec_vupklsw (vector int);
 vector unsigned long long vec_vupklsw (vector int);
+@end smallexample
+
+If the ISA 2.07 additions to the vector/scalar (power8-vector)
+instruction set is available, the following additional functions are
+available for 64-bit targets.  New vector types
+(@var{vector __int128_t} and @var{vector __uint128_t}) are available
+to hold the @var{__int128_t} and @var{__uint128_t} types to use these
+builtins.
+
+The normal vector extract, and set operations work on
+@var{vector __int128_t} and @var{vector __uint128_t} types,
+but the index value must be 0.
+
+@smallexample
+vector __int128_t vec_vaddcuq (vector __int128_t, vector __int128_t);
+vector __uint128_t vec_vaddcuq (vector __uint128_t, vector __uint128_t);
+
+vector __int128_t vec_vadduqm (vector __int128_t, vector __int128_t);
+vector __uint128_t vec_vadduqm (vector __uint128_t, vector __uint128_t);
+
+vector __int128_t vec_vaddecuq (vector __int128_t, vector __int128_t,
+                                vector __int128_t);
+vector __uint128_t vec_vaddecuq (vector __uint128_t, vector __uint128_t, 
+                                 vector __uint128_t);
+
+vector __int128_t vec_vaddeuqm (vector __int128_t, vector __int128_t,
+                                vector __int128_t);
+vector __uint128_t vec_vaddeuqm (vector __uint128_t, vector __uint128_t, 
+                                 vector __uint128_t);
+
+vector __int128_t vec_vsubecuq (vector __int128_t, vector __int128_t,
+                                vector __int128_t);
+vector __uint128_t vec_vsubecuq (vector __uint128_t, vector __uint128_t, 
+                                 vector __uint128_t);
+
+vector __int128_t vec_vsubeuqm (vector __int128_t, vector __int128_t,
+                                vector __int128_t);
+vector __uint128_t vec_vsubeuqm (vector __uint128_t, vector __uint128_t,
+                                 vector __uint128_t);
+
+vector __int128_t vec_vsubcuq (vector __int128_t, vector __int128_t);
+vector __uint128_t vec_vsubcuq (vector __uint128_t, vector __uint128_t);
+
+__int128_t vec_vsubuqm (__int128_t, __int128_t);
+__uint128_t vec_vsubuqm (__uint128_t, __uint128_t);
 @end smallexample
 
 If the cryptographic instructions are enabled (@option{-mcrypto} or
@@ -17387,6 +17544,10 @@ unimportant.
 
 A redeclaration of a function or class must not add new ABI tags,
 since doing so would change the mangled name.
+
+The ABI tags apply to a name, so all instantiations and
+specializations of a template have the same tags.  The attribute will
+be ignored if applied to an explicit specialization or instantiation.
 
 The @option{-Wabi-tag} flag enables a warning about a class which does
 not have all the ABI tags used by its subobjects and virtual functions; for users with code

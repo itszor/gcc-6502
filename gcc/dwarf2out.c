@@ -247,6 +247,12 @@ static GTY(()) bool cold_text_section_used = false;
 /* The default cold text section.  */
 static GTY(()) section *cold_text_section;
 
+/* The DIE for C++1y 'auto' in a function return type.  */
+static GTY(()) dw_die_ref auto_die;
+
+/* The DIE for C++1y 'decltype(auto)' in a function return type.  */
+static GTY(()) dw_die_ref decltype_auto_die;
+
 /* Forward declarations for functions defined in this file.  */
 
 static char *stripattributes (const char *);
@@ -10216,6 +10222,24 @@ base_type_die (tree type)
   return base_type_result;
 }
 
+/* A C++ function with deduced return type can have a TEMPLATE_TYPE_PARM
+   named 'auto' in its type: return true for it, false otherwise.  */
+
+static inline bool
+is_cxx_auto (tree type)
+{
+  if (is_cxx ())
+    {
+      tree name = TYPE_NAME (type);
+      if (TREE_CODE (name) == TYPE_DECL)
+	name = DECL_NAME (name);
+      if (name == get_identifier ("auto")
+	  || name == get_identifier ("decltype(auto)"))
+	return true;
+    }
+  return false;
+}
+
 /* Given a pointer to an arbitrary ..._TYPE tree node, return nonzero if the
    given input type is a Dwarf "fundamental" type.  Otherwise return null.  */
 
@@ -10249,6 +10273,8 @@ is_base_type (tree type)
       return 0;
 
     default:
+      if (is_cxx_auto (type))
+	return 0;
       gcc_unreachable ();
     }
 
@@ -11299,8 +11325,18 @@ const_ok_for_output_1 (rtx *rtlp, void *data ATTRIBUTE_UNUSED)
       return 1;
     }
 
+  /* FIXME: Refer to PR60655. It is possible for simplification
+     of rtl expressions in var tracking to produce such expressions.
+     We should really identify / validate expressions
+     enclosed in CONST that can be handled by assemblers on various
+     targets and only handle legitimate cases here.  */
   if (GET_CODE (rtl) != SYMBOL_REF)
-    return 0;
+    {
+      if (GET_CODE (rtl) == NOT)
+	  return 1;
+
+      return 0;
+    }
 
   if (CONSTANT_POOL_ADDRESS_P (rtl))
     {
@@ -17999,6 +18035,16 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
 	    add_AT_file (subr_die, DW_AT_decl_file, file_index);
 	  if (get_AT_unsigned (old_die, DW_AT_decl_line) != (unsigned) s.line)
 	    add_AT_unsigned (subr_die, DW_AT_decl_line, s.line);
+
+	  /* If the prototype had an 'auto' or 'decltype(auto)' return type,
+	     emit the real type on the definition die.  */
+	  if (is_cxx() && debug_info_level > DINFO_LEVEL_TERSE)
+	    {
+	      dw_die_ref die = get_AT_ref (old_die, DW_AT_type);
+	      if (die == auto_die || die == decltype_auto_die)
+		add_type_attribute (subr_die, TREE_TYPE (TREE_TYPE (decl)),
+				    0, 0, context_die);
+	    }
 	}
     }
   else
@@ -18502,9 +18548,10 @@ gen_subprogram_die (tree decl, dw_die_ref context_die)
       call_site_count = -1;
       tail_call_site_count = -1;
     }
-  /* Add the calling convention attribute if requested.  */
-  add_calling_convention_attribute (subr_die, decl);
 
+  if (subr_die != old_die)
+    /* Add the calling convention attribute if requested.  */
+    add_calling_convention_attribute (subr_die, decl);
 }
 
 /* Returns a hash value for X (which really is a die_struct).  */
@@ -19820,6 +19867,22 @@ gen_type_die_with_usage (tree type, dw_die_ref context_die,
       break;
 
     default:
+      if (is_cxx_auto (type))
+	{
+	  tree name = TYPE_NAME (type);
+	  if (TREE_CODE (name) == TYPE_DECL)
+	    name = DECL_NAME (name);
+	  dw_die_ref *die = (name == get_identifier ("auto")
+			     ? &auto_die : &decltype_auto_die);
+	  if (!*die)
+	    {
+	      *die = new_die (DW_TAG_unspecified_type,
+			      comp_unit_die (), NULL_TREE);
+	      add_name_attribute (*die, IDENTIFIER_POINTER (name));
+	    }
+	  equate_type_number_to_die (type, *die);
+	  break;
+	}
       gcc_unreachable ();
     }
 

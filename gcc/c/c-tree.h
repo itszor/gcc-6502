@@ -132,15 +132,6 @@ struct c_expr
    inside the VEC types.  */
 typedef struct c_expr c_expr_t;
 
-/* A varray of c_expr_t.  */
-
-/* Append a new c_expr_t element to V.  */
-#define C_EXPR_APPEND(V, ELEM) \
-  do { \
-    c_expr_t __elem = (ELEM); \
-    vec_safe_push (V, __elem); \
-  } while (0)
-
 /* A kind of type specifier.  Note that this information is currently
    only used to distinguish tag definitions, tag references and typeof
    uses.  */
@@ -652,6 +643,8 @@ extern tree c_finish_omp_clauses (tree);
 extern tree c_build_va_arg (location_t, tree, tree);
 extern tree c_finish_transaction (location_t, tree, int);
 extern bool c_tree_equal (tree, tree);
+extern tree c_build_function_call_vec (location_t, vec<location_t>, tree,
+				       vec<tree, va_gc> *, vec<tree, va_gc> *);
 
 /* Set to 0 at beginning of a function definition, set to 1 if
    a return statement that specifies a return value is seen.  */

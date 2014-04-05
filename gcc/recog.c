@@ -565,7 +565,7 @@ simplify_while_replacing (rtx *loc, rtx to, rtx object,
 {
   rtx x = *loc;
   enum rtx_code code = GET_CODE (x);
-  rtx new_rtx;
+  rtx new_rtx = NULL_RTX;
 
   if (SWAPPABLE_OPERANDS_P (x)
       && swap_commutative_operands_p (XEXP (x, 0), XEXP (x, 1)))
@@ -577,6 +577,35 @@ simplify_while_replacing (rtx *loc, rtx to, rtx object,
 					       XEXP (x, 0)), 1);
       x = *loc;
       code = GET_CODE (x);
+    }
+
+  /* Canonicalize arithmetics with all constant operands.  */
+  switch (GET_RTX_CLASS (code))
+    {
+    case RTX_UNARY:
+      if (CONSTANT_P (XEXP (x, 0)))
+	new_rtx = simplify_unary_operation (code, GET_MODE (x), XEXP (x, 0),
+					    op0_mode);
+      break;
+    case RTX_COMM_ARITH:
+    case RTX_BIN_ARITH:
+      if (CONSTANT_P (XEXP (x, 0)) && CONSTANT_P (XEXP (x, 1)))
+	new_rtx = simplify_binary_operation (code, GET_MODE (x), XEXP (x, 0),
+					     XEXP (x, 1));
+      break;
+    case RTX_COMPARE:
+    case RTX_COMM_COMPARE:
+      if (CONSTANT_P (XEXP (x, 0)) && CONSTANT_P (XEXP (x, 1)))
+	new_rtx = simplify_relational_operation (code, GET_MODE (x), op0_mode,
+						 XEXP (x, 0), XEXP (x, 1));
+      break;
+    default:
+      break;
+    }
+  if (new_rtx)
+    {
+      validate_change (object, loc, new_rtx, 1);
+      return;
     }
 
   switch (code)
@@ -994,6 +1023,19 @@ general_operand (rtx op, enum machine_mode mode)
 	  && MEM_P (sub))
 	return 0;
 
+#ifdef CANNOT_CHANGE_MODE_CLASS
+      if (REG_P (sub)
+	  && REGNO (sub) < FIRST_PSEUDO_REGISTER
+	  && REG_CANNOT_CHANGE_MODE_P (REGNO (sub), GET_MODE (sub), mode)
+	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_INT
+	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_FLOAT
+	  /* LRA can generate some invalid SUBREGS just for matched
+	     operand reload presentation.  LRA needs to treat them as
+	     valid.  */
+	  && ! LRA_SUBREG_P (op))
+	return 0;
+#endif
+
       /* FLOAT_MODE subregs can't be paradoxical.  Combine will occasionally
 	 create such rtl, and we must reject it.  */
       if (SCALAR_FLOAT_MODE_P (GET_MODE (op))
@@ -1054,9 +1096,6 @@ address_operand (rtx op, enum machine_mode mode)
 int
 register_operand (rtx op, enum machine_mode mode)
 {
-  if (GET_MODE (op) != mode && mode != VOIDmode)
-    return 0;
-
   if (GET_CODE (op) == SUBREG)
     {
       rtx sub = SUBREG_REG (op);
@@ -1067,41 +1106,12 @@ register_operand (rtx op, enum machine_mode mode)
 	 (Ideally, (SUBREG (MEM)...) should not exist after reload,
 	 but currently it does result from (SUBREG (REG)...) where the
 	 reg went on the stack.)  */
-      if (! reload_completed && MEM_P (sub))
-	return general_operand (op, mode);
-
-#ifdef CANNOT_CHANGE_MODE_CLASS
-      if (REG_P (sub)
-	  && REGNO (sub) < FIRST_PSEUDO_REGISTER
-	  && REG_CANNOT_CHANGE_MODE_P (REGNO (sub), GET_MODE (sub), mode)
-	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_INT
-	  && GET_MODE_CLASS (GET_MODE (sub)) != MODE_COMPLEX_FLOAT
-	  /* LRA can generate some invalid SUBREGS just for matched
-	     operand reload presentation.  LRA needs to treat them as
-	     valid.  */
-	  && ! LRA_SUBREG_P (op))
+      if (!REG_P (sub) && (reload_completed || !MEM_P (sub)))
 	return 0;
-#endif
-
-      /* FLOAT_MODE subregs can't be paradoxical.  Combine will occasionally
-	 create such rtl, and we must reject it.  */
-      if (SCALAR_FLOAT_MODE_P (GET_MODE (op))
-	  /* LRA can use subreg to store a floating point value in an
-	     integer mode.  Although the floating point and the
-	     integer modes need the same number of hard registers, the
-	     size of floating point mode can be less than the integer
-	     mode.  */
-	  && ! lra_in_progress 
-	  && GET_MODE_SIZE (GET_MODE (op)) > GET_MODE_SIZE (GET_MODE (sub)))
-	return 0;
-
-      op = sub;
     }
-
-  return (REG_P (op)
-	  && (REGNO (op) >= FIRST_PSEUDO_REGISTER
-	      || in_hard_reg_set_p (operand_reg_set,
-				    GET_MODE (op), REGNO (op))));
+  else if (!REG_P (op))
+    return 0;
+  return general_operand (op, mode);
 }
 
 /* Return 1 for a register in Pmode; ignore the tested mode.  */
@@ -1203,27 +1213,7 @@ nonmemory_operand (rtx op, enum machine_mode mode)
 {
   if (CONSTANT_P (op))
     return immediate_operand (op, mode);
-
-  if (GET_MODE (op) != mode && mode != VOIDmode)
-    return 0;
-
-  if (GET_CODE (op) == SUBREG)
-    {
-      /* Before reload, we can allow (SUBREG (MEM...)) as a register operand
-	 because it is guaranteed to be reloaded into one.
-	 Just make sure the MEM is valid in itself.
-	 (Ideally, (SUBREG (MEM)...) should not exist after reload,
-	 but currently it does result from (SUBREG (REG)...) where the
-	 reg went on the stack.)  */
-      if (! reload_completed && MEM_P (SUBREG_REG (op)))
-	return general_operand (op, mode);
-      op = SUBREG_REG (op);
-    }
-
-  return (REG_P (op)
-	  && (REGNO (op) >= FIRST_PSEUDO_REGISTER
-	      || in_hard_reg_set_p (operand_reg_set,
-				    GET_MODE (op), REGNO (op))));
+  return register_operand (op, mode);
 }
 
 /* Return 1 if OP is a valid operand that stands for pushing a

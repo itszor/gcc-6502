@@ -627,6 +627,25 @@ force_constant_size (tree var)
 /* Push the temporary variable TMP into the current binding.  */
 
 void
+gimple_add_tmp_var_fn (struct function *fn, tree tmp)
+{
+  gcc_assert (!DECL_CHAIN (tmp) && !DECL_SEEN_IN_BIND_EXPR_P (tmp));
+
+  /* Later processing assumes that the object size is constant, which might
+     not be true at this point.  Force the use of a constant upper bound in
+     this case.  */
+  if (!tree_fits_uhwi_p (DECL_SIZE_UNIT (tmp)))
+    force_constant_size (tmp);
+
+  DECL_CONTEXT (tmp) = fn->decl;
+  DECL_SEEN_IN_BIND_EXPR_P (tmp) = 1;
+
+  record_vars_into (tmp, fn->decl);
+}
+
+/* Push the temporary variable TMP into the current binding.  */
+
+void
 gimple_add_tmp_var (tree tmp)
 {
   gcc_assert (!DECL_CHAIN (tmp) && !DECL_SEEN_IN_BIND_EXPR_P (tmp));
@@ -1042,7 +1061,14 @@ gimplify_bind_expr (tree *expr_p, gimple_seq *pre_p)
 	      && (! DECL_SEEN_IN_BIND_EXPR_P (t)
 		  || splay_tree_lookup (ctx->variables,
 					(splay_tree_key) t) == NULL))
-	    omp_add_variable (gimplify_omp_ctxp, t, GOVD_LOCAL | GOVD_SEEN);
+	    {
+	      if (ctx->region_type == ORT_SIMD
+		  && TREE_ADDRESSABLE (t)
+		  && !TREE_STATIC (t))
+		omp_add_variable (ctx, t, GOVD_PRIVATE | GOVD_SEEN);
+	      else
+		omp_add_variable (ctx, t, GOVD_LOCAL | GOVD_SEEN);
+	    }
 
 	  DECL_SEEN_IN_BIND_EXPR_P (t) = 1;
 
@@ -2184,6 +2210,20 @@ gimplify_arg (tree *arg_p, gimple_seq *pre_p, location_t call_location)
   return gimplify_expr (arg_p, pre_p, NULL, test, fb);
 }
 
+/* Don't fold STMT inside ORT_TARGET, because it can break code by adding decl
+   references that weren't in the source.  We'll do it during omplower pass
+   instead.  */
+
+static bool
+maybe_fold_stmt (gimple_stmt_iterator *gsi)
+{
+  struct gimplify_omp_ctx *ctx;
+  for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
+    if (ctx->region_type == ORT_TARGET)
+      return false;
+  return fold_stmt (gsi);
+}
+
 /* Gimplify the CALL_EXPR node *EXPR_P into the GIMPLE sequence PRE_P.
    WANT_VALUE is true if the result of the call is desired.  */
 
@@ -2194,7 +2234,7 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
   enum gimplify_status ret;
   int i, nargs;
   gimple call;
-  bool builtin_va_start_p = FALSE;
+  bool builtin_va_start_p = false;
   location_t loc = EXPR_LOCATION (*expr_p);
 
   gcc_assert (TREE_CODE (*expr_p) == CALL_EXPR);
@@ -2417,14 +2457,7 @@ gimplify_call_expr (tree *expr_p, gimple_seq *pre_p, bool want_value)
       notice_special_calls (call);
       gimplify_seq_add_stmt (pre_p, call);
       gsi = gsi_last (*pre_p);
-      /* Don't fold stmts inside of target construct.  We'll do it
-	 during omplower pass instead.  */
-      struct gimplify_omp_ctx *ctx;
-      for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
-	if (ctx->region_type == ORT_TARGET)
-	  break;
-      if (ctx == NULL)
-	fold_stmt (&gsi);
+      maybe_fold_stmt (&gsi);
       *expr_p = NULL_TREE;
     }
   else
@@ -4552,8 +4585,20 @@ gimplify_modify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
       tree fnptrtype = TREE_TYPE (CALL_EXPR_FN (*from_p));
       CALL_EXPR_FN (*from_p) = TREE_OPERAND (CALL_EXPR_FN (*from_p), 0);
       STRIP_USELESS_TYPE_CONVERSION (CALL_EXPR_FN (*from_p));
-      assign = gimple_build_call_from_tree (*from_p);
-      gimple_call_set_fntype (assign, TREE_TYPE (fnptrtype));
+      tree fndecl = get_callee_fndecl (*from_p);
+      if (fndecl
+	  && DECL_BUILT_IN_CLASS (fndecl) == BUILT_IN_NORMAL
+	  && DECL_FUNCTION_CODE (fndecl) == BUILT_IN_EXPECT
+	  && call_expr_nargs (*from_p) == 3)
+	assign = gimple_build_call_internal (IFN_BUILTIN_EXPECT, 3,
+					     CALL_EXPR_ARG (*from_p, 0),
+					     CALL_EXPR_ARG (*from_p, 1),
+					     CALL_EXPR_ARG (*from_p, 2));
+      else
+	{
+	  assign = gimple_build_call_from_tree (*from_p);
+	  gimple_call_set_fntype (assign, TREE_TYPE (fnptrtype));
+	}
       notice_special_calls (assign);
       if (!gimple_call_noreturn_p (assign))
 	gimple_call_set_lhs (assign, *to_p);
@@ -4572,14 +4617,7 @@ gimplify_modify_expr (tree *expr_p, gimple_seq *pre_p, gimple_seq *post_p,
 
   gimplify_seq_add_stmt (pre_p, assign);
   gsi = gsi_last (*pre_p);
-  /* Don't fold stmts inside of target construct.  We'll do it
-     during omplower pass instead.  */
-  struct gimplify_omp_ctx *ctx;
-  for (ctx = gimplify_omp_ctxp; ctx; ctx = ctx->outer_context)
-    if (ctx->region_type == ORT_TARGET)
-      break;
-  if (ctx == NULL)
-    fold_stmt (&gsi);
+  maybe_fold_stmt (&gsi);
 
   if (want_value)
     {

@@ -180,7 +180,7 @@ static void write_unscoped_template_name (const tree);
 static void write_nested_name (const tree);
 static void write_prefix (const tree);
 static void write_template_prefix (const tree);
-static void write_unqualified_name (const tree);
+static void write_unqualified_name (tree);
 static void write_conversion_operator_name (const tree);
 static void write_source_name (tree);
 static void write_literal_operator_name (tree);
@@ -323,7 +323,7 @@ dump_substitution_candidates (void)
       else if (TREE_CODE (el) == TREE_LIST)
 	name = IDENTIFIER_POINTER (DECL_NAME (TREE_VALUE (el)));
       else if (TYPE_NAME (el))
-	name = IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (el)));
+	name = IDENTIFIER_POINTER (TYPE_IDENTIFIER (el));
       fprintf (stderr, " S%d_ = ", i - 1);
       if (TYPE_P (el) &&
 	  (CP_TYPE_RESTRICT_P (el)
@@ -1195,7 +1195,7 @@ write_unqualified_id (tree identifier)
 }
 
 static void
-write_unqualified_name (const tree decl)
+write_unqualified_name (tree decl)
 {
   MANGLE_TRACE_TREE ("unqualified-name", decl);
 
@@ -1231,6 +1231,9 @@ write_unqualified_name (const tree decl)
 	      fn_type = get_mostly_instantiated_function_type (decl);
 	      type = TREE_TYPE (fn_type);
 	    }
+	  else if (FNDECL_USED_AUTO (decl))
+	    type = (DECL_STRUCT_FUNCTION (decl)->language
+		    ->x_auto_return_pattern);
 	  else
 	    type = DECL_CONV_FN_TYPE (decl);
 	  write_conversion_operator_name (type);
@@ -1277,10 +1280,21 @@ write_unqualified_name (const tree decl)
         write_source_name (DECL_NAME (decl));
     }
 
-  tree attrs = (TREE_CODE (decl) == TYPE_DECL
-		? TYPE_ATTRIBUTES (TREE_TYPE (decl))
-		: DECL_ATTRIBUTES (decl));
-  write_abi_tags (lookup_attribute ("abi_tag", attrs));
+  /* We use the ABI tags from the primary template, ignoring tags on any
+     specializations.  This is necessary because C++ doesn't require a
+     specialization to be declared before it is used unless the use
+     requires a complete type, but we need to get the tags right on
+     incomplete types as well.  */
+  if (tree tmpl = most_general_template (decl))
+    decl = DECL_TEMPLATE_RESULT (tmpl);
+  /* Don't crash on an unbound class template.  */
+  if (decl)
+    {
+      tree attrs = (TREE_CODE (decl) == TYPE_DECL
+		    ? TYPE_ATTRIBUTES (TREE_TYPE (decl))
+		    : DECL_ATTRIBUTES (decl));
+      write_abi_tags (lookup_attribute ("abi_tag", attrs));
+    }
 }
 
 /* Write the unqualified-name for a conversion operator to TYPE.  */
@@ -3482,6 +3496,7 @@ mangle_decl (const tree decl)
 
   if (G.need_abi_warning
       /* Don't do this for a fake symbol we aren't going to emit anyway.  */
+      && TREE_CODE (decl) != TYPE_DECL
       && !DECL_MAYBE_IN_CHARGE_CONSTRUCTOR_P (decl)
       && !DECL_MAYBE_IN_CHARGE_DESTRUCTOR_P (decl))
     {

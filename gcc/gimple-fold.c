@@ -114,6 +114,7 @@ can_refer_decl_in_current_unit_p (tree decl, tree from_decl)
      unit may be in separate DSO and the symbol may be hidden.  */
   if (DECL_VISIBILITY_SPECIFIED (decl)
       && DECL_EXTERNAL (decl)
+      && DECL_VISIBILITY (decl) != VISIBILITY_DEFAULT
       && (!(snode = symtab_get_node (decl)) || !snode->in_other_partition))
     return false;
   /* When function is public, we always can introduce new reference.
@@ -1071,74 +1072,6 @@ gimple_fold_builtin (gimple stmt)
 }
 
 
-/* Return a binfo to be used for devirtualization of calls based on an object
-   represented by a declaration (i.e. a global or automatically allocated one)
-   or NULL if it cannot be found or is not safe.  CST is expected to be an
-   ADDR_EXPR of such object or the function will return NULL.  Currently it is
-   safe to use such binfo only if it has no base binfo (i.e. no ancestors)
-   EXPECTED_TYPE is type of the class virtual belongs to.  */
-
-tree
-gimple_extract_devirt_binfo_from_cst (tree cst, tree expected_type)
-{
-  HOST_WIDE_INT offset, size, max_size;
-  tree base, type, binfo;
-  bool last_artificial = false;
-
-  if (!flag_devirtualize
-      || TREE_CODE (cst) != ADDR_EXPR
-      || TREE_CODE (TREE_TYPE (TREE_TYPE (cst))) != RECORD_TYPE)
-    return NULL_TREE;
-
-  cst = TREE_OPERAND (cst, 0);
-  base = get_ref_base_and_extent (cst, &offset, &size, &max_size);
-  type = TREE_TYPE (base);
-  if (!DECL_P (base)
-      || max_size == -1
-      || max_size != size
-      || TREE_CODE (type) != RECORD_TYPE)
-    return NULL_TREE;
-
-  /* Find the sub-object the constant actually refers to and mark whether it is
-     an artificial one (as opposed to a user-defined one).  */
-  while (true)
-    {
-      HOST_WIDE_INT pos, size;
-      tree fld;
-
-      if (types_same_for_odr (type, expected_type))
-	break;
-      if (offset < 0)
-	return NULL_TREE;
-
-      for (fld = TYPE_FIELDS (type); fld; fld = DECL_CHAIN (fld))
-	{
-	  if (TREE_CODE (fld) != FIELD_DECL)
-	    continue;
-
-	  pos = int_bit_position (fld);
-	  size = tree_to_uhwi (DECL_SIZE (fld));
-	  if (pos <= offset && (pos + size) > offset)
-	    break;
-	}
-      if (!fld || TREE_CODE (TREE_TYPE (fld)) != RECORD_TYPE)
-	return NULL_TREE;
-
-      last_artificial = DECL_ARTIFICIAL (fld);
-      type = TREE_TYPE (fld);
-      offset -= pos;
-    }
-  /* Artificial sub-objects are ancestors, we do not want to use them for
-     devirtualization, at least not here.  */
-  if (last_artificial)
-    return NULL_TREE;
-  binfo = TYPE_BINFO (type);
-  if (!binfo || BINFO_N_BASE_BINFOS (binfo) > 0)
-    return NULL_TREE;
-  else
-    return binfo;
-}
-
 /* Attempt to fold a call statement referenced by the statement iterator GSI.
    The statement may be replaced by another statement, e.g., if the call
    simplifies to a constant value. Return true if any changes were made.
@@ -1220,8 +1153,13 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 		    {
 		      tree var = create_tmp_var (TREE_TYPE (lhs), NULL);
 		      tree def = get_or_create_ssa_default_def (cfun, var);
-		      gsi_insert_before (gsi, new_stmt, GSI_SAME_STMT);
+
+		      /* To satisfy condition for
+			 cgraph_update_edges_for_call_stmt_node,
+			 we need to preserve GIMPLE_CALL statement
+			 at position of GSI iterator.  */
 		      update_call_from_tree (gsi, def);
+		      gsi_insert_before (gsi, new_stmt, GSI_NEW_STMT);
 		    }
 		  else
 		    gsi_replace (gsi, new_stmt, true);
@@ -1247,6 +1185,63 @@ gimple_fold_call (gimple_stmt_iterator *gsi, bool inplace)
 	}
       else if (gimple_call_builtin_p (stmt, BUILT_IN_MD))
 	changed |= targetm.gimple_fold_builtin (gsi);
+    }
+  else if (gimple_call_internal_p (stmt))
+    {
+      enum tree_code subcode = ERROR_MARK;
+      tree result = NULL_TREE;
+      switch (gimple_call_internal_fn (stmt))
+	{
+	case IFN_BUILTIN_EXPECT:
+	  result = fold_builtin_expect (gimple_location (stmt),
+					gimple_call_arg (stmt, 0),
+					gimple_call_arg (stmt, 1),
+					gimple_call_arg (stmt, 2));
+	  break;
+	case IFN_UBSAN_CHECK_ADD:
+	  subcode = PLUS_EXPR;
+	  break;
+	case IFN_UBSAN_CHECK_SUB:
+	  subcode = MINUS_EXPR;
+	  break;
+	case IFN_UBSAN_CHECK_MUL:
+	  subcode = MULT_EXPR;
+	  break;
+	default:
+	  break;
+	}
+      if (subcode != ERROR_MARK)
+	{
+	  tree arg0 = gimple_call_arg (stmt, 0);
+	  tree arg1 = gimple_call_arg (stmt, 1);
+	  /* x = y + 0; x = y - 0; x = y * 0; */
+	  if (integer_zerop (arg1))
+	    result = subcode == MULT_EXPR
+		     ? build_zero_cst (TREE_TYPE (arg0))
+		     : arg0;
+	  /* x = 0 + y; x = 0 * y; */
+	  else if (subcode != MINUS_EXPR && integer_zerop (arg0))
+	    result = subcode == MULT_EXPR
+		     ? build_zero_cst (TREE_TYPE (arg0))
+		     : arg1;
+	  /* x = y - y; */
+	  else if (subcode == MINUS_EXPR && operand_equal_p (arg0, arg1, 0))
+	    result = build_zero_cst (TREE_TYPE (arg0));
+	  /* x = y * 1; x = 1 * y; */
+	  else if (subcode == MULT_EXPR)
+	    {
+	      if (integer_onep (arg1))
+		result = arg0;
+	      else if (integer_onep (arg0))
+		result = arg1;
+	    }
+	}
+      if (result)
+	{
+	  if (!update_call_from_tree (gsi, result))
+	    gimplify_and_update_call_from_tree (gsi, result);
+	  changed = true;
+	}
     }
 
   return changed;
@@ -2736,15 +2731,32 @@ gimple_fold_stmt_to_constant_1 (gimple stmt, tree (*valueize) (tree))
 	      default:
 		return NULL_TREE;
 	      }
-	    tree op0 = (*valueize) (gimple_call_arg (stmt, 0));
-	    tree op1 = (*valueize) (gimple_call_arg (stmt, 1));
+	    tree arg0 = gimple_call_arg (stmt, 0);
+	    tree arg1 = gimple_call_arg (stmt, 1);
+	    tree op0 = (*valueize) (arg0);
+	    tree op1 = (*valueize) (arg1);
 
 	    if (TREE_CODE (op0) != INTEGER_CST
 		|| TREE_CODE (op1) != INTEGER_CST)
-	      return NULL_TREE;
-	    tree res = fold_binary_loc (loc, subcode,
-					TREE_TYPE (gimple_call_arg (stmt, 0)),
-					op0, op1);
+	      {
+		switch (subcode)
+		  {
+		  case MULT_EXPR:
+		    /* x * 0 = 0 * x = 0 without overflow.  */
+		    if (integer_zerop (op0) || integer_zerop (op1))
+		      return build_zero_cst (TREE_TYPE (arg0));
+		    break;
+		  case MINUS_EXPR:
+		    /* y - y = 0 without overflow.  */
+		    if (operand_equal_p (op0, op1, 0))
+		      return build_zero_cst (TREE_TYPE (arg0));
+		    break;
+		  default:
+		    break;
+		  }
+	      }
+	    tree res
+	      = fold_binary_loc (loc, subcode, TREE_TYPE (arg0), op0, op1);
 	    if (res
 		&& TREE_CODE (res) == INTEGER_CST
 		&& !TREE_OVERFLOW (res))
@@ -3236,40 +3248,40 @@ fold_const_aggregate_ref (tree t)
   return fold_const_aggregate_ref_1 (t, NULL);
 }
 
-/* Return a declaration of a function which an OBJ_TYPE_REF references. TOKEN
-   is integer form of OBJ_TYPE_REF_TOKEN of the reference expression.
-   KNOWN_BINFO carries the binfo describing the true type of
-   OBJ_TYPE_REF_OBJECT(REF).  */
+/* Lookup virtual method with index TOKEN in a virtual table V
+   at OFFSET.  
+   Set CAN_REFER if non-NULL to false if method
+   is not referable or if the virtual table is ill-formed (such as rewriten
+   by non-C++ produced symbol). Otherwise just return NULL in that calse.  */
 
 tree
-gimple_get_virt_method_for_binfo (HOST_WIDE_INT token, tree known_binfo)
+gimple_get_virt_method_for_vtable (HOST_WIDE_INT token,
+				   tree v,
+				   unsigned HOST_WIDE_INT offset,
+				   bool *can_refer)
 {
-  unsigned HOST_WIDE_INT offset, size;
-  tree v, fn, vtable, init;
+  tree vtable = v, init, fn;
+  unsigned HOST_WIDE_INT size;
+  unsigned HOST_WIDE_INT elt_size, access_index;
+  tree domain_type;
 
-  vtable = v = BINFO_VTABLE (known_binfo);
-  /* If there is no virtual methods table, leave the OBJ_TYPE_REF alone.  */
-  if (!v)
-    return NULL_TREE;
+  if (can_refer)
+    *can_refer = true;
 
-  if (TREE_CODE (v) == POINTER_PLUS_EXPR)
-    {
-      offset = tree_to_uhwi (TREE_OPERAND (v, 1)) * BITS_PER_UNIT;
-      v = TREE_OPERAND (v, 0);
-    }
-  else
-    offset = 0;
-
-  if (TREE_CODE (v) != ADDR_EXPR)
-    return NULL_TREE;
-  v = TREE_OPERAND (v, 0);
-
+  /* First of all double check we have virtual table.  */
   if (TREE_CODE (v) != VAR_DECL
       || !DECL_VIRTUAL_P (v))
-    return NULL_TREE;
+    {
+      gcc_assert (in_lto_p);
+      /* Pass down that we lost track of the target.  */
+      if (can_refer)
+	*can_refer = false;
+      return NULL_TREE;
+    }
+
   init = ctor_for_folding (v);
 
-  /* The virtual tables should always be born with constructors.
+  /* The virtual tables should always be born with constructors
      and we always should assume that they are avaialble for
      folding.  At the moment we do not stream them in all cases,
      but it should never happen that ctor seem unreachable.  */
@@ -3277,26 +3289,68 @@ gimple_get_virt_method_for_binfo (HOST_WIDE_INT token, tree known_binfo)
   if (init == error_mark_node)
     {
       gcc_assert (in_lto_p);
+      /* Pass down that we lost track of the target.  */
+      if (can_refer)
+	*can_refer = false;
       return NULL_TREE;
     }
   gcc_checking_assert (TREE_CODE (TREE_TYPE (v)) == ARRAY_TYPE);
   size = tree_to_uhwi (TYPE_SIZE (TREE_TYPE (TREE_TYPE (v))));
+  offset *= BITS_PER_UNIT;
   offset += token * size;
-  fn = fold_ctor_reference (TREE_TYPE (TREE_TYPE (v)), init,
-			    offset, size, v);
-  if (!fn || integer_zerop (fn))
-    return NULL_TREE;
-  gcc_assert (TREE_CODE (fn) == ADDR_EXPR
-	      || TREE_CODE (fn) == FDESC_EXPR);
-  fn = TREE_OPERAND (fn, 0);
-  gcc_assert (TREE_CODE (fn) == FUNCTION_DECL);
 
-  /* When cgraph node is missing and function is not public, we cannot
-     devirtualize.  This can happen in WHOPR when the actual method
-     ends up in other partition, because we found devirtualization
-     possibility too late.  */
-  if (!can_refer_decl_in_current_unit_p (fn, vtable))
-    return NULL_TREE;
+  /* Lookup the value in the constructor that is assumed to be array.
+     This is equivalent to
+     fn = fold_ctor_reference (TREE_TYPE (TREE_TYPE (v)), init,
+			       offset, size, NULL);
+     but in a constant time.  We expect that frontend produced a simple
+     array without indexed initializers.  */
+
+  gcc_checking_assert (TREE_CODE (TREE_TYPE (init)) == ARRAY_TYPE);
+  domain_type = TYPE_DOMAIN (TREE_TYPE (init));
+  gcc_checking_assert (integer_zerop (TYPE_MIN_VALUE (domain_type)));
+  elt_size = tree_to_uhwi (TYPE_SIZE_UNIT (TREE_TYPE (TREE_TYPE (init))));
+
+  access_index = offset / BITS_PER_UNIT / elt_size;
+  gcc_checking_assert (offset % (elt_size * BITS_PER_UNIT) == 0);
+
+  /* This code makes an assumption that there are no 
+     indexed fileds produced by C++ FE, so we can directly index the array. */
+  if (access_index < CONSTRUCTOR_NELTS (init))
+    {
+      fn = CONSTRUCTOR_ELT (init, access_index)->value;
+      gcc_checking_assert (!CONSTRUCTOR_ELT (init, access_index)->index);
+      STRIP_NOPS (fn);
+    }
+  else
+    fn = NULL;
+
+  /* For type inconsistent program we may end up looking up virtual method
+     in virtual table that does not contain TOKEN entries.  We may overrun
+     the virtual table and pick up a constant or RTTI info pointer.
+     In any case the call is undefined.  */
+  if (!fn
+      || (TREE_CODE (fn) != ADDR_EXPR && TREE_CODE (fn) != FDESC_EXPR)
+      || TREE_CODE (TREE_OPERAND (fn, 0)) != FUNCTION_DECL)
+    fn = builtin_decl_implicit (BUILT_IN_UNREACHABLE);
+  else
+    {
+      fn = TREE_OPERAND (fn, 0);
+
+      /* When cgraph node is missing and function is not public, we cannot
+	 devirtualize.  This can happen in WHOPR when the actual method
+	 ends up in other partition, because we found devirtualization
+	 possibility too late.  */
+      if (!can_refer_decl_in_current_unit_p (fn, vtable))
+	{
+	  if (can_refer)
+	    {
+	      *can_refer = false;
+	      return fn;
+	    }
+	  return NULL_TREE;
+	}
+    }
 
   /* Make sure we create a cgraph node for functions we'll reference.
      They can be non-existent if the reference comes from an entry
@@ -3304,6 +3358,35 @@ gimple_get_virt_method_for_binfo (HOST_WIDE_INT token, tree known_binfo)
   cgraph_get_create_node (fn);
 
   return fn;
+}
+
+/* Return a declaration of a function which an OBJ_TYPE_REF references. TOKEN
+   is integer form of OBJ_TYPE_REF_TOKEN of the reference expression.
+   KNOWN_BINFO carries the binfo describing the true type of
+   OBJ_TYPE_REF_OBJECT(REF).
+   Set CAN_REFER if non-NULL to false if method
+   is not referable or if the virtual table is ill-formed (such as rewriten
+   by non-C++ produced symbol). Otherwise just return NULL in that calse.  */
+
+tree
+gimple_get_virt_method_for_binfo (HOST_WIDE_INT token, tree known_binfo,
+				  bool *can_refer)
+{
+  unsigned HOST_WIDE_INT offset;
+  tree v;
+
+  v = BINFO_VTABLE (known_binfo);
+  /* If there is no virtual methods table, leave the OBJ_TYPE_REF alone.  */
+  if (!v)
+    return NULL_TREE;
+
+  if (!vtable_pointer_value_to_vtable (v, &v, &offset))
+    {
+      if (can_refer)
+	*can_refer = false;
+      return NULL_TREE;
+    }
+  return gimple_get_virt_method_for_vtable (token, v, offset, can_refer);
 }
 
 /* Return true iff VAL is a gimple expression that is known to be
