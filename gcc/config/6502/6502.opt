@@ -39,3 +39,23 @@ Enum(processor_type) String(65c02) Value(w65c02)
 
 EnumValue
 Enum(processor_type) String(huc6280) Value(huc6280)
+
+mmach=
+Target RejectNegative ToLower Joined Enum(machine_type) Var(m65x_machine_option) Init(mach_semi65x)
+Specify the target machine
+
+Enum
+Name(machine_type) Type(enum machine_type)
+The 6502-based machine to target.
+
+EnumValue
+Enum(machine_type) String(semi65x) Value(mach_semi65x)
+
+EnumValue
+Enum(machine_type) String(bbcb) Value(mach_bbcb)
+
+EnumValue
+Enum(machine_type) String(bbcmaster) Value(mach_bbcmaster)
+
+EnumValue
+Enum(machine_type) String(c64) Value(mach_c64)
