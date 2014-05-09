@@ -140,6 +140,12 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	}
       break;
 
+    case 'm':
+      gcc_assert (GET_CODE (x) == CONST_INT && INTVAL (x) <= 0
+		  && INTVAL (x) > -256);
+      asm_fprintf (stream, "$%.2x", (int) -INTVAL (x));
+      break;
+
     default:
       switch (GET_CODE (x))
         {
@@ -825,6 +831,84 @@ static void
 m65x_asm_globalize_label (FILE *stream, const char *name)
 {
   fprintf (stream, "\t.export %s%s\n", name, strlen (name) == 1 ? "$" : "");
+}
+
+/* Handle some ca65-specific constant address quirks.  */
+
+static void
+m65x_output_addr_const (FILE *file, rtx x, unsigned int size)
+{
+ restart:
+  switch (GET_CODE (x))
+    {
+    case CONST_INT:
+      switch (size)
+	{
+	case 1:
+	  fprintf (asm_out_file, "$%.2x", (int) INTVAL (x) & 0xff);
+	  return;
+	case 2:
+	  fprintf (asm_out_file, "$%.4x", (int) INTVAL (x) & 0xffff);
+	  return;
+	case 4:
+	  fprintf (asm_out_file, "$%.8x", (int) INTVAL (x) & 0xffffffff);
+	  return;
+	}
+      break;
+
+    /* Directives like ".word L1-L2" yielding a negative result confuse ca65.
+       Work around that here.  This is derived from the code in final.c.  */
+    case MINUS:
+      x = simplify_subtraction (x);
+      if (GET_CODE (x) != MINUS)
+        goto restart;
+      fputs (targetm.asm_out.open_paren, asm_out_file);
+      output_addr_const (asm_out_file, XEXP (x, 0));
+      fprintf (asm_out_file, "-");
+      if ((CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) >= 0)
+	  || GET_CODE (XEXP (x, 1)) == PC
+	  || GET_CODE (XEXP (x, 1)) == SYMBOL_REF)
+	output_addr_const (asm_out_file, XEXP (x, 1));
+      else
+        {
+	  fputs (targetm.asm_out.open_paren, asm_out_file);
+	  output_addr_const (asm_out_file, XEXP (x, 1));
+	  fputs (targetm.asm_out.close_paren, asm_out_file);
+	}
+      fputs (targetm.asm_out.close_paren, asm_out_file);
+      switch (size)
+        {
+	case 1:
+	  fputs (" & $ff", asm_out_file);
+	  return;
+	case 2:
+	  fputs (" & $ffff", asm_out_file);
+	  return;
+	case 4:
+	  fputs (" & $ffffffff", asm_out_file);
+	  return;
+	default:
+	  gcc_unreachable ();
+	}
+      break;
+    }
+
+  output_addr_const (file, x);
+}
+
+static bool
+m65x_asm_integer (rtx x, unsigned int size, int aligned_p ATTRIBUTE_UNUSED)
+{
+  const char *op = integer_asm_op (size, aligned_p);
+
+  if (!op)
+    return false;
+
+  fputs (op, asm_out_file);
+  m65x_output_addr_const (asm_out_file, x, size);
+  fputc ('\n', asm_out_file);
+
+  return true;
 }
 
 static void
@@ -1807,6 +1891,9 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
+
+#undef TARGET_ASM_INTEGER
+#define TARGET_ASM_INTEGER m65x_asm_integer
 
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION m65x_asm_named_section
