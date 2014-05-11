@@ -630,7 +630,19 @@ typedef int CUMULATIVE_ARGS;
 
 /* Hard-wire the semi65x linker script for now.  */
 #undef LINK_SPEC
-#define LINK_SPEC "--config %R/lib/cc65/cfg/semi65x.cfg"
+#define LINK_SPEC \
+  "%{mmach=bbcb:--config %R/lib/cc65/cfg/bbcb.cfg;"		\
+  "  mmach=bbcmaster:--config %R/lib/cc65/cfg/bbcmaster.cfg;"	\
+  "  mmach=c64:--config %R/lib/cc65/cfg/c64.cfg;"		\
+  "  mmach=semi65x:--config %R/lib/cc65/cfg/semi65x.cfg;"	\
+  "  :--config %R/lib/cc65/cfg/semi65x.cfg}"
+
+#undef SYSROOT_SUFFIX_SPEC
+#define SYSROOT_SUFFIX_SPEC \
+  "%{mmach=bbcb:/bbcb} " \
+  "%{mmach=bbcmaster:/bbcm} " \
+  "%{mmach=c64:/c64} " \
+  "%{mmach=semi65x:}"
 
 extern const char *m65x_fix_dash_l_libs (int argc, const char **argv);
 
