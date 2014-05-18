@@ -51,5 +51,12 @@ nobss:
 	jsr main
 	; Retrieve exit code
 	lda _r0
+#ifdef __SEMI65X__
 	; This is a special hack to exit the semi65x emulator.
 	jmp 0
+#elif defined(__BBCMICRO__) || defined(__C64__)
+	; Return to caller
+	rts
+#else
+#error "Don't know how to exit on this machine"
+#endif
