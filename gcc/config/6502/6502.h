@@ -46,6 +46,17 @@
       builtin_define ("__CMOS__");		\
   } while (0)
 
+#define TARGET_OS_CPP_BUILTINS()			\
+  do {							\
+    if (m65x_machine_option == mach_semi65x)		\
+      builtin_define ("__SEMI65X__");			\
+    else if (m65x_machine_option == mach_bbcb		\
+	     || m65x_machine_option == mach_bbcmaster)	\
+      builtin_define ("__BBCMICRO__");			\
+    else if (m65x_machine_option == mach_c64)		\
+      builtin_define ("__C64__");			\
+  } while (0)
+
 /*****************************************************************************
  * Storage layout.
  *****************************************************************************/
