@@ -8,11 +8,12 @@
 	.import main
 	.import __BSS_RUN__
 	.import __BSS_SIZE__
+	.import __STACKTOP__
 
 	.segment "STARTUP"
-	lda #<$ffe0
+	lda #<__STACKTOP__
 	sta _sp0
-	lda #>$ffe0
+	lda #>__STACKTOP__
 	sta _sp1
 	; Clear BSS.
 	lda #<__BSS_RUN__
