@@ -665,6 +665,16 @@ __nesf2:
 	rts
 #endif
 
-/*#if defined(L_addsf3) || defined(L_subsf3)
+#ifdef L_addsf3
 #include "addsf3.S"
-#endif*/
+#endif
+
+#ifdef L_subsf3
+	.import __addsf3
+	.export __subsf3
+__subsf3:
+	lda _r6
+	eor #$80
+	sta _r6
+	jmp __addsf3
+#endif
