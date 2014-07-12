@@ -26,7 +26,8 @@ LIB1ASMFUNCS =	\
   _nesf2	\
   _addsf3	\
   _subsf3	\
-  _mulsf3
+  _mulsf3	\
+  _divsf3
 
 LIB2ADDEH =
 
