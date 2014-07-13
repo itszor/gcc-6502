@@ -857,6 +857,13 @@ done:
 	.import _m65x_renormalize_left
 	.export __divsf3
 __divsf3:
+	lda _s2
+	pha
+	lda _s1
+	pha
+	lda _s0
+	pha
+
 	lda _r2
 	eor _r6
 	and #$80
@@ -1035,5 +1042,185 @@ done:
 	lda _m65x_fpe0_exp
 	sta _r3
 	
+	pla
+	sta _s0
+	pla
+	sta _s1
+	pla
+	sta _s2
+	
+	rts
+#endif
+
+#ifdef L_fixsfsi
+	.import __fixunssfsi
+	.export __fixsfsi
+__fixsfsi:
+	lda _r2
+	and #$80
+	sta _m65x_fpe0_sign
+	
+	jsr __fixunssfsi
+
+	lda _m65x_fpe0_sign
+	bpl not_negative
+	ldx #0
+	txa
+	sec
+	sbc _r0
+	sta _r0
+	txa
+	sbc _r1
+	sta _r1
+	txa
+	sbc _r2
+	sta _r2
+	txa
+	sbc _r3
+	sta _r3
+not_negative:
+
+	rts
+#endif
+
+#ifdef L_fixunssfsi
+	.export __fixunssfsi
+__fixunssfsi:
+	lda _r2
+	and #$7f
+	ldx _r3
+	beq a_exp_zero
+	ora #$80
+a_exp_zero:
+	sta _r2
+	stx _m65x_fpe0_exp
+	
+	cpx #127
+	bcs over_one
+	lda #0
+	sta _r0
+	sta _r1
+	sta _r2
+	sta _r3
+	rts
+over_one:
+	
+	; r3 is part of the result now.
+	lda #0
+	sta _r3
+	
+	.scope
+	lda #150
+	sec
+	sbc _m65x_fpe0_exp
+	bcc shift_left
+	; shifting right by 'A' places
+	tax
+	beq exit
+right_shift_loop:
+	lsr _r3
+	ror _r2
+	ror _r1
+	ror _r0
+	dex
+	bne right_shift_loop
+exit:
+	rts
+shift_left:
+	eor #$ff
+	tax
+	inx
+left_shift_loop:
+	asl _r0
+	rol _r1
+	rol _r2
+	rol _r3
+	dex
+	bne left_shift_loop
+	.endscope
+	
+	rts
+#endif
+
+#ifdef L_floatunssisf
+	.import _m65x_renormalize_left
+	.import _m65x_renormalize_right
+	.export __floatunssisf
+__floatunssisf:
+	; All zero, just return zero.
+	lda _r0
+	ora _r1
+	ora _r2
+	ora _r3
+	bne notzero
+	rts
+notzero:
+
+	lda #150
+	sta _m65x_fpe0_exp
+	lda #0
+	sta _m65x_fpe0_mant
+
+	lda _r0
+	sta _m65x_fpe0_mant+1
+	lda _r1
+	sta _m65x_fpe0_mant+2
+	ldx _r2
+	stx _m65x_fpe0_mant+3
+	lda _r3
+	sta _m65x_fpe0_mant+4
+
+	bne rightshift
+	cpx #$80
+	bcs rightshift
+	; We need to shift left until the mantissa is normalized.
+	jsr _m65x_renormalize_left
+	jmp repack
+rightshift:
+	jsr _m65x_renormalize_right
+repack:
+	
+	lda _m65x_fpe0_mant+1
+	sta _r0
+	lda _m65x_fpe0_mant+2
+	sta _r1
+	lda _m65x_fpe0_mant+3
+	and #$7f
+	sta _r2
+	lda _m65x_fpe0_exp
+	sta _r3
+	
+	rts
+#endif
+
+#ifdef L_floatsisf
+	.import __floatunssisf
+	.export __floatsisf
+__floatsisf:
+	lda _r3
+	and #$80
+	sta _m65x_fpe0_sign
+	bpl not_negative
+	ldx #0
+	txa
+	sec
+	sbc _r0
+	sta _r0
+	txa
+	sbc _r1
+	sta _r1
+	txa
+	sbc _r2
+	sta _r2
+	txa
+	sbc _r3
+	sta _r3
+not_negative:
+	jsr __floatunssisf
+	
+	lda _r2
+	ora _m65x_fpe0_sign
+	sta _r2
+
 	rts
 #endif
