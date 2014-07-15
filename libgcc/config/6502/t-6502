@@ -36,7 +36,7 @@ LIB1ASMFUNCS =	\
   _fixsfsi	\
   _fixunssfsi	\
   _floatsisf	\
-  _floatunssisf
+  _floatunsisf
 
 LIB2ADDEH =
 
