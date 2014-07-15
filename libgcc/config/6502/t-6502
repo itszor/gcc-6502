@@ -1,8 +1,11 @@
 LIB1ASMSRC = 6502/lib1funcs.S
+# NOTE: _fixunssfdi is here because the C implementation in libgcc2.c does not
+# build on this system. It's not actually used (or implemented).
 LIB1ASMFUNCS =	\
   _bswapsi2	\
   _bswapdi2	\
   _fixunssfdi	\
+  _negsi2	\
   _ashlqi3	\
   _lshrqi3	\
   _ashrqi3	\
@@ -18,6 +21,8 @@ LIB1ASMFUNCS =	\
   _umodqi3	\
   _udivsi3	\
   _umodsi3	\
+  _divsi3	\
+  _modsi3	\
   _ltsf2	\
   _gesf2	\
   _gtsf2	\

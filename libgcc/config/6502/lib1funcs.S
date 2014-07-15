@@ -46,17 +46,18 @@ loop:
 #ifdef L_negsi2
 	.export __negsi2
 __negsi2:
-	lda #0
+	ldx #0
+	txa
 	sec
 	sbc _r0
 	sta _r0
-	lda #0
+	txa
 	sbc _r1
 	sta _r1
-	lda #0
+	txa
 	sbc _r2
 	sta _r2
-	lda #0
+	txa
 	sbc _r3
 	sta _r3
 	rts
@@ -490,6 +491,82 @@ __umodsi3:
 	sta _r2
 	lda _r7
 	sta _r3
+	rts
+#endif
+
+#ifdef L_divsi3
+	.import __udivsi3
+	.import __negsi2
+	.export __divsi3
+__divsi3:
+	lda _r3
+	eor _r7
+	pha
+	
+	lda _r3
+	bpl numerator_positive
+	jsr __negsi2
+numerator_positive:
+	lda _r7
+	bpl denominator_positive
+	ldx #0
+	txa
+	sec
+	sbc _r4
+	sta _r4
+	txa
+	sbc _r5
+	sta _r5
+	txa
+	sbc _r6
+	sta _r6
+	txa
+	sbc _r7
+	sta _r7
+denominator_positive:
+	jsr __divsi3
+	pla
+	bpl result_positive
+	; tailcall
+	jmp __negsi2
+result_positive:
+	rts
+#endif
+
+#ifdef L_modsi3
+	.import __umodsi3
+	.import __negsi2
+	.export __modsi3
+__modsi3:
+	lda _r3
+	pha
+	
+	bpl numerator_positive
+	jsr __negsi2
+numerator_positive:
+	lda _r7
+	bpl denominator_positive
+	ldx #0
+	txa
+	sec
+	sbc _r4
+	sta _r4
+	txa
+	sbc _r5
+	sta _r5
+	txa
+	sbc _r6
+	sta _r6
+	txa
+	sbc _r7
+	sta _r7
+denominator_positive:
+	jsr __umodsi3
+	pla
+	bpl result_positive
+	; tailcall
+	jmp __negsi2
+result_positive:
 	rts
 #endif
 
