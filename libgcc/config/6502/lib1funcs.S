@@ -1219,11 +1219,11 @@ left_shift_loop:
 	rts
 #endif
 
-#ifdef L_floatunssisf
+#ifdef L_floatunsisf
 	.import _m65x_renormalize_left
 	.import _m65x_renormalize_right
-	.export __floatunssisf
-__floatunssisf:
+	.export __floatunsisf
+__floatunsisf:
 	; All zero, just return zero.
 	lda _r0
 	ora _r1
@@ -1271,7 +1271,7 @@ repack:
 #endif
 
 #ifdef L_floatsisf
-	.import __floatunssisf
+	.import __floatunsisf
 	.export __floatsisf
 __floatsisf:
 	lda _r3
@@ -1293,7 +1293,7 @@ __floatsisf:
 	sbc _r3
 	sta _r3
 not_negative:
-	jsr __floatunssisf
+	jsr __floatunsisf
 	
 	lda _r2
 	ora _m65x_fpe0_sign
