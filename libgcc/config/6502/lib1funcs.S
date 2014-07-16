@@ -43,6 +43,51 @@ loop:
 	rts
 #endif
 
+#ifdef L_cmpsi2
+	.export __cmpsi2
+__cmpsi2:
+	lda _r0
+	cmp _r4
+	lda _r1
+	sbc _r5
+	lda _r2
+	sbc _r6
+	lda _r3
+	sbc _r7
+	bvc no_ov
+	eor #$80
+no_ov:
+	bmi less
+	lda _r0
+	cmp _r4
+	bne greater
+	lda _r1
+	cmp _r5
+	bne greater
+	lda _r2
+	cmp _r6
+	bne greater
+	lda _r3
+	cmp _r7
+	bne greater
+	lda #1
+	sta _r0
+	lda #0
+	sta _r1
+	rts
+greater:
+	lda #2
+	sta _r0
+	lda #0
+	sta _r1
+	rts
+less:
+	lda #0
+	sta _r0
+	sta _r1
+	rts
+#endif
+
 #ifdef L_negsi2
 	.export __negsi2
 __negsi2:

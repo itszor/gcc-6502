@@ -5,6 +5,7 @@ LIB1ASMFUNCS =	\
   _bswapsi2	\
   _bswapdi2	\
   _fixunssfdi	\
+  _cmpsi2	\
   _negsi2	\
   _ashlqi3	\
   _lshrqi3	\
