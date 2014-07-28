@@ -221,6 +221,10 @@
   (ior (match_operand 0 "register_operand")
        (match_operand 0 "const_mem_operand")))
 
+(define_predicate "zp_memory_operand"
+  (and (match_operand 0 "memory_operand")
+       (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP")))
+
 (define_predicate "symlab_ref_operand"
   (match_code "label_ref,symbol_ref"))
 
