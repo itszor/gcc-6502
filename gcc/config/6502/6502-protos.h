@@ -10,11 +10,15 @@ extern int m65x_mode_dependent_address_p (rtx);
 extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
 extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);
 extern bool m65x_valid_mov_operands (enum machine_mode mode, rtx *operands);
+extern bool m65x_valid_zp_mov_operands (enum machine_mode mode, rtx *operands);
 extern bool m65x_indirect_indexed_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_indirect_offset_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_absolute_indexed_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_absolute_x_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_absolute_y_addr_p (enum machine_mode, rtx, bool);
+extern bool m65x_zeropage_indexed_addr_p (enum machine_mode, rtx, bool);
+extern bool m65x_zeropage_x_addr_p (enum machine_mode, rtx, bool);
+extern bool m65x_zeropage_y_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_legitimate_address_p (enum machine_mode mode, rtx, bool);
 extern rtx m65x_adjust_address (rtx, enum machine_mode, HOST_WIDE_INT);
 extern rtx m65x_legitimize_reload_address (rtx *, enum machine_mode, int, int,
