@@ -365,10 +365,21 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
 
-#define BASE_REG_CLASS	GENERAL_REGS
+/*#define BASE_REG_CLASS	GENERAL_REGS*/
+
+#define MODE_CODE_BASE_REG_CLASS(MODE, AS, OUTER, INDEX)		\
+  ((AS) == ADDR_SPACE_GENERIC ? GENERAL_REGS				\
+   : (AS) == ADDR_SPACE_ZP ? HARD_INDEX_REGS				\
+   : NO_REGS)
+
 #define INDEX_REG_CLASS	HARD_Y_REG
 
-#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))
+/*#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))*/
+
+#define REGNO_MODE_CODE_OK_FOR_BASE_P(NUM, MODE, AS, OUTER, INDEX)	 \
+  ((AS) == ADDR_SPACE_GENERIC ? IS_ZP_REGNUM (NUM)			 \
+   : (AS) == ADDR_SPACE_ZP ? ((NUM) == X_REGNUM || (NUM) == Y_REGNUM)	 \
+   : 0)
 
 #define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == Y_REGNUM)
 
@@ -608,6 +619,17 @@ typedef int CUMULATIVE_ARGS;
 #undef NO_DOLLAR_IN_LABEL
 
 #define NO_DOT_IN_LABEL
+
+/*****************************************************************************
+ * Named Address Spaces
+ *****************************************************************************/
+
+#define ADDR_SPACE_ZP 1
+
+#define REGISTER_TARGET_PRAGMAS()			\
+  do {							\
+    c_register_addr_space ("__zp", ADDR_SPACE_ZP);	\
+  } while (0)
 
 /*****************************************************************************
  * Misc.
