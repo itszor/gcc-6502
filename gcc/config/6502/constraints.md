@@ -129,3 +129,22 @@
   "An indirect mem."
   (and (match_code "mem")
        (match_test "REG_P (XEXP (op, 0))")))
+
+(define_constraint "ZX"
+  "A zero page,X mem."
+  (and (match_code "mem")
+       (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
+		    && m65x_zeropage_x_addr_p (mode, XEXP (op, 0), false)")))
+
+(define_constraint "ZY"
+  "A zero page,Y mem."
+  (and (match_code "mem")
+       (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
+		    && m65x_zeropage_y_addr_p (mode, XEXP (op, 0), false)")))
+
+(define_constraint "Zj"
+  "A zero page,[xy] mem."
+  (and (match_code "mem")
+       (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
+		    && m65x_zeropage_indexed_addr_p (mode, XEXP (op, 0),
+						     false)")))
