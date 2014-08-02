@@ -288,6 +288,9 @@
 (define_special_predicate "qimode_nz_comparison"
   (match_code "eq,ne,lt,ge"))
 
+(define_special_predicate "qimode_c_comparison"
+  (match_code "eq,ne"))
+
 (define_predicate "compareqi_src_operand"
   (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
 {
