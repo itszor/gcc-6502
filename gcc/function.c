@@ -1888,6 +1888,13 @@ static unsigned int
 instantiate_virtual_regs (void)
 {
   rtx insn;
+  /* FIXME: We only need to do this if instantiating virtual regs can create
+     new basic blocks (i.e. via an add<mode>3 expander).  */
+  sbitmap blocks;
+  bool any = false;
+
+  blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
+  bitmap_clear (blocks);
 
   /* Compute the offsets to use for this function.  */
   in_arg_offset = FIRST_PARM_OFFSET (current_function_decl);
@@ -1918,7 +1925,13 @@ instantiate_virtual_regs (void)
 	  for_each_rtx (&INSN_VAR_LOCATION (insn),
 			instantiate_virtual_regs_in_rtx, NULL);
 	else
-	  instantiate_virtual_regs_in_insn (insn);
+	  {
+	    basic_block bb = BLOCK_FOR_INSN (insn);
+	    gcc_assert (bb);
+	    instantiate_virtual_regs_in_insn (insn);
+	    bitmap_set_bit (blocks, bb->index);
+	    any = true;
+	  }
 
 	if (INSN_DELETED_P (insn))
 	  continue;
@@ -1930,6 +1943,11 @@ instantiate_virtual_regs (void)
 	  for_each_rtx (&CALL_INSN_FUNCTION_USAGE (insn),
 			instantiate_virtual_regs_in_rtx, NULL);
       }
+
+  if (any)
+    find_many_sub_basic_blocks (blocks);
+
+  sbitmap_free (blocks);
 
   /* Instantiate the virtual registers in the DECLs for debugging purposes.  */
   instantiate_decls (current_function_decl);
