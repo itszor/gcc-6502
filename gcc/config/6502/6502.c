@@ -1398,10 +1398,11 @@ static void
 m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 {
   rtx cmp = gen_rtx_fmt_ee (cond, VOIDmode, cc_reg, const0_rtx);
+  rtx dest_label = gen_rtx_LABEL_REF (Pmode, dest);
   rtx branch = gen_rtx_SET (VOIDmode, pc_rtx,
-		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
-		   gen_rtx_LABEL_REF (Pmode, dest), pc_rtx));
+		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp, dest_label, pc_rtx));
   rtx jmp_insn = emit_jump_insn (branch);
+  JUMP_LABEL (jmp_insn) = dest;
   if (prob != -1)
     add_int_reg_note (jmp_insn, REG_BR_PROB, prob);
 }
@@ -1414,7 +1415,7 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
   rtx new_label;
   rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
-  rtx cmpreg;
+  rtx cmpreg, label_ref, jump_insn;
 
   if (CONSTANT_P (op0))
     op0 = force_reg (QImode, op0);
@@ -1431,9 +1432,11 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
     emit_cmp:
       emit_insn (gen_compareqi (op0, op1));
       cmp = gen_rtx_fmt_ee (cond, VOIDmode, cmpreg, const0_rtx);
-      emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
-				   gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
-				     gen_rtx_LABEL_REF (Pmode, dest), pc_rtx)));
+      label_ref = gen_rtx_LABEL_REF (Pmode, dest);
+      jump_insn = emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+				    gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
+							  label_ref, pc_rtx)));
+      JUMP_LABEL (jump_insn) = dest;
       break;
 
     case LT:
@@ -1915,66 +1918,104 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
     if (reg_mentioned_p (virtual_incoming_args_rtx, operands[i]))
       operands[i] = copy_to_mode_reg (mode, operands[i]);
 
+  if (MEM_P (operands[1]) && !incdec_operand (operands[1], mode))
+    operands[1] = force_reg (mode, operands[1]);
+
   start_sequence ();
 
   acc = gen_reg_rtx (QImode);
 
-  if (REG_P (operands[0])
-      && ((operands[0] != operands[1]
-	   && reg_overlap_mentioned_p (operands[0], operands[1]))
-	  || (operands[0] != operands[2]
-	      && reg_overlap_mentioned_p (operands[0], operands[2]))))
+  if ((operands[0] != operands[1]
+       && reg_overlap_mentioned_p (operands[0], operands[1]))
+      || (operands[0] != operands[2]
+	  && reg_overlap_mentioned_p (operands[0], operands[2]))
+      || MEM_P (operands[0]) && !incdec_operand (operands[0], mode))
     dest = gen_reg_rtx (mode);
 
   /* Do subtractions of immediates as subtractions not additions with negated
-     values: then we can use DEC for the high part when the corresponding part
-     of op2 is zero.  */
+     values (as they are canonicalised): then we can use DEC for the high part
+     when the corresponding part of op2 is zero.  */
   if (add && CONST_INT_P (operands[2]) && INTVAL (operands[2]) < 0)
     {
       operands[2] = GEN_INT (-INTVAL (operands[2]));
       add = false;
     }
 
-  if (add && CONST_INT_P (operands[2]) && INTVAL (operands[2]) == 1)
+  /* Special-case multibyte decrement by 1.  */
+  if (!add && CONST_INT_P (operands[2]) && INTVAL (operands[2]) == 1)
     {
-      rtx not_zero = gen_label_rtx ();
+      rtx labels[3];
 
-      /* Special-case multi-word increment, since it can be made more
-	 efficient than general multi-word addition.  Use a sequence like:
-	     inc lo
-	     bne not_zero
-	     inc hi
-	   not_zero:  */
+      emit_move_insn (dest, operands[1]);
 
-      if (dest != operands[1])
-	emit_move_insn (dest, operands[1]);
-
-      for (i = 0; i < modesize; i++)
+      for (i = 0; i < modesize - 1; i++)
         {
-	  if (i > 0)
-	    m65x_emit_cbranchqi (NE, gen_rtx_REG (CC_NZmode, NZ_REGNUM), -1,
-				 not_zero);
+	  labels[i] = gen_label_rtx ();
 
-	  dstpart = operand_subword (dest, i, 1, mode);
 	  op1part = operand_subword (operands[1], i, 1, mode);
-	  need_clobber |= (GET_CODE (dstpart) == SUBREG);
 
-	  emit_insn (gen_incdecqi3 (dstpart, op1part, const1_rtx));
+	  emit_insn (gen_loadqi_nz (gen_reg_rtx (QImode), op1part));
+	  m65x_emit_cbranchqi (NE,
+	    gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY, labels[i]);
 	}
 
-      emit_label (not_zero);
+      for (i = modesize - 1; i >= 0; i--)
+        {
+	  dstpart = operand_subword (dest, i, 1, mode);
+
+	  if (i < modesize - 1)
+	    emit_label (labels[i]);
+	  emit_insn (gen_incdecqi3 (dstpart, dstpart, constm1_rtx));
+	}
     }
-  /*else if (CONST_INT_P (operands[2]) && INTVAL (operands[2]) == -1)
-    {
-    }*/
   else
     {
-      bool nonzero_prev = false;
-      
-      if (add)
-	emit_insn (gen_clc ());
-      else
-	emit_insn (gen_sec ());
+      bool use_incdec = false;
+      bool valid_carry = false;
+      bool valid_nz = false;
+      int ones = 0, trailing_zeros = 0;
+      rtx end_label = NULL_RTX;
+
+      if (CONST_INT_P (operands[2]))
+	{
+	  for (i = 0; i < modesize; i++)
+	    {
+	      int byte = (INTVAL (operands[2]) >> (i * 8)) & 0xff;
+
+	      if (byte == 1)
+		ones++;
+	      else if (byte != 0)
+		{
+	          ones = -1;
+		  break;
+		}
+	    }
+
+	  for (i = modesize - 1; i >= 0; i--)
+            if (((INTVAL (operands[2]) >> (i * 8)) & 0xff) == 0)
+	      trailing_zeros++;
+	    else
+	      break;
+	}
+
+      /* If we're going to use any INC/DEC instructions, they will be in-place:
+	 copying values in the middle of the add/sub sequence may destroy the NZ
+	 flags.  So, copy op1 to dest first.  */
+      if (trailing_zeros > 0)
+	{
+	  emit_move_insn (dest, operands[1]);
+	  operands[1] = dest;
+	}
+
+      /* If we're adding and there's only one 1-byte, then we'll only use
+	 increments, so no need to clear the carry flag.  */
+      if (!add || ones != 1)
+	{
+	  if (add)
+	    emit_insn (gen_clc ());
+	  else
+	    emit_insn (gen_sec ());
+	}
 
       for (i = 0; i < modesize; i++)
 	{
@@ -1993,36 +2034,78 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
 	  gcc_assert (dstpart && op1part && op2part);
 
-	  if (!CONST_INT_P (op2part) || INTVAL (op2part) != 0)
-	    nonzero_prev = true;
-
 	  need_clobber |= (GET_CODE (dstpart) == SUBREG);
 
-	  if (i + 1 == modesize && CONST_INT_P (op2part)
-	      && INTVAL (op2part) == 0)
+	  if (CONST_INT_P (op2part))
 	    {
-	      rtx no_incdec = gen_label_rtx ();
-	      emit_move_insn (dstpart, op1part);
-	      m65x_emit_cbranchqi (add ? EQ : NE,
-				   gen_rtx_REG (CC_Cmode, CARRY_REGNUM), -1,
-				   no_incdec);
-	      emit_insn (gen_incdecqi3 (dstpart, dstpart,
-					add ? const1_rtx : constm1_rtx));
-	      emit_label (no_incdec);
-	    }
-	  else
-	    {
-	      emit_move_insn (acc, op1part);
-	      if (nonzero_prev)
-		{
-		  if (add)
-		    emit_insn (gen_adcqi3_c (acc, acc, op2part));
-		  else
-		    emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+	      unsigned HOST_WIDE_INT remaining
+		= INTVAL (operands[2]) >> (i * 8);
+	      unsigned HOST_WIDE_INT thispart = INTVAL (op2part);
+	      bool last = i + 1 == modesize;
+
+	      if (thispart == 0 && !valid_carry && !valid_nz)
+	        {
+		  emit_move_insn (dstpart, op1part);
+		  continue;
 		}
-	      emit_move_insn (dstpart, acc);
+	      else if ((add || last) && !valid_carry && remaining == 1)
+		{
+		  emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+					       add ? const1_rtx : constm1_rtx));
+		  if (!last)
+		    {
+		      if (!end_label)
+		        end_label = gen_label_rtx ();
+		      m65x_emit_cbranchqi (NE,
+			gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+				     end_label);
+		    }
+		  valid_nz = add;
+		  continue;
+		}
+	      else if (valid_nz && remaining == 0)
+	        {
+		  emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+			       add ? const1_rtx : constm1_rtx));
+		  if (!last)
+		    {
+		      if (!end_label)
+		        end_label = gen_label_rtx ();
+		      m65x_emit_cbranchqi (NE,
+			gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+				     end_label);
+		    }
+		  continue;
+		}
+	      else if (last && valid_carry && remaining == 0)
+		{
+		  if (!end_label)
+		    end_label = gen_label_rtx ();
+
+		  m65x_emit_cbranchqi (add ? EQ : NE,
+		    gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
+				 end_label);
+
+		  emit_insn (gen_incdecqi3 (dstpart, dstpart,
+			       add ? const1_rtx : constm1_rtx));
+
+		  continue;
+		}
 	    }
+
+	  emit_move_insn (acc, op1part);
+	  if (add)
+	    emit_insn (gen_adcqi3_c (acc, acc, op2part));
+	  else
+	    emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+	  emit_move_insn (dstpart, acc);
+
+	  valid_carry = true;
+	  gcc_assert (!valid_nz);
 	}
+
+      if (end_label)
+	emit_label (end_label);
     }
 
   if (dest != operands[0])
@@ -2031,7 +2114,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
   seq = get_insns ();
   end_sequence ();
 
-  if (operands[0] != operands[1]
+  if (REG_P (operands[0])
+      && operands[0] != operands[1]
       && operands[0] != operands[2]
       && !(lra_in_progress || reload_in_progress || reload_completed)
       && need_clobber)
