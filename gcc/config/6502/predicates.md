@@ -95,6 +95,15 @@
 		    && REG_P (XEXP (XEXP (XEXP (op, 0), 0), 0))
 		    && REG_P (XEXP (XEXP (op, 0), 1))")))
 
+(define_predicate "abs_x_mem_operand"
+  (and (match_code "mem")
+       (match_test "m65x_absolute_x_addr_p (mode, XEXP (op, 0), false)")))
+
+(define_predicate "incdec_operand"
+  (ior (match_operand 0 "const_mem_operand")
+       (match_operand 0 "abs_x_mem_operand")
+       (match_operand 0 "register_operand")))
+
 (define_predicate "hard_sp_operand"
   (and (match_code "mem")
        (match_test "(GET_CODE (XEXP (op, 0)) == POST_DEC
@@ -275,6 +284,10 @@
 (define_predicate "const_one_amount"
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 1")))
+
+(define_predicate "one_or_minus_one_amount"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 1 || INTVAL (op) == -1")))
 
 (define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
