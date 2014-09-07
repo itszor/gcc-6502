@@ -129,6 +129,7 @@
 #include "ira.h"
 #include "rtl-error.h"
 #include "lra-int.h"
+#include "sparseset.h"
 
 /* Value of LRA_CURR_RELOAD_NUM at the beginning of BB of the current
    insn.  Remember that LRA_CURR_RELOAD_NUM is the number of emitted
@@ -719,6 +720,53 @@ narrow_reload_pseudo_class (rtx reg, enum reg_class cl)
     lra_change_class (REGNO (reg), rclass, "      Change to", true);
 }
 
+static int
+find_used_regs_1 (rtx *loc, void *data)
+{
+  bitmap ss = (bitmap) data;
+
+  if (REG_P (*loc))
+    bitmap_set_bit (ss, REGNO (*loc));
+
+  return 0;
+}
+
+static void
+find_used_regs (rtx *loc, void *ss)
+{
+  for_each_rtx (loc, find_used_regs_1, ss);
+}
+
+static void
+find_stored_regs (rtx loc, const_rtx set, void *data)
+{
+  bitmap ss = (bitmap) data;
+
+  if (GET_CODE (set) == SET && REG_P (loc))
+    bitmap_set_bit (ss, REGNO (loc));
+}
+
+static void
+uses_tiny_classes_1 (rtx *loc, void *data)
+{
+  bool *b = (bool *) data;
+
+  /* FIXME: This is of course target-specific.  */
+  if (MEM_P (*loc) && GET_CODE (XEXP (*loc, 0)) == PLUS
+      && GET_CODE (XEXP (XEXP (*loc, 0), 0)) == ZERO_EXTEND)
+    *b = true;
+}
+
+static bool
+uses_tiny_classes_p (rtx insn)
+{
+  bool tiny_classes = false;
+
+  note_uses (&PATTERN (insn), uses_tiny_classes_1, &tiny_classes);
+
+  return tiny_classes;
+}
+
 /* Generate reloads for matching OUT and INS (array of input operand
    numbers with end marker -1) with reg class GOAL_CLASS.  Add input
    and output reloads correspondingly to the lists *BEFORE and *AFTER.
@@ -821,6 +869,156 @@ match_reload (signed char out, signed char *ins, enum reg_class goal_class,
   lra_emit_move (copy_rtx (new_in_reg), in_rtx);
   *before = get_insns ();
   end_sequence ();
+
+#if 1
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "attempt reorder: initial 'before' sequence:\n");
+      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+        dump_insn_slim (lra_dump_file, insn);
+    }
+
+  /* Try to reorder *BEFORE so that reloads not used by other reloads (i.e.
+     used by the instruction itself) are moved to the end of the sequence, in
+     an attempt to reduce register pressure.  */
+  start_sequence ();
+
+  sparseset emitted;
+  bitmap uses, definitions, satisfies;
+  bitmap_iterator bi;
+
+  emitted = sparseset_alloc (get_max_uid ());
+  uses = BITMAP_ALLOC (NULL);
+  definitions = BITMAP_ALLOC (NULL);
+  satisfies = BITMAP_ALLOC (NULL);
+
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!INSN_P (insn))
+        continue;
+
+      note_stores (PATTERN (insn), find_stored_regs, definitions);
+    }
+
+  /* First, scan through insns in *BEFORE looking for ones that use registers
+     defined within the *BEFORE sequence.  Emit those first.  */
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!INSN_P (insn))
+        continue;
+
+      bitmap_clear (uses);
+      note_uses (&PATTERN (insn), find_used_regs, uses);
+
+      bitmap_and_into (uses, definitions);
+      bitmap_clear (satisfies);
+
+      if (!bitmap_empty_p (uses) || uses_tiny_classes_p (insn))
+	{
+	  if (lra_dump_file)
+            {
+	      unsigned int use;
+
+	      fprintf (lra_dump_file, "insn uses with defs for ");
+	      dump_insn_slim (lra_dump_file, insn);
+
+	      EXECUTE_IF_SET_IN_BITMAP (uses, 0, use, bi)
+		fprintf (lra_dump_file, "locally-defined use of r%d\n", use);
+	    }
+
+	  for (rtx insn2 = *before; insn2 != insn && insn2 != NULL_RTX;
+	       insn2 = NEXT_INSN (insn2))
+	    {
+	      rtx dest, pat = PATTERN (insn2);
+	      bool emit = false;
+
+	      if (GET_CODE (pat) == SET)
+	        {
+		  dest = SET_DEST (pat);
+		  if (REG_P (dest) && bitmap_bit_p (uses, REGNO (dest)))
+		    {
+		      bitmap_set_bit (satisfies, REGNO (dest));
+		      emit = true;
+		    }
+		}
+	      else if (GET_CODE (pat) == PARALLEL)
+	        {
+		  for (int j = 0; j < XVECLEN (pat, 0); j++)
+		    {
+		      rtx set = XVECEXP (pat, 0, j);
+		      if (GET_CODE (set) == SET)
+		        {
+			  dest = SET_DEST (set);
+			  if (REG_P (dest)
+			      && bitmap_bit_p (uses, REGNO (dest)))
+			    {
+			      bitmap_set_bit (satisfies, REGNO (dest));
+			      emit = true;
+			    }
+			}
+		    }
+		}
+
+	      if (emit && !sparseset_bit_p (emitted, INSN_UID (insn2)))
+	        {
+		 if (lra_dump_file)
+	           {
+	             fprintf (lra_dump_file, "emitting local dependency ");
+		     dump_insn_slim (lra_dump_file, insn2);
+		   }
+		  emit_insn (pat);
+		  sparseset_set_bit (emitted, INSN_UID (insn2));
+		}
+	    }
+
+	  /* We should have found all the registers used by the reload INSN.  */
+	  gcc_assert (!bitmap_intersect_compl_p (uses, satisfies));
+
+	  if (!sparseset_bit_p (emitted, INSN_UID (insn)))
+            {
+	      if (lra_dump_file)
+	        {
+	          fprintf (lra_dump_file, "found all defs for ");
+		  dump_insn_slim (lra_dump_file, insn);
+		}
+              emit_insn (PATTERN (insn));
+	      sparseset_set_bit (emitted, INSN_UID (insn));
+	    }
+	}
+    }
+
+  /* Now emit the remainder of the reloads: these are presumed to be used by
+     the original instruction that we are reloading for.  */
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!sparseset_bit_p (emitted, INSN_UID (insn)))
+        {
+	  if (lra_dump_file)
+	    {
+	      fprintf (lra_dump_file, "emitted deferred ");
+	      dump_insn_slim (lra_dump_file, insn);
+	    }
+	  emit_insn (PATTERN (insn));
+	  sparseset_set_bit (emitted, INSN_UID (insn));
+	}
+    }
+
+  BITMAP_FREE (definitions);
+  BITMAP_FREE (uses);
+  BITMAP_FREE (satisfies);
+  sparseset_free (emitted);
+
+  *before = get_insns ();
+  end_sequence ();
+
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "reordered 'before' sequence:\n");
+      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+        dump_insn_slim (lra_dump_file, insn);
+    }
+#endif
+
   for (i = 0; (in = ins[i]) >= 0; i++)
     {
       lra_assert
@@ -2980,7 +3178,8 @@ process_address (int nop, rtx *before, rtx *after)
 	  && INTVAL (*ad.disp) < 256)
         {
 	  /* Lovely bit of target-specific code.  Let's see how this goes...  */
-	  new_reg = lra_create_new_reg (QImode, NULL_RTX, HARD_Y_REG, "index");
+	  new_reg = lra_create_new_reg (QImode, NULL_RTX, INDEX_REG_CLASS,
+					"index");
 	  lra_emit_move (new_reg, gen_int_mode (INTVAL (*ad.disp), QImode));
 	  *ad.inner = simplify_gen_binary (PLUS, Pmode,
 			simplify_gen_unary (ZERO_EXTEND, Pmode, new_reg,

@@ -275,6 +275,7 @@ enum reg_class
   CALLEE_SAVED_REGS,
   CC_REGS,
   GENERAL_REGS,
+  HARD_ZP_REGS,
   VFP_REG,
   VAP_REG,
   ALL_REGS,
@@ -306,6 +307,7 @@ enum reg_class
   "CALLEE_SAVED_REGS",		\
   "CC_REGS",			\
   "GENERAL_REGS",		\
+  "HARD_ZP_REGS",		\
   "VFP_REG",			\
   "VAP_REG",			\
   "ALL_REGS"			\
@@ -333,7 +335,8 @@ enum reg_class
   { 0x00ff0000, 0x00000 },	\
   { 0xff000000, 0x00000 },	\
   { 0x00000000, 0x0fff0 },	\
-  { 0xfffffeee, 0xc0000 },	\
+  { 0xfffff000, 0xc0000 },	\
+  { 0xfffff111, 0x00000 },	\
   { 0x00000000, 0x00003 },	\
   { 0x00000000, 0x0000c },	\
   { 0xffffffff, 0xffff0 },	\
@@ -377,9 +380,7 @@ enum reg_class
 /*#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))*/
 
 #define REGNO_MODE_CODE_OK_FOR_BASE_P(NUM, MODE, AS, OUTER, INDEX)	 \
-  ((AS) == ADDR_SPACE_GENERIC ? IS_ZP_REGNUM (NUM)			 \
-   : (AS) == ADDR_SPACE_ZP ? ((NUM) == X_REGNUM || (NUM) == Y_REGNUM)	 \
-   : 0)
+  m65x_regno_mode_code_ok_for_base_p ((NUM), (MODE), (AS), (OUTER), (INDEX))
 
 #define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == Y_REGNUM)
 

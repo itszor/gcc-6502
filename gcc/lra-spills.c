@@ -710,7 +710,7 @@ lra_final_code_change (void)
 	     unless next insn is USE marking the return reg (we should
 	     save this as some subsequent optimizations assume that
 	     such original insns are saved).  */
-	  if (NONJUMP_INSN_P (insn) && GET_CODE (pat) == SET
+	  if (NONJUMP_INSN_P (insn) && single_set (pat)
 	      && REG_P (SET_SRC (pat)) && REG_P (SET_DEST (pat))
 	      && REGNO (SET_SRC (pat)) == REGNO (SET_DEST (pat))
 	      && ! return_regno_p (REGNO (SET_SRC (pat))))

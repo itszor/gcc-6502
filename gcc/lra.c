@@ -235,7 +235,7 @@ lra_delete_dead_insn (rtx insn)
 
   /* If the previous insn sets a register that dies in our insn,
      delete it too.  */
-  if (prev && GET_CODE (PATTERN (prev)) == SET
+  if (prev && single_set (PATTERN (prev))
       && (prev_dest = SET_DEST (PATTERN (prev)), REG_P (prev_dest))
       && reg_mentioned_p (prev_dest, PATTERN (insn))
       && find_regno_note (insn, REG_DEAD, REGNO (prev_dest))

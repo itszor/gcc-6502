@@ -1334,8 +1334,22 @@ assign_by_spills (void)
 	    }
 	  if (!asm_p)
 	    {
+	      int j;
 	      fprintf (stderr, "lra_assigns:\n");
 	      debug_rtx (insn);
+	      for (j = 0; j < nfails; j++)
+	        {
+		  int regno = sorted_pseudos[j];
+	          fprintf (stderr, "sorted_pseudos[%d]=%d\n", j, regno);
+		  EXECUTE_IF_SET_IN_BITMAP (&lra_reg_info[regno].insn_bitmap,
+					    0, u, bi)
+		    {
+		      insn = lra_insn_recog_data[u]->insn;
+		      fprintf (stderr, "used by insn %d: ", (int) u);
+		      debug_rtx (insn);
+		      fputc ('\n', stderr);
+		    }
+		}
 	    }
 	  lra_assert (asm_p);
 	  break;

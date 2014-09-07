@@ -33,6 +33,9 @@ extern rtx m65x_push (enum machine_mode mode, rtx src);
 extern rtx m65x_pop (enum machine_mode mode, rtx dest);
 extern void m65x_expand_addsub (enum machine_mode, bool, rtx[]);
 
+extern bool m65x_regno_mode_code_ok_for_base_p (int regno,
+    enum machine_mode mode, addr_space_t as, enum rtx_code outer,
+    enum rtx_code index);
 #endif
 
 extern void m65x_expand_prologue (void);
