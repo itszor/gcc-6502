@@ -720,53 +720,6 @@ narrow_reload_pseudo_class (rtx reg, enum reg_class cl)
     lra_change_class (REGNO (reg), rclass, "      Change to", true);
 }
 
-static int
-find_used_regs_1 (rtx *loc, void *data)
-{
-  bitmap ss = (bitmap) data;
-
-  if (REG_P (*loc))
-    bitmap_set_bit (ss, REGNO (*loc));
-
-  return 0;
-}
-
-static void
-find_used_regs (rtx *loc, void *ss)
-{
-  for_each_rtx (loc, find_used_regs_1, ss);
-}
-
-static void
-find_stored_regs (rtx loc, const_rtx set, void *data)
-{
-  bitmap ss = (bitmap) data;
-
-  if (GET_CODE (set) == SET && REG_P (loc))
-    bitmap_set_bit (ss, REGNO (loc));
-}
-
-static void
-uses_tiny_classes_1 (rtx *loc, void *data)
-{
-  bool *b = (bool *) data;
-
-  /* FIXME: This is of course target-specific.  */
-  if (MEM_P (*loc) && GET_CODE (XEXP (*loc, 0)) == PLUS
-      && GET_CODE (XEXP (XEXP (*loc, 0), 0)) == ZERO_EXTEND)
-    *b = true;
-}
-
-static bool
-uses_tiny_classes_p (rtx insn)
-{
-  bool tiny_classes = false;
-
-  note_uses (&PATTERN (insn), uses_tiny_classes_1, &tiny_classes);
-
-  return tiny_classes;
-}
-
 /* Generate reloads for matching OUT and INS (array of input operand
    numbers with end marker -1) with reg class GOAL_CLASS.  Add input
    and output reloads correspondingly to the lists *BEFORE and *AFTER.
@@ -869,155 +822,6 @@ match_reload (signed char out, signed char *ins, enum reg_class goal_class,
   lra_emit_move (copy_rtx (new_in_reg), in_rtx);
   *before = get_insns ();
   end_sequence ();
-
-#if 1
-  if (lra_dump_file)
-    {
-      fprintf (lra_dump_file, "attempt reorder: initial 'before' sequence:\n");
-      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
-        dump_insn_slim (lra_dump_file, insn);
-    }
-
-  /* Try to reorder *BEFORE so that reloads not used by other reloads (i.e.
-     used by the instruction itself) are moved to the end of the sequence, in
-     an attempt to reduce register pressure.  */
-  start_sequence ();
-
-  sparseset emitted;
-  bitmap uses, definitions, satisfies;
-  bitmap_iterator bi;
-
-  emitted = sparseset_alloc (get_max_uid ());
-  uses = BITMAP_ALLOC (NULL);
-  definitions = BITMAP_ALLOC (NULL);
-  satisfies = BITMAP_ALLOC (NULL);
-
-  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
-    {
-      if (!INSN_P (insn))
-        continue;
-
-      note_stores (PATTERN (insn), find_stored_regs, definitions);
-    }
-
-  /* First, scan through insns in *BEFORE looking for ones that use registers
-     defined within the *BEFORE sequence.  Emit those first.  */
-  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
-    {
-      if (!INSN_P (insn))
-        continue;
-
-      bitmap_clear (uses);
-      note_uses (&PATTERN (insn), find_used_regs, uses);
-
-      bitmap_and_into (uses, definitions);
-      bitmap_clear (satisfies);
-
-      if (!bitmap_empty_p (uses) || uses_tiny_classes_p (insn))
-	{
-	  if (lra_dump_file)
-            {
-	      unsigned int use;
-
-	      fprintf (lra_dump_file, "insn uses with defs for ");
-	      dump_insn_slim (lra_dump_file, insn);
-
-	      EXECUTE_IF_SET_IN_BITMAP (uses, 0, use, bi)
-		fprintf (lra_dump_file, "locally-defined use of r%d\n", use);
-	    }
-
-	  for (rtx insn2 = *before; insn2 != insn && insn2 != NULL_RTX;
-	       insn2 = NEXT_INSN (insn2))
-	    {
-	      rtx dest, pat = PATTERN (insn2);
-	      bool emit = false;
-
-	      if (GET_CODE (pat) == SET)
-	        {
-		  dest = SET_DEST (pat);
-		  if (REG_P (dest) && bitmap_bit_p (uses, REGNO (dest)))
-		    {
-		      bitmap_set_bit (satisfies, REGNO (dest));
-		      emit = true;
-		    }
-		}
-	      else if (GET_CODE (pat) == PARALLEL)
-	        {
-		  for (int j = 0; j < XVECLEN (pat, 0); j++)
-		    {
-		      rtx set = XVECEXP (pat, 0, j);
-		      if (GET_CODE (set) == SET)
-		        {
-			  dest = SET_DEST (set);
-			  if (REG_P (dest)
-			      && bitmap_bit_p (uses, REGNO (dest)))
-			    {
-			      bitmap_set_bit (satisfies, REGNO (dest));
-			      emit = true;
-			    }
-			}
-		    }
-		}
-
-	      if (emit && !sparseset_bit_p (emitted, INSN_UID (insn2)))
-	        {
-		 if (lra_dump_file)
-	           {
-	             fprintf (lra_dump_file, "emitting local dependency ");
-		     dump_insn_slim (lra_dump_file, insn2);
-		   }
-		  emit_insn (pat);
-		  sparseset_set_bit (emitted, INSN_UID (insn2));
-		}
-	    }
-
-	  /* We should have found all the registers used by the reload INSN.  */
-	  gcc_assert (!bitmap_intersect_compl_p (uses, satisfies));
-
-	  if (!sparseset_bit_p (emitted, INSN_UID (insn)))
-            {
-	      if (lra_dump_file)
-	        {
-	          fprintf (lra_dump_file, "found all defs for ");
-		  dump_insn_slim (lra_dump_file, insn);
-		}
-              emit_insn (PATTERN (insn));
-	      sparseset_set_bit (emitted, INSN_UID (insn));
-	    }
-	}
-    }
-
-  /* Now emit the remainder of the reloads: these are presumed to be used by
-     the original instruction that we are reloading for.  */
-  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
-    {
-      if (!sparseset_bit_p (emitted, INSN_UID (insn)))
-        {
-	  if (lra_dump_file)
-	    {
-	      fprintf (lra_dump_file, "emitted deferred ");
-	      dump_insn_slim (lra_dump_file, insn);
-	    }
-	  emit_insn (PATTERN (insn));
-	  sparseset_set_bit (emitted, INSN_UID (insn));
-	}
-    }
-
-  BITMAP_FREE (definitions);
-  BITMAP_FREE (uses);
-  BITMAP_FREE (satisfies);
-  sparseset_free (emitted);
-
-  *before = get_insns ();
-  end_sequence ();
-
-  if (lra_dump_file)
-    {
-      fprintf (lra_dump_file, "reordered 'before' sequence:\n");
-      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
-        dump_insn_slim (lra_dump_file, insn);
-    }
-#endif
 
   for (i = 0; (in = ins[i]) >= 0; i++)
     {
@@ -3063,9 +2867,14 @@ process_address (int nop, rtx *before, rtx *after)
       if (ad.base_term2 != NULL)
 	*ad.base_term2 = *ad.base_term;
     }
-  if (ad.index_term != NULL
-      && process_addr_reg (ad.index_term, before, NULL, INDEX_REG_CLASS))
-    change_p = true;
+  if (ad.index_term != NULL)
+    {
+      /*if (curr_static_id->operand[nop].type == OP_OUT)
+        to_list = after;*/
+      
+      if (process_addr_reg (ad.index_term, before, NULL, INDEX_REG_CLASS))
+	change_p = true;
+    }
 
 #ifdef EXTRA_CONSTRAINT_STR
   /* Target hooks sometimes reject extra constraint addresses -- use
@@ -3094,7 +2903,11 @@ process_address (int nop, rtx *before, rtx *after)
 
   /* Any index existed before LRA started, so we can assume that the
      presence and shape of the index is valid.  */
-  push_to_sequence (*before);
+  /*if (curr_static_id->operand[nop].type == OP_OUT)
+    push_to_sequence (*after);
+  else*/
+    push_to_sequence (*before);
+
   lra_assert (ad.disp == ad.disp_term);
   if (ad.base == NULL)
     {
@@ -3177,6 +2990,19 @@ process_address (int nop, rtx *before, rtx *after)
       if (ad.disp && CONST_INT_P (*ad.disp) && INTVAL (*ad.disp) >= 0
 	  && INTVAL (*ad.disp) < 256)
         {
+	  if (lra_dump_file)
+	    {
+	      fprintf (lra_dump_file, "process_address ");
+	      dump_value_slim (lra_dump_file, *ad.outer, 1);
+	      fprintf (lra_dump_file, " nop=%d ", nop);
+	      switch (curr_static_id->operand[nop].type)
+		{
+		case OP_IN: fprintf (lra_dump_file, "OP_IN\n"); break;
+		case OP_OUT: fprintf (lra_dump_file, "OP_OUT\n"); break;
+		case OP_INOUT: fprintf (lra_dump_file, "OP_INOUT\n"); break;
+		}
+	    }
+
 	  /* Lovely bit of target-specific code.  Let's see how this goes...  */
 	  new_reg = lra_create_new_reg (QImode, NULL_RTX, INDEX_REG_CLASS,
 					"index");
@@ -3239,7 +3065,10 @@ process_address (int nop, rtx *before, rtx *after)
       *ad.inner = simplify_gen_binary (PLUS, GET_MODE (new_reg),
 				       *ad.base_term, new_reg);
     }
-  *before = get_insns ();
+  /*if (curr_static_id->operand[nop].type == OP_OUT)
+    *after = get_insns ();
+  else*/
+    *before = get_insns ();
   end_sequence ();
   return true;
 }
@@ -3403,6 +3232,640 @@ swap_operands (int nop)
   /* Swap the duplicates too.  */
   lra_update_dup (curr_id, nop);
   lra_update_dup (curr_id, nop + 1);
+}
+
+/*			    used by	     depends on
+			    -------	     ----------
+    0: r70 <- #5	    insn 3
+    1: r71 <- r44	    insn 3, 4
+    2: r73 <- #7	    insn 4
+    3: r72 <- [r71 + r70]   insn 4	     insn 0, 1
+    4: [r71 + r73] <- r72		     insn 1, 2, 3
+
+			    used by          depends on
+			    -------          ----------
+    0: r71 <- #5            insn 2
+    1: r70 <- [r44 + r45]
+    2: r72 <- [r73 + r71]                    insn 0
+*/
+
+typedef struct rrp_insn
+{
+  int idx;
+  rtx insn;
+  bitmap depends_on;
+  bitmap used_by;
+  int smallest_class_size;
+  bitmap uses_singleton_classes;
+  bitmap sets_singleton_classes;
+  bitmap uses_regs;
+  bitmap set_regs;
+  bitmap live_before;
+  bitmap live_after;
+  vec<int> stack;
+  int mark;
+} rrp_insn;
+
+static vec<rrp_insn> rrp_insns;
+static vec<int> pseudo_idx;
+
+static int
+find_used_regs_1 (rtx *loc, void *data)
+{
+  rrp_insn *ri = (rrp_insn *) data;
+
+  if (REG_P (*loc))
+    {
+      bitmap_set_bit (ri->uses_regs, REGNO (*loc));
+
+      int idx = pseudo_idx[REGNO (*loc)];
+      if (idx >= 0)
+	bitmap_set_bit (ri->depends_on, idx);
+
+      enum reg_class cl = get_reg_class (REGNO (*loc));
+      if (ira_class_hard_regs_num[cl] == 1)
+        bitmap_set_bit (ri->uses_singleton_classes, cl);
+    }
+
+  return 0;
+}
+
+static void
+find_used_regs (rtx *loc, void *ss)
+{
+  for_each_rtx (loc, find_used_regs_1, ss);
+}
+
+static void
+find_stored_regs (rtx loc, const_rtx set, void *data)
+{
+  rrp_insn *ri = (rrp_insn *) data;
+
+  if (GET_CODE (set) == SET && REG_P (loc))
+    {
+      int regno = REGNO (loc);
+
+      bitmap_set_bit (ri->set_regs, regno);
+
+      enum reg_class cl = get_reg_class (regno);
+
+      if (lra_dump_file)
+        fprintf (lra_dump_file, "class for r%d: %s (%d)\n", regno,
+		 reg_class_names[cl], ira_class_hard_regs_num[cl]);
+
+      if (ira_class_hard_regs_num[cl] < ri->smallest_class_size)
+        ri->smallest_class_size = ira_class_hard_regs_num[cl];
+
+      if (ira_class_hard_regs_num[cl] == 1)
+	bitmap_set_bit (ri->sets_singleton_classes, cl);
+
+      pseudo_idx[regno] = ri->idx;
+    }
+}
+
+static void
+uses_tiny_classes_1 (rtx *loc, void *data)
+{
+  bool *b = (bool *) data;
+
+  /* FIXME: This is of course target-specific.  */
+  if (MEM_P (*loc) && GET_CODE (XEXP (*loc, 0)) == PLUS
+      && GET_CODE (XEXP (XEXP (*loc, 0), 0)) == ZERO_EXTEND)
+    *b = true;
+}
+
+static bool
+uses_tiny_classes_p (rtx insn)
+{
+  bool tiny_classes = false;
+
+  note_uses (&PATTERN (insn), uses_tiny_classes_1, &tiny_classes);
+
+  return tiny_classes;
+}
+
+static int
+class_idx_cmp (const void *va, const void *vb)
+{
+  const int a = *(const int *) va, b = *(const int *) vb;
+
+  if (rrp_insns[a].smallest_class_size != rrp_insns[b].smallest_class_size)
+    return rrp_insns[a].smallest_class_size - rrp_insns[b].smallest_class_size;
+  else
+    return rrp_insns[a].idx - rrp_insns[b].idx;
+}
+
+static void
+tsort_visit (int n, vec<int> *outp)
+{
+  unsigned int dep;
+  bitmap_iterator bi;
+  int *sorted_deps;
+
+  if (rrp_insns[n].mark == 1)
+    gcc_unreachable ();
+  if (rrp_insns[n].mark == 0)
+    {
+      unsigned int ndeps = bitmap_count_bits (rrp_insns[n].depends_on);
+      rrp_insns[n].mark = 1;
+      
+      if (ndeps > 0)
+        {
+	  /* The idea here is to visit dependencies with the highest register
+	     pressure (lowest number of regs in spill class) first, so such
+	     instructions are kept as close together as possible.  */
+	  unsigned int fill = 0;
+
+	  sorted_deps = (int *) alloca (sizeof (int) * ndeps);
+
+	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[n].depends_on, 0, dep, bi)
+	    sorted_deps[fill++] = dep;
+
+	  qsort (sorted_deps, ndeps, sizeof (int), class_idx_cmp);
+
+	  for (unsigned int i = 0; i < ndeps; i++)
+	    tsort_visit (sorted_deps[i], outp);
+	}
+      
+      rrp_insns[n].mark = 2;
+      outp->safe_push (n);
+    }
+}
+
+static void
+output_insn (int num, vec<int> *outp)
+{
+  if (rrp_insns[num].stack.length () > 0)
+    for (unsigned int i = 0; i < rrp_insns[num].stack.length (); i++)
+      output_insn (rrp_insns[num].stack[i], outp);
+
+  if (lra_dump_file)
+    fprintf (lra_dump_file, "Output insn %u\n", num);
+
+  outp->safe_push (num);
+}
+
+void
+lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
+{
+  rtx orig_prev = PREV_INSN (curr_insn), orig_next = NEXT_INSN (curr_insn);
+  /*df_ref *defs, *uses;*/
+
+  if (*before)
+    emit_insn_before (*before, curr_insn);
+  if (*after)
+    emit_insn_after (*after, curr_insn);
+
+  //df_insn_rescan_all ();
+  //df_process_deferred_rescans ();
+
+  /*df_chain_add_problem (DF_DU_CHAIN + DF_UD_CHAIN);
+  df_set_blocks (singleton_bitmap(BLOCK_FOR_INSN (curr_insn)->index));
+  df_analyze ();*/
+
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "+++ reload sequence:\n");
+      for (rtx insn = NEXT_INSN (orig_prev); insn != orig_next;
+	   insn = NEXT_INSN (insn))
+	dump_insn_slim (lra_dump_file, insn);
+      fprintf (lra_dump_file, "+++ end sequence\n");
+    }
+
+ /* if (lra_dump_file)
+    fprintf (lra_dump_file, "+++ create live ranges for register-pressure "
+	     "reduction:\n");
+  lra_create_live_ranges (true);
+  if (lra_dump_file)
+    fprintf (lra_dump_file, "+++ finished creating live ranges\n");
+
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "+++ reload sequence with notes:\n");
+      for (rtx insn = NEXT_INSN (orig_prev); insn != orig_next;
+	   insn = NEXT_INSN (insn))
+	dump_insn_slim (lra_dump_file, insn);
+      fprintf (lra_dump_file, "+++ end sequence\n");
+    }*/
+
+  /*sparseset emitted;
+  bitmap uses, definitions, satisfies;
+  bitmap_iterator bi;
+
+  emitted = sparseset_alloc (get_max_uid ());
+  uses = BITMAP_ALLOC (NULL);
+  definitions = BITMAP_ALLOC (NULL);
+  satisfies = BITMAP_ALLOC (NULL);*/
+
+  rrp_insns = vNULL;
+  pseudo_idx = vNULL;
+  pseudo_idx.reserve (max_reg_num ());
+
+  unsigned int i;
+  rtx insn;
+  bitmap_iterator bi;
+
+  for (i = 0; i < max_reg_num (); i++)
+    pseudo_idx.quick_push (-1);
+
+  for (i = 0, insn = NEXT_INSN (orig_prev);
+       insn != NULL_RTX && insn != orig_next;
+       insn = NEXT_INSN (insn), i++)
+    {
+      rrp_insn ri;
+
+      if (!INSN_P (insn))
+        continue;
+
+      ri.idx = i;
+      ri.insn = insn;
+      ri.depends_on = BITMAP_ALLOC (NULL);
+      ri.used_by = BITMAP_ALLOC (NULL);
+      ri.mark = 0;
+      ri.smallest_class_size = INT_MAX;
+      ri.uses_singleton_classes = BITMAP_ALLOC (NULL);
+      ri.sets_singleton_classes = BITMAP_ALLOC (NULL);
+      ri.live_before = BITMAP_ALLOC (NULL);
+      ri.live_after = BITMAP_ALLOC (NULL);
+      ri.uses_regs = BITMAP_ALLOC (NULL);
+      ri.set_regs = BITMAP_ALLOC (NULL);
+      ri.stack = vNULL;
+
+      bitmap_clear (ri.depends_on);
+      bitmap_clear (ri.used_by);
+      bitmap_clear (ri.live_before);
+      bitmap_clear (ri.live_after);
+      bitmap_clear (ri.uses_regs);
+      bitmap_clear (ri.set_regs);
+
+      note_uses (&PATTERN (insn), find_used_regs, &ri);
+      note_stores (PATTERN (insn), find_stored_regs, &ri);
+      rrp_insns.safe_push (ri);
+    }
+
+  for (i = 0; i < rrp_insns.length (); i++)
+    {
+      unsigned int use;
+      EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].depends_on, 0, use, bi)
+	bitmap_set_bit (rrp_insns[use].used_by, i);
+    }
+
+  bitmap live_regs = BITMAP_ALLOC (NULL);
+
+  for (int j = rrp_insns.length () - 1; j >= 0; j--)
+    {
+      bitmap_copy (rrp_insns[j].live_after, live_regs);
+      bitmap_and_compl_into (live_regs, rrp_insns[j].set_regs);
+      bitmap_ior_into (live_regs, rrp_insns[j].uses_regs);
+      bitmap_copy (rrp_insns[j].live_before, live_regs);
+    }
+
+  if (lra_dump_file)
+    for (i = 0; i < rrp_insns.length (); i++)
+      {
+        unsigned int dep, use;
+        fprintf (lra_dump_file, "insn %u:", i);
+	dump_insn_slim (lra_dump_file, rrp_insns[i].insn);
+	fprintf (lra_dump_file, "used by: [ ");
+	EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].used_by, 0, use, bi)
+	  fprintf (lra_dump_file, "%u ", use);
+	fprintf (lra_dump_file, "] depends on: [ ");
+	EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].depends_on, 0, dep, bi)
+	  fprintf (lra_dump_file, "%u ", dep);
+	fprintf (lra_dump_file, "]\n");
+      }
+
+  vec<int> out = vNULL;
+  vec<int> at_end = vNULL;
+  bitmap singleton_classes = BITMAP_ALLOC (NULL);
+
+/*
+  while (!done)
+    {
+      int j;
+
+      done = true;
+      for (j = rrp_insns.length () - 1; j >= 0; j--)
+        {
+	  if (rrp_insns[j].mark == 0)
+	    {
+	      tsort_visit (j, &out);
+	      done = false;
+	    }
+	}
+    }
+*/
+  for (i = 0; i < rrp_insns.length (); i++)
+    {
+      unsigned int reg, j;
+      bool move = false;
+      int first_use = -1;
+
+      EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].used_by, i, j, bi)
+	{
+	  first_use = j;
+	  break;
+	}
+
+      if (first_use == -1)
+	{
+	  if (lra_dump_file)
+	    fprintf (lra_dump_file, "Moving insn %u to end\n", i);
+	  at_end.safe_push (i);
+	  continue;
+	}
+      else
+	for (j = i + 1; j <= first_use; j++)
+          {
+	    bitmap_clear (singleton_classes);
+
+	    EXECUTE_IF_SET_IN_BITMAP (rrp_insns[j].live_before, 0, reg, bi)
+	      {
+		enum reg_class cl = get_reg_class (reg);
+
+		if (ira_class_hard_regs_num[cl] == 1)
+		  {
+		    if (lra_dump_file)
+		      fprintf (lra_dump_file,
+			"Insn %u (after %u), r%u is in singleton class %s\n",
+			j, i, reg, reg_class_names[cl]);
+
+		    if (bitmap_bit_p (singleton_classes, cl))
+		      move = true;
+		    else
+		      bitmap_set_bit (singleton_classes, cl);
+		  }
+	      }
+	  }
+
+      if (move)
+	{
+	  if (lra_dump_file)
+	    fprintf (lra_dump_file, "Moving insn %u before %u\n", i,
+		     first_use);
+	  rrp_insns[first_use].stack.safe_push (i);
+	}
+      else
+	output_insn (i, &out);
+    }
+
+  for (i = 0; i < at_end.length (); i++)
+    output_insn (at_end[i], &out);
+  
+  at_end.release ();
+
+  BITMAP_FREE (singleton_classes);
+  
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "+++ sorted sequence:\n");
+  
+      for (i = 0; i < out.length (); i++)
+        {
+	  unsigned int reg;
+
+	  fprintf (lra_dump_file, "live before: [ ");
+	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].live_before, 0, reg, bi)
+	    fprintf (lra_dump_file, "r%u ", reg);
+	  fprintf (lra_dump_file, "]\n");
+
+	  dump_insn_slim (lra_dump_file, rrp_insns[i].insn);
+
+	  fprintf (lra_dump_file, "live after: [ ");
+	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].live_after, 0, reg, bi)
+	    fprintf (lra_dump_file, "r%u ", reg);
+	  fprintf (lra_dump_file, "]\n");
+	}
+
+      fprintf (lra_dump_file, "+++ end sequence\n");
+    }
+
+  for (rtx insn = NEXT_INSN (orig_prev); insn != NULL_RTX && insn != curr_insn;)
+    {
+      rtx next = NEXT_INSN (insn);
+
+      if (lra_dump_file)
+        fprintf (lra_dump_file, "(removing before-insn %d)\n",
+		 (int) INSN_UID (insn));
+      remove_insn (insn);
+      NEXT_INSN (insn) = PREV_INSN (insn) = NULL_RTX;
+      
+      insn = next;
+    }
+
+  for (rtx insn = NEXT_INSN (curr_insn); insn != NULL_RTX && insn != orig_next;)
+    {
+      rtx next = NEXT_INSN (insn);
+
+      if (lra_dump_file)
+        fprintf (lra_dump_file, "(removing after-insn %d)\n",
+		 (int) INSN_UID (insn));
+      remove_insn (insn);
+      NEXT_INSN (insn) = PREV_INSN (insn) = NULL_RTX;
+      
+      insn = next;
+    }
+
+  bool is_before = true, is_after = false;
+  bool in_sequence = false;
+
+  *before = *after = NULL;
+
+  for (i = 0; i < out.length (); i++)
+    {
+      rtx insn = rrp_insns[out[i]].insn;
+      if (insn == curr_insn)
+        {
+	  if (in_sequence)
+	    {
+	      gcc_assert (is_before && !is_after);
+
+	      *before = get_insns ();
+	      end_sequence ();
+	      in_sequence = false;
+	    }
+          is_before = false;
+	  is_after = true;
+	}
+      else
+        {
+	  if (!in_sequence)
+	    {
+	      start_sequence ();
+	      in_sequence = true;
+	    }
+	  
+	  emit_insn (insn);
+	}
+    }
+  
+  if (in_sequence)
+    {
+      gcc_assert (is_after && !is_before);
+      
+      *after = get_insns ();
+      end_sequence ();
+    }
+
+  for (i = 0; i < rrp_insns.length (); i++)
+    {
+      BITMAP_FREE (rrp_insns[i].depends_on);
+      BITMAP_FREE (rrp_insns[i].used_by);
+    }
+
+  rrp_insns.release ();
+  pseudo_idx.release ();
+  out.release ();
+
+
+#if 0
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "attempt reorder: initial 'before' sequence:\n");
+      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+        dump_insn_slim (lra_dump_file, insn);
+    }
+
+  /* Try to reorder *BEFORE so that reloads not used by other reloads (i.e.
+     used by the instruction itself) are moved to the end of the sequence, in
+     an attempt to reduce register pressure.  */
+  start_sequence ();
+
+  sparseset emitted;
+  bitmap uses, definitions, satisfies;
+  bitmap_iterator bi;
+
+  emitted = sparseset_alloc (get_max_uid ());
+  uses = BITMAP_ALLOC (NULL);
+  definitions = BITMAP_ALLOC (NULL);
+  satisfies = BITMAP_ALLOC (NULL);
+
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!INSN_P (insn))
+        continue;
+
+      note_stores (PATTERN (insn), find_stored_regs, definitions);
+    }
+
+  /* First, scan through insns in *BEFORE looking for ones that use registers
+     defined within the *BEFORE sequence.  Emit those first.  */
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!INSN_P (insn))
+        continue;
+
+      bitmap_clear (uses);
+      note_uses (&PATTERN (insn), find_used_regs, uses);
+
+      bitmap_and_into (uses, definitions);
+      bitmap_clear (satisfies);
+
+      if (!bitmap_empty_p (uses) || uses_tiny_classes_p (insn))
+	{
+	  if (lra_dump_file)
+            {
+	      unsigned int use;
+
+	      fprintf (lra_dump_file, "insn uses with defs for ");
+	      dump_insn_slim (lra_dump_file, insn);
+
+	      EXECUTE_IF_SET_IN_BITMAP (uses, 0, use, bi)
+		fprintf (lra_dump_file, "locally-defined use of r%d\n", use);
+	    }
+
+	  for (rtx insn2 = *before; insn2 != insn && insn2 != NULL_RTX;
+	       insn2 = NEXT_INSN (insn2))
+	    {
+	      rtx dest, pat = PATTERN (insn2);
+	      bool emit = false;
+
+	      if (GET_CODE (pat) == SET)
+	        {
+		  dest = SET_DEST (pat);
+		  if (REG_P (dest) && bitmap_bit_p (uses, REGNO (dest)))
+		    {
+		      bitmap_set_bit (satisfies, REGNO (dest));
+		      emit = true;
+		    }
+		}
+	      else if (GET_CODE (pat) == PARALLEL)
+	        {
+		  for (int j = 0; j < XVECLEN (pat, 0); j++)
+		    {
+		      rtx set = XVECEXP (pat, 0, j);
+		      if (GET_CODE (set) == SET)
+		        {
+			  dest = SET_DEST (set);
+			  if (REG_P (dest)
+			      && bitmap_bit_p (uses, REGNO (dest)))
+			    {
+			      bitmap_set_bit (satisfies, REGNO (dest));
+			      emit = true;
+			    }
+			}
+		    }
+		}
+
+	      if (emit && !sparseset_bit_p (emitted, INSN_UID (insn2)))
+	        {
+		 if (lra_dump_file)
+	           {
+	             fprintf (lra_dump_file, "emitting local dependency ");
+		     dump_insn_slim (lra_dump_file, insn2);
+		   }
+		  emit_insn (pat);
+		  sparseset_set_bit (emitted, INSN_UID (insn2));
+		}
+	    }
+
+	  /* We should have found all the registers used by the reload INSN.  */
+	  gcc_assert (!bitmap_intersect_compl_p (uses, satisfies));
+
+	  if (!sparseset_bit_p (emitted, INSN_UID (insn)))
+            {
+	      if (lra_dump_file)
+	        {
+	          fprintf (lra_dump_file, "found all defs for ");
+		  dump_insn_slim (lra_dump_file, insn);
+		}
+              emit_insn (PATTERN (insn));
+	      sparseset_set_bit (emitted, INSN_UID (insn));
+	    }
+	}
+    }
+
+  /* Now emit the remainder of the reloads: these are presumed to be used by
+     the original instruction that we are reloading for.  */
+  for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+    {
+      if (!sparseset_bit_p (emitted, INSN_UID (insn)))
+        {
+	  if (lra_dump_file)
+	    {
+	      fprintf (lra_dump_file, "emitted deferred ");
+	      dump_insn_slim (lra_dump_file, insn);
+	    }
+	  emit_insn (PATTERN (insn));
+	  sparseset_set_bit (emitted, INSN_UID (insn));
+	}
+    }
+
+  BITMAP_FREE (definitions);
+  BITMAP_FREE (uses);
+  BITMAP_FREE (satisfies);
+  sparseset_free (emitted);
+
+  *before = get_insns ();
+  end_sequence ();
+
+  if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "reordered 'before' sequence:\n");
+      for (rtx insn = *before; insn != NULL_RTX; insn = NEXT_INSN (insn))
+        dump_insn_slim (lra_dump_file, insn);
+    }
+#endif
 }
 
 /* Main entry point of the constraint code: search the body of the
@@ -4002,6 +4465,7 @@ curr_insn_transform (void)
 		     REGNO (op), regno);
 	}
     }
+  lra_reduce_register_pressure (curr_insn, &before, &after);
   if (before != NULL_RTX || after != NULL_RTX
       || max_regno_before != max_reg_num ())
     change_p = true;
@@ -4011,7 +4475,18 @@ curr_insn_transform (void)
       /* Something changes -- process the insn.	 */
       lra_update_insn_regno_info (curr_insn);
     }
+  /*rtx prev = PREV_INSN (curr_insn), next = NEXT_INSN (curr_insn);*/
   lra_process_new_insns (curr_insn, before, after, "Inserting insn reload");
+
+  /*if (lra_dump_file)
+    {
+      fprintf (lra_dump_file, "+++ unreordered reload sequence:\n");
+      for (rtx insn = NEXT_INSN (prev); insn != NULL_RTX && insn != next;
+	   insn = NEXT_INSN (insn))
+	dump_insn_slim (lra_dump_file, insn);
+      fprintf (lra_dump_file, "--- end of sequence\n");
+    }*/
+
   return change_p;
 }
 
