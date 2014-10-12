@@ -40,7 +40,7 @@
 static bool
 gate_reconstruct_absidx (void)
 {
-  return optimize > 0/* && flag_reconstruct_absidx*/;
+  return optimize > 0 && flag_symbol_prop;
 }
 
 static bool
@@ -171,12 +171,30 @@ rest_of_handle_reconstruct_absidx (void)
 	      if (subreg_mask == ((1 << (POINTER_SIZE / BITS_PER_UNIT)) - 1)
 		  && sym != NULL_RTX)
 		{
+		  if (dump_file)
+		    {
+		      fprintf (dump_file, "Trying to substitute symbol in:\n");
+		      dump_insn_slim (dump_file, use_insn);
+		    }
+		    
 		  validate_unshare_change (use_insn, DF_REF_LOC (use), sym,
 					   true);
 		  if (verify_changes (0))
-		    confirm_change_group ();
+		    {
+		      confirm_change_group ();
+		      if (dump_file)
+		        {
+		          fprintf (dump_file, "Succeeded, insn is now:\n");
+			  dump_insn_slim (dump_file, use_insn);
+			}
+		    }
 		  else
-		    cancel_changes (0);
+		    {
+		      cancel_changes (0);
+		      if (dump_file)
+			fprintf (dump_file,
+				 "Failed, replacement not recognized.\n");
+		    }
 		}
 
 	      break;
