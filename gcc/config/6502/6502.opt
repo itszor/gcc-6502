@@ -17,6 +17,11 @@ Target Undocumented Var(TARGET_DEBUG_LEGITIMIZE_ADDR)
 mdebug-secondary-reload
 Target Undocumented Var(TARGET_DEBUG_SECONDARY_RELOAD)
 
+msymbol-prop
+Target Var(flag_symbol_prop) Init(1)
+Enable a pass to help propagate symbolic addresses into load/store instructions
+in order to use absolute-indexed addressing modes more effectively.
+
 mcpu=
 Target RejectNegative ToLower Joined Enum(processor_type) Var(m65x_cpu_option) Init(m6502)
 Specify the target CPU type
