@@ -2242,6 +2242,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
       for (i = 0; i < modesize; i++)
 	{
+	  bool last = i + 1 == modesize;
+
 	  dstpart = operand_subword (dest, i, 1, mode);
 	  op1part = operand_subword (operands[1], i, 1, mode);
 	  op2part = operand_subword (operands[2], i, 1, mode);
@@ -2264,7 +2266,6 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 	      unsigned HOST_WIDE_INT remaining
 		= INTVAL (operands[2]) >> (i * 8);
 	      unsigned HOST_WIDE_INT thispart = INTVAL (op2part);
-	      bool last = i + 1 == modesize;
 
 	      if (thispart == 0 && !valid_carry && !valid_nz)
 	        {
@@ -2318,9 +2319,19 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
 	  emit_move_insn (acc, op1part);
 	  if (add)
-	    emit_insn (gen_adcqi3_c (acc, acc, op2part));
+	    {
+	      if (last)
+	        emit_insn (gen_adcqi3 (acc, acc, op2part));
+	      else
+		emit_insn (gen_adcqi3_c (acc, acc, op2part));
+	    }
 	  else
-	    emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+	    {
+	      if (last)
+		emit_insn (gen_sbcqi3 (acc, acc, op2part));
+	      else
+		emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+	    }
 	  emit_move_insn (dstpart, acc);
 
 	  valid_carry = true;
