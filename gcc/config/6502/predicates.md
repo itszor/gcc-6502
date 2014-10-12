@@ -100,6 +100,10 @@
   (and (match_code "mem")
        (match_test "m65x_absolute_x_addr_p (mode, XEXP (op, 0), false)")))
 
+(define_predicate "abs_y_mem_operand"
+  (and (match_code "mem")
+       (match_test "m65x_absolute_y_addr_p (mode, XEXP (op, 0), false)")))
+
 (define_predicate "incdec_operand"
   (ior (match_operand 0 "const_mem_operand")
        (match_operand 0 "abs_x_mem_operand")

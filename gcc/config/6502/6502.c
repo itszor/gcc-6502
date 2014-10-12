@@ -32,8 +32,199 @@
 #include "df.h"
 #include "varasm.h"
 #include "diagnostic.h"
+#include "tree-pass.h"
+#include "context.h"
 
 #undef DEBUG_LEGIT_RELOAD
+
+static bool
+gate_reconstruct_absidx (void)
+{
+  return optimize > 0/* && flag_reconstruct_absidx*/;
+}
+
+static bool
+m65x_subreg_const (rtx *sym, rtx insn, rtx use, int subreg_byte)
+{
+  if (GET_CODE (use) == SUBREG
+      && CONSTANT_ADDRESS_P (XEXP (use, 0))
+      && SUBREG_BYTE (use) == subreg_byte)
+    {
+      *sym = XEXP (use, 0);
+      return true;
+    }
+
+  df_ref *uses;
+
+  for (uses = DF_INSN_USES (insn); *uses; uses++)
+    {
+      df_ref this_use = *uses;
+
+      if ((DF_REF_FLAGS (this_use) & (DF_REF_READ_WRITE | DF_REF_SUBREG))
+	   == (DF_REF_READ_WRITE | DF_REF_SUBREG))
+	continue;
+      else if (rtx_equal_p (DF_REF_REG (this_use), use))
+	{
+	  struct df_link *link = DF_REF_CHAIN (this_use);
+
+	  if (link && !link->next)
+	    {
+	      df_ref def = link->ref;
+
+	      if (DF_REF_IS_ARTIFICIAL (def))
+		break;
+	      else
+		{
+		  rtx def_reg = DF_REF_REG (def), set, src;
+
+		  if ((REG_P (def_reg)
+		       || (GET_CODE (def_reg) == SUBREG
+			   && SUBREG_BYTE (def_reg) == subreg_byte))
+		      && (set = single_set (DF_REF_INSN (def)))
+		      && (src = SET_SRC (set))
+		      && (REG_P (src) || GET_CODE (src) == SUBREG))
+		    return m65x_subreg_const (sym, DF_REF_INSN (def), src,
+					      subreg_byte);
+		  else
+		    break;
+		}
+	    }
+	  else
+	    break;
+	}
+      else
+	break;
+    }
+
+  return false;
+}
+
+static unsigned int
+rest_of_handle_reconstruct_absidx (void)
+{
+  unsigned i;
+
+  df_chain_add_problem (DF_UD_CHAIN);
+  df_set_flags (DF_DEFER_INSN_RESCAN);
+
+  df_analyze ();
+  df_maybe_reorganize_use_refs (DF_REF_ORDER_BY_INSN);
+
+  for (i = 0; i < DF_USES_TABLE_SIZE (); i++)
+    {
+      df_ref use = DF_USES_GET (i);
+
+      if (use && !DF_REF_IS_ARTIFICIAL (use))
+        {
+	  switch (DF_REF_TYPE (use))
+	    {
+	    case DF_REF_REG_DEF:
+	    case DF_REF_REG_USE:
+	      continue;
+
+	    case DF_REF_REG_MEM_LOAD:
+	    case DF_REF_REG_MEM_STORE:
+	      rtx use_insn = DF_REF_INSN (use);
+
+	      struct df_link *link = DF_REF_CHAIN (use);
+
+	      int subreg_mask = 0;
+	      rtx sym = NULL_RTX;
+
+	      while (link)
+	        {
+		  df_ref def = link->ref;
+
+		  if (!DF_REF_IS_ARTIFICIAL (def))
+		    {
+		      rtx def_insn = DF_REF_INSN (def);
+		      rtx set = single_set (def_insn);
+
+		      if (set && GET_CODE (SET_DEST (set)) == SUBREG)
+			{
+			  rtx nsym, src;
+			  int subreg_byte = SUBREG_BYTE (SET_DEST (set));
+
+			  src = SET_SRC (set);
+
+			  if ((REG_P (src)
+			       || (GET_CODE (src) == SUBREG
+				   && SUBREG_BYTE (src) == subreg_byte))
+			      && m65x_subreg_const (&nsym, def_insn, src,
+						    subreg_byte))
+			    {
+			      if (!sym)
+				sym = nsym;
+			      else if (!rtx_equal_p (sym, nsym))
+				goto next_use;
+
+			      subreg_mask |= 1 << SUBREG_BYTE (SET_DEST (set));
+			    }
+			  else
+			    goto next_use;
+			}
+		    }
+
+		  link = link->next;
+		}
+
+	      if (subreg_mask == ((1 << (POINTER_SIZE / BITS_PER_UNIT)) - 1)
+		  && sym != NULL_RTX)
+		{
+		  validate_unshare_change (use_insn, DF_REF_LOC (use), sym,
+					   true);
+		  if (verify_changes (0))
+		    confirm_change_group ();
+		  else
+		    cancel_changes (0);
+		}
+
+	      break;
+	    }
+	}
+      next_use: ;
+    }
+
+  return 0;
+}
+
+namespace {
+
+const pass_data pass_data_reconstruct_absidx =
+{
+  RTL_PASS, /* type */
+  "absidx", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  true, /* has_gate */
+  true, /* has_execute */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | TODO_verify_rtl_sharing | 0), /* todo_flags_finish */
+};
+
+class pass_reconstruct_absidx : public rtl_opt_pass
+{
+public:
+  pass_reconstruct_absidx(gcc::context *ctxt)
+    : rtl_opt_pass(pass_data_reconstruct_absidx, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  bool gate () { return gate_reconstruct_absidx (); }
+  unsigned int execute () { return rest_of_handle_reconstruct_absidx (); }
+
+}; // class pass_reconstruct_absidx
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_reconstruct_absidx (gcc::context *ctxt)
+{
+  return new pass_reconstruct_absidx (ctxt);
+}
 
 static void
 m65x_option_override (void)
@@ -41,6 +232,14 @@ m65x_option_override (void)
   /* We can slightly speed up floating-point maths by rearranging the fields
      in the IEEE754 single float format to line up with byte boundaries.  */
   REAL_MODE_FORMAT (SFmode) = &m65x_single_format;
+
+  opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
+  static struct register_pass_info reconstruct_absidx_info
+    = { pass_reconstruct_absidx, "fwprop1",
+	1, PASS_POS_INSERT_AFTER
+      };
+
+  register_pass (&reconstruct_absidx_info);
 }
 
 static void
@@ -182,7 +381,19 @@ m65x_print_operand_address (FILE *stream, rtx x)
 	       && REG_P (XEXP (x, 0))
 	       && (REGNO (XEXP (x, 0)) == X_REGNUM
 		   || REGNO (XEXP (x, 0)) == Y_REGNUM)
-	       && CONSTANT_P (XEXP (x, 1)))
+	       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+	{
+	  output_addr_const (stream, XEXP (x, 1));
+	  asm_fprintf (stream, ",%s",
+		       REGNO (XEXP (x, 0)) == X_REGNUM ? "x" : "y");
+	}
+      else if (GET_MODE (x) == HImode
+	       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+	       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+	       && REG_P (XEXP (XEXP (x, 0), 0))
+	       && (REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM
+		   || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+	       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
 	{
 	  output_addr_const (stream, XEXP (x, 1));
 	  asm_fprintf (stream, ",%s",
@@ -473,7 +684,7 @@ m65x_absolute_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
-  
+
   return false;
 }
 
