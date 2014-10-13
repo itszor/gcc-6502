@@ -3343,7 +3343,7 @@ lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
   rtx insn;
   bitmap_iterator bi;
 
-  for (i = 0; i < max_reg_num (); i++)
+  for (i = 0; i < (unsigned) max_reg_num (); i++)
     pseudo_idx.quick_push (-1);
 
   for (i = 0, insn = NEXT_INSN (orig_prev);
@@ -3433,7 +3433,7 @@ lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
 	  continue;
 	}
       else
-	for (j = i + 1; j <= first_use; j++)
+	for (j = i + 1; (int) j <= first_use; j++)
           {
 	    bitmap_clear (singleton_classes);
 
