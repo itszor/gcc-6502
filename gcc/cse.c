@@ -5351,7 +5351,8 @@ cse_insn (rtx_insn *insn)
 		      die.  On the alpha when simplifying a switch, we
 		      get (const (truncate (minus (label_ref)
 		      (label_ref)))).  */
-		   && (GET_CODE (XEXP (trial, 0)) == TRUNCATE
+		   && ((GET_CODE (XEXP (trial, 0)) == TRUNCATE
+			&& GET_CODE (XEXP (XEXP (trial, 0), 0)) == MINUS)
 		       /* Likewise on IA-64, except without the
 			  truncate.  */
 		       || (GET_CODE (XEXP (trial, 0)) == MINUS
