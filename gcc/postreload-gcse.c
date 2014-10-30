@@ -1002,8 +1002,16 @@ eliminate_partially_redundant_load (basic_block bb, rtx insn,
 
 	  /* Make sure we can generate a move from register avail_reg to
 	     dest.  */
-	  extract_insn (gen_move_insn (copy_rtx (dest),
-				       copy_rtx (avail_reg)));
+	  rtx move_insn = gen_move_insn (copy_rtx (dest),
+					 copy_rtx (avail_reg));
+	  int icode = recog_memoized (move_insn);
+
+	  if (icode < 0)
+	    {
+	      avail_insn = NULL;
+	      continue;
+	    }
+	  extract_insn (move_insn);
 	  if (! constrain_operands (1)
 	      || reg_killed_on_edge (avail_reg, pred)
 	      || reg_used_on_edge (dest, pred))
