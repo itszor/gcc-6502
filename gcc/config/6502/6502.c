@@ -385,6 +385,7 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 void
 m65x_print_operand_address (FILE *stream, rtx x)
 {
+restart:
   switch (GET_CODE (x))
     {
 #if 1
@@ -418,6 +419,8 @@ m65x_print_operand_address (FILE *stream, rtx x)
 	  asm_fprintf (stream, ",%s",
 		       REGNO (XEXP (x, 0)) == X_REGNUM ? "x" : "y");
 	}
+      else if (CONSTANT_ADDRESS_P (XEXP (x, 0)))
+        output_addr_const (stream, x);
       else
         output_operand_lossage ("invalid PLUS operand");
       break;
@@ -437,6 +440,23 @@ m65x_print_operand_address (FILE *stream, rtx x)
       break;
 #endif
 
+    case TRUNCATE:
+      x = XEXP (x, 0);
+
+      if (GET_CODE (x) == LSHIFTRT
+	  && CONST_INT_P (XEXP (x, 1))
+	  && INTVAL (XEXP (x, 1)) == 8)
+	{
+	  asm_fprintf (stream, ">(");
+	  x = XEXP (x, 0);
+	}
+      else
+        asm_fprintf (stream, "<(");
+
+      output_addr_const (stream, x);
+      asm_fprintf (stream, ")");
+      break;
+
     case REG:
       if (GET_MODE (x) == HImode)
 	asm_fprintf (stream, "(%r)", REGNO (x));
@@ -451,6 +471,7 @@ m65x_print_operand_address (FILE *stream, rtx x)
       asm_fprintf (stream, "$%.4x", (int) INTVAL (x) & 0xffff);
       break;
 
+#if 0
     case SUBREG:
       /* If we have this, we're probably dealing with the address of a label
          or similar -- that is, we're outputting an immediate.  */
@@ -463,6 +484,11 @@ m65x_print_operand_address (FILE *stream, rtx x)
       output_addr_const (stream, x);
       asm_fprintf (stream, ")");
       break;
+#endif
+
+    case CONST:
+      x = XEXP (x, 0);
+      goto restart;
 
     default:
       output_addr_const (stream, x);
@@ -576,6 +602,291 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
     }
 }
 
+static const char *
+m65x_print_movqi_1 (int which_alternative, rtx *operands)
+{
+  switch (which_alternative)
+    {
+    case 0: return "ld%R0 #%1";
+    case 1: case 3: return "ld%R0 %1";
+    case 2: case 4: return "st%R1 %0";
+
+    case 5:
+      switch (REGNO (operands[0]))
+        {
+        case ACC_REGNUM:
+	  switch (REGNO (operands[1]))
+	    {
+	    case ACC_REGNUM: return "";
+	    case X_REGNUM: return "txa";
+	    case Y_REGNUM: return "tya";
+	    default: gcc_unreachable ();
+	    }
+	  break;
+
+	case X_REGNUM:
+	  switch (REGNO (operands[1]))
+	    {
+	    case ACC_REGNUM: return "tax";
+	    case X_REGNUM: return "";
+	    case Y_REGNUM:
+	      if (TARGET_PHX)
+	        return "phy\n\tplx";
+	      else
+		return "sty _tmp0\n\tldx _tmp0";
+	    default: gcc_unreachable ();
+	    }
+
+	case Y_REGNUM:
+	  switch (REGNO (operands[1]))
+	    {
+	    case ACC_REGNUM: return "tay";
+	    case X_REGNUM:
+	      if (TARGET_PHX)
+	        return "phx\n\tply";
+	      else
+	        return "stx _tmp0\n\tldy _tmp0";
+	    case Y_REGNUM: return "";
+	    default: gcc_unreachable ();
+	    }
+
+	default:
+	  ;
+	}
+      break;
+
+    case 6: case 8: return "ph%R1";
+    case 7: case 9: return "pl%R0";
+
+    case 10:
+      if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
+        return "lda %1";
+      else if (REG_P (XEXP (operands[1], 0)))
+        {
+	  operands[1] = XEXP (operands[1], 0);
+          output_asm_insn ("sty _tmp0\n\t"
+			   "ldy #0\n\t"
+			   "lda (%1),y\n\t"
+			   "ldy _tmp0", operands);
+	  return "";
+	}
+      else
+        return "#";
+
+    case 11:
+      if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
+        return "sta %0";
+      else if (REG_P (XEXP (operands[0], 0)))
+        {
+	  operands[0] = XEXP (operands[0], 0);
+          output_asm_insn ("sty _tmp0\n\t"
+			   "ldy #0\n\t"
+			   "sta (%0),y\n\t"
+			   "ldy _tmp0", operands);
+	  return "";
+	}
+      else
+        return "#";
+
+    case 12: case 13: return "stz %0";
+
+    case 14:
+      if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
+        {
+	  switch (REGNO (operands[0]))
+	    {
+	    case ACC_REGNUM:
+              output_asm_insn ("lda %1", operands);
+	      break;
+	    case X_REGNUM:
+	      if (abs_y_mem_operand (operands[1], QImode))
+	        output_asm_insn ("ldx %1", operands);
+	      else
+		output_asm_insn ("sta _tmp0\n\tlda %1\n\ttax\n\tlda _tmp0",
+				 operands);
+	      break;
+	    case Y_REGNUM:
+	      if (abs_x_mem_operand (operands[1], QImode))
+	        output_asm_insn ("ldy %1", operands);
+	      else
+		output_asm_insn ("sta _tmp0\n\tlda %1\n\ttay\n\tlda _tmp0",
+				 operands);
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  return "";
+	}
+      else if (REG_P (XEXP (operands[1], 0)))
+	{
+	  operands[1] = XEXP (operands[1], 0);
+
+	  switch (REGNO (operands[0]))
+	    {
+	    case ACC_REGNUM:
+              output_asm_insn ("sty _tmp0\n\t"
+			       "ldy #0\n\t"
+			       "lda (%1),y\n\t"
+			       "ldy _tmp0", operands);
+	      break;
+	    case X_REGNUM:
+	      output_asm_insn ("sta _tmp0\n\t"
+			       "ldx #0\n\t"
+			       "lda (%1,x)\n\t"
+			       "tax\n\t"
+			       "lda _tmp0", operands);
+	      break;
+	    case Y_REGNUM:
+	      output_asm_insn ("sta _tmp0\n\t"
+			       "ldy #0\n\t"
+			       "lda (%1),y\n\t"
+			       "tay\n\t"
+			       "lda _tmp0", operands);
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  return "";
+	}
+      else
+        return "#";
+      break;
+
+    case 15:
+      if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
+	{
+	  switch (REGNO (operands[1]))
+	    {
+	    case ACC_REGNUM:
+	      output_asm_insn ("sta %0", operands);
+	      break;
+	    case X_REGNUM:
+	      output_asm_insn ("sta _tmp0\n\t"
+			       "txa\n\t"
+			       "sta %0\n\t"
+			       "lda _tmp0", operands);
+	      break;
+	    case Y_REGNUM:
+	      /* This is actually storing the Y register, but still using it
+	         as an index.  */
+	      output_asm_insn ("sta _tmp0\n\t"
+			       "tya\n\t"
+			       "sta %0\n\t"
+			       "lda _tmp0", operands);
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  return "";
+	}
+      else if (REG_P (XEXP (operands[0], 0)))
+	{
+	  operands[0] = XEXP (operands[0], 0);
+
+	  switch (REGNO (operands[1]))
+	    {
+	    case ACC_REGNUM:
+	      output_asm_insn ("sty _tmp0\n\t"
+			       "ldy #0\n\t"
+			       "sta (%0),y\n\t"
+			       "ldy _tmp0", operands);
+	      break;
+	    case X_REGNUM:
+	      output_asm_insn ("sty _tmp0\n\t"
+			       "sta _tmp1\n\t"
+			       "ldy #0\n\t"
+			       "txa\n\t"
+			       "sta (%0),y\n\t"
+			       "lda _tmp1\n\t"
+			       "ldy _tmp0", operands);
+	      break;
+	    case Y_REGNUM:
+	      output_asm_insn ("stx _tmp0\n\t"
+			       "sta _tmp1\n\t"
+			       "ldx #0\n\t"
+			       "tya\n\t"
+			       "sta (%0,x)\n\t"
+			       "lda _tmp1\n\t"
+			       "ldx _tmp0", operands);
+	      break;
+	    default:
+	      gcc_unreachable ();
+	    }
+	  return "";
+	}
+      else
+        return "#";
+      break;
+
+    case 16:
+      if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
+        return "sta _tmp0\n\tlda %1\n\tsta %0\n\tlda _tmp0";
+      else if (REG_P (XEXP (operands[1], 0)))
+        {
+	  operands[1] = XEXP (operands[1], 0);
+	  output_asm_insn ("sta _tmp0\n\t"
+			   "sty _tmp1\n\t"
+			   "ldy #0\n\t"
+			   "lda (%1),y\n\t"
+			   "sta %0\n\t"
+			   "ldy _tmp1\n\t"
+			   "lda _tmp0", operands);
+	  return "";
+	}
+      else
+        return "#";
+
+    case 17:
+      if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
+        return "sta _tmp0\n\tlda %1\n\tsta %0\n\tlda _tmp0";
+      else if (REG_P (XEXP (operands[0], 0)))
+        {
+	  operands[0] = XEXP (operands[0], 0);
+	  output_asm_insn ("sta _tmp0\n\t"
+			   "sty _tmp1\n\t"
+			   "ldy #0\n\t"
+			   "lda %1\n\t"
+			   "sta (%0),y\n\t"
+			   "ldy _tmp1\n\t"
+			   "lda _tmp0", operands);
+	  return "";
+	}
+      else
+        return "#";
+
+    case 18:
+      gcc_assert (rtx_equal_p (operands[0], operands[1]));
+      return "";
+
+    default:
+      gcc_unreachable ();
+    }
+
+  gcc_unreachable ();
+}
+
+const char *
+m65x_print_movqi (int which_alternative, rtx *operands, bool save_flags)
+{
+  const char *insn = m65x_print_movqi_1 (which_alternative, operands);
+
+  if (strcmp (insn, "#") == 0 || strcmp (insn, "") == 0)
+    return insn;
+  else if (save_flags)
+    {
+      output_asm_insn ("php", operands);
+      output_asm_insn (insn, operands);
+      return "plp";
+    }
+  else
+    return insn;
+}
 
 void
 m65x_output_ascii (FILE *f, const char *str, int len)
@@ -1514,6 +1825,26 @@ m65x_valid_zp_mov_operands (enum machine_mode mode ATTRIBUTE_UNUSED,
   return REG_P (operands[0]) && REG_P (operands[1]);
 }
 
+rtx
+m65x_gen_subreg (enum machine_mode outmode, rtx x, enum machine_mode inmode,
+		 int byte)
+{
+  if (outmode == QImode && inmode == HImode
+      && (GET_CODE (x) == SYMBOL_REF || GET_CODE (x) == LABEL_REF
+	  || GET_CODE (x) == CONST))
+    {
+      if (GET_CODE (x) == CONST)
+        x = XEXP (x, 0);
+
+      if (byte > 0)
+        x = gen_rtx_LSHIFTRT (HImode, x, GEN_INT (byte * 8));
+
+      return gen_rtx_CONST (QImode, gen_rtx_TRUNCATE (QImode, x));
+    }
+
+  return simplify_gen_subreg (outmode, x, inmode, byte);
+}
+
 static void
 m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
 			      bool op0_preserve_value)
@@ -1599,10 +1930,10 @@ void
 m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 			     rtx scratch)
 {
-  rtx op0_lo = simplify_gen_subreg (QImode, op0, HImode, 0);
-  rtx op1_lo = simplify_gen_subreg (QImode, op1, HImode, 0);
-  rtx op0_hi = simplify_gen_subreg (QImode, op0, HImode, 1);
-  rtx op1_hi = simplify_gen_subreg (QImode, op1, HImode, 1);
+  rtx op0_lo = m65x_gen_subreg (QImode, op0, HImode, 0);
+  rtx op1_lo = m65x_gen_subreg (QImode, op1, HImode, 0);
+  rtx op0_hi = m65x_gen_subreg (QImode, op0, HImode, 1);
+  rtx op1_hi = m65x_gen_subreg (QImode, op1, HImode, 1);
   rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cflag = gen_rtx_REG (CC_UImode, CARRY_REGNUM);
