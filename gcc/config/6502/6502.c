@@ -54,6 +54,22 @@ m65x_subreg_const (rtx *sym, rtx insn, rtx use, unsigned int subreg_byte)
       return true;
     }
 
+  if (GET_CODE (use) == CONST && GET_CODE (XEXP (use, 0)) == TRUNCATE)
+    {
+      rtx op = XEXP (XEXP (use, 0), 0);
+      if (CONSTANT_ADDRESS_P (op) && subreg_byte == 0)
+	{
+	  *sym = op;
+	  return true;
+	}
+      else if (GET_CODE (op) == LSHIFTRT && CONST_INT_P (XEXP (op, 1))
+	       && INTVAL (XEXP (op, 1)) == 8 && subreg_byte == 1)
+	{
+	  *sym = XEXP (op, 0);
+	  return true;
+	}
+    }
+
   df_ref *uses;
 
   for (uses = DF_INSN_USES (insn); *uses; uses++)
@@ -82,7 +98,8 @@ m65x_subreg_const (rtx *sym, rtx insn, rtx use, unsigned int subreg_byte)
 			   && SUBREG_BYTE (def_reg) == subreg_byte))
 		      && (set = single_set (DF_REF_INSN (def)))
 		      && (src = SET_SRC (set))
-		      && (REG_P (src) || GET_CODE (src) == SUBREG))
+		      && (REG_P (src) || GET_CODE (src) == SUBREG
+			  || GET_CODE (src) == CONST))
 		    return m65x_subreg_const (sym, DF_REF_INSN (def), src,
 					      subreg_byte);
 		  else
@@ -1739,10 +1756,7 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[0], 0), strict))
-	    return (!reload_completed
-		    && register_operand (operands[1], mode))
-		   || (reload_completed
-		       && accumulator_operand (operands[1], mode));
+	    return register_operand (operands[1], mode);
 	  else
 	    return hard_reg_operand (operands[1], mode)
 		   || immediate_operand (operands[1], mode);
@@ -1763,10 +1777,7 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[1], 0), strict))
-	    return (!reload_completed
-		    && register_operand (operands[0], mode))
-		   || (reload_completed
-		       && accumulator_operand (operands[0], mode));
+	    return register_operand (operands[0], mode);
 	  else
 	    return hard_reg_operand (operands[0], mode);
 	}
@@ -2599,6 +2610,12 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
     emit_clobber (operands[0]);
 
   emit_insn (seq);
+}
+
+rtx
+m65x_emit_movqi_nz (rtx dst, rtx src)
+{
+  return emit_insn (gen_movqi_insn (dst, src));
 }
 
 static enum machine_mode
