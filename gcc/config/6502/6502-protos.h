@@ -10,7 +10,8 @@ extern void m65x_output_ascii (FILE *, const char *, int);
 extern int m65x_mode_dependent_address_p (rtx);
 extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
 extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);
-extern bool m65x_valid_mov_operands (enum machine_mode mode, rtx *operands);
+extern bool m65x_valid_mov_operands (enum machine_mode mode, rtx *operands,
+				     bool);
 extern bool m65x_valid_zp_mov_operands (enum machine_mode mode, rtx *operands);
 extern bool m65x_indirect_indexed_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_indirect_offset_addr_p (enum machine_mode, rtx, bool);
@@ -32,7 +33,9 @@ extern HOST_WIDE_INT m65x_elimination_offset (int from, int to);
 extern rtx m65x_push (enum machine_mode mode, rtx src);
 extern rtx m65x_pop (enum machine_mode mode, rtx dest);
 extern void m65x_expand_addsub (enum machine_mode, bool, rtx[]);
-extern rtx m65x_emit_movqi_nz (rtx, rtx);
+extern void m65x_emit_movqi (rtx, rtx, bool);
+extern bool m65x_peep_load (rtx dst, rtx base, rtx index, bool);
+extern bool m65x_peep_store (rtx base, rtx index, rtx src, bool);
 
 extern bool m65x_regno_mode_code_ok_for_base_p (int regno,
     enum machine_mode mode, addr_space_t as, enum rtx_code outer,
