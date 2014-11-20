@@ -620,13 +620,22 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 }
 
 static const char *
-m65x_print_movqi_1 (int which_alternative, rtx *operands)
+m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
 {
+#define NL "\n\t"
+  *clobbers_flags = true;
+
   switch (which_alternative)
     {
-    case 0: return "ld%R0 #%1";
-    case 1: case 3: return "ld%R0 %1";
-    case 2: case 4: return "st%R1 %0";
+    case 0:
+      return "ld%R0 #%1";
+
+    case 1: case 3:
+      return "ld%R0 %1";
+
+    case 2: case 4:
+      *clobbers_flags = false;
+      return "st%R1 %0";
 
     case 5:
       switch (REGNO (operands[0]))
@@ -634,7 +643,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
         case ACC_REGNUM:
 	  switch (REGNO (operands[1]))
 	    {
-	    case ACC_REGNUM: return "";
+	    case ACC_REGNUM: *clobbers_flags = false; return "";
 	    case X_REGNUM: return "txa";
 	    case Y_REGNUM: return "tya";
 	    default: gcc_unreachable ();
@@ -644,70 +653,88 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
 	case X_REGNUM:
 	  switch (REGNO (operands[1]))
 	    {
-	    case ACC_REGNUM: return "tax";
-	    case X_REGNUM: return "";
+	    case ACC_REGNUM:
+	      return "tax";
+	    case X_REGNUM:
+	      *clobbers_flags = false;
+	      return "";
 	    case Y_REGNUM:
 	      if (TARGET_PHX)
-	        return "phy\n\tplx";
+	        return "phy"		NL
+		       "plx";
 	      else
-		return "sty _tmp0\n\tldx _tmp0";
-	    default: gcc_unreachable ();
+		return "sty _tmp0"	NL
+		       "ldx _tmp0";
+	    default:
+	      gcc_unreachable ();
 	    }
 
 	case Y_REGNUM:
 	  switch (REGNO (operands[1]))
 	    {
-	    case ACC_REGNUM: return "tay";
+	    case ACC_REGNUM:
+	      return "tay";
 	    case X_REGNUM:
 	      if (TARGET_PHX)
-	        return "phx\n\tply";
+	        return "phx"		NL
+		       "ply";
 	      else
-	        return "stx _tmp0\n\tldy _tmp0";
-	    case Y_REGNUM: return "";
-	    default: gcc_unreachable ();
+	        return "stx _tmp0"	NL
+		       "ldy _tmp0";
+	    case Y_REGNUM:
+	      *clobbers_flags = false;
+	      return "";
+	    default:
+	      gcc_unreachable ();
 	    }
 
 	default:
-	  ;
+	  gcc_unreachable ();
 	}
       break;
 
-    case 6: case 8: return "ph%R1";
-    case 7: case 9: return "pl%R0";
+    case 6: case 8:
+      *clobbers_flags = false;
+      return "ph%R1";
+
+    case 7: case 9:
+      return "pl%R0";
 
     case 10:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
+	  || GET_CODE (XEXP (operands[1], 0)) == PLUS
+	  || CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
         return "lda %1";
       else if (REG_P (XEXP (operands[1], 0)))
         {
 	  operands[1] = XEXP (operands[1], 0);
-          output_asm_insn ("sty _tmp0\n\t"
-			   "ldy #0\n\t"
-			   "lda (%1),y\n\t"
-			   "ldy _tmp0", operands);
-	  return "";
+          return "sty _tmp0"	NL
+		 "ldy #0"	NL
+		 "lda (%1),y"	NL
+		 "ldy _tmp0";
 	}
       else
-        return "#";
+        gcc_unreachable ();
 
     case 11:
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
+	  || GET_CODE (XEXP (operands[0], 0)) == PLUS
+	  || CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
         return "sta %0";
       else if (REG_P (XEXP (operands[0], 0)))
         {
 	  operands[0] = XEXP (operands[0], 0);
-          output_asm_insn ("sty _tmp0\n\t"
-			   "ldy #0\n\t"
-			   "sta (%0),y\n\t"
-			   "ldy _tmp0", operands);
-	  return "";
+	  return "sty _tmp0"	NL
+		 "ldy #0"	NL
+		 "sta (%0),y"	NL
+		 "ldy _tmp0";
 	}
       else
-        return "#";
+        gcc_unreachable ();
 
-    case 12: case 13: return "stz %0";
+    case 12: case 13:
+      *clobbers_flags = false;
+      return "stz %0";
 
     case 14:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
@@ -716,26 +743,26 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
 	  switch (REGNO (operands[0]))
 	    {
 	    case ACC_REGNUM:
-              output_asm_insn ("lda %1", operands);
-	      break;
+              return "lda %1";
 	    case X_REGNUM:
 	      if (abs_y_mem_operand (operands[1], QImode))
-	        output_asm_insn ("ldx %1", operands);
+	        return "ldx %1";
 	      else
-		output_asm_insn ("sta _tmp0\n\tlda %1\n\ttax\n\tlda _tmp0",
-				 operands);
-	      break;
+		return "sta _tmp0"	NL
+		       "lda %1"		NL
+		       "tax"		NL
+		       "lda _tmp0";
 	    case Y_REGNUM:
 	      if (abs_x_mem_operand (operands[1], QImode))
-	        output_asm_insn ("ldy %1", operands);
+	        return "ldy %1";
 	      else
-		output_asm_insn ("sta _tmp0\n\tlda %1\n\ttay\n\tlda _tmp0",
-				 operands);
-	      break;
+		return "sta _tmp0"	NL
+		       "lda %1"		NL
+		       "tay"		NL
+		       "lda _tmp0";
 	    default:
 	      gcc_unreachable ();
 	    }
-	  return "";
 	}
       else if (REG_P (XEXP (operands[1], 0)))
 	{
@@ -744,32 +771,30 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
 	  switch (REGNO (operands[0]))
 	    {
 	    case ACC_REGNUM:
-              output_asm_insn ("sty _tmp0\n\t"
-			       "ldy #0\n\t"
-			       "lda (%1),y\n\t"
-			       "ldy _tmp0", operands);
-	      break;
+              return "sty _tmp0"	NL
+		     "ldy #0"		NL
+		     "lda (%1),y"	NL
+		     "ldy _tmp0";
 	    case X_REGNUM:
-	      output_asm_insn ("sta _tmp0\n\t"
-			       "ldx #0\n\t"
-			       "lda (%1,x)\n\t"
-			       "tax\n\t"
-			       "lda _tmp0", operands);
-	      break;
+	      return "sta _tmp0"	NL
+		     "ldx #0"		NL
+		     "lda (%1,x)"	NL
+		     "tax"		NL
+		     "lda _tmp0";
 	    case Y_REGNUM:
-	      output_asm_insn ("sta _tmp0\n\t"
-			       "ldy #0\n\t"
-			       "lda (%1),y\n\t"
-			       "tay\n\t"
-			       "lda _tmp0", operands);
-	      break;
+	      return "sta _tmp0"	NL
+		     "ldy #0"		NL
+		     "lda (%1),y"	NL
+		     "tay"		NL
+		     "lda _tmp0";
 	    default:
 	      gcc_unreachable ();
 	    }
-	  return "";
 	}
+      else if (CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
+	return "ld%R0 %1";
       else
-        return "#";
+        gcc_unreachable ();
       break;
 
     case 15:
@@ -779,26 +804,23 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
 	  switch (REGNO (operands[1]))
 	    {
 	    case ACC_REGNUM:
-	      output_asm_insn ("sta %0", operands);
-	      break;
+	      *clobbers_flags = false;
+	      return "sta %0";
 	    case X_REGNUM:
-	      output_asm_insn ("sta _tmp0\n\t"
-			       "txa\n\t"
-			       "sta %0\n\t"
-			       "lda _tmp0", operands);
-	      break;
+	      return "sta _tmp0"	NL
+		     "txa"		NL
+		     "sta %0"		NL
+		     "lda _tmp0";
 	    case Y_REGNUM:
 	      /* This is actually storing the Y register, but still using it
 	         as an index.  */
-	      output_asm_insn ("sta _tmp0\n\t"
-			       "tya\n\t"
-			       "sta %0\n\t"
-			       "lda _tmp0", operands);
-	      break;
+	      return "sta _tmp0\n\t"	NL
+		     "tya"		NL
+		     "sta %0"		NL
+		     "lda _tmp0";
 	    default:
 	      gcc_unreachable ();
 	    }
-	  return "";
 	}
       else if (REG_P (XEXP (operands[0], 0)))
 	{
@@ -807,78 +829,93 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
 	  switch (REGNO (operands[1]))
 	    {
 	    case ACC_REGNUM:
-	      output_asm_insn ("sty _tmp0\n\t"
-			       "ldy #0\n\t"
-			       "sta (%0),y\n\t"
-			       "ldy _tmp0", operands);
-	      break;
+	      return "sty _tmp0"	NL
+		     "ldy #0"		NL
+		     "sta (%0),y"	NL
+		     "ldy _tmp0";
 	    case X_REGNUM:
-	      output_asm_insn ("sty _tmp0\n\t"
-			       "sta _tmp1\n\t"
-			       "ldy #0\n\t"
-			       "txa\n\t"
-			       "sta (%0),y\n\t"
-			       "lda _tmp1\n\t"
-			       "ldy _tmp0", operands);
-	      break;
+	      return "sta _tmp0"	NL
+		     "txa"		NL
+		     "ldx #0"		NL
+		     "sta (%0,x)"	NL
+		     "tax"		NL
+		     "lda _tmp0";
 	    case Y_REGNUM:
-	      output_asm_insn ("stx _tmp0\n\t"
-			       "sta _tmp1\n\t"
-			       "ldx #0\n\t"
-			       "tya\n\t"
-			       "sta (%0,x)\n\t"
-			       "lda _tmp1\n\t"
-			       "ldx _tmp0", operands);
-	      break;
+	      return "sta _tmp0"	NL
+		     "tya"		NL
+		     "ldy #0"		NL
+		     "sta (%0),y"	NL
+		     "tay"		NL
+		     "lda _tmp0";
 	    default:
 	      gcc_unreachable ();
 	    }
 	  return "";
 	}
+      else if (CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
+	{
+	  *clobbers_flags = false;
+	  return "st%R1 %0";
+	}
       else
-        return "#";
+	gcc_unreachable ();
       break;
 
     case 16:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
-        return "sta _tmp0\n\tlda %1\n\tsta %0\n\tlda _tmp0";
+        return "sta _tmp0"	NL
+	       "lda %1"		NL
+	       "sta %0"		NL
+	       "lda _tmp0";
       else if (REG_P (XEXP (operands[1], 0)))
         {
 	  operands[1] = XEXP (operands[1], 0);
-	  output_asm_insn ("sta _tmp0\n\t"
-			   "sty _tmp1\n\t"
-			   "ldy #0\n\t"
-			   "lda (%1),y\n\t"
-			   "sta %0\n\t"
-			   "ldy _tmp1\n\t"
-			   "lda _tmp0", operands);
-	  return "";
+	  return "sta _tmp0"	NL
+		 "sty _tmp1"	NL
+		 "ldy #0"	NL
+		 "lda (%1),y"	NL
+		 "sta %0"	NL
+		 "ldy _tmp1"	NL
+		 "lda _tmp0";
 	}
+      else if (CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
+	return "sta _tmp0"	NL
+	       "lda %1"	NL
+	       "sta %0"	NL
+	       "lda _tmp0";
       else
-        return "#";
+        gcc_unreachable ();
 
     case 17:
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
-        return "sta _tmp0\n\tlda %1\n\tsta %0\n\tlda _tmp0";
+	return "sta _tmp0"	NL
+	       "lda %1"		NL
+	       "sta %0"		NL
+	       "lda _tmp0";
       else if (REG_P (XEXP (operands[0], 0)))
-        {
+	{
 	  operands[0] = XEXP (operands[0], 0);
-	  output_asm_insn ("sta _tmp0\n\t"
-			   "sty _tmp1\n\t"
-			   "ldy #0\n\t"
-			   "lda %1\n\t"
-			   "sta (%0),y\n\t"
-			   "ldy _tmp1\n\t"
-			   "lda _tmp0", operands);
-	  return "";
+	  return "sta _tmp0"	NL
+		 "sty _tmp1"	NL
+		 "ldy #0"	NL
+		 "lda %1"	NL
+		 "sta (%0),y"	NL
+		 "ldy _tmp1"	NL
+		 "lda _tmp0";
 	}
+      else if (CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
+	return "sta _tmp0"	NL
+	       "lda %1"	NL
+	       "sta %0"	NL
+	       "lda _tmp0";
       else
-        return "#";
+	gcc_unreachable ();
 
     case 18:
       gcc_assert (rtx_equal_p (operands[0], operands[1]));
+      *clobbers_flags = false;
       return "";
 
     default:
@@ -886,16 +923,19 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands)
     }
 
   gcc_unreachable ();
+#undef NL
 }
 
 const char *
 m65x_print_movqi (int which_alternative, rtx *operands, bool save_flags)
 {
-  const char *insn = m65x_print_movqi_1 (which_alternative, operands);
+  bool clobbers_flags;
+  const char *insn = m65x_print_movqi_1 (which_alternative, operands,
+					 &clobbers_flags);
 
   if (strcmp (insn, "#") == 0 || strcmp (insn, "") == 0)
     return insn;
-  else if (save_flags)
+  else if (save_flags && clobbers_flags)
     {
       output_asm_insn ("php", operands);
       output_asm_insn (insn, operands);
@@ -1261,8 +1301,6 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			      force_reg (Pmode, plus0));
 	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
             {
-	      /* This is great in theory, but seems to make generated code a lot
-		 worse.  */
 	      rtx plus1_lo, plus1_hi, tmp_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
 
@@ -1737,7 +1775,7 @@ m65x_lra_p (void)
 }
 
 static bool
-m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
+m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 {
   bool strict = reload_in_progress || lra_in_progress || reload_completed;
   
@@ -1756,9 +1794,10 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[0], 0), strict))
-	    return register_operand (operands[1], mode);
+	    return (relaxed && register_operand (operands[1], mode))
+		   || (!relaxed && accumulator_operand (operands[1], mode));
 	  else
-	    return hard_reg_operand (operands[1], mode)
+	    return register_operand (operands[1], mode)
 		   || immediate_operand (operands[1], mode);
 	}
     }
@@ -1777,9 +1816,10 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[1], 0), strict))
-	    return register_operand (operands[0], mode);
+	    return (relaxed && register_operand (operands[0], mode))
+		   || (!relaxed && accumulator_operand (operands[0], mode));
 	  else
-	    return hard_reg_operand (operands[0], mode);
+	    return register_operand (operands[0], mode);
 	}
     }
   else
@@ -1801,7 +1841,7 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 }
 
 bool
-m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
+m65x_valid_mov_operands (enum machine_mode mode, rtx *operands, bool relaxed)
 {
   int retval;
 
@@ -1812,7 +1852,7 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
   debug_rtx (operands[1]);
 #endif
   
-  retval = m65x_valid_mov_operands_1 (mode, operands);
+  retval = m65x_valid_mov_operands_1 (mode, operands, relaxed);
 
 #if 0
   fprintf (stderr, "returning %s\n", retval ? "true" : "false");
@@ -2612,10 +2652,199 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
   emit_insn (seq);
 }
 
-rtx
-m65x_emit_movqi_nz (rtx dst, rtx src)
+void
+m65x_emit_movqi (rtx dst, rtx src, bool can_clobber_nz)
 {
-  return emit_insn (gen_movqi_insn (dst, src));
+  if (can_clobber_nz)
+    emit_insn (gen_movqi_insn (dst, src));
+  else
+    emit_insn (gen_movqi_noclob (dst, src));
+}
+
+/* DST can be:
+    - the accumulator
+    - an index register (X/Y)
+    - a zero-page register
+   BASE is always a zero-page register pair.
+   INDEX can be the Y register or NULL_RTX.  */
+
+bool
+m65x_peep_load (rtx dst, rtx base, rtx index, bool can_clobber_nz)
+{
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  rtx zpreg, seq;
+  bool save_needed;
+  bool x_available = peep2_regno_dead_p (1, X_REGNUM);
+  bool y_available = peep2_regno_dead_p (1, Y_REGNUM);
+
+  gcc_assert (index == NULL_RTX || rtx_equal_p (index, yreg));
+
+  if (rtx_equal_p (dst, acc))
+    {
+      gcc_assert (index == NULL_RTX);
+
+      if (y_available)
+	{
+	  m65x_emit_movqi (yreg, const0_rtx, can_clobber_nz);
+	  if (can_clobber_nz)
+	    emit_insn (gen_loadqi_indy_nz (acc, yreg, base));
+	  else
+	    emit_insn (gen_loadqi_indy (acc, yreg, base));
+	}
+      else if (x_available)
+	{
+	  m65x_emit_movqi (xreg, const0_rtx, can_clobber_nz);
+	  if (can_clobber_nz)
+	    emit_insn (gen_loadqi_xind_nz (acc, base, xreg));
+	  else
+	    emit_insn (gen_loadqi_xind (acc, base, xreg));
+	}
+      else
+	return false;
+
+      return true;
+    }
+
+  if ((save_needed = !peep2_regno_dead_p (1, ACC_REGNUM))
+      && !m65x_peephole_find_temp_regs (0, 1, &zpreg, NULL))
+    return false;
+
+  start_sequence ();
+
+  if (save_needed)
+    m65x_emit_movqi (zpreg, acc, can_clobber_nz);
+
+  if (index == NULL_RTX)
+    {
+      if (TARGET_ZPIND)
+	m65x_emit_movqi (acc, gen_rtx_MEM (QImode, base), can_clobber_nz);
+      else
+	{
+	  if (y_available)
+	    {
+	      m65x_emit_movqi (yreg, const0_rtx, can_clobber_nz);
+	      if (can_clobber_nz)
+		emit_insn (gen_loadqi_indy_nz (acc, yreg, base));
+	      else
+		emit_insn (gen_loadqi_indy (acc, yreg, base));
+	    }
+	  else if (x_available)
+	    {
+	      m65x_emit_movqi (xreg, const0_rtx, can_clobber_nz);
+	      if (can_clobber_nz)
+		emit_insn (gen_loadqi_xind_nz (acc, base, xreg));
+	      else
+		emit_insn (gen_loadqi_xind (acc, base, xreg));
+	    }
+	  else
+	    {
+	      end_sequence ();
+	      return false;
+	    }
+	}
+    }
+  else
+    {
+      if (can_clobber_nz)
+	emit_insn (gen_loadqi_indy_nz (acc, index, base));
+      else
+	emit_insn (gen_loadqi_indy (acc, index, base));
+    }
+
+  m65x_emit_movqi (dst, acc, can_clobber_nz);
+
+  if (save_needed)
+    m65x_emit_movqi (acc, zpreg, can_clobber_nz);
+
+  seq = get_insns ();
+  end_sequence ();
+
+  emit_insn (seq);
+
+  return true;
+}
+
+bool
+m65x_peep_store (rtx base, rtx index, rtx src, bool can_clobber_nz)
+{
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  rtx zpreg, seq;
+  bool save_needed;
+  bool x_available = peep2_regno_dead_p (1, X_REGNUM);
+  bool y_available = peep2_regno_dead_p (1, Y_REGNUM);
+
+  gcc_assert (index == NULL_RTX || rtx_equal_p (index, yreg));
+
+  if (rtx_equal_p (src, acc))
+    {
+      gcc_assert (index == NULL_RTX);
+
+      if (y_available)
+	{
+	  m65x_emit_movqi (yreg, const0_rtx, can_clobber_nz);
+	  emit_insn (gen_storeqi_indy (yreg, base, acc));
+	}
+      else if (x_available)
+	{
+	  m65x_emit_movqi (xreg, const0_rtx, can_clobber_nz);
+	  emit_insn (gen_storeqi_xind (base, xreg, acc));
+	}
+      else
+	return false;
+
+      return true;
+    }
+
+  if ((save_needed = !peep2_regno_dead_p (1, ACC_REGNUM))
+      && !m65x_peephole_find_temp_regs (0, 1, &zpreg, NULL))
+    return false;
+
+  start_sequence ();
+
+  if (save_needed)
+    m65x_emit_movqi (zpreg, acc, can_clobber_nz);
+
+  m65x_emit_movqi (acc, src, can_clobber_nz);
+
+  if (index == NULL_RTX)
+    {
+      if (TARGET_ZPIND)
+	m65x_emit_movqi (gen_rtx_MEM (QImode, base), acc, can_clobber_nz);
+      else
+	{
+	  if (y_available)
+	    {
+	      m65x_emit_movqi (yreg, const0_rtx, can_clobber_nz);
+	      emit_insn (gen_storeqi_indy (yreg, base, acc));
+	    }
+	  else if (x_available)
+	    {
+	      m65x_emit_movqi (xreg, const0_rtx, can_clobber_nz);
+	      emit_insn (gen_storeqi_xind (base, xreg, acc));
+	    }
+	  else
+	    {
+	      end_sequence ();
+	      return false;
+	    }
+	}
+    }
+  else
+    emit_insn (gen_storeqi_indy (yreg, base, acc));
+
+  if (save_needed)
+    m65x_emit_movqi (acc, zpreg, can_clobber_nz);
+
+  seq = get_insns ();
+  end_sequence ();
+
+  emit_insn (seq);
+
+  return true;
 }
 
 static enum machine_mode
@@ -2712,6 +2941,99 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
     }
 
   return false;
+}
+
+static void
+m65x_reorg (void)
+{
+  basic_block bb;
+  regset_head live;
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+
+  INIT_REG_SET (&live);
+
+  compute_bb_for_insn ();
+
+  df_live_add_problem ();
+  df_live_set_all_dirty ();
+  df_analyze ();
+
+  if (!optimize)
+    split_all_insns_noflow ();
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx insn, curr;
+
+      COPY_REG_SET (&live, DF_LIVE_OUT (bb));
+      df_simulate_initialize_backwards (bb, &live);
+
+      FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
+	{
+	  if (NONDEBUG_INSN_P (insn))
+	    {
+	      rtx set;
+	      int icode = recog_memoized (insn);
+
+	      switch (icode)
+		{
+		case CODE_FOR_movqi_insn:
+		  set = single_set (insn);
+
+		  if (set)
+		    {
+		      rtx dst = SET_DEST (set);
+		      rtx src = SET_SRC (set);
+
+		      if (MEM_P (dst)
+			  && (m65x_indirect_indexed_addr_p (QImode,
+							    XEXP (dst, 0), true)
+			      || m65x_address_register_p (XEXP (dst, 0), true))
+			  && !accumulator_operand (src, QImode))
+			{
+
+			  if (!REGNO_REG_SET_P (&live, ACC_REGNUM))
+			    {
+			      emit_insn_before (gen_movqi_insn (acc, src),
+						insn);
+			      SET_SRC (set) = acc;
+			    }
+			}
+		    }
+		  break;
+
+		case CODE_FOR_movqi_noclob:
+		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
+		      && (set = single_set (insn)))
+		    {
+		      PATTERN (insn)
+			= gen_movqi_insn (SET_DEST (set), SET_SRC (set));
+		      INSN_CODE (insn) = -1;
+		    }
+		  break;
+
+		case CODE_FOR_addqi3_noclob:
+		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
+		      && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
+		      && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
+		      && (set = single_set (insn)))
+		    {
+		      PATTERN (insn)
+			= gen_addqi3 (SET_DEST (set),
+				      XEXP (SET_SRC (set), 0),
+				      XEXP (SET_SRC (set), 1));
+		      INSN_CODE (insn) = -1;
+		    }
+		  break;
+
+		default:
+		  ;
+		}
+
+	      df_simulate_one_insn_backwards (bb, insn, &live);
+	    }
+	}
+    }
 }
 
 #undef TARGET_OPTION_OVERRIDE
@@ -2839,5 +3161,8 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
 
 #undef TARGET_ADDR_SPACE_CONVERT
 #define TARGET_ADDR_SPACE_CONVERT m65x_addr_space_convert
+
+#undef TARGET_MACHINE_DEPENDENT_REORG
+#define TARGET_MACHINE_DEPENDENT_REORG m65x_reorg
 
 struct gcc_target targetm = TARGET_INITIALIZER;
