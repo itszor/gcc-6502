@@ -6036,7 +6036,9 @@ simplify_subreg (machine_mode outermode, rtx op,
       /* Allow splitting of volatile memory references in case we don't
          have instruction to move the whole thing.  */
       && (! MEM_VOLATILE_P (op)
-	  || ! have_insn_for (SET, innermode))
+	  || ! have_insn_for (SET, innermode)
+	  || ! targetm.addr_space.legitimate_address_p (outermode, XEXP (op, 0),
+							1, MEM_ADDR_SPACE (op)))
       && GET_MODE_SIZE (outermode) <= GET_MODE_SIZE (GET_MODE (op)))
     return adjust_address_nv (op, outermode, byte);
 
