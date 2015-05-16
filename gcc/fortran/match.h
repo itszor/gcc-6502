@@ -1,5 +1,5 @@
 /* All matcher functions.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2015 Free Software Foundation, Inc.
    Contributed by Steven Bosscher
 
 This file is part of GCC.
@@ -122,24 +122,66 @@ gfc_common_head *gfc_get_common (const char *, int);
 
 /* openmp.c.  */
 
+/* OpenACC directive matchers.  */
+match gfc_match_oacc_cache (void);
+match gfc_match_oacc_wait (void);
+match gfc_match_oacc_update (void);
+match gfc_match_oacc_declare (void);
+match gfc_match_oacc_loop (void);
+match gfc_match_oacc_host_data (void);
+match gfc_match_oacc_data (void);
+match gfc_match_oacc_kernels (void);
+match gfc_match_oacc_kernels_loop (void);
+match gfc_match_oacc_parallel (void);
+match gfc_match_oacc_parallel_loop (void);
+match gfc_match_oacc_enter_data (void);
+match gfc_match_oacc_exit_data (void);
+match gfc_match_oacc_routine (void);
+
 /* OpenMP directive matchers.  */
 match gfc_match_omp_eos (void);
 match gfc_match_omp_atomic (void);
 match gfc_match_omp_barrier (void);
+match gfc_match_omp_cancel (void);
+match gfc_match_omp_cancellation_point (void);
 match gfc_match_omp_critical (void);
+match gfc_match_omp_declare_reduction (void);
+match gfc_match_omp_declare_simd (void);
+match gfc_match_omp_declare_target (void);
+match gfc_match_omp_distribute (void);
+match gfc_match_omp_distribute_parallel_do (void);
+match gfc_match_omp_distribute_parallel_do_simd (void);
+match gfc_match_omp_distribute_simd (void);
 match gfc_match_omp_do (void);
+match gfc_match_omp_do_simd (void);
 match gfc_match_omp_flush (void);
 match gfc_match_omp_master (void);
 match gfc_match_omp_ordered (void);
 match gfc_match_omp_parallel (void);
 match gfc_match_omp_parallel_do (void);
+match gfc_match_omp_parallel_do_simd (void);
 match gfc_match_omp_parallel_sections (void);
 match gfc_match_omp_parallel_workshare (void);
 match gfc_match_omp_sections (void);
+match gfc_match_omp_simd (void);
 match gfc_match_omp_single (void);
+match gfc_match_omp_target (void);
+match gfc_match_omp_target_data (void);
+match gfc_match_omp_target_teams (void);
+match gfc_match_omp_target_teams_distribute (void);
+match gfc_match_omp_target_teams_distribute_parallel_do (void);
+match gfc_match_omp_target_teams_distribute_parallel_do_simd (void);
+match gfc_match_omp_target_teams_distribute_simd (void);
+match gfc_match_omp_target_update (void);
 match gfc_match_omp_task (void);
+match gfc_match_omp_taskgroup (void);
 match gfc_match_omp_taskwait (void);
 match gfc_match_omp_taskyield (void);
+match gfc_match_omp_teams (void);
+match gfc_match_omp_teams_distribute (void);
+match gfc_match_omp_teams_distribute_parallel_do (void);
+match gfc_match_omp_teams_distribute_parallel_do_simd (void);
+match gfc_match_omp_teams_distribute_simd (void);
 match gfc_match_omp_threadprivate (void);
 match gfc_match_omp_workshare (void);
 match gfc_match_omp_end_nowait (void);

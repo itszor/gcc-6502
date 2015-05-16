@@ -1,5 +1,5 @@
 /* Definitions for the Blackfin port.
-   Copyright (C) 2005-2014 Free Software Foundation, Inc.
+   Copyright (C) 2005-2015 Free Software Foundation, Inc.
    Contributed by Analog Devices.
 
    This file is part of GCC.
@@ -42,6 +42,8 @@
 						\
       switch (bfin_cpu_type)			\
 	{					\
+	case BFIN_CPU_UNKNOWN:			\
+	  break;				\
 	case BFIN_CPU_BF512:			\
 	  builtin_define ("__ADSPBF512__");	\
 	  builtin_define ("__ADSPBF51x__");	\

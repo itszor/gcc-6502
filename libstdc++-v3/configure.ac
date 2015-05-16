@@ -147,12 +147,14 @@ GLIBCXX_ENABLE_HOSTED
 GLIBCXX_ENABLE_VERBOSE
 
 # Enable compiler support that doesn't require linking.
-GLIBCXX_ENABLE_SJLJ_EXCEPTIONS
 GLIBCXX_ENABLE_PCH($is_hosted)
 GLIBCXX_ENABLE_THREADS
 GLIBCXX_ENABLE_ATOMIC_BUILTINS
 GLIBCXX_ENABLE_DECIMAL_FLOAT
 GLIBCXX_ENABLE_INT128_FLOAT128
+if test "$enable_float128" = yes; then
+  port_specific_symbol_files="$port_specific_symbol_files \$(top_srcdir)/config/abi/pre/float128.ver"
+fi
 
 # Checks for compiler support that doesn't require linking.
 GLIBCXX_CHECK_COMPILER_FEATURES
@@ -365,6 +367,9 @@ AC_SUBST(libtool_VERSION)
 
 GLIBCXX_ENABLE_LIBSTDCXX_VISIBILITY([yes])
 
+GLIBCXX_ENABLE_LIBSTDCXX_DUAL_ABI([yes])
+GLIBCXX_DEFAULT_ABI
+
 ac_ldbl_compat=no
 case "$target" in
   powerpc*-*-linux* | \
@@ -395,6 +400,11 @@ GLIBCXX_CONFIGURE_TESTSUITE
 
 # For gthread support.  Depends on GLIBCXX_ENABLE_SYMVERS.
 GLIBCXX_CHECK_GTHREADS
+
+# For Filesystem TS.
+AC_CHECK_HEADERS([fcntl.h dirent.h sys/statvfs.h utime.h])
+GLIBCXX_ENABLE_FILESYSTEM_TS
+GLIBCXX_CHECK_FILESYSTEM_DEPS
 
 # Define documentation rules conditionally.
 

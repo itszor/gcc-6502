@@ -1,5 +1,5 @@
 /* Definitions for Toshiba Media Processor
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2015 Free Software Foundation, Inc.
    Contributed by Red Hat, Inc.
 
 This file is part of GCC.
@@ -512,7 +512,6 @@ typedef struct
 /* Profiling is supported.  */
      
 #define FUNCTION_PROFILER(FILE, LABELNO) mep_function_profiler (FILE);
-#undef TARGET_HAS_F_SETLKW
 #define NO_PROFILE_COUNTERS 1
 
 /* Trampolines are built at run-time.  The cache is invalidated at
@@ -555,7 +554,7 @@ typedef struct
 
 /* Define this macro if it is as good or better to call a constant function
    address than to call an address kept in a register.  */
-#define NO_FUNCTION_CSE 
+#define NO_FUNCTION_CSE 1
 
 
 #define TEXT_SECTION_ASM_OP "\t.text\n\t.core"

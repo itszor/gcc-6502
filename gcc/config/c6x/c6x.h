@@ -1,5 +1,5 @@
 /* Target Definitions for TI C6X.
-   Copyright (C) 2010-2014 Free Software Foundation, Inc.
+   Copyright (C) 2010-2015 Free Software Foundation, Inc.
    Contributed by Andrew Jenner <andrew@codesourcery.com>
    Contributed by Bernd Schmidt <bernds@codesourcery.com>
 
@@ -84,6 +84,8 @@ extern c6x_cpu_t c6x_arch;
 						\
       switch (c6x_arch)				\
 	{					\
+	case unk_isa:				\
+	  break;				\
 	case C6X_CPU_C62X:			\
 	  builtin_define ("_TMS320C6200");	\
 	  break;				\
@@ -359,7 +361,8 @@ struct c6x_args {
 #define DEFAULT_PCC_STRUCT_RETURN 0
 
 #define FUNCTION_PROFILER(file, labelno) \
-  fatal_error ("profiling is not yet implemented for this architecture")
+  fatal_error (input_location, \
+	       "profiling is not yet implemented for this architecture")
 
 
 /* Trampolines.  */

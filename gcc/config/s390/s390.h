@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for IBM S/390
-   Copyright (C) 1999-2014 Free Software Foundation, Inc.
+   Copyright (C) 1999-2015 Free Software Foundation, Inc.
    Contributed by Hartmut Penner (hpenner@de.ibm.com) and
                   Ulrich Weigand (uweigand@de.ibm.com).
                   Andreas Krebbel (Andreas.Krebbel@de.ibm.com)
@@ -252,14 +252,6 @@ enum processor_flags
 #define DOUBLE_TYPE_SIZE 64
 #define LONG_DOUBLE_TYPE_SIZE (TARGET_LONG_DOUBLE_128 ? 128 : 64)
 
-/* Define this to set long double type size to use in libgcc2.c, which can
-   not depend on target_flags.  */
-#ifdef __LONG_DOUBLE_128__
-#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE 128
-#else
-#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE 64
-#endif
-
 /* Work around target_flags dependency in ada/targtyps.c.  */
 #define WIDEST_HARDWARE_FP_SIZE 64
 
@@ -485,7 +477,7 @@ enum reg_class
    reload can decide not to use the hard register because some
    constant was forced to be in memory.  */
 #define IRA_HARD_REGNO_ADD_COST_MULTIPLIER(regno)	\
-  (regno == BASE_REGNUM ? 0.0 : 0.5)
+  (regno != BASE_REGNUM ? 0.0 : 0.5)
 
 /* Register -> class mapping.  */
 extern const enum reg_class regclass_map[FIRST_PSEUDO_REGISTER];
@@ -752,26 +744,8 @@ do {									\
 #define MOVE_MAX_PIECES (TARGET_ZARCH ? 8 : 4)
 #define MAX_MOVE_MAX 16
 
-/* Determine whether to use move_by_pieces or block move insn.  */
-#define MOVE_BY_PIECES_P(SIZE, ALIGN)		\
-  ( (SIZE) == 1 || (SIZE) == 2 || (SIZE) == 4	\
-    || (TARGET_ZARCH && (SIZE) == 8) )
-
-/* Determine whether to use clear_by_pieces or block clear insn.  */
-#define CLEAR_BY_PIECES_P(SIZE, ALIGN)		\
-  ( (SIZE) == 1 || (SIZE) == 2 || (SIZE) == 4	\
-    || (TARGET_ZARCH && (SIZE) == 8) )
-
-/* This macro is used to determine whether store_by_pieces should be
-   called to "memcpy" storage when the source is a constant string.  */
-#define STORE_BY_PIECES_P(SIZE, ALIGN) MOVE_BY_PIECES_P (SIZE, ALIGN)
-
-/* Likewise to decide whether to "memset" storage with byte values
-   other than zero.  */
-#define SET_BY_PIECES_P(SIZE, ALIGN) STORE_BY_PIECES_P (SIZE, ALIGN)
-
 /* Don't perform CSE on function addresses.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* This value is used in tree-sra to decide whether it might benefical
    to split a struct move into several word-size moves.  For S/390
@@ -833,7 +807,7 @@ do {									\
 
 /* Advance the location counter by SIZE bytes.  */
 #define ASM_OUTPUT_SKIP(FILE, SIZE) \
-  fprintf ((FILE), "\t.set\t.,.+"HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
+  fprintf ((FILE), "\t.set\t.,.+" HOST_WIDE_INT_PRINT_UNSIGNED"\n", (SIZE))
 
 /* The LOCAL_LABEL_PREFIX variable is used by dbxelf.h.  */
 #define LOCAL_LABEL_PREFIX "."
@@ -899,7 +873,7 @@ do {									\
 /* Specify the machine mode that pointers have.
    After generation of rtl, the compiler makes no further distinction
    between pointers and any other objects of this machine mode.  */
-#define Pmode ((enum machine_mode) (TARGET_64BIT ? DImode : SImode))
+#define Pmode ((machine_mode) (TARGET_64BIT ? DImode : SImode))
 
 /* This is -1 for "pointer mode" extend.  See ptr_extend in s390.md.  */
 #define POINTERS_EXTEND_UNSIGNED -1

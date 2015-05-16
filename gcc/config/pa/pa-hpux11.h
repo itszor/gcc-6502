@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for HP PA-RISC
-   Copyright (C) 1998-2014 Free Software Foundation, Inc.
+   Copyright (C) 1998-2015 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -40,6 +40,7 @@ along with GCC; see the file COPYING3.  If not see
 	if (c_dialect_cxx ())						\
 	  {								\
 	    builtin_define ("_HPUX_SOURCE");				\
+	    builtin_define ("_REENTRANT");				\
 	    builtin_define ("_INCLUDE_LONGLONG");			\
 	    builtin_define ("__STDCPP__");				\
 	  }								\
@@ -48,6 +49,7 @@ along with GCC; see the file COPYING3.  If not see
 	    if (!flag_iso)						\
 	      {								\
 		builtin_define ("_HPUX_SOURCE");			\
+		builtin_define ("_REENTRANT");				\
 		if (preprocessing_trad_p ())				\
 		  {							\
 		    builtin_define ("hp9000s800");			\
@@ -120,8 +122,8 @@ along with GCC; see the file COPYING3.  If not see
 #undef LIB_SPEC
 #define LIB_SPEC \
   "%{!shared:\
-     %{fopenmp|ftree-parallelize-loops=*:%{static:-a archive_shared} -lrt\
-       %{static:-a archive}}\
+     %{fopenacc|fopenmp|ftree-parallelize-loops=*:\
+       %{static:-a archive_shared} -lrt %{static:-a archive}}\
      %{mt|pthread:-lpthread} -lc\
      %{static:%{!nolibdld:-a archive_shared -ldld -a archive -lc}\
        %{!mt:%{!pthread:-a shared -lc -a archive}}}}\

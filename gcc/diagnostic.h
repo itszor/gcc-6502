@@ -1,5 +1,5 @@
 /* Various declarations for language-independent diagnostics subroutines.
-   Copyright (C) 2000-2014 Free Software Foundation, Inc.
+   Copyright (C) 2000-2015 Free Software Foundation, Inc.
    Contributed by Gabriel Dos Reis <gdr@codesourcery.com>
 
 This file is part of GCC.
@@ -29,8 +29,9 @@ along with GCC; see the file COPYING3.  If not see
    list in diagnostic.def.  */
 struct diagnostic_info
 {
+  /* Text to be formatted. It also contains the location(s) for this
+     diagnostic.  */
   text_info message;
-  location_t location;
   unsigned int override_column;
   /* Auxiliary data for client.  */
   void *x_data;
@@ -104,6 +105,9 @@ struct diagnostic_context
 
   /* Maximum width of the source line printed.  */
   int caret_max_width;
+
+  /* Characters used for caret diagnostics.  */
+  char caret_chars[MAX_LOCATIONS_PER_MESSAGE];
 
   /* True if we should print the command line option which controls
      each diagnostic, if known.  */
@@ -263,6 +267,7 @@ extern diagnostic_context *global_dc;
 
 /* Diagnostic related functions.  */
 extern void diagnostic_initialize (diagnostic_context *, int);
+extern void diagnostic_color_init (diagnostic_context *, int value = -1);
 extern void diagnostic_finish (diagnostic_context *);
 extern void diagnostic_report_current_module (diagnostic_context *, location_t);
 extern void diagnostic_show_locus (diagnostic_context *, const diagnostic_info *);
@@ -290,10 +295,63 @@ extern char *diagnostic_build_prefix (diagnostic_context *, const diagnostic_inf
 void default_diagnostic_starter (diagnostic_context *, diagnostic_info *);
 void default_diagnostic_finalizer (diagnostic_context *, diagnostic_info *);
 void diagnostic_set_caret_max_width (diagnostic_context *context, int value);
+void diagnostic_action_after_output (diagnostic_context *, diagnostic_t);
 
 void diagnostic_file_cache_fini (void);
 
+int get_terminal_width (void);
+
+/* Return the location associated to this diagnostic. Parameter WHICH
+   specifies which location. By default, expand the first one.  */
+
+static inline location_t
+diagnostic_location (const diagnostic_info * diagnostic, int which = 0)
+{
+  return diagnostic->message.get_location (which);
+}
+
+/* Expand the location of this diagnostic. Use this function for
+   consistency.  Parameter WHICH specifies which location. By default,
+   expand the first one.  */
+
+static inline expanded_location
+diagnostic_expand_location (const diagnostic_info * diagnostic, int which = 0)
+{
+  expanded_location s
+    = expand_location_to_spelling_point (diagnostic_location (diagnostic,
+							      which));
+  if (which == 0 && diagnostic->override_column)
+    s.column = diagnostic->override_column;
+  return s;
+}
+
+/* This is somehow the right-side margin of a caret line, that is, we
+   print at least these many characters after the position pointed at
+   by the caret.  */
+#define CARET_LINE_MARGIN 10
+
+/* Return true if the two locations can be represented within the same
+   caret line.  This is used to build a prefix and also to determine
+   whether to print one or two caret lines.  */
+
+static inline bool
+diagnostic_same_line (const diagnostic_context *context,
+		       expanded_location s1, expanded_location s2)
+{
+  return s2.column && s1.line == s2.line 
+    && context->caret_max_width - CARET_LINE_MARGIN > abs (s1.column - s2.column);
+}
+
+void
+diagnostic_print_caret_line (diagnostic_context * context,
+			     expanded_location xloc1,
+			     expanded_location xloc2,
+			     char caret1, char caret2);
+
 /* Pure text formatting support functions.  */
 extern char *file_name_as_prefix (diagnostic_context *, const char *);
+
+extern char *build_message_string (const char *, ...) ATTRIBUTE_PRINTF_1;
+
 
 #endif /* ! GCC_DIAGNOSTIC_H */

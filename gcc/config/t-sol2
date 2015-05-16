@@ -1,4 +1,4 @@
-# Copyright (C) 2004-2014 Free Software Foundation, Inc.
+# Copyright (C) 2004-2015 Free Software Foundation, Inc.
 #
 # This file is part of GCC.
 #
@@ -35,3 +35,10 @@ sol2-stubs.o: $(srcdir)/config/sol2-stubs.c
 sol2.o: $(srcdir)/config/sol2.c
 	$(COMPILE) $<
 	$(POSTCOMPILE)
+
+# Install clearcap.map if present.
+install: install-clearcap-map
+
+# Ignore failures: file only exists if linker supports it.
+install-clearcap-map:
+	-$(INSTALL_DATA) clearcap.map $(DESTDIR)$(libdir)

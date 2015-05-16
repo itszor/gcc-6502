@@ -1,99 +1,48 @@
-2014-03-12  Uros Bizjak  <ubizjak@gmail.com>
+2015-05-13  Eric Botcazou  <ebotcazou@adacore.com>
 
-	* include/dwarf2-signal.h: Update copyright year.
-	(SIGNAL_HANDLER): Remove _sip argument.  Mark _p argument with
-	__attribute__ ((__unused__)).
-	(class java::lang::Throwable): Remove declaration.
-	(MAKE_THROW_FRAME) [!__ia64__]: Define as empty definition.
+	* configure.ac: Include config/sjlj.m4.
+	Remove manual SJLJ check, add GCC_CHECK_SJLJ_EXCEPTIONS and adjust.
+	* include/config.h.in: Regenerate.
+	* configure: Likewise.
+	* exception.cc: Replace SJLJ_EXCEPTIONS by __USING_SJLJ_EXCEPTIONS__.
+	* stacktrace.cc: Likewise.
+	* include/default-signal.h: Likewise.
+	* sysdep/i386/backtrace.h: Likewise.
 
-2014-03-11  Uros Bizjak  <ubizjak@gmail.com>
+2015-05-13  Michael Haubenwallner  <michael.haubenwallner@ssi-schaefer.com>
 
-	* java/lang/natObject.cc (_Jv_MonitorEnter): Add missing parenthesis
-	around comparison with (address | LOCKED) in JvAssert.
+	* Makefile.in: Regenerated with automake-1.11.6.
+	* aclocal.m4: Likewise.
+	* configure: Likewise.
+	* gcj/Makefile.in: Likewise.
+	* include/Makefile.in: Likewise.
+	* testsuite/Makefile.in: Likewise.
 
-2014-02-20  Rainer Orth  <ro@CeBiTec.Uni-Bielefeld.DE>
+2015-01-29  Bernd Edlinger  <bernd.edlinger@hotmail.de>
 
-	PR libgcj/55637
-	* testsuite/libjava.lang/sourcelocation.xfail: New file.
+	* libtool-version: Add a comment about cygwin.
 
-2014-02-18  Richard Biener  <rguenther@suse.de>
-
-	PR libjava/60261
-	* configure.ac (dbexecdir): Remove redundant multilib addition.
-	* Makefile.am (gcc_version): Export.
-	* configure: Regenerate.
-	* Makefile.in: Likewise.
-
-2014-01-02  Tobias Burnus  <burnus@net-b.de>
-
-	* gnu/gcj/convert/Convert.java (version): Update copyright notice
-	dates.
-	* gnu/gcj/tools/gcj_dbtool/Main.java (main): Ditto.
-
-2013-12-09  Andreas Schwab  <schwab@suse.de>
-
-	* Makefile.am (toolexeclib_LTLIBRARIES) [USE_LIBGCJ_BC]: Use
-	install/libgcj_bc.la instead of libgcj_bc.la.
-	(noinst_LTLIBRARIES) [USE_LIBGCJ_BC]: Define.
-	(install_libgcj_bc_la_SOURCES): Define.
-	(install/libgcj_bc.la): New rule.
-	* Makefile.in: Regenerate.
-
-2013-09-20  Alan Modra  <amodra@gmail.com>
-
-	* configure: Regenerate.
-
-2013-06-20  Roland Lutz  <rlutz@hedmen.org>
-
- 	* contrib/aot-compile.in: Fix typo in option list.
-
-2013-06-20  Matthias Klose  <doko@ubuntu.com>
-
-	* pkg.m4 (PKG_CHECK_MODULES): Use AC_PATH_TOOL to check for pkg-config.
-	* classpath/m4/pkg.m4 (PKG_CHECK_MODULES): Likewise.
-	* configure: Regenerate.
-	* classpath/configure: Regenerate.
-
-2013-06-20  Matthias Klose  <doko@ubuntu.com>
+2015-01-21  Matthias Klose  <doko@ubuntu.com>
 
 	* libtool-version: Bump soversion.
 
-2013-05-22  Mark Mitchell  <mark@codesourcery.com>
-	    Sandra Loosemore  <sandra@codesourcery.com>
+2015-01-13  Jakub Jelinek  <jakub@redhat.com>
 
-	* configure.ac (dbexecdir): Base on $(toolexeclibdir), not
-	$(libdir).
-	* Makefile.am (pkgconfigdir): Likewise.
-	* configure: Regenerated.
-	* Makefile.in: Regenerated.
-	* gcj/Makefile.in: Regenerated.
-	* include/Makefile.in: Regenerated.
-	* testsuite/Makefile.in: Regenerated.
-
-2013-04-16  Andreas Schwab  <schwab@suse.de>
-
-	* configure.host: Add support for aarch64.
-	* sysdep/aarch64/locks.h: New file.
-
-2013-03-12  Andrew John Hughes  <gnu.andrew@redhat.com>
-
-	* include/posix-threads.h:
-	(_Jv_MutexCheckMonitor(_Jv_Mutex_t)): Use
-	pthread_equal rather than !=.
-
-2013-01-07  H.J. Lu  <hongjiu.lu@intel.com>
-
-	* Makefile.am (lib_gnu_awt_xlib_la_LDFLAGS): Replace
-	LIBSTDCXX_RAW_CXX_LDLAGS with LIBSTDCXX_RAW_CXX_LDFLAGS.
+	PR libgcj/64219
+	* Makefile.am (install-data-local): Use just the major version
+	from GCJVERSION instead of major.minor.
 	* Makefile.in: Regenerated.
 
-2013-01-03  Jakub Jelinek  <jakub@redhat.com>
+2015-01-05  Jakub Jelinek  <jakub@redhat.com>
 
+	* classpath/gnu/java/rmi/registry/RegistryImpl.java (version): Update
+	copyright notice dates.
+	* classpath/tools/gnu/classpath/tools/orbd/Main.java (run): Ditto.
 	* gnu/gcj/convert/Convert.java (version): Update copyright notice
 	dates.
-	* gnu/gcj/tools/gcj_dbtool/Main.java (main): Likewise.
+	* gnu/gcj/tools/gcj_dbtool/Main.java (main): Ditto.
 
-Copyright (C) 2014 Free Software Foundation, Inc.
+Copyright (C) 2015 Free Software Foundation, Inc.
 
 Copying and distribution of this file, with or without modification,
 are permitted in any medium without royalty provided the copyright

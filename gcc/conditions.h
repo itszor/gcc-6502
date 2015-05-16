@@ -1,5 +1,5 @@
 /* Definitions for condition code handling in final.c and output routines.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2015 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -17,9 +17,8 @@ You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING3.  If not see
 <http://www.gnu.org/licenses/>.  */
 
-/* None of the things in the files exist if we don't use CC0.  */
-
-#ifdef HAVE_cc0
+#ifndef GCC_CONDITIONS_H
+#define GCC_CONDITIONS_H
 
 /* The variable cc_status says how to interpret the condition code.
    It is set by output routines for an instruction that sets the cc's
@@ -110,8 +109,10 @@ extern CC_STATUS cc_status;
 /* This is how to initialize the variable cc_status.
    final does this at appropriate moments.  */
 
+/* FIXME: We want to get rid of these ifndefs.  */
+#ifndef CC_STATUS_INIT
 #define CC_STATUS_INIT  \
  (cc_status.flags = 0, cc_status.value1 = 0, cc_status.value2 = 0,  \
   CC_STATUS_MDEP_INIT)
-
 #endif
+#endif /* GCC_CONDITIONS_H */

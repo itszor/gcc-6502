@@ -1,4 +1,4 @@
-@c Copyright (C) 2002-2014 Free Software Foundation, Inc.
+@c Copyright (C) 2002-2015 Free Software Foundation, Inc.
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
 
@@ -89,7 +89,7 @@ The Go runtime library.  The bulk of this library is mirrored from the
 @uref{http://code.google.com/@/p/@/go/, master Go repository}.
 
 @item libgomp
-The GNU OpenMP runtime library.
+The GNU Offloading and Multi Processing Runtime Library.
 
 @item libiberty
 The @code{libiberty} library, used for portability and for some
@@ -1295,6 +1295,9 @@ Target has 64-bit @code{double}.
 @item double64plus
 Target has @code{double} that is 64 bits or longer.
 
+@item longdouble128
+Target has 128-bit @code{long double}.
+
 @item int32plus
 Target has @code{int} that is at 32 bits or longer.
 
@@ -1524,6 +1527,9 @@ Some multilibs may be incompatible with this option.
 @item arm_neon
 ARM target supports generating NEON instructions.
 
+@item arm_tune_string_ops_prefer_neon
+Test CPU tune supports inlining string operations with NEON instructions.
+
 @item arm_neon_hw
 Test system supports executing NEON instructions.
 
@@ -1601,6 +1607,13 @@ MIPS target supports @code{-mpaired-single}.
 @subsubsection PowerPC-specific attributes
 
 @table @code
+
+@item dfp_hw
+PowerPC target supports executing hardware DFP instructions.
+
+@item p8vector_hw
+PowerPC target supports executing VSX instructions (ISA 2.07).
+
 @item powerpc64
 Test system supports executing 64-bit instructions.
 
@@ -1610,11 +1623,23 @@ PowerPC target supports AltiVec.
 @item powerpc_altivec_ok
 PowerPC target supports @code{-maltivec}.
 
+@item powerpc_eabi_ok
+PowerPC target supports @code{-meabi}.
+
+@item powerpc_elfv2
+PowerPC target supports @code{-mabi=elfv2}.
+
 @item powerpc_fprs
 PowerPC target supports floating-point registers.
 
 @item powerpc_hard_double
 PowerPC target supports hardware double-precision floating-point.
+
+@item powerpc_htm_ok
+PowerPC target supports @code{-mhtm}
+
+@item powerpc_p8vector_ok
+PowerPC target supports @code{-mpower8-vector}
 
 @item powerpc_ppu_ok
 PowerPC target supports @code{-mcpu=cell}.
@@ -1629,9 +1654,6 @@ PowerPC target supports PowerPC SPE.
 @item powerpc_spu
 PowerPC target supports PowerPC SPU.
 
-@item spu_auto_overlay
-SPU target has toolchain that supports automatic overlay generation.
-
 @item powerpc_vsx_ok
 PowerPC target supports @code{-mvsx}.
 
@@ -1639,8 +1661,17 @@ PowerPC target supports @code{-mvsx}.
 Including the options used to compile this particular test, the
 PowerPC target supports PowerPC 405.
 
+@item ppc_recip_hw
+PowerPC target supports executing reciprocal estimate instructions.
+
+@item spu_auto_overlay
+SPU target has toolchain that supports automatic overlay generation.
+
 @item vmx_hw
 PowerPC target supports executing AltiVec instructions.
+
+@item vsx_hw
+PowerPC target supports executing VSX instructions (ISA 2.06).
 @end table
 
 @subsubsection Other hardware attributes
@@ -1660,6 +1691,9 @@ Target uses a ColdFire FPU.
 
 @item hard_float
 Target supports FPU instructions.
+
+@item non_strict_align
+Target does not require strict alignment.
 
 @item sse
 Target supports compiling @code{sse} instructions.
@@ -1686,6 +1720,9 @@ or @code{EM_SPARCV9} executables.
 
 @item vect_cmdline_needed
 Target requires a command line argument to enable a SIMD instruction set.
+
+@item pie_copyreloc
+The x86-64 target linker supports PIE with copy reloc.
 @end table
 
 @subsubsection Environment attributes
@@ -1730,6 +1767,9 @@ Target might have errors of a few ULP in string to floating-point
 conversion functions and overflow is not always detected correctly by
 those functions.
 
+@item mempcpy
+Target provides @code{mempcpy} function.
+
 @item mmap
 Target supports @code{mmap}.
 
@@ -1758,6 +1798,9 @@ hardware (i.e. fast).
 Target has the basic signed and unsigned C types in @code{stdint.h}.
 This will be obsolete when GCC ensures a working @code{stdint.h} for
 all targets.
+
+@item stpcpy
+Target provides @code{stpcpy} function.
 
 @item trampolines
 Target supports trampolines.
@@ -1795,6 +1838,9 @@ Target supports Graphite optimizations.
 
 @item fixed_point
 Target supports fixed-point extension to C.
+
+@item fopenacc
+Target supports OpenACC via @option{-fopenacc}.
 
 @item fopenmp
 Target supports OpenMP via @option{-fopenmp}.
@@ -1840,6 +1886,9 @@ Target uses natural alignment (aligned to type size) for types of
 
 @item nonpic
 Target does not generate PIC by default.
+
+@item pie_enabled
+Target generates PIE by default.
 
 @item pcc_bitfield_type_matters
 Target defines @code{PCC_BITFIELD_TYPE_MATTERS}.
@@ -1887,6 +1936,9 @@ Target supports @code{wchar_t} that is compatible with @code{char16_t}.
 
 @item wchar_t_char32_t_compatible
 Target supports @code{wchar_t} that is compatible with @code{char32_t}.
+
+@item comdat_group
+Target uses comdat groups.
 @end table
 
 @subsubsection Local to tests in @code{gcc.target/i386}

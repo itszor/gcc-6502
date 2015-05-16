@@ -22,11 +22,6 @@
 	libstdc++ built many different ways:  "-msoft-float"
 	and not, etc.  A different libstdc++ will be built for each of
 	the different multilib versions.  This option is on by default.
-     </p></dd><dt><span class="term"><code class="code">--enable-sjlj-exceptions</code></span></dt><dd><p>Forces old, set-jump/long-jump exception handling model.  If
-	at all possible, the new, frame unwinding exception handling routines
-	should be used instead, as they significantly reduce both
-	runtime memory usage and executable size. This option can
-	change the library ABI.
      </p></dd><dt><span class="term"><code class="code">--enable-version-specific-runtime-libs</code></span></dt><dd><p>Specify that run-time libraries should be installed in the
 	compiler-specific subdirectory (i.e.,
 	<code class="code">${libdir}/gcc-lib/${target_alias}/${gcc_version}</code>)
@@ -88,8 +83,7 @@
 	configuration instructions</a>. This option can change the
 	library ABI.
      </p></dd><dt><span class="term"><code class="code">--enable-libstdcxx-threads</code></span></dt><dd><p>Enable C++11 threads support.  If not explicitly specified,
-        the  configure process enables it if possible.  It defaults to 'off'
-	on Solaris 9, where it would break symbol versioning.   This
+        the  configure process enables it if possible.  This
 	option can change the library ABI.
      </p></dd><dt><span class="term"><code class="code">--enable-libstdcxx-time</code></span></dt><dd><p>This is an abbreviated form of
 	<code class="code">'--enable-libstdcxx-time=yes'</code>(described next).
@@ -104,7 +98,8 @@
 	desirable because, in glibc, for example, in turn it triggers the
 	linking of libpthread too, which activates locking, a large overhead
 	for single-thread programs.  OPTION=no skips the tests completely.
-	The default is OPTION=no.
+	The default is OPTION=auto, which skips the checks and enables the
+	features only for targets known to support them.
     </p></dd><dt><span class="term"><code class="code">--enable-libstdcxx-debug</code></span></dt><dd><p>Build separate debug libraries in addition to what is normally built.
 	By default, the debug libraries are compiled with
 	<code class="code"> CXXFLAGS='-g3 -O0 -fno-inline'</code>
@@ -227,6 +222,19 @@
      facilities, which might be undesirable in a low-memory environment or
      when standard error is not available.  This option disables those
      messages.  This option does not change the library ABI.
+   </p></dd><dt><span class="term"><code class="code">--disable-libstdcxx-dual-abi</code></span></dt><dd><p>
+     Disable support for the new, C++11-conforming implementations of
+     <code class="code">std::string</code>, <code class="code">std::list</code> etc. so that the
+     library only provides definitions of types using the old ABI
+     (see <a class="xref" href="using_dual_abi.html" title="Dual ABI">Dual ABI</a>).
+     This option changes the library ABI.
+   </p></dd><dt><span class="term"><code class="code">--with-default-libstdcxx-abi=</code><em class="replaceable"><code>OPTION</code></em></span></dt><dd><p>
+     Set the default value for the <span class="symbol">_GLIBCXX_USE_CXX11_ABI</span>
+     macro (see <a class="xref" href="using_macros.html" title="Macros">Macros</a>).
+     The default is <code class="option">OPTION=c++11</code> which sets the macro to
+     <code class="literal">1</code>,
+     use <code class="option">OPTION=c++98</code> to set it to <code class="literal">0</code>.
+     This option does not change the library ABI.
    </p></dd><dt><span class="term"><code class="code">--enable-vtable-verify</code>[default]</span></dt><dd><p>Use <code class="code">-fvtable-verify=std</code> to compile the C++
     runtime with instrumentation for vtable verification. All virtual
     functions in the standard library will be verified at runtime.

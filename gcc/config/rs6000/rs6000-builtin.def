@@ -1,5 +1,5 @@
 /* Builtin functions for rs6000/powerpc.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2015 Free Software Foundation, Inc.
    Contributed by Michael Meissner (meissner@linux.vnet.ibm.com)
 
    This file is part of GCC.
@@ -392,10 +392,26 @@
 		     | RS6000_BTC_BINARY),				\
 		    CODE_FOR_ ## ICODE)			/* ICODE */
 
+#define BU_CRYPTO_2A(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_2 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_crypto_" NAME,		/* NAME */	\
+		    RS6000_BTM_P8_VECTOR,		/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_BINARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
 #define BU_CRYPTO_3(ENUM, NAME, ATTR, ICODE)				\
   RS6000_BUILTIN_3 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
 		    "__builtin_crypto_" NAME,		/* NAME */	\
 		    RS6000_BTM_CRYPTO,			/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_TERNARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+#define BU_CRYPTO_3A(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_3 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_crypto_" NAME,		/* NAME */	\
+		    RS6000_BTM_P8_VECTOR,		/* MASK */	\
 		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
 		     | RS6000_BTC_TERNARY),				\
 		    CODE_FOR_ ## ICODE)			/* ICODE */
@@ -408,10 +424,10 @@
 		     | RS6000_BTC_UNARY),				\
 		    CODE_FOR_nothing)			/* ICODE */
 
-#define BU_CRYPTO_OVERLOAD_2(ENUM, NAME)				\
+#define BU_CRYPTO_OVERLOAD_2A(ENUM, NAME)				\
   RS6000_BUILTIN_2 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
 		    "__builtin_crypto_" NAME,		/* NAME */	\
-		    RS6000_BTM_CRYPTO,			/* MASK */	\
+		    RS6000_BTM_P8_VECTOR,		/* MASK */	\
 		    (RS6000_BTC_OVERLOADED		/* ATTR */	\
 		     | RS6000_BTC_BINARY),				\
 		    CODE_FOR_nothing)			/* ICODE */
@@ -420,6 +436,14 @@
   RS6000_BUILTIN_3 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
 		    "__builtin_crypto_" NAME,		/* NAME */	\
 		    RS6000_BTM_CRYPTO,			/* MASK */	\
+		    (RS6000_BTC_OVERLOADED		/* ATTR */	\
+		     | RS6000_BTC_TERNARY),				\
+		    CODE_FOR_nothing)			/* ICODE */
+
+#define BU_CRYPTO_OVERLOAD_3A(ENUM, NAME)				\
+  RS6000_BUILTIN_3 (CRYPTO_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_crypto_" NAME,		/* NAME */	\
+		    RS6000_BTM_P8_VECTOR,		/* MASK */	\
 		    (RS6000_BTC_OVERLOADED		/* ATTR */	\
 		     | RS6000_BTC_TERNARY),				\
 		    CODE_FOR_nothing)			/* ICODE */
@@ -456,21 +480,12 @@
 		     | RS6000_BTC_TERNARY),				\
 		    CODE_FOR_ ## ICODE)			/* ICODE */
 
-#define BU_HTM_SPR0(ENUM, NAME, ATTR, ICODE)				\
-  RS6000_BUILTIN_H (HTM_BUILTIN_ ## ENUM,		/* ENUM */	\
-		    "__builtin_" NAME,			/* NAME */	\
-		    RS6000_BTM_HTM,			/* MASK */	\
-		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
-		     | RS6000_BTC_SPR),					\
-		    CODE_FOR_ ## ICODE)			/* ICODE */
-
-#define BU_HTM_SPR1(ENUM, NAME, ATTR, ICODE)				\
+#define BU_HTM_V1(ENUM, NAME, ATTR, ICODE)				\
   RS6000_BUILTIN_H (HTM_BUILTIN_ ## ENUM,		/* ENUM */	\
 		    "__builtin_" NAME,			/* NAME */	\
 		    RS6000_BTM_HTM,			/* MASK */	\
 		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
 		     | RS6000_BTC_UNARY					\
-		     | RS6000_BTC_SPR					\
 		     | RS6000_BTC_VOID),				\
 		    CODE_FOR_ ## ICODE)			/* ICODE */
 
@@ -570,6 +585,68 @@
 		    MASK,				/* MASK */	\
 		    (ATTR | RS6000_BTC_SPECIAL),	/* ATTR */	\
 		    CODE_FOR_nothing)			/* ICODE */
+
+
+/* Decimal floating point builtins for instructions.  */
+#define BU_DFP_MISC_1(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_1 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    RS6000_BTM_DFP,			/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_UNARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+#define BU_DFP_MISC_2(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_2 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    RS6000_BTM_DFP,			/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_BINARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+
+/* Miscellaneous builtins for instructions added in ISA 2.06.  These
+   instructions don't require either the DFP or VSX options, just the basic ISA
+   2.06 (popcntd) enablement since they operate on general purpose
+   registers.  */
+#define BU_P7_MISC_1(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_1 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    RS6000_BTM_POPCNTD,			/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_UNARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+#define BU_P7_MISC_2(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_2 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    RS6000_BTM_POPCNTD,			/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_BINARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+
+/* Miscellaneous builtins for instructions added in ISA 2.07.  These
+   instructions do require the ISA 2.07 vector support, but they aren't vector
+   instructions.  */
+#define BU_P8V_MISC_3(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_3 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    RS6000_BTM_P8_VECTOR,		/* MASK */	\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_TERNARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
+/* 128-bit long double floating point builtins.  */
+#define BU_LDBL128_2(ENUM, NAME, ATTR, ICODE)				\
+  RS6000_BUILTIN_2 (MISC_BUILTIN_ ## ENUM,		/* ENUM */	\
+		    "__builtin_" NAME,			/* NAME */	\
+		    (RS6000_BTM_HARD_FLOAT		/* MASK */	\
+		     | RS6000_BTM_LDBL128),				\
+		    (RS6000_BTC_ ## ATTR		/* ATTR */	\
+		     | RS6000_BTC_BINARY),				\
+		    CODE_FOR_ ## ICODE)			/* ICODE */
+
 #endif
 
 /* Insure 0 is not a legitimate index.  */
@@ -1196,6 +1273,16 @@ BU_VSX_2 (VEC_MERGEL_V2DF,    "mergel_2df",	CONST,	vsx_mergel_v2df)
 BU_VSX_2 (VEC_MERGEL_V2DI,    "mergel_2di",	CONST,	vsx_mergel_v2di)
 BU_VSX_2 (VEC_MERGEH_V2DF,    "mergeh_2df",	CONST,	vsx_mergeh_v2df)
 BU_VSX_2 (VEC_MERGEH_V2DI,    "mergeh_2di",	CONST,	vsx_mergeh_v2di)
+BU_VSX_2 (XXSPLTD_V2DF,       "xxspltd_2df",    CONST,  vsx_xxspltd_v2df)
+BU_VSX_2 (XXSPLTD_V2DI,       "xxspltd_2di",    CONST,  vsx_xxspltd_v2di)
+BU_VSX_2 (DIV_V2DI,           "div_2di",        CONST,  vsx_div_v2di)
+BU_VSX_2 (UDIV_V2DI,          "udiv_2di",       CONST,  vsx_udiv_v2di)
+BU_VSX_2 (MUL_V2DI,           "mul_2di",        CONST,  vsx_mul_v2di)
+
+BU_VSX_2 (XVCVSXDDP_SCALE,    "xvcvsxddp_scale", CONST, vsx_xvcvsxddp_scale)
+BU_VSX_2 (XVCVUXDDP_SCALE,    "xvcvuxddp_scale", CONST, vsx_xvcvuxddp_scale)
+BU_VSX_2 (XVCVDPSXDS_SCALE,   "xvcvdpsxds_scale", CONST, vsx_xvcvdpsxds_scale)
+BU_VSX_2 (XVCVDPUXDS_SCALE,   "xvcvdpuxds_scale", CONST, vsx_xvcvdpuxds_scale)
 
 /* VSX abs builtin functions.  */
 BU_VSX_A (XVABSDP,	      "xvabsdp",	CONST,	absv2df2)
@@ -1412,10 +1499,10 @@ BU_P8V_AV_2 (ORC_V4SF,		"orc_v4sf",	CONST,	orcv4sf3)
 BU_P8V_AV_2 (ORC_V2DF,		"orc_v2df",	CONST,	orcv2df3)
 
 /* 3 argument altivec instructions added in ISA 2.07.  */
-BU_P8V_AV_3 (VADDEUQM,		"vaddeuqm",	 CONST,	altivec_vaddeuqm)
-BU_P8V_AV_3 (VADDECUQ,		"vaddecuq",	 CONST,	altivec_vaddecuq)
-BU_P8V_AV_3 (VSUBEUQM,		"vsubeuqm",	 CONST,	altivec_vsubeuqm)
-BU_P8V_AV_3 (VSUBECUQ,		"vsubecuq",	 CONST,	altivec_vsubecuq)
+BU_P8V_AV_3 (VADDEUQM,		"vaddeuqm",	CONST,	altivec_vaddeuqm)
+BU_P8V_AV_3 (VADDECUQ,		"vaddecuq",	CONST,	altivec_vaddecuq)
+BU_P8V_AV_3 (VSUBEUQM,		"vsubeuqm",	CONST,	altivec_vsubeuqm)
+BU_P8V_AV_3 (VSUBECUQ,		"vsubecuq",	CONST,	altivec_vsubecuq)
 
 /* Vector comparison instructions added in ISA 2.07.  */
 BU_P8V_AV_2 (VCMPEQUD,		"vcmpequd",	CONST,	vector_eqv2di)
@@ -1475,6 +1562,62 @@ BU_P8V_OVERLOAD_3 (VSUBECUQ,	"vsubecuq")
 BU_P8V_OVERLOAD_3 (VSUBEUQM,	"vsubeuqm")
 
 
+/* 2 argument extended divide functions added in ISA 2.06.  */
+BU_P7_MISC_2 (DIVWE,		"divwe",	CONST,	dive_si)
+BU_P7_MISC_2 (DIVWEO,		"divweo",	CONST,	diveo_si)
+BU_P7_MISC_2 (DIVWEU,		"divweu",	CONST,	diveu_si)
+BU_P7_MISC_2 (DIVWEUO,		"divweuo",	CONST,	diveuo_si)
+BU_P7_MISC_2 (DIVDE,		"divde",	CONST,	dive_di)
+BU_P7_MISC_2 (DIVDEO,		"divdeo",	CONST,	diveo_di)
+BU_P7_MISC_2 (DIVDEU,		"divdeu",	CONST,	diveu_di)
+BU_P7_MISC_2 (DIVDEUO,		"divdeuo",	CONST,	diveuo_di)
+
+/* 1 argument DFP (decimal floating point) functions added in ISA 2.05.  */
+BU_DFP_MISC_1 (DXEX,		"dxex",		CONST,	dfp_dxex_dd)
+BU_DFP_MISC_1 (DXEXQ,		"dxexq",	CONST,	dfp_dxex_td)
+
+/* 2 argument DFP (decimal floating point) functions added in ISA 2.05.  */
+BU_DFP_MISC_2 (DDEDPD,		"ddedpd",	CONST,	dfp_ddedpd_dd)
+BU_DFP_MISC_2 (DDEDPDQ,		"ddedpdq",	CONST,	dfp_ddedpd_td)
+BU_DFP_MISC_2 (DENBCD,		"denbcd",	CONST,	dfp_denbcd_dd)
+BU_DFP_MISC_2 (DENBCDQ,		"denbcdq",	CONST,	dfp_denbcd_td)
+BU_DFP_MISC_2 (DIEX,		"diex",		CONST,	dfp_diex_dd)
+BU_DFP_MISC_2 (DIEXQ,		"diexq",	CONST,	dfp_diex_td)
+BU_DFP_MISC_2 (DSCLI,		"dscli",	CONST,	dfp_dscli_dd)
+BU_DFP_MISC_2 (DSCLIQ,		"dscliq",	CONST,	dfp_dscli_td)
+BU_DFP_MISC_2 (DSCRI,		"dscri",	CONST,	dfp_dscri_dd)
+BU_DFP_MISC_2 (DSCRIQ,		"dscriq",	CONST,	dfp_dscri_td)
+
+/* 1 argument BCD functions added in ISA 2.06.  */
+BU_P7_MISC_1 (CDTBCD,		"cdtbcd",	CONST,	cdtbcd)
+BU_P7_MISC_1 (CBCDTD,		"cbcdtd",	CONST,	cbcdtd)
+
+/* 2 argument BCD functions added in ISA 2.06.  */
+BU_P7_MISC_2 (ADDG6S,		"addg6s",	CONST,	addg6s)
+
+/* 3 argument BCD functions added in ISA 2.07.  */
+BU_P8V_MISC_3 (BCDADD,		"bcdadd",	CONST,	bcdadd)
+BU_P8V_MISC_3 (BCDADD_LT,	"bcdadd_lt",	CONST,	bcdadd_lt)
+BU_P8V_MISC_3 (BCDADD_EQ,	"bcdadd_eq",	CONST,	bcdadd_eq)
+BU_P8V_MISC_3 (BCDADD_GT,	"bcdadd_gt",	CONST,	bcdadd_gt)
+BU_P8V_MISC_3 (BCDADD_OV,	"bcdadd_ov",	CONST,	bcdadd_unordered)
+BU_P8V_MISC_3 (BCDSUB,		"bcdsub",	CONST,	bcdsub)
+BU_P8V_MISC_3 (BCDSUB_LT,	"bcdsub_lt",	CONST,	bcdsub_lt)
+BU_P8V_MISC_3 (BCDSUB_EQ,	"bcdsub_eq",	CONST,	bcdsub_eq)
+BU_P8V_MISC_3 (BCDSUB_GT,	"bcdsub_gt",	CONST,	bcdsub_gt)
+BU_P8V_MISC_3 (BCDSUB_OV,	"bcdsub_ov",	CONST,	bcdsub_unordered)
+
+/* 2 argument pack/unpack 128-bit floating point types.  */
+BU_DFP_MISC_2 (PACK_TD,		"pack_dec128",		CONST,	packtd)
+BU_DFP_MISC_2 (UNPACK_TD,	"unpack_dec128",	CONST,	unpacktd)
+
+BU_LDBL128_2 (PACK_TF,		"pack_longdouble",	CONST,	packtf)
+BU_LDBL128_2 (UNPACK_TF,	"unpack_longdouble",	CONST,	unpacktf)
+
+BU_P7_MISC_2 (PACK_V1TI,	"pack_vector_int128",	CONST,	packv1ti)
+BU_P7_MISC_2 (UNPACK_V1TI,	"unpack_vector_int128",	CONST,	unpackv1ti)
+
+
 /* 1 argument crypto functions.  */
 BU_CRYPTO_1 (VSBOX,		"vsbox",	  CONST, crypto_vsbox)
 
@@ -1483,52 +1626,52 @@ BU_CRYPTO_2 (VCIPHER,		"vcipher",	  CONST, crypto_vcipher)
 BU_CRYPTO_2 (VCIPHERLAST,	"vcipherlast",	  CONST, crypto_vcipherlast)
 BU_CRYPTO_2 (VNCIPHER,		"vncipher",	  CONST, crypto_vncipher)
 BU_CRYPTO_2 (VNCIPHERLAST,	"vncipherlast",	  CONST, crypto_vncipherlast)
-BU_CRYPTO_2 (VPMSUMB,		"vpmsumb",	  CONST, crypto_vpmsumb)
-BU_CRYPTO_2 (VPMSUMH,		"vpmsumh",	  CONST, crypto_vpmsumh)
-BU_CRYPTO_2 (VPMSUMW,		"vpmsumw",	  CONST, crypto_vpmsumw)
-BU_CRYPTO_2 (VPMSUMD,		"vpmsumd",	  CONST, crypto_vpmsumd)
+BU_CRYPTO_2A (VPMSUMB,		"vpmsumb",	  CONST, crypto_vpmsumb)
+BU_CRYPTO_2A (VPMSUMH,		"vpmsumh",	  CONST, crypto_vpmsumh)
+BU_CRYPTO_2A (VPMSUMW,		"vpmsumw",	  CONST, crypto_vpmsumw)
+BU_CRYPTO_2A (VPMSUMD,		"vpmsumd",	  CONST, crypto_vpmsumd)
 
 /* 3 argument crypto functions.  */
-BU_CRYPTO_3 (VPERMXOR_V2DI,	"vpermxor_v2di",  CONST, crypto_vpermxor_v2di)
-BU_CRYPTO_3 (VPERMXOR_V4SI,	"vpermxor_v4si",  CONST, crypto_vpermxor_v4si)
-BU_CRYPTO_3 (VPERMXOR_V8HI,	"vpermxor_v8hi",  CONST, crypto_vpermxor_v8hi)
-BU_CRYPTO_3 (VPERMXOR_V16QI,	"vpermxor_v16qi", CONST, crypto_vpermxor_v16qi)
+BU_CRYPTO_3A (VPERMXOR_V2DI,	"vpermxor_v2di",  CONST, crypto_vpermxor_v2di)
+BU_CRYPTO_3A (VPERMXOR_V4SI,	"vpermxor_v4si",  CONST, crypto_vpermxor_v4si)
+BU_CRYPTO_3A (VPERMXOR_V8HI,	"vpermxor_v8hi",  CONST, crypto_vpermxor_v8hi)
+BU_CRYPTO_3A (VPERMXOR_V16QI,	"vpermxor_v16qi", CONST, crypto_vpermxor_v16qi)
 BU_CRYPTO_3 (VSHASIGMAW,	"vshasigmaw",	  CONST, crypto_vshasigmaw)
 BU_CRYPTO_3 (VSHASIGMAD,	"vshasigmad",	  CONST, crypto_vshasigmad)
 
 /* 2 argument crypto overloaded functions.  */
-BU_CRYPTO_OVERLOAD_2 (VPMSUM,	 "vpmsum")
+BU_CRYPTO_OVERLOAD_2A (VPMSUM,	 "vpmsum")
 
 /* 3 argument crypto overloaded functions.  */
-BU_CRYPTO_OVERLOAD_3 (VPERMXOR,	 "vpermxor")
+BU_CRYPTO_OVERLOAD_3A (VPERMXOR,	 "vpermxor")
 BU_CRYPTO_OVERLOAD_3 (VSHASIGMA, "vshasigma")
 
 
 /* HTM functions.  */
-BU_HTM_1  (TABORT,	"tabort",	MISC,	tabort)
-BU_HTM_3  (TABORTDC,	"tabortdc",	MISC,	tabortdc)
-BU_HTM_3  (TABORTDCI,	"tabortdci",	MISC,	tabortdci)
-BU_HTM_3  (TABORTWC,	"tabortwc",	MISC,	tabortwc)
-BU_HTM_3  (TABORTWCI,	"tabortwci",	MISC,	tabortwci)
-BU_HTM_1  (TBEGIN,	"tbegin",	MISC,	tbegin)
-BU_HTM_1  (TCHECK,	"tcheck",	MISC,	tcheck)
-BU_HTM_1  (TEND,	"tend",		MISC,	tend)
-BU_HTM_0  (TENDALL,	"tendall",	MISC,	tend)
-BU_HTM_0  (TRECHKPT,	"trechkpt",	MISC,	trechkpt)
-BU_HTM_1  (TRECLAIM,	"treclaim",	MISC,	treclaim)
-BU_HTM_0  (TRESUME,	"tresume",	MISC,	tsr)
-BU_HTM_0  (TSUSPEND,	"tsuspend",	MISC,	tsr)
-BU_HTM_1  (TSR,		"tsr",		MISC,	tsr)
-BU_HTM_0  (TTEST,	"ttest",	MISC,	ttest)
+BU_HTM_1  (TABORT,	"tabort",	CR,	tabort)
+BU_HTM_3  (TABORTDC,	"tabortdc",	CR,	tabortdc)
+BU_HTM_3  (TABORTDCI,	"tabortdci",	CR,	tabortdci)
+BU_HTM_3  (TABORTWC,	"tabortwc",	CR,	tabortwc)
+BU_HTM_3  (TABORTWCI,	"tabortwci",	CR,	tabortwci)
+BU_HTM_1  (TBEGIN,	"tbegin",	CR,	tbegin)
+BU_HTM_0  (TCHECK,	"tcheck",	CR,	tcheck)
+BU_HTM_1  (TEND,	"tend",		CR,	tend)
+BU_HTM_0  (TENDALL,	"tendall",	CR,	tend)
+BU_HTM_0  (TRECHKPT,	"trechkpt",	CR,	trechkpt)
+BU_HTM_1  (TRECLAIM,	"treclaim",	CR,	treclaim)
+BU_HTM_0  (TRESUME,	"tresume",	CR,	tsr)
+BU_HTM_0  (TSUSPEND,	"tsuspend",	CR,	tsr)
+BU_HTM_1  (TSR,		"tsr",		CR,	tsr)
+BU_HTM_0  (TTEST,	"ttest",	CR,	ttest)
 
-BU_HTM_SPR0 (GET_TFHAR,		"get_tfhar",	MISC,	nothing)
-BU_HTM_SPR1 (SET_TFHAR,		"set_tfhar",	MISC,	nothing)
-BU_HTM_SPR0 (GET_TFIAR,		"get_tfiar",	MISC,	nothing)
-BU_HTM_SPR1 (SET_TFIAR,		"set_tfiar",	MISC,	nothing)
-BU_HTM_SPR0 (GET_TEXASR,	"get_texasr",	MISC,	nothing)
-BU_HTM_SPR1 (SET_TEXASR,	"set_texasr",	MISC,	nothing)
-BU_HTM_SPR0 (GET_TEXASRU,	"get_texasru",	MISC,	nothing)
-BU_HTM_SPR1 (SET_TEXASRU,	"set_texasru",	MISC,	nothing)
+BU_HTM_0  (GET_TFHAR,	"get_tfhar",	SPR,	nothing)
+BU_HTM_V1 (SET_TFHAR,	"set_tfhar",	SPR,	nothing)
+BU_HTM_0  (GET_TFIAR,	"get_tfiar",	SPR,	nothing)
+BU_HTM_V1 (SET_TFIAR,	"set_tfiar",	SPR,	nothing)
+BU_HTM_0  (GET_TEXASR,	"get_texasr",	SPR,	nothing)
+BU_HTM_V1 (SET_TEXASR,	"set_texasr",	SPR,	nothing)
+BU_HTM_0  (GET_TEXASRU,	"get_texasru",	SPR,	nothing)
+BU_HTM_V1 (SET_TEXASRU,	"set_texasru",	SPR,	nothing)
 
 
 /* 3 argument paired floating point builtins.  */

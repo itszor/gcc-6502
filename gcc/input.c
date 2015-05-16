@@ -1,5 +1,5 @@
 /* Data and functions related to line maps and input files.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2015 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -23,6 +23,7 @@ along with GCC; see the file COPYING3.  If not see
 #include "intl.h"
 #include "input.h"
 #include "vec.h"
+#include "diagnostic-core.h"
 
 /* This is a cache used by get_next_line to store the content of a
    file to be searched for file lines.  */
@@ -105,7 +106,7 @@ struct fcache
 
 /* Current position in real source file.  */
 
-location_t input_location;
+location_t input_location = UNKNOWN_LOCATION;
 
 struct line_maps *line_table;
 
@@ -182,7 +183,7 @@ diagnostic_file_cache_init (void)
     fcache_tab = new fcache[fcache_tab_size];
 }
 
-/* Free the ressources used by the set of cache used for files accessed
+/* Free the resources used by the set of cache used for files accessed
    by caret diagnostic.  */
 
 void
@@ -713,6 +714,22 @@ location_get_source_line (expanded_location xloc,
   return read ? buffer : NULL;
 }
 
+/* Test if the location originates from the spelling location of a
+   builtin-tokens.  That is, return TRUE if LOC is a (possibly
+   virtual) location of a built-in token that appears in the expansion
+   list of a macro.  Please note that this function also works on
+   tokens that result from built-in tokens.  For instance, the
+   function would return true if passed a token "4" that is the result
+   of the expansion of the built-in __LINE__ macro.  */
+bool
+is_location_from_builtin_token (source_location loc)
+{
+  const line_map *map = NULL;
+  loc = linemap_resolve_location (line_table, loc,
+				  LRK_SPELLING_LOCATION, &map);
+  return loc == BUILTINS_LOCATION;
+}
+
 /* Expand the source location LOC into a human readable location.  If
    LOC is virtual, it resolves to the expansion point of the involved
    macro.  If LOC resolves to a builtin location, the file name of the
@@ -733,19 +750,20 @@ expand_location (source_location loc)
 expanded_location
 expand_location_to_spelling_point (source_location loc)
 {
-  return expand_location_1 (loc, /*expansion_piont_p=*/false);
+  return expand_location_1 (loc, /*expansion_point_p=*/false);
 }
 
-/* If LOCATION is in a system header and if it's a virtual location for
-   a token coming from the expansion of a macro M, unwind it to the
-   location of the expansion point of M.  Otherwise, just return
+/* If LOCATION is in a system header and if it is a virtual location for
+   a token coming from the expansion of a macro, unwind it to the
+   location of the expansion point of the macro.  Otherwise, just return
    LOCATION.
 
    This is used for instance when we want to emit diagnostics about a
-   token that is located in a macro that is itself defined in a system
-   header -- e.g for the NULL macro.  In that case, if LOCATION is
-   passed to diagnostics emitting functions like warning_at as is, no
-   diagnostic won't be emitted.  */
+   token that may be located in a macro that is itself defined in a
+   system header, for example, for the NULL macro.  In such a case, if
+   LOCATION were passed directly to diagnostic functions such as
+   warning_at, the diagnostic would be suppressed (unless
+   -Wsystem-headers).  */
 
 source_location
 expansion_point_location_if_in_system_header (source_location location)
@@ -851,4 +869,227 @@ dump_line_table_statistics (void)
            SCALE (total_used_map_size),
            STAT_LABEL (total_used_map_size));
   fprintf (stderr, "\n");
+}
+
+/* Get location one beyond the final location in ordinary map IDX.  */
+
+static source_location
+get_end_location (struct line_maps *set, unsigned int idx)
+{
+  if (idx == LINEMAPS_ORDINARY_USED (set) - 1)
+    return set->highest_location;
+
+  struct line_map *next_map = LINEMAPS_ORDINARY_MAP_AT (set, idx + 1);
+  return MAP_START_LOCATION (next_map);
+}
+
+/* Helper function for write_digit_row.  */
+
+static void
+write_digit (FILE *stream, int digit)
+{
+  fputc ('0' + (digit % 10), stream);
+}
+
+/* Helper function for dump_location_info.
+   Write a row of numbers to STREAM, numbering a source line,
+   giving the units, tens, hundreds etc of the column number.  */
+
+static void
+write_digit_row (FILE *stream, int indent,
+		 source_location loc, int max_col, int divisor)
+{
+  fprintf (stream, "%*c", indent, ' ');
+  fprintf (stream, "|");
+  for (int column = 1; column < max_col; column++)
+    {
+      source_location column_loc = loc + column;
+      write_digit (stream, column_loc / divisor);
+    }
+  fprintf (stream, "\n");
+}
+
+/* Write a half-closed (START) / half-open (END) interval of
+   source_location to STREAM.  */
+
+static void
+dump_location_range (FILE *stream,
+		     source_location start, source_location end)
+{
+  fprintf (stream,
+	   "  source_location interval: %u <= loc < %u\n",
+	   start, end);
+}
+
+/* Write a labelled description of a half-closed (START) / half-open (END)
+   interval of source_location to STREAM.  */
+
+static void
+dump_labelled_location_range (FILE *stream,
+			      const char *name,
+			      source_location start, source_location end)
+{
+  fprintf (stream, "%s\n", name);
+  dump_location_range (stream, start, end);
+  fprintf (stream, "\n");
+}
+
+/* Write a visualization of the locations in the line_table to STREAM.  */
+
+void
+dump_location_info (FILE *stream)
+{
+  /* Visualize the reserved locations.  */
+  dump_labelled_location_range (stream, "RESERVED LOCATIONS",
+				0, RESERVED_LOCATION_COUNT);
+
+  /* Visualize the ordinary line_map instances, rendering the sources. */
+  for (unsigned int idx = 0; idx < LINEMAPS_ORDINARY_USED (line_table); idx++)
+    {
+      source_location end_location = get_end_location (line_table, idx);
+      /* half-closed: doesn't include this one. */
+
+      struct line_map *map = LINEMAPS_ORDINARY_MAP_AT (line_table, idx);
+      fprintf (stream, "ORDINARY MAP: %i\n", idx);
+      dump_location_range (stream,
+			   MAP_START_LOCATION (map), end_location);
+      fprintf (stream, "  file: %s\n", ORDINARY_MAP_FILE_NAME (map));
+      fprintf (stream, "  starting at line: %i\n",
+	       ORDINARY_MAP_STARTING_LINE_NUMBER (map));
+      fprintf (stream, "  column bits: %i\n",
+	       ORDINARY_MAP_NUMBER_OF_COLUMN_BITS (map));
+
+      /* Render the span of source lines that this "map" covers.  */
+      for (source_location loc = MAP_START_LOCATION (map);
+	   loc < end_location;
+	   loc++)
+	{
+	  expanded_location exploc
+	    = linemap_expand_location (line_table, map, loc);
+
+	  if (0 == exploc.column)
+	    {
+	      /* Beginning of a new source line: draw the line.  */
+
+	      int line_size;
+	      const char *line_text = location_get_source_line (exploc, &line_size);
+	      if (!line_text)
+		break;
+	      fprintf (stream,
+		       "%s:%3i|loc:%5i|%.*s\n",
+		       exploc.file, exploc.line,
+		       loc,
+		       line_size, line_text);
+
+	      /* "loc" is at column 0, which means "the whole line".
+		 Render the locations *within* the line, by underlining
+		 it, showing the source_location numeric values
+		 at each column.  */
+	      int max_col
+		= (1 << ORDINARY_MAP_NUMBER_OF_COLUMN_BITS (map)) - 1;
+	      if (max_col > line_size)
+		max_col = line_size + 1;
+
+	      int indent = 14 + strlen (exploc.file);
+
+	      /* Thousands.  */
+	      if (end_location > 999)
+		write_digit_row (stream, indent, loc, max_col, 1000);
+
+	      /* Hundreds.  */
+	      if (end_location > 99)
+		write_digit_row (stream, indent, loc, max_col, 100);
+
+	      /* Tens.  */
+	      write_digit_row (stream, indent, loc, max_col, 10);
+
+	      /* Units.  */
+	      write_digit_row (stream, indent, loc, max_col, 1);
+	    }
+	}
+      fprintf (stream, "\n");
+    }
+
+  /* Visualize unallocated values.  */
+  dump_labelled_location_range (stream, "UNALLOCATED LOCATIONS",
+				line_table->highest_location,
+				LINEMAPS_MACRO_LOWEST_LOCATION (line_table));
+
+  /* Visualize the macro line_map instances, rendering the sources. */
+  for (unsigned int i = 0; i < LINEMAPS_MACRO_USED (line_table); i++)
+    {
+      /* Each macro map that is allocated owns source_location values
+	 that are *lower* that the one before them.
+	 Hence it's meaningful to view them either in order of ascending
+	 source locations, or in order of ascending macro map index.  */
+      const bool ascending_source_locations = true;
+      unsigned int idx = (ascending_source_locations
+			  ? (LINEMAPS_MACRO_USED (line_table) - (i + 1))
+			  : i);
+      struct line_map *map = LINEMAPS_MACRO_MAP_AT (line_table, idx);
+      fprintf (stream, "MACRO %i: %s (%u tokens)\n",
+	       idx,
+	       linemap_map_get_macro_name (map),
+	       MACRO_MAP_NUM_MACRO_TOKENS (map));
+      dump_location_range (stream,
+			   map->start_location,
+			   (map->start_location
+			    + MACRO_MAP_NUM_MACRO_TOKENS (map)));
+      inform (MACRO_MAP_EXPANSION_POINT_LOCATION (map),
+	      "expansion point is location %i",
+	      MACRO_MAP_EXPANSION_POINT_LOCATION (map));
+      fprintf (stream, "  map->start_location: %u\n",
+	       map->start_location);
+
+      fprintf (stream, "  macro_locations:\n");
+      for (unsigned int i = 0; i < MACRO_MAP_NUM_MACRO_TOKENS (map); i++)
+	{
+	  source_location x = MACRO_MAP_LOCATIONS (map)[2 * i];
+	  source_location y = MACRO_MAP_LOCATIONS (map)[(2 * i) + 1];
+
+	  /* linemap_add_macro_token encodes token numbers in an expansion
+	     by putting them after MAP_START_LOCATION. */
+
+	  /* I'm typically seeing 4 uninitialized entries at the end of
+	     0xafafafaf.
+	     This appears to be due to macro.c:replace_args
+	     adding 2 extra args for padding tokens; presumably there may
+	     be a leading and/or trailing padding token injected,
+	     each for 2 more location slots.
+	     This would explain there being up to 4 source_locations slots
+	     that may be uninitialized.  */
+
+	  fprintf (stream, "    %u: %u, %u\n",
+		   i,
+		   x,
+		   y);
+	  if (x == y)
+	    {
+	      if (x < MAP_START_LOCATION (map))
+		inform (x, "token %u has x-location == y-location == %u", i, x);
+	      else
+		fprintf (stream,
+			 "x-location == y-location == %u encodes token # %u\n",
+			 x, x - MAP_START_LOCATION (map));
+		}
+	  else
+	    {
+	      inform (x, "token %u has x-location == %u", i, x);
+	      inform (x, "token %u has y-location == %u", i, y);
+	    }
+	}
+      fprintf (stream, "\n");
+    }
+
+  /* It appears that MAX_SOURCE_LOCATION itself is never assigned to a
+     macro map, presumably due to an off-by-one error somewhere
+     between the logic in linemap_enter_macro and
+     LINEMAPS_MACRO_LOWEST_LOCATION.  */
+  dump_labelled_location_range (stream, "MAX_SOURCE_LOCATION",
+				MAX_SOURCE_LOCATION,
+				MAX_SOURCE_LOCATION + 1);
+
+  /* Visualize ad-hoc values.  */
+  dump_labelled_location_range (stream, "AD-HOC LOCATIONS",
+				MAX_SOURCE_LOCATION + 1, UINT_MAX);
 }

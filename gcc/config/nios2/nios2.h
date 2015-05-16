@@ -1,5 +1,5 @@
 /* Definitions of target machine for Altera Nios II.
-   Copyright (C) 2012-2014 Free Software Foundation, Inc.
+   Copyright (C) 2012-2015 Free Software Foundation, Inc.
    Contributed by Jonah Graham (jgraham@altera.com), 
    Will Reece (wreece@altera.com), and Jeff DaSilva (jdasilva@altera.com).
    Contributed by Mentor Graphics, Inc.
@@ -173,6 +173,7 @@ enum reg_class
 {
   NO_REGS,
   SIB_REGS,
+  IJMP_REGS,
   GP_REGS,
   ALL_REGS,
   LIM_REG_CLASSES
@@ -183,6 +184,7 @@ enum reg_class
 #define REG_CLASS_NAMES   \
   {  "NO_REGS",		  \
      "SIB_REGS",	  \
+     "IJMP_REGS",	  \
      "GP_REGS",           \
      "ALL_REGS" }
 
@@ -190,10 +192,11 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS			\
   {						\
-    /* NO_REGS  */ { 0, 0},			\
-    /* SIB_REGS */ { 0xfe0c, 0},		\
-    /* GP_REGS  */ {~0, 0},			\
-    /* ALL_REGS */ {~0,~0}			\
+    /* NO_REGS    */ { 0, 0},			\
+    /* SIB_REGS   */ { 0xfe0c, 0},		\
+    /* IJMP_REGS  */ { 0x7fffffff, 0},		\
+    /* GP_REGS    */ {~0, 0},			\
+    /* ALL_REGS   */ {~0,~0}			\
   }
 
 
@@ -306,7 +309,7 @@ typedef struct nios2_args
 
 /* It is as good to call a constant function address as to call an address
    kept in a register.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Position independent code.  */
 
@@ -435,7 +438,7 @@ do                                                                      \
   {									\
     fprintf ((FILE), "%s", COMMON_ASM_OP);				\
     assemble_name ((FILE), (NAME));					\
-    fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE),	\
+    fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", (SIZE),	\
 	     (ALIGN) / BITS_PER_UNIT);					\
   }									\
 while (0)

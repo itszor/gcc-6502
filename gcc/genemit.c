@@ -1,5 +1,5 @@
 /* Generate code from machine description to emit insns as rtl.
-   Copyright (C) 1987-2014 Free Software Foundation, Inc.
+   Copyright (C) 1987-2015 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -94,6 +94,7 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
   int i;
   int len;
   const char *fmt;
+  const char *sep = "";
 
   if (x == 0)
     {
@@ -204,6 +205,7 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
 
     case CONST_DOUBLE:
     case CONST_FIXED:
+    case CONST_WIDE_INT:
       /* These shouldn't be written in MD files.  Instead, the appropriate
 	 routines in varasm.c should be called.  */
       gcc_unreachable ();
@@ -214,7 +216,12 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
 
   printf ("gen_rtx_");
   print_code (code);
-  printf (" (%smode", GET_MODE_NAME (GET_MODE (x)));
+  printf (" (");
+  if (!always_void_p (code))
+    {
+      printf ("%smode", GET_MODE_NAME (GET_MODE (x)));
+      sep = ",\n\t";
+    }
 
   fmt = GET_RTX_FORMAT (code);
   len = GET_RTX_LENGTH (code);
@@ -222,7 +229,7 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
     {
       if (fmt[i] == '0')
 	break;
-      printf (",\n\t");
+      fputs (sep, stdout);
       switch (fmt[i])
 	{
 	case 'e': case 'u':
@@ -253,6 +260,7 @@ gen_exp (rtx x, enum rtx_code subroutine_type, char *used)
 	default:
 	  gcc_unreachable ();
 	}
+      sep = ",\n\t";
     }
   printf (")");
 }
@@ -556,15 +564,15 @@ gen_split (rtx split)
   /* Output the prototype, function name and argument declarations.  */
   if (GET_CODE (split) == DEFINE_PEEPHOLE2)
     {
-      printf ("extern rtx gen_%s_%d (rtx, rtx *);\n",
+      printf ("extern rtx gen_%s_%d (rtx_insn *, rtx *);\n",
 	      name, insn_code_number);
-      printf ("rtx\ngen_%s_%d (rtx curr_insn ATTRIBUTE_UNUSED, rtx *operands%s)\n",
+      printf ("rtx\ngen_%s_%d (rtx_insn *curr_insn ATTRIBUTE_UNUSED, rtx *operands%s)\n",
 	      name, insn_code_number, unused);
     }
   else
     {
-      printf ("extern rtx gen_split_%d (rtx, rtx *);\n", insn_code_number);
-      printf ("rtx\ngen_split_%d (rtx curr_insn ATTRIBUTE_UNUSED, rtx *operands%s)\n",
+      printf ("extern rtx gen_split_%d (rtx_insn *, rtx *);\n", insn_code_number);
+      printf ("rtx\ngen_split_%d (rtx_insn *curr_insn ATTRIBUTE_UNUSED, rtx *operands%s)\n",
 	      insn_code_number, unused);
     }
   printf ("{\n");
@@ -576,6 +584,10 @@ gen_split (rtx split)
 
   if (GET_CODE (split) == DEFINE_PEEPHOLE2)
     output_peephole2_scratches (split);
+
+  printf ("  if (dump_file)\n");
+  printf ("    fprintf (dump_file, \"Splitting with gen_%s_%d\\n\");\n",
+	  name, insn_code_number);
 
   printf ("  start_sequence ();\n");
 
@@ -790,21 +802,42 @@ from the machine description file `md'.  */\n\n");
   printf ("#include \"system.h\"\n");
   printf ("#include \"coretypes.h\"\n");
   printf ("#include \"tm.h\"\n");
+  printf ("#include \"hash-set.h\"\n");
+  printf ("#include \"machmode.h\"\n");
+  printf ("#include \"vec.h\"\n");
+  printf ("#include \"double-int.h\"\n");
+  printf ("#include \"input.h\"\n");
+  printf ("#include \"alias.h\"\n");
+  printf ("#include \"symtab.h\"\n");
+  printf ("#include \"wide-int.h\"\n");
+  printf ("#include \"inchash.h\"\n");
   printf ("#include \"tree.h\"\n");
   printf ("#include \"varasm.h\"\n");
   printf ("#include \"stor-layout.h\"\n");
   printf ("#include \"calls.h\"\n");
   printf ("#include \"rtl.h\"\n");
   printf ("#include \"tm_p.h\"\n");
+  printf ("#include \"hashtab.h\"\n");
+  printf ("#include \"hard-reg-set.h\"\n");
   printf ("#include \"function.h\"\n");
+  printf ("#include \"flags.h\"\n");
+  printf ("#include \"statistics.h\"\n");
+  printf ("#include \"real.h\"\n");
+  printf ("#include \"fixed-value.h\"\n");
+  printf ("#include \"insn-config.h\"\n");
+  printf ("#include \"expmed.h\"\n");
+  printf ("#include \"dojump.h\"\n");
+  printf ("#include \"explow.h\"\n");
+  printf ("#include \"emit-rtl.h\"\n");
+  printf ("#include \"stmt.h\"\n");
   printf ("#include \"expr.h\"\n");
+  printf ("#include \"insn-codes.h\"\n");
   printf ("#include \"optabs.h\"\n");
   printf ("#include \"dfp.h\"\n");
-  printf ("#include \"flags.h\"\n");
   printf ("#include \"output.h\"\n");
-  printf ("#include \"insn-config.h\"\n");
-  printf ("#include \"hard-reg-set.h\"\n");
   printf ("#include \"recog.h\"\n");
+  printf ("#include \"predict.h\"\n");
+  printf ("#include \"basic-block.h\"\n");
   printf ("#include \"resource.h\"\n");
   printf ("#include \"reload.h\"\n");
   printf ("#include \"diagnostic-core.h\"\n");
@@ -812,6 +845,7 @@ from the machine description file `md'.  */\n\n");
   printf ("#include \"tm-constrs.h\"\n");
   printf ("#include \"ggc.h\"\n");
   printf ("#include \"basic-block.h\"\n");
+  printf ("#include \"dumpfile.h\"\n");
   printf ("#include \"target.h\"\n\n");
   printf ("#define FAIL return (end_sequence (), _val)\n");
   printf ("#define DONE return (_val = get_insns (), end_sequence (), _val)\n\n");

@@ -1,5 +1,5 @@
 ;; GCC machine description for SPARC synchronization instructions.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2015 Free Software Foundation, Inc.
 ;;
 ;; This file is part of GCC.
 ;;
@@ -64,11 +64,19 @@
   "stbar"
   [(set_attr "type" "multi")])
 
+;; For LEON3, STB has the effect of membar #StoreLoad.
+(define_insn "*membar_storeload_leon3"
+  [(set (match_operand:BLK 0 "" "")
+	(unspec:BLK [(match_dup 0) (const_int 2)] UNSPEC_MEMBAR))]
+  "TARGET_LEON3"
+  "stb\t%%g0, [%%sp-1]"
+  [(set_attr "type" "store")])
+
 ;; For V8, LDSTUB has the effect of membar #StoreLoad.
 (define_insn "*membar_storeload"
   [(set (match_operand:BLK 0 "" "")
 	(unspec:BLK [(match_dup 0) (const_int 2)] UNSPEC_MEMBAR))]
-  "TARGET_V8"
+  "TARGET_V8 && !TARGET_LEON3"
   "ldstub\t[%%sp-1], %%g0"
   [(set_attr "type" "multi")])
 
@@ -200,8 +208,25 @@
 	  [(match_operand:I48MODE 2 "register_operand" "r")
 	   (match_operand:I48MODE 3 "register_operand" "0")]
 	  UNSPECV_CAS))]
-  "(TARGET_V9 || TARGET_LEON3) && (<MODE>mode != DImode || TARGET_ARCH64)"
+  "TARGET_V9 && (<MODE>mode != DImode || TARGET_ARCH64)"
   "cas<modesuffix>\t%1, %2, %0"
+  [(set_attr "type" "multi")])
+
+(define_insn "*atomic_compare_and_swap_leon3_1"
+  [(set (match_operand:SI 0 "register_operand" "=r")
+	(match_operand:SI 1 "mem_noofs_operand" "+w"))
+   (set (match_dup 1)
+	(unspec_volatile:SI
+	  [(match_operand:SI 2 "register_operand" "r")
+	   (match_operand:SI 3 "register_operand" "0")]
+	  UNSPECV_CAS))]
+  "TARGET_LEON3"
+{
+  if (TARGET_USER_MODE)
+    return "casa\t%1 0xa, %2, %0"; /* ASI for user data space.  */
+  else
+    return "casa\t%1 0xb, %2, %0"; /* ASI for supervisor data space.  */
+}
   [(set_attr "type" "multi")])
 
 (define_insn "*atomic_compare_and_swapdi_v8plus"

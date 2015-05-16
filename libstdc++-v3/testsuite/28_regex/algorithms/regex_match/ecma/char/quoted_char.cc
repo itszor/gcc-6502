@@ -3,7 +3,7 @@
 //
 // 2013-09-05  Tim Shen <timshen91@gmail.com>
 //
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -44,6 +44,16 @@ test01()
   VERIFY(regex_match_debug("_az", regex("\\w*")));
   VERIFY(regex_match_debug("!@#$%", regex("\\W*")));
   VERIFY(!regex_match_debug("_01234", regex("\\W*")));
+
+  VERIFY(regex_match_debug("01", regex("[\\d]*")));
+  VERIFY(regex_match_debug("asdfjkl", regex("[\\D]*")));
+  VERIFY(!regex_match_debug("asdfjkl0", regex("[\\D]*")));
+  VERIFY(regex_match_debug("\r\t\v\f ", regex("[\\s]*")));
+  VERIFY(regex_match_debug("asdfjkl", regex("[\\S]*")));
+  VERIFY(!regex_match_debug("asdfjkl\r", regex("[\\S]*")));
+  VERIFY(regex_match_debug("_az", regex("[\\w]*")));
+  VERIFY(regex_match_debug("!@#$%", regex("[\\W]*")));
+  VERIFY(!regex_match_debug("_01234", regex("[\\W]*")));
 }
 
 int

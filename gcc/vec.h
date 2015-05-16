@@ -1,5 +1,5 @@
 /* Vector API for GNU compiler.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2015 Free Software Foundation, Inc.
    Contributed by Nathan Sidwell <nathan@codesourcery.com>
    Re-implemented in C++ by Diego Novillo <dnovillo@google.com>
 
@@ -48,9 +48,10 @@ along with GCC; see the file COPYING3.  If not see
      weak.  There are files compiled with -DGENERATOR_FILE that already
      include ggc.h.  We only need to provide these definitions if ggc.h
      has not been included.  Sigh.  */
+
   extern void ggc_free (void *);
   extern size_t ggc_round_alloc_size (size_t requested_size);
-  extern void *ggc_realloc_stat (void *, size_t MEM_STAT_DECL);
+  extern void *ggc_realloc (void *, size_t CXX_MEM_STAT_INFO);
 #  endif  // GCC_GGC_H
 #endif	// VEC_GC_ENABLED
 
@@ -396,7 +397,7 @@ va_gc::reserve (vec<T, A, vl_embed> *&v, unsigned reserve, bool exact
   size = vec_offset + alloc * elt_size;
 
   unsigned nelem = v ? v->length () : 0;
-  v = static_cast <vec<T, A, vl_embed> *> (::ggc_realloc_stat (v, size
+  v = static_cast <vec<T, A, vl_embed> *> (::ggc_realloc (v, size
 							       PASS_MEM_STAT));
   v->embedded_init (alloc, nelem);
 }
@@ -482,8 +483,8 @@ public:
   bool iterate (unsigned, T *) const;
   bool iterate (unsigned, T **) const;
   vec *copy (ALONE_CXX_MEM_STAT_INFO) const;
-  void splice (vec &);
-  void splice (vec *src);
+  void splice (const vec &);
+  void splice (const vec *src);
   T *quick_push (const T &);
   T &pop (void);
   void truncate (unsigned);
@@ -704,7 +705,7 @@ vec_safe_copy (vec<T, A, vl_embed> *src CXX_MEM_STAT_INFO)
    Reallocate DST, if necessary.  */
 template<typename T, typename A>
 inline void
-vec_safe_splice (vec<T, A, vl_embed> *&dst, vec<T, A, vl_embed> *src
+vec_safe_splice (vec<T, A, vl_embed> *&dst, const vec<T, A, vl_embed> *src
 		 CXX_MEM_STAT_INFO)
 {
   unsigned src_len = vec_safe_length (src);
@@ -835,7 +836,7 @@ vec<T, A, vl_embed>::copy (ALONE_MEM_STAT_DECL) const
 
 template<typename T, typename A>
 inline void
-vec<T, A, vl_embed>::splice (vec<T, A, vl_embed> &src)
+vec<T, A, vl_embed>::splice (const vec<T, A, vl_embed> &src)
 {
   unsigned len = src.length ();
   if (len)
@@ -848,7 +849,7 @@ vec<T, A, vl_embed>::splice (vec<T, A, vl_embed> &src)
 
 template<typename T, typename A>
 inline void
-vec<T, A, vl_embed>::splice (vec<T, A, vl_embed> *src)
+vec<T, A, vl_embed>::splice (const vec<T, A, vl_embed> *src)
 {
   if (src)
     splice (*src);
@@ -1211,8 +1212,8 @@ public:
   vec copy (ALONE_CXX_MEM_STAT_INFO) const;
   bool reserve (unsigned, bool = false CXX_MEM_STAT_INFO);
   bool reserve_exact (unsigned CXX_MEM_STAT_INFO);
-  void splice (vec &);
-  void safe_splice (vec & CXX_MEM_STAT_INFO);
+  void splice (const vec &);
+  void safe_splice (const vec & CXX_MEM_STAT_INFO);
   T *quick_push (const T &);
   T *safe_push (const T &CXX_MEM_STAT_INFO);
   T &pop (void);
@@ -1488,7 +1489,7 @@ vec<T, va_heap, vl_ptr>::release (void)
 
 template<typename T>
 inline void
-vec<T, va_heap, vl_ptr>::splice (vec<T, va_heap, vl_ptr> &src)
+vec<T, va_heap, vl_ptr>::splice (const vec<T, va_heap, vl_ptr> &src)
 {
   if (src.m_vec)
     m_vec->splice (*(src.m_vec));
@@ -1502,7 +1503,7 @@ vec<T, va_heap, vl_ptr>::splice (vec<T, va_heap, vl_ptr> &src)
 
 template<typename T>
 inline void
-vec<T, va_heap, vl_ptr>::safe_splice (vec<T, va_heap, vl_ptr> &src
+vec<T, va_heap, vl_ptr>::safe_splice (const vec<T, va_heap, vl_ptr> &src
 				      MEM_STAT_DECL)
 {
   if (src.length ())
@@ -1573,7 +1574,10 @@ vec<T, va_heap, vl_ptr>::safe_grow (unsigned len MEM_STAT_DECL)
   unsigned oldlen = length ();
   gcc_checking_assert (oldlen <= len);
   reserve_exact (len - oldlen PASS_MEM_STAT);
-  m_vec->quick_grow (len);
+  if (m_vec)
+    m_vec->quick_grow (len);
+  else
+    gcc_checking_assert (len == 0);
 }
 
 

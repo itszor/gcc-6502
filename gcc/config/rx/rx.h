@@ -1,5 +1,5 @@
 /* GCC backend definitions for the Renesas RX processor.
-   Copyright (C) 2008-2014 Free Software Foundation, Inc.
+   Copyright (C) 2008-2015 Free Software Foundation, Inc.
    Contributed by Red Hat.
 
    This file is part of GCC.
@@ -67,6 +67,11 @@
 	builtin_define ("__RX_GCC_ABI__");	\
       else					\
 	builtin_define ("__RX_ABI__");		\
+						\
+      if (rx_allow_string_insns)		\
+	builtin_define ("__RX_ALLOW_STRING_INSNS__"); \
+      else					\
+	builtin_define ("__RX_DISALLOW_STRING_INSNS__");\
     }                                           \
   while (0)
 
@@ -97,6 +102,7 @@
 %{msmall-data-limit*:-msmall-data-limit} \
 %{mrelax:-relax} \
 %{mpid} \
+%{mno-allow-string-insns} \
 %{mint-register=*} \
 %{mgcc-abi:-mgcc-abi} %{!mgcc-abi:-mrx-abi} \
 %{mcpu=*} \
@@ -130,19 +136,11 @@
 #define DOUBLE_TYPE_SIZE 		(TARGET_64BIT_DOUBLES ? 64 : 32)
 #define LONG_DOUBLE_TYPE_SIZE		DOUBLE_TYPE_SIZE
 
-#ifdef __RX_32BIT_DOUBLES__
-#define LIBGCC2_HAS_DF_MODE		0
-#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE   32
-#else
-#define LIBGCC2_HAS_DF_MODE		1
-#define LIBGCC2_LONG_DOUBLE_TYPE_SIZE   64
-#endif
-
 #define DEFAULT_SIGNED_CHAR		0
 
 /* RX load/store instructions can handle unaligned addresses.  */
 #define STRICT_ALIGNMENT 		0
-#define FUNCTION_BOUNDARY 		8
+#define FUNCTION_BOUNDARY 		((rx_cpu_type == RX100 || rx_cpu_type == RX200) ? 4 : 8)
 #define BIGGEST_ALIGNMENT 		32
 #define STACK_BOUNDARY 			32
 #define PARM_BOUNDARY 			8
@@ -334,8 +332,8 @@ typedef unsigned int CUMULATIVE_ARGS;
 
 #define HARD_REGNO_NREGS(REGNO, MODE)   CLASS_MAX_NREGS (0, MODE)
 
-#define HARD_REGNO_MODE_OK(REGNO, MODE) 			\
-  REGNO_REG_CLASS (REGNO) == GR_REGS
+#define HARD_REGNO_MODE_OK(REGNO, MODE)				\
+  (REGNO_REG_CLASS (REGNO) == GR_REGS)
 
 #define MODES_TIEABLE_P(MODE1, MODE2)				\
   (   (   GET_MODE_CLASS (MODE1) == MODE_FLOAT			\
@@ -433,9 +431,9 @@ typedef unsigned int CUMULATIVE_ARGS;
 /* Compute the alignment needed for label X in various situations.
    If the user has specified an alignment then honour that, otherwise
    use rx_align_for_label.  */
-#define JUMP_ALIGN(x)				(align_jumps ? align_jumps : rx_align_for_label (x, 0))
-#define LABEL_ALIGN(x)				(align_labels ? align_labels : rx_align_for_label (x, 3))
-#define LOOP_ALIGN(x)				(align_loops ? align_loops : rx_align_for_label (x, 2))
+#define JUMP_ALIGN(x)				(align_jumps > 1 ? align_jumps_log : rx_align_for_label (x, 0))
+#define LABEL_ALIGN(x)				(align_labels > 1 ? align_labels_log : rx_align_for_label (x, 3))
+#define LOOP_ALIGN(x)				(align_loops > 1 ? align_loops_log : rx_align_for_label (x, 2))
 #define LABEL_ALIGN_AFTER_BARRIER(x)		rx_align_for_label (x, 0)
 
 #define ASM_OUTPUT_MAX_SKIP_ALIGN(STREAM, LOG, MAX_SKIP)	\
@@ -564,15 +562,15 @@ typedef unsigned int CUMULATIVE_ARGS;
 	  switch ((ALIGN) / BITS_PER_UNIT)				\
             {								\
             case 4:							\
-              fprintf ((FILE), ":\t.BLKL\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
+              fprintf ((FILE), ":\t.BLKL\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
 		       (SIZE) / 4);					\
 	      break;							\
             case 2:							\
-              fprintf ((FILE), ":\t.BLKW\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
+              fprintf ((FILE), ":\t.BLKW\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
 		       (SIZE) / 2);					\
 	      break;							\
             default:							\
-              fprintf ((FILE), ":\t.BLKB\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
+              fprintf ((FILE), ":\t.BLKB\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n",\
 		       (SIZE));						\
 	      break;							\
             }								\
@@ -581,7 +579,7 @@ typedef unsigned int CUMULATIVE_ARGS;
         {								\
           fprintf ((FILE), "%s", COMMON_ASM_OP);			\
           assemble_name ((FILE), (NAME));				\
-          fprintf ((FILE), ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",	\
+          fprintf ((FILE), "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",	\
 	           (SIZE), (ALIGN) / BITS_PER_UNIT);			\
 	}								\
     }									\
@@ -645,7 +643,6 @@ typedef unsigned int CUMULATIVE_ARGS;
 
 #define INCOMING_FRAME_SP_OFFSET		4
 #define ARG_POINTER_CFA_OFFSET(FNDECL)		4
-#define FRAME_POINTER_CFA_OFFSET(FNDECL)	4
 
 #define TARGET_USE_FPU		(! TARGET_NO_USE_FPU)
 

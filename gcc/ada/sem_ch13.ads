@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -41,6 +41,12 @@ package Sem_Ch13 is
    --  This procedure is called to analyze aspect specifications for node N. E
    --  is the corresponding entity declared by the declaration node N. Callers
    --  should check that Has_Aspects (N) is True before calling this routine.
+
+   procedure Analyze_Aspect_Specifications_On_Body_Or_Stub (N : Node_Id);
+   --  Analyze the aspect specifications of [generic] subprogram body or stub
+   --  N. Callers should check that Has_Aspects (N) is True before calling the
+   --  routine. This routine diagnoses misplaced aspects that should appear on
+   --  the initial declaration of N and offers suggestions for replacements.
 
    procedure Adjust_Record_For_Reverse_Bit_Order (R : Entity_Id);
    --  Called from Freeze where R is a record entity for which reverse bit
@@ -78,6 +84,11 @@ package Sem_Ch13 is
 
    procedure Initialize;
    --  Initialize internal tables for new compilation
+
+   procedure Kill_Rep_Clause (N : Node_Id);
+   --  This procedure is called for a rep clause N when we are in -gnatI mode
+   --  (Ignore_Rep_Clauses). It replaces the node N with a null statement. This
+   --  is only called if Ignore_Rep_Clauses is True.
 
    procedure Set_Enum_Esize (T : Entity_Id);
    --  This routine sets the Esize field for an enumeration type T, based
@@ -138,6 +149,17 @@ package Sem_Ch13 is
    --  type or to a generic formal type or a type derived from a generic formal
    --  type. Returns False if no such error occurs. If this error does occur,
    --  appropriate error messages are posted on node N, and True is returned.
+
+   generic
+      with procedure Replace_Type_Reference (N : Node_Id);
+   procedure Replace_Type_References_Generic (N : Node_Id; T : Entity_Id);
+   --  This is used to scan an expression for a predicate or invariant aspect
+   --  replacing occurrences of the name of the subtype to which the aspect
+   --  applies with appropriate references to the parameter of the predicate
+   --  function or invariant procedure. The procedure passed as a generic
+   --  parameter does the actual replacement of node N, which is either a
+   --  simple direct reference to T, or a selected component that represents
+   --  an appropriately qualified occurrence of T.
 
    function Rep_Item_Too_Late
      (T     : Entity_Id;
@@ -330,5 +352,28 @@ package Sem_Ch13 is
    --  aggregate, and each entry must denote a function with the proper syntax
    --  for First, Next, and Has_Element. Optionally an Element primitive may
    --  also be defined.
+
+   -----------------------------------------------------------
+   --  Visibility of Discriminants in Aspect Specifications --
+   -----------------------------------------------------------
+
+   --  The discriminants of a type are visible when analyzing the aspect
+   --  specifications of a type declaration or protected type declaration,
+   --  but not when analyzing those of a subtype declaration. The following
+   --  routines enforce this distinction.
+
+   procedure Install_Discriminants (E : Entity_Id);
+   --  Make visible the discriminants of type entity E
+
+   procedure Push_Scope_And_Install_Discriminants (E : Entity_Id);
+   --  Push scope E and makes visible the discriminants of type entity E if E
+   --  has discriminants and is not a subtype.
+
+   procedure Uninstall_Discriminants (E : Entity_Id);
+   --  Remove visibility to the discriminants of type entity E
+
+   procedure Uninstall_Discriminants_And_Pop_Scope (E : Entity_Id);
+   --  Remove visibility to the discriminants of type entity E and pop the
+   --  scope stack if E has discriminants and is not a subtype.
 
 end Sem_Ch13;

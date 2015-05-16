@@ -7,7 +7,7 @@
 
 
 @copying
-Copyright @copyright{} 2006-2014 Free Software Foundation, Inc.
+Copyright @copyright{} 2006-2015 Free Software Foundation, Inc.
 
 Permission is granted to copy, distribute and/or modify this document
 under the terms of the GNU Free Documentation License, Version 1.3 or
@@ -31,11 +31,13 @@ texts being (a) (see below), and with the Back-Cover Texts being (b)
 @ifinfo
 @dircategory GNU Libraries
 @direntry
-* libgomp: (libgomp).                    GNU OpenMP runtime library
+* libgomp: (libgomp).          GNU Offloading and Multi Processing Runtime Library.
 @end direntry
 
-This manual documents the GNU implementation of the OpenMP API for 
-multi-platform shared-memory parallel programming in C/C++ and Fortran.
+This manual documents libgomp, the GNU Offloading and Multi Processing
+Runtime library.  This is the GNU implementation of the OpenMP and
+OpenACC APIs for parallel and accelerator programming in C/C++ and
+Fortran.
 
 Published by the Free Software Foundation
 51 Franklin Street, Fifth Floor
@@ -48,7 +50,8 @@ Boston, MA 02110-1301 USA
 @setchapternewpage odd
 
 @titlepage
-@title The GNU OpenMP Implementation
+@title GNU Offloading and Multi Processing Runtime Library
+@subtitle The GNU OpenMP and OpenACC Implementation
 @page
 @vskip 0pt plus 1filll
 @comment For the @value{version-GCC} Version*
@@ -69,9 +72,19 @@ Boston, MA 02110-1301, USA@*
 @top Introduction
 @cindex Introduction
 
-This manual documents the usage of libgomp, the GNU implementation of the 
-@uref{http://www.openmp.org, OpenMP} Application Programming Interface (API)
-for multi-platform shared-memory parallel programming in C/C++ and Fortran.
+This manual documents the usage of libgomp, the GNU Offloading and
+Multi Processing Runtime Library.  This includes the GNU
+implementation of the @uref{http://www.openmp.org, OpenMP} Application
+Programming Interface (API) for multi-platform shared-memory parallel
+programming in C/C++ and Fortran, and the GNU implementation of the
+@uref{http://www.openacc.org/, OpenACC} Application Programming
+Interface (API) for offloading of code to accelerator devices in C/C++
+and Fortran.
+
+Originally, libgomp implemented the GNU OpenMP Runtime Library.  Based
+on this, support for OpenACC and offloading (both OpenACC and OpenMP
+4's target construct) has been added later on, and the library's name
+changed to GNU Offloading and Multi Processing Runtime Library.
 
 
 
@@ -87,7 +100,8 @@ for multi-platform shared-memory parallel programming in C/C++ and Fortran.
 * Environment Variables::      Influencing runtime behavior with environment 
                                variables.
 * The libgomp ABI::            Notes on the external ABI presented by libgomp.
-* Reporting Bugs::             How to report bugs in GNU OpenMP.
+* Reporting Bugs::             How to report bugs in the GNU Offloading and
+                               Multi Processing Runtime Library.
 * Copying::                    GNU general public license says
                                how you can copy and share libgomp.
 * GNU Free Documentation License::
@@ -130,10 +144,10 @@ The runtime routines described here are defined by Section 3 of the OpenMP
 specification in version 4.0.  The routines are structured in following
 three parts:
 
+@menu
 Control threads, processors and the parallel environment.  They have C
 linkage, and do not throw exceptions.
 
-@menu
 * omp_get_active_level::        Number of active parallel regions
 * omp_get_ancestor_thread_num:: Ancestor thread ID
 * omp_get_cancellation::        Whether cancellation support is enabled
@@ -162,11 +176,9 @@ linkage, and do not throw exceptions.
 * omp_set_nested::              Enable/disable nested parallel regions
 * omp_set_num_threads::         Set upper team size limit
 * omp_set_schedule::            Set the runtime scheduling method
-@end menu
 
 Initialize, set, test, unset and destroy simple and nested locks.
 
-@menu
 * omp_init_lock::            Initialize simple lock
 * omp_set_lock::             Wait for and set simple lock
 * omp_test_lock::            Test and set simple lock if available
@@ -177,11 +189,9 @@ Initialize, set, test, unset and destroy simple and nested locks.
 * omp_test_nest_lock::       Test and set nested lock if available
 * omp_unset_nest_lock::      Unset nested lock
 * omp_destroy_nest_lock::    Destroy nested lock
-@end menu
 
 Portable, thread-based, wall clock timer.
 
-@menu
 * omp_get_wtick::            Get timer precision.
 * omp_get_wtime::            Elapsed wall clock time.
 @end menu
@@ -1310,6 +1320,7 @@ beginning with @env{GOMP_} are GNU extensions.
 * OMP_THREAD_LIMIT::      Set the maximum number of threads
 * OMP_WAIT_POLICY::       How waiting threads are handled
 * GOMP_CPU_AFFINITY::     Bind threads to specific CPUs
+* GOMP_DEBUG::            Enable debugging output
 * GOMP_STACKSIZE::        Set default thread stack size
 * GOMP_SPINCOUNT::        Set the busy-wait spin count
 @end menu
@@ -1448,6 +1459,33 @@ level.  If undefined one thread per CPU is used.
 
 
 
+@node OMP_PROC_BIND
+@section @env{OMP_PROC_BIND} -- Whether theads may be moved between CPUs
+@cindex Environment Variable
+@table @asis
+@item @emph{Description}:
+Specifies whether threads may be moved between processors.  If set to
+@code{TRUE}, OpenMP theads should not be moved; if set to @code{FALSE}
+they may be moved.  Alternatively, a comma separated list with the
+values @code{MASTER}, @code{CLOSE} and @code{SPREAD} can be used to specify
+the thread affinity policy for the corresponding nesting level.  With
+@code{MASTER} the worker threads are in the same place partition as the
+master thread.  With @code{CLOSE} those are kept close to the master thread
+in contiguous place partitions.  And with @code{SPREAD} a sparse distribution
+across the place partitions is used.
+
+When undefined, @env{OMP_PROC_BIND} defaults to @code{TRUE} when
+@env{OMP_PLACES} or @env{GOMP_CPU_AFFINITY} is set and @code{FALSE} otherwise.
+
+@item @emph{See also}:
+@ref{OMP_PLACES}, @ref{GOMP_CPU_AFFINITY}, @ref{omp_get_proc_bind}
+
+@item @emph{Reference}:
+@uref{http://www.openmp.org/, OpenMP specification v4.0}, Section 4.4
+@end table
+
+
+
 @node OMP_PLACES
 @section @env{OMP_PLACES} -- Specifies on which CPUs the theads should be placed
 @cindex Environment Variable
@@ -1490,29 +1528,22 @@ between CPUs following no placement policy.
 
 
 
-@node OMP_PROC_BIND
-@section @env{OMP_PROC_BIND} -- Whether theads may be moved between CPUs
+@node OMP_STACKSIZE
+@section @env{OMP_STACKSIZE} -- Set default thread stack size
 @cindex Environment Variable
 @table @asis
 @item @emph{Description}:
-Specifies whether threads may be moved between processors.  If set to
-@code{TRUE}, OpenMP theads should not be moved; if set to @code{FALSE}
-they may be moved.  Alternatively, a comma separated list with the
-values @code{MASTER}, @code{CLOSE} and @code{SPREAD} can be used to specify
-the thread affinity policy for the corresponding nesting level.  With
-@code{MASTER} the worker threads are in the same place partition as the
-master thread.  With @code{CLOSE} those are kept close to the master thread
-in contiguous place partitions.  And with @code{SPREAD} a sparse distribution
-across the place partitions is used.
+Set the default thread stack size in kilobytes, unless the number
+is suffixed by @code{B}, @code{K}, @code{M} or @code{G}, in which
+case the size is, respectively, in bytes, kilobytes, megabytes
+or gigabytes.  This is different from @code{pthread_attr_setstacksize}
+which gets the number of bytes as an argument.  If the stack size cannot
+be set due to system constraints, an error is reported and the initial
+stack size is left unchanged.  If undefined, the stack size is system
+dependent.
 
-When undefined, @env{OMP_PROC_BIND} defaults to @code{TRUE} when
-@env{OMP_PLACES} or @env{GOMP_CPU_AFFINITY} is set and @code{FALSE} otherwise.
-
-@item @emph{See also}:
-@ref{OMP_PLACES}, @ref{GOMP_CPU_AFFINITY}, @ref{omp_get_proc_bind}
-
-@item @emph{Reference}:
-@uref{http://www.openmp.org/, OpenMP specification v4.0}, Section 4.4
+@item @emph{Reference}: 
+@uref{http://www.openmp.org/, OpenMP specification v4.0}, Section 4.7
 @end table
 
 
@@ -1534,26 +1565,6 @@ dynamic scheduling and a chunk size of 1 is used.
 
 @item @emph{Reference}: 
 @uref{http://www.openmp.org/, OpenMP specification v4.0}, Sections 2.7.1 and 4.1
-@end table
-
-
-
-@node OMP_STACKSIZE
-@section @env{OMP_STACKSIZE} -- Set default thread stack size
-@cindex Environment Variable
-@table @asis
-@item @emph{Description}:
-Set the default thread stack size in kilobytes, unless the number
-is suffixed by @code{B}, @code{K}, @code{M} or @code{G}, in which
-case the size is, respectively, in bytes, kilobytes, megabytes
-or gigabytes.  This is different from @code{pthread_attr_setstacksize}
-which gets the number of bytes as an argument.  If the stack size cannot
-be set due to system constraints, an error is reported and the initial
-stack size is left unchanged.  If undefined, the stack size is system
-dependent.
-
-@item @emph{Reference}: 
-@uref{http://www.openmp.org/, OpenMP specification v4.0}, Section 4.7
 @end table
 
 
@@ -1611,7 +1622,7 @@ CPU 2, the fifth to CPU 4, the sixth through tenth to CPUs 6, 8, 10, 12,
 and 14 respectively and then start assigning back from the beginning of
 the list.  @code{GOMP_CPU_AFFINITY=0} binds all threads to CPU 0.
 
-There is no GNU OpenMP library routine to determine whether a CPU affinity 
+There is no libgomp library routine to determine whether a CPU affinity
 specification is in effect.  As a workaround, language-specific library 
 functions, e.g., @code{getenv} in C or @code{GET_ENVIRONMENT_VARIABLE} in 
 Fortran, may be used to query the setting of the @code{GOMP_CPU_AFFINITY} 
@@ -1625,6 +1636,20 @@ If both @env{GOMP_CPU_AFFINITY} and @env{OMP_PROC_BIND} are set,
 
 @item @emph{See also}:
 @ref{OMP_PLACES}, @ref{OMP_PROC_BIND}
+@end table
+
+
+
+@node GOMP_DEBUG
+@section @env{GOMP_DEBUG} -- Enable debugging output
+@cindex Environment Variable
+@table @asis
+@item @emph{Description}:
+Enable debugging output.  The variable should be set to @code{0}
+(disabled, also the default if not set), or @code{1} (enabled).
+
+If enabled, some debugging output will be printed during execution.
+This is currently not specified in more detail, and subject to change.
 @end table
 
 
@@ -2070,15 +2095,16 @@ becomes
 
 
 @c ---------------------------------------------------------------------
-@c 
+@c Reporting Bugs
 @c ---------------------------------------------------------------------
 
 @node Reporting Bugs
 @chapter Reporting Bugs
 
-Bugs in the GNU OpenMP implementation should be reported via 
-@uref{http://gcc.gnu.org/bugzilla/, Bugzilla}.  For all cases, please add 
-"openmp" to the keywords field in the bug report.
+Bugs in the GNU Offloading and Multi Processing Runtime Library should
+be reported via @uref{http://gcc.gnu.org/bugzilla/, Bugzilla}.  Please add
+"openacc", or "openmp", or both to the keywords field in the bug
+report, as appropriate.
 
 
 

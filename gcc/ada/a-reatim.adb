@@ -7,7 +7,7 @@
 --                                 B o d y                                  --
 --                                                                          --
 --             Copyright (C) 1991-1994, Florida State University            --
---                     Copyright (C) 1995-2010, AdaCore                     --
+--                     Copyright (C) 1995-2015, AdaCore                     --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -114,13 +114,25 @@ package body Ada.Real_Time is
 
    function "/" (Left, Right : Time_Span) return Integer is
       pragma Unsuppress (Overflow_Check);
+      pragma Unsuppress (Division_Check);
    begin
       return Integer (Duration (Left) / Duration (Right));
    end "/";
 
    function "/" (Left : Time_Span; Right : Integer) return Time_Span is
       pragma Unsuppress (Overflow_Check);
+      pragma Unsuppress (Division_Check);
    begin
+      --  Even though checks are unsuppressed, we need an explicit check for
+      --  the case of largest negative integer divided by minus one, since
+      --  some library routines we use fail to catch this case. This will be
+      --  fixed at the compiler level in the future, at which point this test
+      --  can be removed.
+
+      if Left = Time_Span_First and then Right = -1 then
+         raise Constraint_Error with "overflow";
+      end if;
+
       return Time_Span (Duration (Left) / Right);
    end "/";
 
@@ -216,7 +228,78 @@ package body Ada.Real_Time is
 
    function Time_Of (SC : Seconds_Count; TS : Time_Span) return Time is
    begin
-      return Time (SC) + TS;
+      --  Simple case first, TS = 0.0, we need to make sure SC is in range
+
+      if TS = 0.0 then
+         if SC >= Seconds_Count (Duration (Time_Span_First) + Duration'(0.5))
+               and then
+            SC <= Seconds_Count (Duration (Time_Span_Last)  - Duration'(0.5))
+         then
+            --  Don't need any further checks after that manual check
+
+            declare
+               pragma Suppress (All_Checks);
+            begin
+               return Time (SC);
+            end;
+
+         --  Here we have a Seconds_Count value that is out of range
+
+         else
+            raise Constraint_Error;
+         end if;
+      end if;
+
+      --  We want to return Time (SC) + TS. To avoid spurious overflows in
+      --  the intermediate result Time (SC) we take advantage of the different
+      --  signs in SC and TS (when that is the case).
+
+      --  If the signs of SC and TS are different then we avoid converting SC
+      --  to Time (as we do in the else part). The reason for that is that SC
+      --  converted to Time may overflow the range of Time, while the addition
+      --  of SC plus TS does not overflow (because of their different signs).
+      --  The approach is to add and remove the greatest value of time
+      --  (greatest absolute value) to both SC and TS. SC and TS have different
+      --  signs, so we add the positive constant to the negative value, and the
+      --  negative constant to the positive value, to prevent overflows.
+
+      if (SC > 0 and then TS < 0.0) or else (SC < 0 and then TS > 0.0) then
+         declare
+            Closest_Boundary : constant Seconds_Count :=
+              (if TS >= 0.0 then
+                  Seconds_Count (Time_Span_Last  - Time_Span (0.5))
+               else
+                  Seconds_Count (Time_Span_First + Time_Span (0.5)));
+            --  Value representing the integer part of the Time_Span boundary
+            --  closest to TS (its number of seconds). Truncate towards zero
+            --  to be sure that transforming this value back into Time cannot
+            --  overflow (when SC is equal to 0). The sign of Closest_Boundary
+            --  is always different from the sign of SC, hence avoiding
+            --  overflow in the expression Time (SC + Closest_Boundary)
+            --  which is part of the return statement.
+
+            Dist_To_Boundary : constant Time_Span :=
+              TS - Time_Span (Closest_Boundary);
+            --  Distance between TS and Closest_Boundary expressed in Time_Span
+            --  Both operands in the subtraction have the same sign, hence
+            --  avoiding overflow.
+
+         begin
+            --  Both operands in the inner addition have different signs,
+            --  hence avoiding overflow. The Time () conversion and the outer
+            --  addition can overflow only if SC + TC is not within Time'Range.
+
+            return Time (SC + Closest_Boundary) + Dist_To_Boundary;
+         end;
+
+      --  Both operands have the same sign, so we can convert SC into Time
+      --  right away; if this conversion overflows then the result of adding SC
+      --  and TS would overflow anyway (so we would just be detecting the
+      --  overflow a bit earlier).
+
+      else
+         return Time (SC) + TS;
+      end if;
    end Time_Of;
 
    -----------------

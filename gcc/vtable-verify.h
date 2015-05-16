@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2014 Free Software Foundation, Inc.
+/* Copyright (C) 2013-2015 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -58,13 +58,14 @@ struct vtable_registration
 
 struct registration_hasher : typed_noop_remove <struct vtable_registration>
 {
-  typedef struct vtable_registration value_type;
-  typedef struct vtable_registration compare_type;
-  static inline hashval_t hash (const value_type *);
-  static inline bool equal (const value_type *, const compare_type *);
+  typedef struct vtable_registration *value_type;
+  typedef struct vtable_registration *compare_type;
+  static inline hashval_t hash (const vtable_registration *);
+  static inline bool equal (const vtable_registration *,
+			    const vtable_registration *);
 };
 
-typedef hash_table <registration_hasher> register_table_type;
+typedef hash_table<registration_hasher> register_table_type;
 typedef register_table_type::iterator registration_iterator_type;
 
 /*  This struct is used to represent the class hierarchy information
@@ -116,7 +117,7 @@ struct vtbl_map_node {
                                          variable.                          */
   struct vtbl_map_node *next, *prev;  /* Pointers for the linked list
                                          structure.                         */
-  register_table_type registered;     /* Hashtable of vtable pointers for which
+  register_table_type *registered;     /* Hashtable of vtable pointers for which
                                          we have generated a _VLTRegisterPair
                                          call with this vtable map variable. */
   bool is_used;          /* Boolean indicating if we used this vtable map

@@ -10,6 +10,7 @@ sinclude(../config/picflag.m4)
 sinclude(../config/dfp.m4)
 sinclude(../config/unwind_ipinfo.m4)
 sinclude(../config/gthr.m4)
+sinclude(../config/sjlj.m4)
 
 AC_PREREQ(2.64)
 AC_INIT([GNU C Runtime Library], 1.0,,[libgcc])
@@ -75,6 +76,23 @@ AC_ARG_ENABLE(vtable-verify,
  esac],
 [enable_vtable_verify=no])
 AC_SUBST(enable_vtable_verify)
+
+AC_ARG_WITH(aix-soname,
+[AS_HELP_STRING([--with-aix-soname=aix|svr4|both],
+    [shared library versioning (aka "SONAME") variant to provide on AIX])],
+[case "${host}:${enable_shared}" in
+ power*-*-aix[[5-9]]*:yes)
+   AC_MSG_CHECKING([which variant of shared library versioning to provide for shared libgcc])
+   case ${withval} in
+     aix|svr4|both) ;;
+     *) AC_MSG_ERROR([Unknown argument to --with-aix-soname]);;
+   esac
+   AC_MSG_RESULT($withval)
+   ;;
+ *) with_aix_soname=aix ;;
+ esac
+], [with_aix_soname=aix])
+AC_SUBST(with_aix_soname)
 
 GCC_PICFLAG
 AC_SUBST(PICFLAG)
@@ -180,6 +198,11 @@ AS_VAR_ARITH([long_double_type_size], [$ac_cv_sizeof_long_double \* 8])
 AC_SUBST(double_type_size)
 AC_SUBST(long_double_type_size)
 
+AC_CHECK_HEADERS(inttypes.h stdint.h stdlib.h ftw.h \
+	unistd.h sys/stat.h sys/types.h \
+	string.h strings.h memory.h)
+AC_HEADER_STDC
+
 # Check for decimal float support.
 AC_CACHE_CHECK([whether decimal floating point is supported], [libgcc_cv_dfp],
 	       [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -208,59 +231,24 @@ AC_SUBST(fixed_point)
 # config.gcc also contains tests of with_system_libunwind.
 GCC_CHECK_UNWIND_GETIPINFO
 
-# The sjlj test is almost duplicated here and in libgo/configure.ac (for C),
-# libstdc++-v3/acinclude.m4 and libjava/configure.ac (for C++), and
-# libobjc/configure.ac (for Objective-C).
-# FIXME: This should be centralized in config/sjlj.m4.
-AC_ARG_ENABLE(sjlj-exceptions,
-  AC_HELP_STRING([--enable-sjlj-exceptions],
-		 [force use of builtin_setjmp for exceptions]),
-  [case "$enableval" in
-   yes|no|auto) ;;
-   *) AC_MSG_ERROR([unknown argument to --enable-sjlj-exceptions]) ;;
-   esac],
-  [enable_sjlj_exceptions=auto])
+# Check if the compiler is configured for setjmp/longjmp exceptions.
+GCC_CHECK_SJLJ_EXCEPTIONS
 
-AC_CACHE_CHECK([whether to use setjmp/longjmp exceptions],
-[libgcc_cv_lib_sjlj_exceptions],
-[AC_LANG_CONFTEST(
-  [AC_LANG_SOURCE([
-void bar ();
-void clean (int *);
-void foo ()
-{
-  int i __attribute__ ((cleanup (clean)));
-  bar();
-}
-])])
-CFLAGS_hold=$CFLAGS
-CFLAGS="--save-temps -fexceptions"
-libgcc_cv_lib_sjlj_exceptions=unknown
-AS_IF([ac_fn_c_try_compile],
-  [if grep _Unwind_SjLj_Resume conftest.s >/dev/null 2>&1; then
-    libgcc_cv_lib_sjlj_exceptions=yes
-  elif grep _Unwind_Resume conftest.s >/dev/null 2>&1; then
-    libgcc_cv_lib_sjlj_exceptions=no
-  fi])
-CFLAGS=$CFLAGS_hold
-rm -f conftest*
-])
-
-if test "$enable_sjlj_exceptions" = "auto"; then
-  enable_sjlj_exceptions=$libgcc_cv_lib_sjlj_exceptions
+AC_ARG_ENABLE([explicit-exception-frame-registration],
+  [AC_HELP_STRING([--enable-explicit-exception-frame-registration],
+     [register exception tables explicitly at module start, for use
+      e.g. for compatibility with installations without PT_GNU_EH_FRAME support])],
+[
+force_explicit_eh_registry=
+if test "$enable_explicit_exception_frame_registration" = yes; then
+  if test $ac_cv_sjlj_exceptions = yes; then
+    AC_MSG_ERROR([Can't --enable-explicit-exception-frame-registration
+                  with setjmp/longjmp exceptions])
+  fi
+  force_explicit_eh_registry=-DUSE_EH_FRAME_REGISTRY_ALWAYS
 fi
-
-case $enable_sjlj_exceptions in
-yes)
-  AC_DEFINE(LIBGCC_SJLJ_EXCEPTIONS, 1,
-	[Define if the C compiler is configured for setjmp/longjmp exceptions.])
-  ;;
-no)
-  ;;
-*)
-  AC_MSG_ERROR([unable to detect exception model])
-  ;;
-esac
+])
+AC_SUBST([force_explicit_eh_registry])
 
 AC_LIB_PROG_LD_GNU
 
@@ -304,8 +292,78 @@ mips*-*-*)
     [libgcc_cv_mips_hard_float=no])])
 esac
 
+# Determine the version of glibc, if any, used on the target.
+AC_MSG_CHECKING([for target glibc version])
+AC_ARG_WITH([glibc-version],
+  [AS_HELP_STRING([--with-glibc-version=M.N],
+    [assume GCC used with glibc version M.N or later])], [
+if [echo "$with_glibc_version" | grep '^[0-9][0-9]*\.[0-9][0-9]*$']; then
+  glibc_version_major=`echo "$with_glibc_version" | sed -e 's/\..*//'`
+  glibc_version_minor=`echo "$with_glibc_version" | sed -e 's/.*\.//'`
+else
+  AC_MSG_ERROR([option --with-glibc-version requires a version number M.N])
+fi], [
+AC_COMPUTE_INT([glibc_version_major], [__GLIBC__],
+				      [#include <features.h>],
+				      [glibc_version_major=0])
+AC_COMPUTE_INT([glibc_version_minor], [__GLIBC_MINOR__],
+				      [#include <features.h>],
+				      [glibc_version_minor=0])])
+AC_MSG_RESULT([$glibc_version_major.$glibc_version_minor])
+
+# Determine floating-point type for powerpc*-*-linux*.
+# Single-precision-only FPRs are not a supported configuration for
+# this target, so are not allowed for in this test.
+case ${host} in
+powerpc*-*-linux*)
+  cat > conftest.c <<EOF
+#ifdef __powerpc64__
+ppc_fp_type=64
+#elif defined _SOFT_FLOAT
+ppc_fp_type=soft
+#elif defined _SOFT_DOUBLE
+ppc_fp_type=e500v1
+#elif defined __NO_FPRS__
+ppc_fp_type=e500v2
+#else
+ppc_fp_type=hard
+#endif
+EOF
+eval `${CC-cc} -E conftest.c | grep ppc_fp_type=`
+rm -f conftest.c
+# glibc 2.19 and later provide all the soft-fp functions, with proper
+# interactions with <fenv.h> exception and rounding mode handling, so
+# make libgcc's versions into compat symbols if a recent enough glibc
+# version is being used.
+ppc_fp_compat=
+case ${ppc_fp_type} in
+soft|e500v1|e500v2)
+  if test $glibc_version_major -gt 2 \
+    || ( test $glibc_version_major -eq 2 \
+        && test $glibc_version_minor -ge 19 ); then
+    ppc_fp_compat="t-softfp-compat"
+  fi
+  ;;
+esac
+;;
+esac
+
 # Collect host-machine-specific information.
 . ${srcdir}/config.host
+
+# Used for constructing correct paths for offload compilers.
+accel_dir_suffix=
+real_host_noncanonical=${host_noncanonical}
+if test x"$enable_as_accelerator_for" != x; then
+  accel_dir_suffix=/accel/${target_noncanonical}
+  real_host_noncanonical=${enable_as_accelerator_for}
+fi
+AC_SUBST(accel_dir_suffix)
+AC_SUBST(real_host_noncanonical)
+
+if test x"$enable_offload_targets" != x; then
+  extra_parts="${extra_parts} crtoffloadbegin.o crtoffloadend.o"
+fi
 
 # Check if Solaris/x86 linker supports ZERO terminator unwind entries.
 # This is after config.host so we can augment tmake_file.
@@ -321,6 +379,22 @@ i?86-*-solaris2* | x86_64-*-solaris2.1[[0-9]]*)
 EOF
   if AC_TRY_COMMAND(${CC-cc} -shared -nostartfiles -nodefaultlibs -o conftest.so conftest.s 1>&AS_MESSAGE_LOG_FD); then
       tmake_file="${tmake_file} i386/t-crtstuff"
+  fi
+  ;;
+esac
+
+# Check if xtensa target is configured for windowed ABI and thus needs to use
+# custom unwind code.
+# This is after config.host so we can augment tmake_file.
+case ${host} in
+xtensa*-*)
+  cat > conftest.c <<EOF
+	#ifdef __XTENSA_CALL0_ABI__
+	#error
+	#endif
+EOF
+  if AC_TRY_COMMAND(${CC-cc} -E -o conftest.i conftest.c 1>&AS_MESSAGE_LOG_FD); then
+      tmake_file="${tmake_file} xtensa/t-windowed"
   fi
   ;;
 esac

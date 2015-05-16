@@ -1,6 +1,6 @@
 // <forward_list.tcc> -*- C++ -*-
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -253,7 +253,7 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     void
     forward_list<_Tp, _Alloc>::
     splice_after(const_iterator __pos, forward_list&&,
-		 const_iterator __i)
+		 const_iterator __i) noexcept
     {
       const_iterator __j = __i;
       ++__j;

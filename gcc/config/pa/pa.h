@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, for the HP Spectrum.
-   Copyright (C) 1992-2014 Free Software Foundation, Inc.
+   Copyright (C) 1992-2015 Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) of Cygnus Support
    and Tim Moore (moore@defmacro.cs.utah.edu) of the Center for
    Software Science at the University of Utah.
@@ -114,7 +114,7 @@ extern unsigned long total_code_bytes;
 #define TARGET_HPUX_UNWIND_LIBRARY 0
 
 #ifndef TARGET_DEFAULT
-#define TARGET_DEFAULT (MASK_GAS | MASK_JUMP_IN_DELAY)
+#define TARGET_DEFAULT MASK_GAS
 #endif
 
 #ifndef TARGET_CPU_DEFAULT
@@ -490,7 +490,7 @@ extern rtx hppa_pic_save_rtx (void);
 /* #define STACK_GROWS_DOWNWARD */
 
 /* Believe it or not.  */
-#define ARGS_GROW_DOWNWARD
+#define ARGS_GROW_DOWNWARD 1
 
 /* Define this to nonzero if the nominal address of the stack frame
    is at the high-address end of the local variables;
@@ -797,7 +797,7 @@ extern int may_call_alloca;
   ((GET_CODE (X) == LABEL_REF 						\
    || (GET_CODE (X) == SYMBOL_REF && !SYMBOL_REF_TLS_MODEL (X))		\
    || GET_CODE (X) == CONST_INT						\
-   || (GET_CODE (X) == CONST && !pa_tls_referenced_p (X))		\
+   || (GET_CODE (X) == CONST && !tls_referenced_p (X))			\
    || GET_CODE (X) == HIGH) 						\
    && (reload_in_progress || reload_completed				\
        || ! pa_symbolic_expression_p (X)))
@@ -955,7 +955,7 @@ do {									     \
 /* Return a nonzero value if DECL has a section attribute.  */
 #define IN_NAMED_SECTION_P(DECL) \
   ((TREE_CODE (DECL) == FUNCTION_DECL || TREE_CODE (DECL) == VAR_DECL) \
-   && DECL_SECTION_NAME (DECL) != NULL_TREE)
+   && DECL_SECTION_NAME (DECL) != NULL)
 
 /* Define this macro if references to a symbol must be treated
    differently depending on something about the variable or
@@ -1048,7 +1048,7 @@ do {									     \
    shouldn't be put through pseudo regs where they can be cse'd.
    Desirable on machines where ordinary constants are expensive
    but a CALL with constant address is cheap.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Define this to be nonzero if shift instructions ignore all but the low-order
    few bits.  */
@@ -1193,6 +1193,16 @@ do {									     \
 #define ASM_OUTPUT_ADDR_DIFF_ELT(FILE, BODY, VALUE, REL)  \
   fprintf (FILE, "\t.word L$%04d-L$%04d\n", VALUE, REL)
 
+/* This is how to output an absolute case-vector.  */
+
+#define ASM_OUTPUT_ADDR_VEC(LAB,BODY)	\
+  pa_output_addr_vec ((LAB),(BODY))
+
+/* This is how to output a relative case-vector.  */
+
+#define ASM_OUTPUT_ADDR_DIFF_VEC(LAB,BODY)	\
+  pa_output_addr_diff_vec ((LAB),(BODY))
+
 /* This is how to output an assembler line that says to advance the
    location counter to a multiple of 2**LOG bytes.  */
 
@@ -1200,7 +1210,7 @@ do {									     \
     fprintf (FILE, "\t.align %d\n", (1<<(LOG)))
 
 #define ASM_OUTPUT_SKIP(FILE,SIZE)  \
-  fprintf (FILE, "\t.blockz "HOST_WIDE_INT_PRINT_UNSIGNED"\n",		\
+  fprintf (FILE, "\t.blockz " HOST_WIDE_INT_PRINT_UNSIGNED"\n",		\
 	   (unsigned HOST_WIDE_INT)(SIZE))
 
 /* This says how to output an assembler line to define an uninitialized

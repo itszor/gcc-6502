@@ -1,4 +1,4 @@
-;; Copyright (C) 2006-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2006-2015 Free Software Foundation, Inc.
 
 ;; This file is free software; you can redistribute it and/or modify it under
 ;; the terms of the GNU General Public License as published by the Free
@@ -1733,7 +1733,7 @@
     rtx t0_hi = gen_rtx_SUBREG (HImode, t0, 2);
     rtx t1_hi = gen_rtx_SUBREG (HImode, t1, 2);
 
-    rtx insn = emit_insn (gen_lshrsi3 (t0, operands[1], GEN_INT (16)));
+    rtx_insn *insn = emit_insn (gen_lshrsi3 (t0, operands[1], GEN_INT (16)));
     emit_insn (gen_lshrsi3 (t1, operands[2], GEN_INT (16)));
     emit_insn (gen_umulhisi3 (t2, op1_hi, op2_hi));
     emit_insn (gen_mpyh_si (t3, operands[1], operands[2]));
@@ -1794,7 +1794,7 @@
     rtx op2_hi = gen_rtx_SUBREG (HImode, operands[2], 2);
     rtx t0_hi = gen_rtx_SUBREG (HImode, t0, 2);
 
-    rtx insn = emit_insn (gen_rotlsi3 (t0, operands[2], GEN_INT (16)));
+    rtx_insn *insn = emit_insn (gen_rotlsi3 (t0, operands[2], GEN_INT (16)));
     emit_insn (gen_umulhisi3 (t1, op1_hi, op2_hi));
     emit_insn (gen_umulhisi3 (t2, op1_hi, t0_hi));
     emit_insn (gen_mpyhhu_si (t3, operands[1], t0));
@@ -4014,7 +4014,7 @@ selb\t%0,%4,%0,%3"
 	(unspec [(match_operand 1 "spu_reg_operand" "r")] UNSPEC_EXTEND_CMP))]
   ""
   {
-    emit_insn (gen_rtx_SET (VOIDmode, operands[0],
+    emit_insn (gen_rtx_SET (operands[0],
 			    gen_rtx_UNSPEC (GET_MODE (operands[0]),
 			                    gen_rtvec (1, operands[1]),
 					    UNSPEC_EXTEND_CMP)));
@@ -4516,7 +4516,7 @@ selb\t%0,%4,%0,%3"
      emit_move_insn (s0, gen_rtx_PLUS (SImode, s0, GEN_INT (-1)));
      bcomp = gen_rtx_NE(SImode, s0, const0_rtx);
      loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands [1]);
-     emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+     emit_jump_insn (gen_rtx_SET (pc_rtx,
                                   gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
                                                         loc_ref, pc_rtx)));
 
@@ -5078,9 +5078,9 @@ DONE;
 
   loc_ref = gen_rtx_LABEL_REF (VOIDmode, operands[2]);
 
-  emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
-                                   gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
-                                                         loc_ref, pc_rtx)));
+  emit_jump_insn (gen_rtx_SET (pc_rtx,
+                               gen_rtx_IF_THEN_ELSE (VOIDmode, bcomp,
+                                                     loc_ref, pc_rtx)));
 
   DONE;
 })

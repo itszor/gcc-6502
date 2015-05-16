@@ -6,7 +6,7 @@ public:
   void z();
   A(void) {}
 private:
-  A(const A &) { abort(); } // { dg-error "private" } 
+  A(const A &) { abort(); } // { dg-message "private" } 
   const A& operator =(const A &) { abort(); }
 };
 
@@ -15,7 +15,7 @@ public:
   B(void) {}
 };
 
-void f(B b) {			// { dg-error "initializing" }
+void f(B b) {			// { dg-message "initializing" }
 }
 
 void g() {

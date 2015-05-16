@@ -261,7 +261,7 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
   char size_string[size_string_size + 1];
   memcpy(size_string, hdr->ar_size, size_string_size);
   char* ps = size_string + size_string_size;
-  while (ps[-1] == ' ')
+  while (ps > size_string && ps[-1] == ' ')
     --ps;
   *ps = '\0';
 
@@ -293,6 +293,15 @@ Archive_file::interpret_header(const Archive_header* hdr, off_t off,
   else if (hdr->ar_name[1] == ' ')
     {
       // This is the symbol table.
+      pname->clear();
+    }
+  else if (hdr->ar_name[1] == 'S' && hdr->ar_name[2] == 'Y'
+	   && hdr->ar_name[3] == 'M' && hdr->ar_name[4] == '6'
+	   && hdr->ar_name[5] == '4' && hdr->ar_name[6] == '/'
+	   && hdr->ar_name[7] == ' '
+	  )
+    {
+      // 64-bit symbol table.
       pname->clear();
     }
   else if (hdr->ar_name[1] == '/')

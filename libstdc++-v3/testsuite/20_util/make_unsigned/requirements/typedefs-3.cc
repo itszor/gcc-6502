@@ -1,7 +1,7 @@
-// { dg-options "-std=gnu++1y" }
+// { dg-options "-std=gnu++11" }
 // { dg-do compile }
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -20,16 +20,48 @@
 
 #include <type_traits>
 
-using namespace std;
+template<typename T, typename I0, typename... I>
+struct smallest_rank
+: std::conditional< sizeof(T) == sizeof(I0),
+                    I0,
+                    typename smallest_rank<T, I...>::type >
+{ };
 
-template<typename Trait, typename Result>
-  using test = is_same<typename Trait::type, Result>;
+template<typename T, typename I0>
+struct smallest_rank<T, I0>
+{ using type = I0; };
 
-static_assert( test<make_unsigned<const int>, make_unsigned_t<const int>>(),
-               "make_unsigned_t<const int>" );
+template<typename T>
+using smallest_rank_t
+  = typename smallest_rank<typename std::remove_cv<T>::type,
+                           unsigned char, unsigned short, unsigned int,
+                           unsigned long, unsigned long long>::type;
 
-static_assert( test<make_unsigned<unsigned>, make_unsigned_t<unsigned>>(),
-               "make_unsigned_t<unsigned>" );
+using std::make_unsigned;
+using std::is_same;
 
-static_assert( test<make_unsigned<char>, make_unsigned_t<char>>(),
-               "make_unsigned_t<char>" );
+enum E1 : char { };
+using I1 = smallest_rank_t<E1>;
+static_assert(is_same<make_unsigned<E1>::type, I1>::value, "");
+static_assert(is_same<make_unsigned<E1 const>::type, I1 const>::value, "");
+
+enum E2 : short { };
+using I2 = smallest_rank_t<E2>;
+static_assert(is_same<make_unsigned<E2>::type, I2>::value, "");
+static_assert(is_same<make_unsigned<E2 const>::type, I2 const>::value, "");
+
+enum E3 : int { };
+using I3 = smallest_rank_t<E3>;
+static_assert(is_same<make_unsigned<E3>::type, I3>::value, "");
+static_assert(is_same<make_unsigned<E3 const>::type, I3 const>::value, "");
+
+enum E4 : long { };
+using I4 = smallest_rank_t<E4>;
+static_assert(is_same<make_unsigned<E4>::type, I4>::value, "");
+static_assert(is_same<make_unsigned<E4 const>::type, I4 const>::value, "");
+
+// PI libstdc++/60333
+enum E5 : long long { };
+using I5 = smallest_rank_t<E5>;
+static_assert(is_same<make_unsigned<E5>::type, I5>::value, "");
+static_assert(is_same<make_unsigned<E5 const>::type, I5 const>::value, "");

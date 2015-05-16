@@ -192,6 +192,9 @@
 /* Define to 1 if you have the `renameat' function. */
 #undef HAVE_RENAMEAT
 
+/* Define to 1 if you have the <sched.h> header file. */
+#undef HAVE_SCHED_H
+
 /* Define to 1 if you have the `sem_timedwait' function. */
 #undef HAVE_SEM_TIMEDWAIT
 
@@ -316,6 +319,9 @@
 /* Define to 1 if you have the `unlinkat' function. */
 #undef HAVE_UNLINKAT
 
+/* Define to 1 if you have the `unsetenv' function. */
+#undef HAVE_UNSETENV
+
 /* Define to 1 if you have the `unshare' function. */
 #undef HAVE_UNSHARE
 
@@ -331,18 +337,12 @@
 /* Define to 1 if you have the `wait4' function. */
 #undef HAVE_WAIT4
 
-/* Define if the C++ compiler is configured for setjmp/longjmp exceptions. */
-#undef LIBGO_SJLJ_EXCEPTIONS
-
 /* Define if the linker support split stack adjustments */
 #undef LINKER_SUPPORTS_SPLIT_STACK
 
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
-
-/* Define if makecontext expects top of stack in uc_stack. */
-#undef MAKECONTEXT_STACK_TOP
 
 /* Name of package */
 #undef PACKAGE

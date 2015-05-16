@@ -1,5 +1,5 @@
 /* Default macros to initialize the lang_hooks data structure.
-   Copyright (C) 2001-2014 Free Software Foundation, Inc.
+   Copyright (C) 2001-2015 Free Software Foundation, Inc.
    Contributed by Alexandre Oliva  <aoliva@redhat.com>
 
 This file is part of GCC.
@@ -60,6 +60,7 @@ extern size_t lhd_tree_size (enum tree_code);
 extern HOST_WIDE_INT lhd_to_target_charset (HOST_WIDE_INT);
 extern tree lhd_expr_to_decl (tree, bool *, bool *);
 extern tree lhd_builtin_function (tree);
+extern tree lhd_enum_underlying_base_type (const_tree);
 
 /* Declarations of default tree inlining hooks.  */
 extern void lhd_initialize_diagnostics (diagnostic_context *);
@@ -74,6 +75,7 @@ extern bool lhd_handle_option (size_t, const char *, int, int, location_t,
 extern int lhd_gimplify_expr (tree *, gimple_seq *, gimple_seq *);
 extern enum omp_clause_default_kind lhd_omp_predetermined_sharing (tree);
 extern tree lhd_omp_assignment (tree, tree, tree);
+extern void lhd_omp_finish_clause (tree, gimple_seq *);
 struct gimplify_omp_ctx;
 extern void lhd_omp_firstprivatize_type_sizes (struct gimplify_omp_ctx *,
 					       tree);
@@ -173,6 +175,7 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_GET_SUBRANGE_BOUNDS	NULL
 #define LANG_HOOKS_DESCRIPTIVE_TYPE	NULL
 #define LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE reconstruct_complex_type
+#define LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE lhd_enum_underlying_base_type
 
 #define LANG_HOOKS_FOR_TYPES_INITIALIZER { \
   LANG_HOOKS_MAKE_TYPE, \
@@ -191,7 +194,8 @@ extern tree lhd_make_node (enum tree_code);
   LANG_HOOKS_GET_ARRAY_DESCR_INFO, \
   LANG_HOOKS_GET_SUBRANGE_BOUNDS, \
   LANG_HOOKS_DESCRIPTIVE_TYPE, \
-  LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE \
+  LANG_HOOKS_RECONSTRUCT_COMPLEX_TYPE, \
+  LANG_HOOKS_ENUM_UNDERLYING_BASE_TYPE \
 }
 
 /* Declaration hooks.  */
@@ -199,6 +203,7 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_PUSHDECL	pushdecl
 #define LANG_HOOKS_GETDECLS	getdecls
 #define LANG_HOOKS_FUNCTION_DECL_EXPLICIT_P hook_bool_tree_false
+#define LANG_HOOKS_FUNCTION_DECL_DELETED_P hook_bool_tree_false
 #define LANG_HOOKS_WARN_UNUSED_GLOBAL_DECL lhd_warn_unused_global_decl
 #define LANG_HOOKS_WRITE_GLOBALS write_global_declarations
 #define LANG_HOOKS_DECL_OK_FOR_SIBCALL	lhd_decl_ok_for_sibcall
@@ -211,14 +216,16 @@ extern tree lhd_make_node (enum tree_code);
 #define LANG_HOOKS_OMP_CLAUSE_DEFAULT_CTOR hook_tree_tree_tree_tree_null
 #define LANG_HOOKS_OMP_CLAUSE_COPY_CTOR lhd_omp_assignment
 #define LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP lhd_omp_assignment
+#define LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR NULL
 #define LANG_HOOKS_OMP_CLAUSE_DTOR hook_tree_tree_tree_null
-#define LANG_HOOKS_OMP_FINISH_CLAUSE hook_void_tree
+#define LANG_HOOKS_OMP_FINISH_CLAUSE lhd_omp_finish_clause
 
 #define LANG_HOOKS_DECLS { \
   LANG_HOOKS_GLOBAL_BINDINGS_P, \
   LANG_HOOKS_PUSHDECL, \
   LANG_HOOKS_GETDECLS, \
   LANG_HOOKS_FUNCTION_DECL_EXPLICIT_P, \
+  LANG_HOOKS_FUNCTION_DECL_DELETED_P, \
   LANG_HOOKS_GENERIC_GENERIC_PARAMETER_DECL_P, \
   LANG_HOOKS_FUNCTION_PARM_EXPANDED_FROM_PACK_P, \
   LANG_HOOKS_GET_GENERIC_FUNCTION_DECL, \
@@ -234,6 +241,7 @@ extern tree lhd_make_node (enum tree_code);
   LANG_HOOKS_OMP_CLAUSE_DEFAULT_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_COPY_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_ASSIGN_OP, \
+  LANG_HOOKS_OMP_CLAUSE_LINEAR_CTOR, \
   LANG_HOOKS_OMP_CLAUSE_DTOR, \
   LANG_HOOKS_OMP_FINISH_CLAUSE \
 }

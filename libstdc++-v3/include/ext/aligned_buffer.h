@@ -1,6 +1,6 @@
 // Aligned memory buffer -*- C++ -*-
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -46,6 +46,11 @@ namespace __gnu_cxx
       typename
 	std::aligned_storage<sizeof(_Tp), std::alignment_of<_Tp>::value>::type
 	_M_storage;
+
+      __aligned_buffer() = default;
+
+      // Can be used to avoid value-initialization
+      __aligned_buffer(std::nullptr_t) { }
 
       void*
       _M_addr() noexcept

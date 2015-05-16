@@ -1,5 +1,5 @@
 ;; Constraint definitions for Altera Nios II.
-;; Copyright (C) 2012-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2012-2015 Free Software Foundation, Inc.
 ;; Contributed by Chung-Lin Tang <cltang@codesourcery.com>
 ;;
 ;; This file is part of GCC.
@@ -38,6 +38,9 @@
 ;;  S: symbol that is in the "small data" area
 
 ;; Register constraints
+
+(define_register_constraint "c" "IJMP_REGS"
+  "A register suitable for an indirect jump.")
 
 (define_register_constraint "j" "SIB_REGS"
   "A register suitable for an indirect sibcall.")

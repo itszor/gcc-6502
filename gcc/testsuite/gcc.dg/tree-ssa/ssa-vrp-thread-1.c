@@ -1,7 +1,8 @@
 /* { dg-do compile } */
-/* { dg-options "-O2 -fdump-tree-vrp1-details" } */
+/* { dg-options "-O2 -fdump-tree-vrp1-details -fdelete-null-pointer-checks" } */
+/* { dg-skip-if "" keeps_null_pointer_checks } */
 
-
+void oof (void);
 struct basic_block_def;
 typedef struct basic_block_def *basic_block;
 enum gimple_code

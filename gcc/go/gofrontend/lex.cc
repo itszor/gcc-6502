@@ -598,7 +598,7 @@ Lex::next_token()
 		}
 	      else if (p[1] == '*')
 		{
-		  this->lineoff_ = p - this->linebuf_;
+		  this->lineoff_ = p + 2 - this->linebuf_;
 		  Location location = this->location();
 		  if (!this->skip_c_comment())
 		    return Token::make_invalid_token(location);
@@ -1440,7 +1440,10 @@ Lex::gather_raw_string()
 	  bool issued_error;
 	  this->lineoff_ = p - this->linebuf_;
 	  p = this->advance_one_utf8_char(p, &c, &issued_error);
-	  Lex::append_char(c, true, &value, loc);
+	  // "Carriage return characters ('\r') inside raw string literals
+	  // are discarded from the raw string value."
+	  if (c != '\r')
+	      Lex::append_char(c, true, &value, loc);
 	}
       this->lineoff_ = p - this->linebuf_;
       if (!this->require_line())

@@ -1,6 +1,6 @@
-// { dg-options "-std=gnu++1y" }
+// { dg-options "-std=gnu++14" }
 
-// Copyright (C) 2013-2014 Free Software Foundation, Inc.
+// Copyright (C) 2013-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -41,4 +41,8 @@ main()
   get<1>(b)=5;
   VERIFY(get<int>(b)==1 && get<int&>(b)==5 && get<const int&>(b)==2);
   VERIFY(j==5);
+  // test rvalue overload:
+  VERIFY(get<int>(std::move(b))==1);
+  VERIFY(get<int&>(std::move(b))==5);
+  VERIFY(get<const int&>(std::move(b))==2);
 }

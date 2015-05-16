@@ -1,5 +1,5 @@
 ;; microblaze.md -- Machine description for Xilinx MicroBlaze processors.
-;; Copyright (C) 2009-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
 ;; Contributed by Michael Eager <eager@eagercon.com>.
 
@@ -518,8 +518,7 @@
 	(minus:DI (match_operand:DI 1 "register_operand" "d")
 		  (match_operand:DI 2 "arith_operand32" "d")))]
   ""
-  "@
-   rsub\t%L0,%L2,%L1\;rsubc\t%M0,%M2,%M1"
+  "rsub\t%L0,%L2,%L1\;rsubc\t%M0,%M2,%M1"
   [(set_attr "type"	"darith")
   (set_attr "mode"	"DI")
   (set_attr "length"	"8")])
@@ -664,6 +663,31 @@
   (set_attr "mode"	"SI")
   (set_attr "length"	"4")])
 
+(define_peephole2
+  [(set (match_operand:SI 0 "register_operand")
+        (fix:SI (match_operand:SF 1 "register_operand")))
+   (set (pc)
+        (if_then_else (match_operator 2 "ordered_comparison_operator"
+                       [(match_operand:SI 3 "register_operand")
+                        (match_operand:SI 4 "arith_operand")])
+                      (label_ref (match_operand 5))
+                      (pc)))]
+   "TARGET_HARD_FLOAT"
+   [(set (match_dup 1) (match_dup 3))]
+
+  {
+    rtx condition;
+    rtx cmp_op0 = operands[3];
+    rtx cmp_op1 = operands[4];
+    rtx comp_reg =  gen_rtx_REG (SImode, MB_ABI_ASM_TEMP_REGNUM);
+
+    emit_insn (gen_cstoresf4 (comp_reg, operands[2],
+                              gen_rtx_REG (SFmode, REGNO (cmp_op0)),
+                              gen_rtx_REG (SFmode, REGNO (cmp_op1))));
+    condition = gen_rtx_NE (SImode, comp_reg, const0_rtx);
+    emit_jump_insn (gen_condjump (condition, operands[5]));
+  }
+)
 
 ;;----------------------------------------------------------------
 ;; Negation and one's complement
@@ -1656,14 +1680,27 @@
 
 (define_expand "cbranchsi4"
   [(set (pc)
-	(if_then_else (match_operator 0 "ordered_comparison_operator"
-		       [(match_operand:SI 1 "register_operand")
-		        (match_operand:SI 2 "arith_operand")])
-		      (label_ref (match_operand 3 ""))
-		      (pc)))]
+        (if_then_else (match_operator 0 "ordered_comparison_operator"
+                       [(match_operand:SI 1 "register_operand")
+                        (match_operand:SI 2 "arith_operand" "I,i")])
+                      (label_ref (match_operand 3 ""))
+                      (pc)))]
   ""
 {
   microblaze_expand_conditional_branch (SImode, operands);
+  DONE;
+})
+
+(define_expand "cbranchsi4_reg"
+  [(set (pc)
+        (if_then_else (match_operator 0 "ordered_comparison_operator"
+                       [(match_operand:SI 1 "register_operand")
+                        (match_operand:SI 2 "register_operand")])
+                      (label_ref (match_operand 3 ""))
+                      (pc)))]
+  ""
+{
+  microblaze_expand_conditional_branch_reg (SImode, operands);
   DONE;
 })
 
@@ -1830,8 +1867,8 @@
 	(plus:SI (match_operand:SI 0 "register_operand" "d")
 		 (label_ref:SI (match_operand 1 "" ""))))
   (use (label_ref:SI (match_dup 1)))]
- "NEXT_INSN (operands[1]) != 0
-  && GET_CODE (PATTERN (NEXT_INSN (operands[1]))) == ADDR_DIFF_VEC
+ "NEXT_INSN (as_a <rtx_insn *> (operands[1])) != 0
+  && GET_CODE (PATTERN (NEXT_INSN (as_a <rtx_insn *> (operands[1])))) == ADDR_DIFF_VEC
   && flag_pic"
   {
     output_asm_insn ("addk\t%0,%0,r20",operands);
@@ -1945,8 +1982,10 @@
 (define_insn "*<optab>"
   [(any_return)]
   ""
-  { 
-    if (microblaze_is_interrupt_variant ())
+  {
+    if (microblaze_is_break_handler ())
+        return "rtbd\tr16, 8\;%#";
+    else if (microblaze_is_interrupt_variant ())
         return "rtid\tr14, 0\;%#";
     else
         return "rtsd\tr15, 8\;%#";
@@ -1962,8 +2001,10 @@
   [(any_return)
    (use (match_operand:SI 0 "register_operand" ""))]
   ""
-  {	
-    if (microblaze_is_interrupt_variant ())
+  {
+    if (microblaze_is_break_handler ())
+        return "rtbd\tr16,8\;%#";
+    else if (microblaze_is_interrupt_variant ())
         return "rtid\tr14,0 \;%#";
     else
         return "rtsd\tr15,8 \;%#";
@@ -2059,7 +2100,7 @@
   (set_attr "length"	"4")])
 
 (define_insn "call_internal1"
-  [(call (mem (match_operand:SI 0 "call_insn_simple_operand" "ri"))
+  [(call (mem (match_operand:VOID 0 "call_insn_simple_operand" "ri"))
 	 (match_operand:SI 1 "" "i"))
   (clobber (reg:SI R_SR))]
   ""
@@ -2068,8 +2109,14 @@
     register rtx target2 = gen_rtx_REG (Pmode,
 			      GP_REG_FIRST + MB_ABI_SUB_RETURN_ADDR_REGNUM);
     if (GET_CODE (target) == SYMBOL_REF) {
-        gen_rtx_CLOBBER (VOIDmode, target2);
-        return "brlid\tr15,%0\;%#";
+        if (microblaze_break_function_p (SYMBOL_REF_DECL (target))) {
+            gen_rtx_CLOBBER (VOIDmode, target2);
+            return "brki\tr16,%0\;%#";
+        }
+        else {
+            gen_rtx_CLOBBER (VOIDmode, target2);
+            return "brlid\tr15,%0\;%#";
+        }
     } else if (GET_CODE (target) == CONST_INT)
         return "la\t%@,r0,%0\;brald\tr15,%@\;%#";
     else if (GET_CODE (target) == REG)
@@ -2173,13 +2220,15 @@
     if (GET_CODE (target) == SYMBOL_REF)
     {
       gen_rtx_CLOBBER (VOIDmode,target2);
-      if (SYMBOL_REF_FLAGS (target) & SYMBOL_FLAG_FUNCTION)
+      if (microblaze_break_function_p (SYMBOL_REF_DECL (target)))
+        return "brki\tr16,%1\;%#";
+      else if (SYMBOL_REF_FLAGS (target) & SYMBOL_FLAG_FUNCTION)
         {
 	  return "brlid\tr15,%1\;%#";
         }
       else
         {
-	  return "bralid\tr15,%1\;%#";
+	    return "bralid\tr15,%1\;%#";
         }
     }
     else if (GET_CODE (target) == CONST_INT)

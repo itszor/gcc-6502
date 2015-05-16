@@ -1,6 +1,6 @@
 // -*- C++ -*-
 
-// Copyright (C) 2001-2014 Free Software Foundation, Inc.
+// Copyright (C) 2001-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -100,6 +100,10 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 	++_M_iter;
 	return __tmp;
       }
+
+      // _GLIBCXX_RESOLVE_LIB_DEFECTS
+      // 2454. Add raw_storage_iterator::base() member
+      _OutputIterator base() const { return _M_iter; }
     };
 
 _GLIBCXX_END_NAMESPACE_VERSION

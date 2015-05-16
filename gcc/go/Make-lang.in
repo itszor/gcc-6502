@@ -1,6 +1,6 @@
 # Make-lang.in -- Top level -*- makefile -*- fragment for gcc Go frontend.
 
-# Copyright (C) 2009-2014 Free Software Foundation, Inc.
+# Copyright (C) 2009-2015 Free Software Foundation, Inc.
 
 # This file is part of GCC.
 
@@ -51,6 +51,7 @@ go-warn = $(STRICT_WARN)
 GO_OBJS = \
 	go/ast-dump.o \
 	go/dataflow.o \
+	go/escape.o \
 	go/export.o \
 	go/expressions.o \
 	go/go-backend.o \
@@ -60,7 +61,6 @@ GO_OBJS = \
 	go/go-linemap.o \
 	go/go-optimize.o \
 	go/go.o \
-	go/gogo-tree.o \
 	go/gogo.o \
 	go/import.o \
 	go/import-archive.o \
@@ -132,11 +132,7 @@ go.srcman: doc/gccgo.1
 
 lang_checks += check-go
 lang_checks_parallelized += check-go
-check_go_parallelize = go-test.exp=*/test/\[0-57-9a-bd-hj-qs-zA-Z\]* \
-		       go-test.exp=*/test/c* \
-		       go-test.exp=*/test/i* \
-		       go-test.exp=*/test/r* \
-		       go-test.exp=*/test/6*
+check_go_parallelize = 10
 
 # Install hooks.
 
@@ -202,6 +198,7 @@ go.uninstall:
 go.mostlyclean:
 	-rm -f go/*$(objext)
 	-rm -f go/*$(coverageexts)
+	-rm -f gccgo$(exeext) gccgo-cross$(exeext) go1$(exeext)
 go.clean:
 go.distclean:
 go.maintainer-clean:

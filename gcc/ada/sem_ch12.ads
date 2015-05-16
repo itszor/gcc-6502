@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2013, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2015, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -36,6 +36,23 @@ package Sem_Ch12 is
    procedure Analyze_Formal_Type_Declaration            (N : Node_Id);
    procedure Analyze_Formal_Subprogram_Declaration      (N : Node_Id);
    procedure Analyze_Formal_Package_Declaration         (N : Node_Id);
+
+   function Build_Function_Wrapper
+     (Formal_Subp : Entity_Id;
+      Actual_Subp : Entity_Id) return Node_Id;
+   --  In GNATprove mode, create a wrapper function for actuals that are
+   --  functions with any number of formal parameters, in order to propagate
+   --  their contract to the renaming declarations generated for them. This
+   --  is called after the renaming declaration created for the formal in the
+   --  instance has been analyzed, and the actual is known.
+
+   function Build_Operator_Wrapper
+     (Formal_Subp : Entity_Id;
+      Actual_Subp : Entity_Id) return Node_Id;
+   --  In GNATprove mode, create a wrapper function for actuals that are
+   --  operators, in order to propagate their contract to the renaming
+   --  declarations generated for them. The types are (the instances of)
+   --  the types of the formal subprogram.
 
    procedure Start_Generic;
    --  Must be invoked before starting to process a generic spec or body
@@ -119,21 +136,28 @@ package Sem_Ch12 is
    --  pragma, or because a pragma appears for the instance in the scope.
    --  of the instance.
 
-   procedure Save_Global_References (N : Node_Id);
+   procedure Save_Global_References (Templ : Node_Id);
    --  Traverse the original generic unit, and capture all references to
-   --  entities that are defined outside of the generic in the analyzed
-   --  tree for the template. These references are copied into the original
-   --  tree, so that they appear automatically in every instantiation.
-   --  A critical invariant in this approach is that if an id in the generic
-   --  resolves to a local entity, the corresponding id in the instance
-   --  will resolve to the homologous entity in the instance, even though
-   --  the enclosing context for resolution is different, as long as the
-   --  global references have been captured as described here.
+   --  entities that are defined outside of the generic in the analyzed tree
+   --  for the template. These references are copied into the original tree,
+   --  so that they appear automatically in every instantiation. A critical
+   --  invariant in this approach is that if an id in the generic resolves to
+   --  a local entity, the corresponding id in the instance will resolve to
+   --  the homologous entity in the instance, even though the enclosing context
+   --  for resolution is different, as long as the global references have been
+   --  captured as described here.
 
    --  Because instantiations can be nested, the environment of the instance,
    --  involving the actuals and other data-structures, must be saved and
    --  restored in stack-like fashion. Front-end inlining also uses these
    --  structures for the management of private/full views.
+
+   procedure Save_Global_References_In_Contract
+     (Templ  : Node_Id;
+      Gen_Id : Entity_Id);
+   --  Save all global references found within the aspect specifications and
+   --  the contract-related source pragmas assocated with generic template
+   --  Templ. Gen_Id denotes the entity of the analyzed generic copy.
 
    procedure Set_Copied_Sloc_For_Inlined_Body (N : Node_Id; E : Entity_Id);
    --  This procedure is used when a subprogram body is inlined. This process

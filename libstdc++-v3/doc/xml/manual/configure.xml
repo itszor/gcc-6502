@@ -45,15 +45,6 @@
      </para>
  </listitem></varlistentry>
 
- <varlistentry><term><code>--enable-sjlj-exceptions</code></term>
- <listitem><para>Forces old, set-jump/long-jump exception handling model.  If
-	at all possible, the new, frame unwinding exception handling routines
-	should be used instead, as they significantly reduce both
-	runtime memory usage and executable size. This option can
-	change the library ABI.
-     </para>
- </listitem></varlistentry>
-
  <varlistentry><term><code>--enable-version-specific-runtime-libs</code></term>
  <listitem><para>Specify that run-time libraries should be installed in the
 	compiler-specific subdirectory (i.e.,
@@ -162,8 +153,7 @@
 
  <varlistentry><term><code>--enable-libstdcxx-threads</code></term>
  <listitem><para>Enable C++11 threads support.  If not explicitly specified,
-        the  configure process enables it if possible.  It defaults to 'off'
-	on Solaris 9, where it would break symbol versioning.   This
+        the  configure process enables it if possible.  This
 	option can change the library ABI.
      </para>
  </listitem></varlistentry>
@@ -186,7 +176,8 @@
 	desirable because, in glibc, for example, in turn it triggers the
 	linking of libpthread too, which activates locking, a large overhead
 	for single-thread programs.  OPTION=no skips the tests completely.
-	The default is OPTION=no.
+	The default is OPTION=auto, which skips the checks and enables the
+	features only for targets known to support them.
     </para>
  </listitem></varlistentry>
 
@@ -379,6 +370,29 @@
      facilities, which might be undesirable in a low-memory environment or
      when standard error is not available.  This option disables those
      messages.  This option does not change the library ABI.
+   </para>
+ </listitem></varlistentry>
+
+<varlistentry><term><code>--disable-libstdcxx-dual-abi</code></term>
+ <listitem>
+   <para>
+     Disable support for the new, C++11-conforming implementations of
+     <code>std::string</code>, <code>std::list</code> etc. so that the
+     library only provides definitions of types using the old ABI
+     (see <xref linkend="manual.intro.using.abi"/>).
+     This option changes the library ABI.
+   </para>
+ </listitem></varlistentry>
+
+<varlistentry><term><code>--with-default-libstdcxx-abi=</code><replaceable>OPTION</replaceable></term>
+ <listitem>
+   <para>
+     Set the default value for the <symbol>_GLIBCXX_USE_CXX11_ABI</symbol>
+     macro (see <xref linkend="manual.intro.using.macros"/>).
+     The default is <option>OPTION=c++11</option> which sets the macro to
+     <literal>1</literal>,
+     use <option>OPTION=c++98</option> to set it to <literal>0</literal>.
+     This option does not change the library ABI.
    </para>
  </listitem></varlistentry>
 

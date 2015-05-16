@@ -1,5 +1,5 @@
 /* Definitions of target machine for GNU compiler, Argonaut EPIPHANY cpu.
-   Copyright (C) 1994-2014 Free Software Foundation, Inc.
+   Copyright (C) 1994-2015 Free Software Foundation, Inc.
    Contributed by Embecosm on behalf of Adapteva, Inc.
 
 This file is part of GCC.
@@ -692,7 +692,7 @@ typedef struct GTY (()) machine_function
 /* Define this macro if it is as good or better to call a constant
    function address than to call an address kept in a register.  */
 /* On the EPIPHANY, calling through registers is slow.  */
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE 1
 
 /* Section selection.  */
 /* WARNING: These section names also appear in dwarf2out.c.  */
@@ -898,19 +898,6 @@ enum epiphany_function_type
 #define NUM_MODES_FOR_MODE_SWITCHING \
   { 2, 2, 2, \
     FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE, FP_MODE_NONE }
-
-#define MODE_NEEDED(ENTITY, INSN) epiphany_mode_needed((ENTITY), (INSN))
-
-#define MODE_PRIORITY_TO_MODE(ENTITY, N) \
-  (epiphany_mode_priority_to_mode ((ENTITY), (N)))
-
-#define EMIT_MODE_SET(ENTITY, MODE, HARD_REGS_LIVE) \
-  emit_set_fp_mode ((ENTITY), (MODE), (HARD_REGS_LIVE))
-
-#define MODE_ENTRY(ENTITY) (epiphany_mode_entry_exit ((ENTITY), false))
-#define MODE_EXIT(ENTITY) (epiphany_mode_entry_exit ((ENTITY), true))
-#define MODE_AFTER(ENTITY, LAST_MODE, INSN) \
-  (epiphany_mode_after ((ENTITY), (LAST_MODE), (INSN)))
 
 #define TARGET_INSERT_MODE_SWITCH_USE epiphany_insert_mode_switch_use
 

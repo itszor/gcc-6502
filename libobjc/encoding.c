@@ -1,5 +1,5 @@
 /* Encoding of types for Objective C.
-   Copyright (C) 1993-2014 Free Software Foundation, Inc.
+   Copyright (C) 1993-2015 Free Software Foundation, Inc.
    Contributed by Kresten Krab Thorup
    Bitfield support by Ovidiu Predescu
 
@@ -29,6 +29,7 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
 /* FIXME: This file contains functions that will abort the entire
    program if they fail.  Is that really needed ?  */
 
+#include "config.h"
 #include "objc-private/common.h"
 #include "objc-private/error.h"
 #include "tconfig.h"
@@ -192,6 +193,7 @@ _darwin_rs6000_special_round_type_align (const char *struc, int comp, int spec)
    ? MAX (MAX (COMPUTED, SPECIFIED), 64)				\
    : MAX (COMPUTED, SPECIFIED));})
 
+#define rs6000_special_adjust_field_align_p(FIELD, COMPUTED) 0
 
 /* Skip a variable name, enclosed in quotes (").  */
 static inline
@@ -1166,7 +1168,7 @@ objc_layout_structure_next_member (struct objc_struct_layout *layout)
   /* Record must have at least as much alignment as any field.
      Otherwise, the alignment of the field within the record
      is meaningless.  */
-#ifndef PCC_BITFIELD_TYPE_MATTERS
+#ifndef HAVE_BITFIELD_TYPE_MATTERS
   layout->record_align = MAX (layout->record_align, desired_align);
 #else	/* PCC_BITFIELD_TYPE_MATTERS */
   if (*type == _C_BFLD)

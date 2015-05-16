@@ -1,5 +1,5 @@
 /* Pass computing data for optimizing stdarg functions.
-   Copyright (C) 2004-2014 Free Software Foundation, Inc.
+   Copyright (C) 2004-2015 Free Software Foundation, Inc.
    Contributed by Jakub Jelinek <jakub@redhat.com>
 
 This file is part of GCC.
@@ -22,12 +22,27 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "hash-set.h"
+#include "machmode.h"
+#include "vec.h"
+#include "double-int.h"
+#include "input.h"
+#include "alias.h"
+#include "symtab.h"
+#include "wide-int.h"
+#include "inchash.h"
 #include "tree.h"
+#include "fold-const.h"
+#include "hard-reg-set.h"
+#include "input.h"
 #include "function.h"
 #include "langhooks.h"
 #include "gimple-pretty-print.h"
 #include "target.h"
 #include "bitmap.h"
+#include "predict.h"
+#include "dominance.h"
+#include "cfg.h"
 #include "basic-block.h"
 #include "tree-ssa-alias.h"
 #include "internal-fn.h"
@@ -37,11 +52,14 @@ along with GCC; see the file COPYING3.  If not see
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
 #include "gimple-ssa.h"
+#include "gimplify.h"
 #include "tree-phinodes.h"
 #include "ssa-iterators.h"
 #include "stringpool.h"
 #include "tree-ssanames.h"
+#include "tree-into-ssa.h"
 #include "sbitmap.h"
+#include "tree-cfg.h"
 #include "tree-pass.h"
 #include "tree-stdarg.h"
 
@@ -538,14 +556,13 @@ check_all_va_list_escapes (struct stdarg_info *si)
 
   FOR_EACH_BB_FN (bb, cfun)
     {
-      gimple_stmt_iterator i;
-
-      for (i = gsi_start_phis (bb); !gsi_end_p (i); gsi_next (&i))
+      for (gphi_iterator i = gsi_start_phis (bb); !gsi_end_p (i);
+	   gsi_next (&i))
 	{
 	  tree lhs;
 	  use_operand_p uop;
 	  ssa_op_iter soi;
-	  gimple phi = gsi_stmt (i);
+	  gphi *phi = i.phi ();
 
 	  lhs = PHI_RESULT (phi);
 	  if (virtual_operand_p (lhs)
@@ -571,7 +588,8 @@ check_all_va_list_escapes (struct stdarg_info *si)
 	    }
 	}
 
-      for (i = gsi_start_bb (bb); !gsi_end_p (i); gsi_next (&i))
+      for (gimple_stmt_iterator i = gsi_start_bb (bb); !gsi_end_p (i);
+	   gsi_next (&i))
 	{
 	  gimple stmt = gsi_stmt (i);
 	  tree use;
@@ -663,22 +681,10 @@ check_all_va_list_escapes (struct stdarg_info *si)
   return false;
 }
 
+/* Optimize FUN->va_list_gpr_size and FUN->va_list_fpr_size.  */
 
-/* Return true if this optimization pass should be done.
-   It makes only sense for stdarg functions.  */
-
-static bool
-gate_optimize_stdarg (void)
-{
-  /* This optimization is only for stdarg functions.  */
-  return cfun->stdarg != 0;
-}
-
-
-/* Entry point to the stdarg optimization pass.  */
-
-static unsigned int
-execute_optimize_stdarg (void)
+static void
+optimize_va_list_gpr_fpr_size (function *fun)
 {
   basic_block bb;
   bool va_list_escapes = false;
@@ -688,8 +694,8 @@ execute_optimize_stdarg (void)
   const char *funcname = NULL;
   tree cfun_va_list;
 
-  cfun->va_list_gpr_size = 0;
-  cfun->va_list_fpr_size = 0;
+  fun->va_list_gpr_size = 0;
+  fun->va_list_fpr_size = 0;
   memset (&si, 0, sizeof (si));
   si.va_list_vars = BITMAP_ALLOC (NULL);
   si.va_list_escape_vars = BITMAP_ALLOC (NULL);
@@ -697,13 +703,13 @@ execute_optimize_stdarg (void)
   if (dump_file)
     funcname = lang_hooks.decl_printable_name (current_function_decl, 2);
 
-  cfun_va_list = targetm.fn_abi_va_list (cfun->decl);
+  cfun_va_list = targetm.fn_abi_va_list (fun->decl);
   va_list_simple_ptr = POINTER_TYPE_P (cfun_va_list)
 		       && (TREE_TYPE (cfun_va_list) == void_type_node
 			   || TREE_TYPE (cfun_va_list) == char_type_node);
   gcc_assert (is_gimple_reg_type (cfun_va_list) == va_list_simple_ptr);
 
-  FOR_EACH_BB_FN (bb, cfun)
+  FOR_EACH_BB_FN (bb, fun)
     {
       gimple_stmt_iterator i;
 
@@ -752,7 +758,7 @@ execute_optimize_stdarg (void)
 	      ap = TREE_OPERAND (ap, 0);
 	    }
 	  if (TYPE_MAIN_VARIANT (TREE_TYPE (ap))
-	      != TYPE_MAIN_VARIANT (targetm.fn_abi_va_list (cfun->decl))
+	      != TYPE_MAIN_VARIANT (targetm.fn_abi_va_list (fun->decl))
 	      || TREE_CODE (ap) != VAR_DECL)
 	    {
 	      va_list_escapes = true;
@@ -807,37 +813,37 @@ execute_optimize_stdarg (void)
   /* For void * or char * va_list there is just one counter
      (va_list itself).  Use VA_LIST_GPR_SIZE for it.  */
   if (va_list_simple_ptr)
-    cfun->va_list_fpr_size = VA_LIST_MAX_FPR_SIZE;
+    fun->va_list_fpr_size = VA_LIST_MAX_FPR_SIZE;
 
   calculate_dominance_info (CDI_DOMINATORS);
   memset (&wi, 0, sizeof (wi));
   wi.info = si.va_list_vars;
 
-  FOR_EACH_BB_FN (bb, cfun)
+  FOR_EACH_BB_FN (bb, fun)
     {
-      gimple_stmt_iterator i;
-
       si.compute_sizes = -1;
       si.bb = bb;
 
       /* For va_list_simple_ptr, we have to check PHI nodes too.  We treat
 	 them as assignments for the purpose of escape analysis.  This is
 	 not needed for non-simple va_list because virtual phis don't perform
-	 any real data movement.  */
-      if (va_list_simple_ptr)
+	 any real data movement.  Also, check PHI nodes for taking address of
+	 the va_list vars.  */
+      tree lhs, rhs;
+      use_operand_p uop;
+      ssa_op_iter soi;
+
+      for (gphi_iterator i = gsi_start_phis (bb); !gsi_end_p (i);
+	   gsi_next (&i))
 	{
-	  tree lhs, rhs;
-	  use_operand_p uop;
-	  ssa_op_iter soi;
+	  gphi *phi = i.phi ();
+	  lhs = PHI_RESULT (phi);
 
-	  for (i = gsi_start_phis (bb); !gsi_end_p (i); gsi_next (&i))
+	  if (virtual_operand_p (lhs))
+	    continue;
+
+	  if (va_list_simple_ptr)
 	    {
-	      gimple phi = gsi_stmt (i);
-	      lhs = PHI_RESULT (phi);
-
-	      if (virtual_operand_p (lhs))
-		continue;
-
 	      FOR_EACH_PHI_ARG (uop, phi, soi, SSA_OP_USE)
 		{
 		  rhs = USE_FROM_PTR (uop);
@@ -860,9 +866,25 @@ execute_optimize_stdarg (void)
 		    }
 		}
 	    }
+
+	  for (unsigned j = 0; !va_list_escapes
+			       && j < gimple_phi_num_args (phi); ++j)
+	    if ((!va_list_simple_ptr
+		 || TREE_CODE (gimple_phi_arg_def (phi, j)) != SSA_NAME)
+		&& walk_tree (gimple_phi_arg_def_ptr (phi, j),
+			      find_va_list_reference, &wi, NULL))
+	      {
+		if (dump_file && (dump_flags & TDF_DETAILS))
+		  {
+		    fputs ("va_list escapes in ", dump_file);
+		    print_gimple_stmt (dump_file, phi, 0, dump_flags);
+		    fputc ('\n', dump_file);
+		  }
+		va_list_escapes = true;
+	      }
 	}
 
-      for (i = gsi_start_bb (bb);
+      for (gimple_stmt_iterator i = gsi_start_bb (bb);
 	   !gsi_end_p (i) && !va_list_escapes;
 	   gsi_next (&i))
 	{
@@ -882,8 +904,8 @@ execute_optimize_stdarg (void)
 
 	  if (is_gimple_assign (stmt))
 	    {
-	      tree lhs = gimple_assign_lhs (stmt);
-	      tree rhs = gimple_assign_rhs1 (stmt);
+	      lhs = gimple_assign_lhs (stmt);
+	      rhs = gimple_assign_rhs1 (stmt);
 
 	      if (va_list_simple_ptr)
 		{
@@ -974,8 +996,8 @@ execute_optimize_stdarg (void)
 finish:
   if (va_list_escapes)
     {
-      cfun->va_list_gpr_size = VA_LIST_MAX_GPR_SIZE;
-      cfun->va_list_fpr_size = VA_LIST_MAX_FPR_SIZE;
+      fun->va_list_gpr_size = VA_LIST_MAX_GPR_SIZE;
+      fun->va_list_fpr_size = VA_LIST_MAX_FPR_SIZE;
     }
   BITMAP_FREE (si.va_list_vars);
   BITMAP_FREE (si.va_list_escape_vars);
@@ -984,20 +1006,136 @@ finish:
     {
       fprintf (dump_file, "%s: va_list escapes %d, needs to save ",
 	       funcname, (int) va_list_escapes);
-      if (cfun->va_list_gpr_size >= VA_LIST_MAX_GPR_SIZE)
+      if (fun->va_list_gpr_size >= VA_LIST_MAX_GPR_SIZE)
 	fputs ("all", dump_file);
       else
 	fprintf (dump_file, "%d", cfun->va_list_gpr_size);
       fputs (" GPR units and ", dump_file);
-      if (cfun->va_list_fpr_size >= VA_LIST_MAX_FPR_SIZE)
+      if (fun->va_list_fpr_size >= VA_LIST_MAX_FPR_SIZE)
 	fputs ("all", dump_file);
       else
 	fprintf (dump_file, "%d", cfun->va_list_fpr_size);
       fputs (" FPR units.\n", dump_file);
     }
-  return 0;
 }
 
+/* Return true if STMT is IFN_VA_ARG.  */
+
+static bool
+gimple_call_ifn_va_arg_p (gimple stmt)
+{
+  return (is_gimple_call (stmt)
+	  && gimple_call_internal_p (stmt)
+	  && gimple_call_internal_fn (stmt) == IFN_VA_ARG);
+}
+
+/* Expand IFN_VA_ARGs in FUN.  */
+
+static void
+expand_ifn_va_arg_1 (function *fun)
+{
+  bool modified = false;
+  basic_block bb;
+  gimple_stmt_iterator i;
+
+  FOR_EACH_BB_FN (bb, fun)
+    for (i = gsi_start_bb (bb); !gsi_end_p (i); gsi_next (&i))
+      {
+	gimple stmt = gsi_stmt (i);
+	tree ap, expr, lhs, type, do_deref;
+	gimple_seq pre = NULL, post = NULL;
+
+	if (!gimple_call_ifn_va_arg_p (stmt))
+	  continue;
+
+	modified = true;
+
+	type = TREE_TYPE (TREE_TYPE (gimple_call_arg (stmt, 1)));
+	ap = gimple_call_arg (stmt, 0);
+	do_deref = gimple_call_arg (stmt, 2);
+
+	if (do_deref == integer_one_node)
+	  ap = build_fold_indirect_ref (ap);
+
+	push_gimplify_context (false);
+
+	/* Make it easier for the backends by protecting the valist argument
+	   from multiple evaluations.  */
+	if (do_deref == integer_one_node)
+	  gimplify_expr (&ap, &pre, &post, is_gimple_min_lval, fb_lvalue);
+	else
+	  gimplify_expr (&ap, &pre, &post, is_gimple_val, fb_rvalue);
+
+	expr = targetm.gimplify_va_arg_expr (ap, type, &pre, &post);
+
+	lhs = gimple_call_lhs (stmt);
+	if (lhs != NULL_TREE)
+	  {
+	    unsigned int nargs = gimple_call_num_args (stmt);
+	    gcc_assert (useless_type_conversion_p (TREE_TYPE (lhs), type));
+
+	    if (nargs == 4)
+	      {
+		/* We've transported the size of with WITH_SIZE_EXPR here as
+		   the last argument of the internal fn call.  Now reinstate
+		   it.  */
+		tree size = gimple_call_arg (stmt, nargs - 1);
+		expr = build2 (WITH_SIZE_EXPR, TREE_TYPE (expr), expr, size);
+	      }
+
+	    /* We use gimplify_assign here, rather than gimple_build_assign,
+	       because gimple_assign knows how to deal with variable-sized
+	       types.  */
+	    gimplify_assign (lhs, expr, &pre);
+	  }
+	else
+	  gimplify_expr (&expr, &pre, &post, is_gimple_lvalue, fb_lvalue);
+
+	pop_gimplify_context (NULL);
+
+	gimple_seq_add_seq (&pre, post);
+	update_modified_stmts (pre);
+
+	/* Add the sequence after IFN_VA_ARG.  This splits the bb right
+	   after IFN_VA_ARG, and adds the sequence in one or more new bbs
+	   inbetween.  */
+	gimple_find_sub_bbs (pre, &i);
+
+	/* Remove the IFN_VA_ARG gimple_call.  It's the last stmt in the
+	   bb.  */
+	gsi_remove (&i, true);
+	gcc_assert (gsi_end_p (i));
+
+	/* We're walking here into the bbs which contain the expansion of
+	   IFN_VA_ARG, and will not contain another IFN_VA_ARG that needs
+	   expanding.  We could try to skip walking these bbs, perhaps by
+	   walking backwards over gimples and bbs.  */
+	break;
+      }
+
+  if (!modified)
+    return;
+
+  free_dominance_info (CDI_DOMINATORS);
+  update_ssa (TODO_update_ssa);
+}
+
+/* Expand IFN_VA_ARGs in FUN, if necessary.  */
+
+static void
+expand_ifn_va_arg (function *fun)
+{
+  if ((fun->curr_properties & PROP_gimple_lva) == 0)
+    expand_ifn_va_arg_1 (fun);
+
+#if ENABLE_CHECKING
+  basic_block bb;
+  gimple_stmt_iterator i;
+  FOR_EACH_BB_FN (bb, fun)
+    for (i = gsi_start_bb (bb); !gsi_end_p (i); gsi_next (&i))
+      gcc_assert (!gimple_call_ifn_va_arg_p (gsi_stmt (i)));
+#endif
+}
 
 namespace {
 
@@ -1006,11 +1144,9 @@ const pass_data pass_data_stdarg =
   GIMPLE_PASS, /* type */
   "stdarg", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   ( PROP_cfg | PROP_ssa ), /* properties_required */
-  0, /* properties_provided */
+  PROP_gimple_lva, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
   0, /* todo_flags_finish */
@@ -1024,10 +1160,33 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_optimize_stdarg (); }
-  unsigned int execute () { return execute_optimize_stdarg (); }
+  virtual bool gate (function *)
+    {
+      /* Always run this pass, in order to expand va_arg internal_fns.  We
+	 also need to do that if fun->stdarg == 0, because a va_arg may also
+	 occur in a function without varargs, f.i. if when passing a va_list to
+	 another function.  */
+      return true;
+    }
+
+  virtual unsigned int execute (function *);
 
 }; // class pass_stdarg
+
+unsigned int
+pass_stdarg::execute (function *fun)
+{
+  /* TODO: Postpone expand_ifn_va_arg till after
+     optimize_va_list_gpr_fpr_size.  */
+  expand_ifn_va_arg (fun);
+
+  if (flag_stdarg_opt
+      /* This optimization is only for stdarg functions.  */
+      && fun->stdarg != 0)
+    optimize_va_list_gpr_fpr_size (fun);
+
+  return 0;
+}
 
 } // anon namespace
 
@@ -1035,4 +1194,51 @@ gimple_opt_pass *
 make_pass_stdarg (gcc::context *ctxt)
 {
   return new pass_stdarg (ctxt);
+}
+
+namespace {
+
+const pass_data pass_data_lower_vaarg =
+{
+  GIMPLE_PASS, /* type */
+  "lower_vaarg", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_NONE, /* tv_id */
+  ( PROP_cfg | PROP_ssa ), /* properties_required */
+  PROP_gimple_lva, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_lower_vaarg : public gimple_opt_pass
+{
+public:
+  pass_lower_vaarg (gcc::context *ctxt)
+    : gimple_opt_pass (pass_data_lower_vaarg, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual bool gate (function *)
+    {
+      return (cfun->curr_properties & PROP_gimple_lva) == 0;
+    }
+
+  virtual unsigned int execute (function *);
+
+}; // class pass_lower_vaarg
+
+unsigned int
+pass_lower_vaarg::execute (function *fun)
+{
+  expand_ifn_va_arg (fun);
+  return 0;
+}
+
+} // anon namespace
+
+gimple_opt_pass *
+make_pass_lower_vaarg (gcc::context *ctxt)
+{
+  return new pass_lower_vaarg (ctxt);
 }

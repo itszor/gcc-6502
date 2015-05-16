@@ -1,5 +1,5 @@
 /* Functions for generic Darwin as target machine for GNU C compiler.
-   Copyright (C) 1989-2014 Free Software Foundation, Inc.
+   Copyright (C) 1989-2015 Free Software Foundation, Inc.
    Contributed by Apple Computer Inc.
 
 This file is part of GCC.
@@ -31,27 +31,52 @@ along with GCC; see the file COPYING3.  If not see
 #include "output.h"
 #include "insn-attr.h"
 #include "flags.h"
+#include "hash-set.h"
+#include "machmode.h"
+#include "vec.h"
+#include "double-int.h"
+#include "input.h"
+#include "alias.h"
+#include "symtab.h"
+#include "wide-int.h"
+#include "inchash.h"
 #include "tree.h"
+#include "fold-const.h"
 #include "stringpool.h"
 #include "varasm.h"
 #include "stor-layout.h"
+#include "hashtab.h"
+#include "function.h"
+#include "statistics.h"
+#include "real.h"
+#include "fixed-value.h"
+#include "expmed.h"
+#include "dojump.h"
+#include "explow.h"
+#include "calls.h"
+#include "emit-rtl.h"
+#include "stmt.h"
 #include "expr.h"
 #include "reload.h"
-#include "function.h"
 #include "ggc.h"
 #include "langhooks.h"
 #include "target.h"
 #include "tm_p.h"
 #include "diagnostic-core.h"
 #include "toplev.h"
-#include "hashtab.h"
+#include "dominance.h"
+#include "cfg.h"
+#include "cfgrtl.h"
+#include "cfganal.h"
+#include "lcm.h"
+#include "cfgbuild.h"
+#include "cfgcleanup.h"
+#include "predict.h"
+#include "basic-block.h"
 #include "df.h"
 #include "debug.h"
 #include "obstack.h"
-#include "pointer-set.h"
 #include "hash-table.h"
-#include "vec.h"
-#include "basic-block.h"
 #include "tree-ssa-alias.h"
 #include "internal-fn.h"
 #include "gimple-fold.h"
@@ -60,7 +85,12 @@ along with GCC; see the file COPYING3.  If not see
 #include "is-a.h"
 #include "gimple.h"
 #include "gimplify.h"
+#include "hash-map.h"
+#include "plugin-api.h"
+#include "ipa-ref.h"
+#include "cgraph.h"
 #include "lto-streamer.h"
+#include "lto-section-names.h"
 
 /* Darwin supports a feature called fix-and-continue, which is used
    for rapid turn around debugging.  When code is compiled with the
@@ -450,7 +480,7 @@ machopic_should_output_picbase_label (void)
 /* The suffix attached to stub symbols.  */
 #define STUB_SUFFIX "$stub"
 
-typedef struct GTY (()) machopic_indirection
+typedef struct GTY ((for_user)) machopic_indirection
 {
   /* The SYMBOL_REF for the entity referenced.  */
   rtx symbol;
@@ -463,29 +493,33 @@ typedef struct GTY (()) machopic_indirection
   bool used;
 } machopic_indirection;
 
+struct indirection_hasher : ggc_hasher<machopic_indirection *>
+{
+  typedef const char *compare_type;
+  static hashval_t hash (machopic_indirection *);
+  static bool equal (machopic_indirection *, const char *);
+};
+
 /* A table mapping stub names and non-lazy pointer names to
    SYMBOL_REFs for the stubbed-to and pointed-to entities.  */
 
-static GTY ((param_is (struct machopic_indirection))) htab_t
-  machopic_indirections;
+static GTY (()) hash_table<indirection_hasher> *machopic_indirections;
 
 /* Return a hash value for a SLOT in the indirections hash table.  */
 
-static hashval_t
-machopic_indirection_hash (const void *slot)
+hashval_t
+indirection_hasher::hash (machopic_indirection *p)
 {
-  const machopic_indirection *p = (const machopic_indirection *) slot;
   return htab_hash_string (p->ptr_name);
 }
 
 /* Returns true if the KEY is the same as that associated with
    SLOT.  */
 
-static int
-machopic_indirection_eq (const void *slot, const void *key)
+bool
+indirection_hasher::equal (machopic_indirection *s, const char *k)
 {
-  return strcmp (((const machopic_indirection *) slot)->ptr_name,
-		 (const char *) key) == 0;
+  return strcmp (s->ptr_name, k) == 0;
 }
 
 /* Return the name of the non-lazy pointer (if STUB_P is false) or
@@ -498,7 +532,6 @@ machopic_indirection_name (rtx sym_ref, bool stub_p)
   const char *name = XSTR (sym_ref, 0);
   size_t namelen = strlen (name);
   machopic_indirection *p;
-  void ** slot;
   bool needs_quotes;
   const char *suffix;
   const char *prefix = user_label_prefix;
@@ -548,20 +581,19 @@ machopic_indirection_name (rtx sym_ref, bool stub_p)
   sprintf (buffer, "&%sL%s%s%s%s", quote, prefix, name, suffix, quote);
 
   if (!machopic_indirections)
-    machopic_indirections = htab_create_ggc (37,
-					     machopic_indirection_hash,
-					     machopic_indirection_eq,
-					     /*htab_del=*/NULL);
+    machopic_indirections = hash_table<indirection_hasher>::create_ggc (37);
 
-  slot = htab_find_slot_with_hash (machopic_indirections, buffer,
-				   htab_hash_string (buffer), INSERT);
+  machopic_indirection **slot
+    = machopic_indirections->find_slot_with_hash (buffer,
+						  htab_hash_string (buffer),
+						  INSERT);
   if (*slot)
     {
-      p = (machopic_indirection *) *slot;
+      p = *slot;
     }
   else
     {
-      p = ggc_alloc_machopic_indirection ();
+      p = ggc_alloc<machopic_indirection> ();
       p->symbol = sym_ref;
       p->ptr_name = xstrdup (buffer);
       p->stub_p = stub_p;
@@ -589,11 +621,8 @@ machopic_mcount_stub_name (void)
 void
 machopic_validate_stub_or_non_lazy_ptr (const char *name)
 {
-  machopic_indirection *p;
-
-  p = ((machopic_indirection *)
-       (htab_find_with_hash (machopic_indirections, name,
-			     htab_hash_string (name))));
+  machopic_indirection *p
+    = machopic_indirections->find_with_hash (name, htab_hash_string (name));
   if (p && ! p->used)
     {
       const char *real_name;
@@ -658,10 +687,10 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 
 	  gcc_assert (reg);
 
-	  emit_insn (gen_rtx_SET (Pmode, hi_sum_reg,
+	  emit_insn (gen_rtx_SET (hi_sum_reg,
 			      gen_rtx_PLUS (Pmode, pic_offset_table_rtx,
 				       gen_rtx_HIGH (Pmode, offset))));
-	  emit_insn (gen_rtx_SET (Pmode, reg,
+	  emit_insn (gen_rtx_SET (reg,
 				  gen_rtx_LO_SUM (Pmode, hi_sum_reg,
 						  copy_rtx (offset))));
 
@@ -671,11 +700,9 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
 	    {
 	  gcc_assert (reg);
 
-	  emit_insn (gen_rtx_SET (VOIDmode, reg,
-				  gen_rtx_HIGH (Pmode, offset)));
-	  emit_insn (gen_rtx_SET (VOIDmode, reg,
-				  gen_rtx_LO_SUM (Pmode, reg,
-						  copy_rtx (offset))));
+	  emit_insn (gen_rtx_SET (reg, gen_rtx_HIGH (Pmode, offset)));
+	  emit_insn (gen_rtx_SET (reg, gen_rtx_LO_SUM (Pmode, reg,
+						       copy_rtx (offset))));
 	  emit_use (pic_offset_table_rtx);
 
 	  orig = gen_rtx_PLUS (Pmode, pic_offset_table_rtx, reg);
@@ -696,7 +723,7 @@ machopic_indirect_data_reference (rtx orig, rtx reg)
           && reg 
           && MACHO_DYNAMIC_NO_PIC_P)
 	{
-	    emit_insn (gen_rtx_SET (Pmode, reg, ptr_ref));
+	    emit_insn (gen_rtx_SET (reg, ptr_ref));
 	    ptr_ref = reg;
 	}
 
@@ -784,7 +811,7 @@ machopic_indirect_call_target (rtx target)
       rtx sym_ref = XEXP (target, 0);
       const char *stub_name = machopic_indirection_name (sym_ref,
 							 /*stub_p=*/true);
-      enum machine_mode mode = GET_MODE (sym_ref);
+      machine_mode mode = GET_MODE (sym_ref);
 
       XEXP (target, 0) = gen_rtx_SYMBOL_REF (mode, stub_name);
       SYMBOL_REF_DATA (XEXP (target, 0)) = SYMBOL_REF_DATA (sym_ref);
@@ -796,7 +823,7 @@ machopic_indirect_call_target (rtx target)
 }
 
 rtx
-machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
+machopic_legitimize_pic_address (rtx orig, machine_mode mode, rtx reg)
 {
   rtx pic_ref = orig;
 
@@ -845,7 +872,7 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
 	      mem = gen_const_mem (GET_MODE (orig),
 				   gen_rtx_LO_SUM (Pmode, temp_reg,
 						   copy_rtx (asym)));
-	      emit_insn (gen_rtx_SET (VOIDmode, reg, mem));
+	      emit_insn (gen_rtx_SET (reg, mem));
 #else
 	      /* Some other CPU -- WriteMe! but right now there are no other
 		 platforms that can use dynamic-no-pic  */
@@ -872,24 +899,24 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
 	      if (! MACHO_DYNAMIC_NO_PIC_P)
 		sum = gen_rtx_PLUS (Pmode, pic_offset_table_rtx, sum);
 
-	      emit_insn (gen_rtx_SET (Pmode, hi_sum_reg, sum));
+	      emit_insn (gen_rtx_SET (hi_sum_reg, sum));
 
 	      mem = gen_const_mem (GET_MODE (orig),
 				  gen_rtx_LO_SUM (Pmode,
 						  hi_sum_reg,
 						  copy_rtx (offset)));
-	      insn = emit_insn (gen_rtx_SET (VOIDmode, reg, mem));
+	      insn = emit_insn (gen_rtx_SET (reg, mem));
 	      set_unique_reg_note (insn, REG_EQUAL, pic_ref);
 
 	      pic_ref = reg;
 #else
 	      emit_use (gen_rtx_REG (Pmode, PIC_OFFSET_TABLE_REGNUM));
 
-	      emit_insn (gen_rtx_SET (VOIDmode, reg,
+	      emit_insn (gen_rtx_SET (reg,
 				      gen_rtx_HIGH (Pmode,
 						    gen_rtx_CONST (Pmode,
 								   offset))));
-	      emit_insn (gen_rtx_SET (VOIDmode, reg,
+	      emit_insn (gen_rtx_SET (reg,
 				  gen_rtx_LO_SUM (Pmode, reg,
 					   gen_rtx_CONST (Pmode,
 						   	  copy_rtx (offset)))));
@@ -940,22 +967,21 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
 
 	      hi_sum_reg = reg;
 
-	      emit_insn (gen_rtx_SET (Pmode, hi_sum_reg,
+	      emit_insn (gen_rtx_SET (hi_sum_reg,
 				      (MACHO_DYNAMIC_NO_PIC_P)
 				      ? gen_rtx_HIGH (Pmode, offset)
 				      : gen_rtx_PLUS (Pmode,
 						      pic_offset_table_rtx,
 						      gen_rtx_HIGH (Pmode,
 								    offset))));
-	      emit_insn (gen_rtx_SET (VOIDmode, reg,
+	      emit_insn (gen_rtx_SET (reg,
 				      gen_rtx_LO_SUM (Pmode,
 						      hi_sum_reg,
 						      copy_rtx (offset))));
 	      pic_ref = reg;
 #else
-	      emit_insn (gen_rtx_SET (VOIDmode, reg,
-				      gen_rtx_HIGH (Pmode, offset)));
-	      emit_insn (gen_rtx_SET (VOIDmode, reg,
+	      emit_insn (gen_rtx_SET (reg, gen_rtx_HIGH (Pmode, offset)));
+	      emit_insn (gen_rtx_SET (reg,
 				      gen_rtx_LO_SUM (Pmode, reg,
 						      copy_rtx (offset))));
 	      pic_ref = gen_rtx_PLUS (Pmode,
@@ -1062,11 +1088,10 @@ machopic_legitimize_pic_address (rtx orig, enum machine_mode mode, rtx reg)
    DATA is the FILE* for assembly output.  Called from
    htab_traverse.  */
 
-static int
-machopic_output_indirection (void **slot, void *data)
+int
+machopic_output_indirection (machopic_indirection **slot, FILE *asm_out_file)
 {
-  machopic_indirection *p = *((machopic_indirection **) slot);
-  FILE *asm_out_file = (FILE *) data;
+  machopic_indirection *p = *slot;
   rtx symbol;
   const char *sym_name;
   const char *ptr_name;
@@ -1180,9 +1205,8 @@ void
 machopic_finish (FILE *asm_out_file)
 {
   if (machopic_indirections)
-    htab_traverse_noresize (machopic_indirections,
-			    machopic_output_indirection,
-			    asm_out_file);
+    machopic_indirections
+      ->traverse_noresize<FILE *, machopic_output_indirection> (asm_out_file);
 }
 
 int
@@ -1281,7 +1305,7 @@ darwin_mergeable_constant_section (tree exp,
 				   unsigned HOST_WIDE_INT align,
 				   bool zsize)
 {
-  enum machine_mode mode = DECL_MODE (exp);
+  machine_mode mode = DECL_MODE (exp);
   unsigned int modesize = GET_MODE_BITSIZE (mode);
 
   if (DARWIN_SECTION_ANCHORS 
@@ -1299,22 +1323,17 @@ darwin_mergeable_constant_section (tree exp,
     {
       tree size = TYPE_SIZE_UNIT (TREE_TYPE (exp));
 
-      if (TREE_CODE (size) == INTEGER_CST
-	  && TREE_INT_CST_LOW (size) == 4
-	  && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal4_section];
-      else if (TREE_CODE (size) == INTEGER_CST
-	       && TREE_INT_CST_LOW (size) == 8
-	       && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal8_section];
-      else if (HAVE_GAS_LITERAL16
-	       && TARGET_64BIT
-               && TREE_CODE (size) == INTEGER_CST
-               && TREE_INT_CST_LOW (size) == 16
-               && TREE_INT_CST_HIGH (size) == 0)
-        return darwin_sections[literal16_section];
-      else
-        return readonly_data_section;
+      if (TREE_CODE (size) == INTEGER_CST)
+	{
+	  if (wi::eq_p (size, 4))
+	    return darwin_sections[literal4_section];
+	  else if (wi::eq_p (size, 8))
+	    return darwin_sections[literal8_section];
+	  else if (HAVE_GAS_LITERAL16
+		   && TARGET_64BIT
+		   && wi::eq_p (size, 16))
+	    return darwin_sections[literal16_section];
+	}
     }
 
   return readonly_data_section;
@@ -1526,7 +1545,7 @@ machopic_select_section (tree decl,
 
   one = DECL_P (decl) 
 	&& TREE_CODE (decl) == VAR_DECL 
-	&& DECL_ONE_ONLY (decl);
+	&& DECL_COMDAT_GROUP (decl);
 
   ro = TREE_READONLY (decl) || TREE_CONSTANT (decl) ;
 
@@ -1736,21 +1755,24 @@ machopic_select_section (tree decl,
    They must go in "const".  */
 
 section *
-machopic_select_rtx_section (enum machine_mode mode, rtx x,
+machopic_select_rtx_section (machine_mode mode, rtx x,
 			     unsigned HOST_WIDE_INT align ATTRIBUTE_UNUSED)
 {
   if (GET_MODE_SIZE (mode) == 8
       && (GET_CODE (x) == CONST_INT
+	  || GET_CODE (x) == CONST_WIDE_INT
 	  || GET_CODE (x) == CONST_DOUBLE))
     return darwin_sections[literal8_section];
   else if (GET_MODE_SIZE (mode) == 4
 	   && (GET_CODE (x) == CONST_INT
+	       || GET_CODE (x) == CONST_WIDE_INT
 	       || GET_CODE (x) == CONST_DOUBLE))
     return darwin_sections[literal4_section];
   else if (HAVE_GAS_LITERAL16
 	   && TARGET_64BIT
 	   && GET_MODE_SIZE (mode) == 16
 	   && (GET_CODE (x) == CONST_INT
+	       || GET_CODE (x) == CONST_WIDE_INT
 	       || GET_CODE (x) == CONST_DOUBLE
 	       || GET_CODE (x) == CONST_VECTOR))
     return darwin_sections[literal16_section];
@@ -1900,9 +1922,6 @@ typedef struct GTY (()) darwin_lto_section_e {
 
 static GTY (()) vec<darwin_lto_section_e, va_gc> *lto_section_names;
 
-/* Segment for LTO data.  */
-#define LTO_SEGMENT_NAME "__GNU_LTO"
-
 /* Section wrapper scheme (used here to wrap the unlimited number of LTO
    sections into three Mach-O ones).
    NOTE: These names MUST be kept in sync with those in
@@ -1927,7 +1946,8 @@ darwin_asm_lto_start (void)
     lto_asm_out_name = make_temp_file (".lto.s");
   lto_asm_out_file = fopen (lto_asm_out_name, "a");
   if (lto_asm_out_file == NULL)
-    fatal_error ("failed to open temporary file %s for LTO output",
+    fatal_error (input_location,
+		 "failed to open temporary file %s for LTO output",
 		 lto_asm_out_name);
   asm_out_file = lto_asm_out_file;
 }
@@ -2231,7 +2251,7 @@ fprintf (file, "# dadon: %s %s (%llu, %u) local %d weak %d"
 
       ASM_OUTPUT_LABEL (file, xname);
       size = 1;
-      fprintf (file, "\t.space\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
+      fprintf (file, "\t.space\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
 
       /* Check that we've correctly picked up the zero-sized item and placed it
          properly.  */
@@ -2372,7 +2392,7 @@ darwin_emit_local_bss (FILE *fp, tree decl, const char *name,
 	fprintf (fp, "\t.align\t%u\n", l2align);
 
       assemble_name (fp, name);        
-      fprintf (fp, ":\n\t.space\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
+      fprintf (fp, ":\n\t.space\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
     }
   else 
     {
@@ -2393,10 +2413,10 @@ darwin_emit_local_bss (FILE *fp, tree decl, const char *name,
 	size = 1;
 
       if (l2align)
-	fprintf (fp, ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",
+	fprintf (fp, "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n",
 		 size, (unsigned) l2align);
       else
-	fprintf (fp, ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
+	fprintf (fp, "," HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
     }
 
   (*targetm.encode_section_info) (decl, DECL_RTL (decl), false);
@@ -2544,7 +2564,7 @@ fprintf (fp, "# albss: %s (%lld,%d) ro %d cst %d stat %d com %d"
 	fprintf (fp, "\t.align\t%u\n", l2align);
 
       assemble_name (fp, name);
-      fprintf (fp, ":\n\t.space\t"HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
+      fprintf (fp, ":\n\t.space\t" HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
     }
   else 
     {
@@ -2565,9 +2585,9 @@ fprintf (fp, "# albss: %s (%lld,%d) ro %d cst %d stat %d com %d"
 	size = 1;
 
       if (l2align)
-	fprintf (fp, ","HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", size, l2align);
+	fprintf (fp, "," HOST_WIDE_INT_PRINT_UNSIGNED",%u\n", size, l2align);
       else
-	fprintf (fp, ","HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
+	fprintf (fp, "," HOST_WIDE_INT_PRINT_UNSIGNED"\n", size);
     }
   (* targetm.encode_section_info) (decl, DECL_RTL (decl), false);
 }
@@ -2902,7 +2922,7 @@ darwin_file_end (void)
      }
 
   machopic_finish (asm_out_file);
-  if (strcmp (lang_hooks.name, "GNU C++") == 0)
+  if (lang_GNU_CXX ())
     {
       switch_to_section (darwin_sections[constructor_section]);
       switch_to_section (darwin_sections[destructor_section]);
@@ -2920,7 +2940,8 @@ darwin_file_end (void)
 
       lto_asm_out_file = fopen (lto_asm_out_name, "r");
       if (lto_asm_out_file == NULL)
-	fatal_error ("failed to open temporary file %s with LTO output",
+	fatal_error (input_location,
+		     "failed to open temporary file %s with LTO output",
 		     lto_asm_out_name);
       fseek (lto_asm_out_file, 0, SEEK_END);
       n = ftell (lto_asm_out_file);
@@ -3155,7 +3176,7 @@ darwin_override_options (void)
   if (flag_mkernel || flag_apple_kext)
     {
       /* -mkernel implies -fapple-kext for C++ */
-      if (strcmp (lang_hooks.name, "GNU C++") == 0)
+      if (lang_GNU_CXX ())
 	flag_apple_kext = 1;
 
       flag_no_common = 1;
@@ -3259,17 +3280,20 @@ static enum built_in_function darwin_builtin_cfstring;
 /* Store all constructed constant CFStrings in a hash table so that
    they get uniqued properly.  */
 
-typedef struct GTY (()) cfstring_descriptor {
+typedef struct GTY ((for_user)) cfstring_descriptor {
   /* The string literal.  */
   tree literal;
   /* The resulting constant CFString.  */
   tree constructor;
 } cfstring_descriptor;
 
-static GTY ((param_is (struct cfstring_descriptor))) htab_t cfstring_htab;
+struct cfstring_hasher : ggc_hasher<cfstring_descriptor *>
+{
+  static hashval_t hash (cfstring_descriptor *);
+  static bool equal (cfstring_descriptor *, cfstring_descriptor *);
+};
 
-static hashval_t cfstring_hash (const void *);
-static int cfstring_eq (const void *, const void *);
+static GTY (()) hash_table<cfstring_hasher> *cfstring_htab;
 
 static tree
 add_builtin_field_decl (tree type, const char *name, tree **chain)
@@ -3352,7 +3376,7 @@ darwin_init_cfstring_builtins (unsigned builtin_cfstring)
   rest_of_decl_compilation (cfstring_class_reference, 0, 0);
   
   /* Initialize the hash table used to hold the constant CFString objects.  */
-  cfstring_htab = htab_create_ggc (31, cfstring_hash, cfstring_eq, NULL);
+  cfstring_htab = hash_table<cfstring_hasher>::create_ggc (31);
 
   return cfstring_type_node;
 }
@@ -3426,10 +3450,10 @@ darwin_libc_has_function (enum function_class fn_class)
   return true;
 }
 
-static hashval_t
-cfstring_hash (const void *ptr)
+hashval_t
+cfstring_hasher::hash (cfstring_descriptor *ptr)
 {
-  tree str = ((const struct cfstring_descriptor *)ptr)->literal;
+  tree str = ptr->literal;
   const unsigned char *p = (const unsigned char *) TREE_STRING_POINTER (str);
   int i, len = TREE_STRING_LENGTH (str);
   hashval_t h = len;
@@ -3440,11 +3464,11 @@ cfstring_hash (const void *ptr)
   return h;
 }
 
-static int
-cfstring_eq (const void *ptr1, const void *ptr2)
+bool
+cfstring_hasher::equal (cfstring_descriptor *ptr1, cfstring_descriptor *ptr2)
 {
-  tree str1 = ((const struct cfstring_descriptor *)ptr1)->literal;
-  tree str2 = ((const struct cfstring_descriptor *)ptr2)->literal;
+  tree str1 = ptr1->literal;
+  tree str2 = ptr2->literal;
   int len1 = TREE_STRING_LENGTH (str1);
 
   return (len1 == TREE_STRING_LENGTH (str2)
@@ -3456,7 +3480,6 @@ tree
 darwin_build_constant_cfstring (tree str)
 {
   struct cfstring_descriptor *desc, key;
-  void **loc;
   tree addr;
 
   if (!str)
@@ -3478,8 +3501,8 @@ darwin_build_constant_cfstring (tree str)
 
   /* Perhaps we already constructed a constant CFString just like this one? */
   key.literal = str;
-  loc = htab_find_slot (cfstring_htab, &key, INSERT);
-  desc = (struct cfstring_descriptor *) *loc;
+  cfstring_descriptor **loc = cfstring_htab->find_slot (&key, INSERT);
+  desc = *loc;
 
   if (!desc)
     {
@@ -3501,7 +3524,7 @@ darwin_build_constant_cfstring (tree str)
 	      }
 	}
 
-      *loc = desc = ggc_alloc_cleared_cfstring_descriptor ();
+      *loc = desc = ggc_cleared_alloc<cfstring_descriptor> ();
       desc->literal = str;
 
       /* isa *. */
@@ -3555,7 +3578,6 @@ bool
 darwin_cfstring_p (tree str)
 {
   struct cfstring_descriptor key;
-  void **loc;
 
   if (!str)
     return false;
@@ -3569,7 +3591,7 @@ darwin_cfstring_p (tree str)
     return false;
 
   key.literal = str;
-  loc = htab_find_slot (cfstring_htab, &key, NO_INSERT);
+  cfstring_descriptor **loc = cfstring_htab->find_slot (&key, NO_INSERT);
   
   if (loc)
     return true;
@@ -3581,14 +3603,13 @@ void
 darwin_enter_string_into_cfstring_table (tree str)
 {
   struct cfstring_descriptor key;
-  void **loc;
 
   key.literal = str;
-  loc = htab_find_slot (cfstring_htab, &key, INSERT);
+  cfstring_descriptor **loc = cfstring_htab->find_slot (&key, INSERT);
 
   if (!*loc)
     {
-      *loc = ggc_alloc_cleared_cfstring_descriptor ();
+      *loc = ggc_cleared_alloc<cfstring_descriptor> ();
       ((struct cfstring_descriptor *)*loc)->literal = str;
     }
 }
@@ -3608,7 +3629,7 @@ darwin_function_section (tree decl, enum node_frequency freq,
 
   /* If there is a specified section name, we should not be trying to
      override.  */
-  if (decl && DECL_SECTION_NAME (decl) != NULL_TREE)
+  if (decl && DECL_SECTION_NAME (decl) != NULL)
     return get_named_section (decl, NULL, 0);
 
   /* We always put unlikely executed stuff in the cold section.  */

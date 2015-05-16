@@ -1,7 +1,7 @@
 // -*- C++ -*-
 // Iterator Wrappers for the C++ library testsuite. 
 //
-// Copyright (C) 2004-2014 Free Software Foundation, Inc.
+// Copyright (C) 2004-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -170,6 +170,14 @@ namespace __gnu_test
       return tmp;
     }
 
+#if __cplusplus >= 201103L
+    template<typename U>
+      void operator,(const U&) const = delete;
+#else
+  private:
+    template<typename U>
+      void operator,(const U&) const;
+#endif
   };
 
   /**
@@ -251,6 +259,15 @@ namespace __gnu_test
     {
       ++*this;
     }
+
+#if __cplusplus >= 201103L
+    template<typename U>
+      void operator,(const U&) const = delete;
+#else
+  private:
+    template<typename U>
+      void operator,(const U&) const;
+#endif
   };
 
 
@@ -306,7 +323,7 @@ namespace __gnu_test
       ++*this;
       return tmp;
     }
-   };
+  };
 
   /**
    * @brief bidirectional_iterator wrapper for pointer
@@ -370,7 +387,7 @@ namespace __gnu_test
       --*this;
       return tmp;
     }
-   };
+  };
 
   /**
    * @brief random_access_iterator wrapper for pointer
@@ -498,7 +515,7 @@ namespace __gnu_test
     {
       return !(*this > in);
     }
-   };
+  };
 
   template<typename T>
     random_access_iterator_wrapper<T>
@@ -518,7 +535,7 @@ namespace __gnu_test
    * It takes two pointers representing a range and presents them as 
    * a container of iterators.
    */
-  template <class T, template<class T> class ItType>
+  template <class T, template<class TT> class ItType>
   struct test_container
   {
     typename ItType<T>::ContainerType bounds;

@@ -1,6 +1,6 @@
 // The  -*- C++ -*- type traits classes for internal use in libstdc++
 
-// Copyright (C) 2000-2014 Free Software Foundation, Inc.
+// Copyright (C) 2000-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -63,17 +63,6 @@
 // Update 2005: types are also provided and <bits/type_traits.h> has been
 // removed.
 //
-
-// Forward declaration hack, should really include this from somewhere.
-namespace __gnu_cxx _GLIBCXX_VISIBILITY(default)
-{
-_GLIBCXX_BEGIN_NAMESPACE_VERSION
-
-  template<typename _Iterator, typename _Container>
-    class __normal_iterator;
-
-_GLIBCXX_END_NAMESPACE_VERSION
-} // namespace
 
 namespace std _GLIBCXX_VISIBILITY(default)
 {
@@ -141,7 +130,8 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   // Thirteen specializations (yes there are eleven standard integer
   // types; <em>long long</em> and <em>unsigned long long</em> are
-  // supported as extensions)
+  // supported as extensions).  Up to four target-specific __int<N>
+  // types are supported as well.
   template<>
     struct __is_integer<bool>
     {
@@ -251,6 +241,35 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
       typedef __true_type __type;
     };
 
+#define __INT_N(TYPE) 			\
+  template<>				\
+    struct __is_integer<TYPE>		\
+    {					\
+      enum { __value = 1 };		\
+      typedef __true_type __type;	\
+    };					\
+  template<>				\
+    struct __is_integer<unsigned TYPE>	\
+    {					\
+      enum { __value = 1 };		\
+      typedef __true_type __type;	\
+    };
+
+#ifdef __GLIBCXX_TYPE_INT_N_0
+__INT_N(__GLIBCXX_TYPE_INT_N_0)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_1
+__INT_N(__GLIBCXX_TYPE_INT_N_1)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_2
+__INT_N(__GLIBCXX_TYPE_INT_N_2)
+#endif
+#ifdef __GLIBCXX_TYPE_INT_N_3
+__INT_N(__GLIBCXX_TYPE_INT_N_3)
+#endif
+
+#undef __INT_N
+
   //
   // Floating point types
   //
@@ -295,24 +314,6 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
 
   template<typename _Tp>
     struct __is_pointer<_Tp*>
-    {
-      enum { __value = 1 };
-      typedef __true_type __type;
-    };
-
-  //
-  // Normal iterator type
-  //
-  template<typename _Tp>
-    struct __is_normal_iterator
-    {
-      enum { __value = 0 };
-      typedef __false_type __type;
-    };
-
-  template<typename _Iterator, typename _Container>
-    struct __is_normal_iterator< __gnu_cxx::__normal_iterator<_Iterator,
-							      _Container> >
     {
       enum { __value = 1 };
       typedef __true_type __type;

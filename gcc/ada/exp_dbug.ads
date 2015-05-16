@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1996-2012, Free Software Foundation, Inc.         --
+--          Copyright (C) 1996-2014, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -413,10 +413,11 @@ package Exp_Dbug is
 
    procedure Get_External_Name
      (Entity     : Entity_Id;
-      Has_Suffix : Boolean);
-   --  Set Name_Buffer and Name_Len to the external name of entity E. The
+      Has_Suffix : Boolean := False;
+      Suffix     : String := "");
+   --  Set Name_Buffer and Name_Len to the external name of the entity. The
    --  external name is the Interface_Name, if specified, unless the entity
-   --  has an address clause or a suffix.
+   --  has an address clause or Has_Suffix is true.
    --
    --  If the Interface is not present, or not used, the external name is the
    --  concatenation of:
@@ -428,26 +429,11 @@ package Exp_Dbug is
    --    - the string "$" (or "__" if target does not allow "$"), followed
    --        by homonym suffix, if the entity is an overloaded subprogram
    --        or is defined within an overloaded subprogram.
-
-   procedure Get_External_Name_With_Suffix
-     (Entity : Entity_Id;
-      Suffix : String);
-   --  Set Name_Buffer and Name_Len to the external name of entity E. If
-   --  Suffix is the empty string the external name is as above, otherwise
-   --  the external name is the concatenation of:
-   --
-   --    - the string "_ada_", if the entity is a library subprogram,
-   --    - the names of any enclosing scopes, each followed by "__",
-   --        or "X_" if the next entity is a subunit)
-   --    - the name of the entity
-   --    - the string "$" (or "__" if target does not allow "$"), followed
-   --        by homonym suffix, if the entity is an overloaded subprogram
-   --        or is defined within an overloaded subprogram.
-   --    - the string "___" followed by Suffix
+   --    - the string "___" followed by Suffix if Has_Suffix is true.
    --
    --  Note that a call to this procedure has no effect if we are not
    --  generating code, since the necessary information for computing the
-   --  proper encoded name is not available in this case.
+   --  proper external name is not available in this case.
 
    --------------------------------------------
    -- Subprograms for Handling Qualification --
@@ -553,31 +539,6 @@ package Exp_Dbug is
       --   The second form is used if the small value is different from the
       --   delta. In this case, the first nn/dd rational value is for delta,
       --   and the second value is for small.
-
-      ------------------------------
-      -- VAX Floating-Point Types --
-      ------------------------------
-
-      --   Vax floating-point types are represented at run time as integer
-      --   types, which are treated specially by the code generator. Their
-      --   type names are encoded with the following suffix:
-
-      --     typ___XFF
-      --     typ___XFD
-      --     typ___XFG
-
-      --   representing the Vax F Float, D Float, and G Float types. The
-      --   debugger must treat these specially. In particular, printing these
-      --   values can be achieved using the debug procedures that are provided
-      --   in package System.Vax_Float_Operations:
-
-      --     procedure Debug_Output_D (Arg : D);
-      --     procedure Debug_Output_F (Arg : F);
-      --     procedure Debug_Output_G (Arg : G);
-
-      --   These three procedures take a Vax floating-point argument, and
-      --   output a corresponding decimal representation to standard output
-      --   with no terminating line return.
 
       --------------------
       -- Discrete Types --
@@ -893,9 +854,8 @@ package Exp_Dbug is
       --  names of these types).
 
       --  To conserve space, we do not produce this type unless one of the
-      --  index types is either an enumeration type, has a variable upper
-      --  bound, has a lower bound different from the constant 1, is a biased
-      --  type, or is wider than "sizetype".
+      --  index types is either an enumeration type, has a variable lower or
+      --  upper bound or is a biased type.
 
       --  Given the full encoding of these types (see above description for
       --  the encoding of discrete types), this means that all necessary
@@ -1220,7 +1180,7 @@ package Exp_Dbug is
    -- Subprograms for Handling Packed Array Type Names --
    ------------------------------------------------------
 
-   function Make_Packed_Array_Type_Name
+   function Make_Packed_Array_Impl_Type_Name
      (Typ   : Entity_Id;
       Csize : Uint)
       return  Name_Id;

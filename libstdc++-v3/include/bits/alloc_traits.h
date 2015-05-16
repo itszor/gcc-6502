@@ -1,6 +1,6 @@
 // Allocator traits -*- C++ -*-
 
-// Copyright (C) 2011-2014 Free Software Foundation, Inc.
+// Copyright (C) 2011-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -71,6 +71,9 @@ _GLIBCXX_BEGIN_NAMESPACE_VERSION
     {
       typedef _Alloc<_Tp, _Args...> __type;
     };
+
+  template<typename _Alloc, typename _Tp>
+    using __alloc_rebind = typename __alloctr_rebind<_Alloc, _Tp>::__type;
 
   /**
    * @brief  Uniform interface to all allocator types.
@@ -312,7 +315,12 @@ _GLIBCXX_ALLOC_TR_NESTED_TYPE(propagate_on_container_swap,
 	       typename = _Require<__not_<__has_max_size<_Alloc2>>>>
 	static size_type
 	_S_max_size(_Alloc2&, ...)
-	{ return __gnu_cxx::__numeric_traits<size_type>::__max; }
+	{
+	  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+	  // 2466. allocator_traits::max_size() default behavior is incorrect
+	  return __gnu_cxx::__numeric_traits<size_type>::__max
+	    / sizeof(value_type);
+	}
 
       template<typename _Alloc2>
 	struct __select_helper

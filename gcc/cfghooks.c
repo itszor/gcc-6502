@@ -1,5 +1,5 @@
 /* Hooks for cfg representation specific functions.
-   Copyright (C) 2003-2014 Free Software Foundation, Inc.
+   Copyright (C) 2003-2015 Free Software Foundation, Inc.
    Contributed by Sebastian Pop <s.pop@laposte.net>
 
 This file is part of GCC.
@@ -23,8 +23,28 @@ along with GCC; see the file COPYING3.  If not see
 #include "coretypes.h"
 #include "dumpfile.h"
 #include "tm.h"
+#include "hash-set.h"
+#include "machmode.h"
+#include "vec.h"
+#include "double-int.h"
+#include "input.h"
+#include "alias.h"
+#include "symtab.h"
+#include "wide-int.h"
+#include "inchash.h"
 #include "tree.h"
 #include "rtl.h"
+#include "predict.h"
+#include "vec.h"
+#include "hashtab.h"
+#include "hash-set.h"
+#include "machmode.h"
+#include "hard-reg-set.h"
+#include "input.h"
+#include "function.h"
+#include "dominance.h"
+#include "cfg.h"
+#include "cfganal.h"
 #include "basic-block.h"
 #include "tree-ssa.h"
 #include "timevar.h"
@@ -310,7 +330,7 @@ dump_bb_for_graph (pretty_printer *pp, basic_block bb)
     internal_error ("%s does not support dump_bb_for_graph",
 		    cfg_hooks->name);
   if (bb->count)
-    pp_printf (pp, "COUNT:" HOST_WIDEST_INT_PRINT_DEC, bb->count);
+    pp_printf (pp, "COUNT:" "%" PRId64, bb->count);
   pp_printf (pp, " FREQ:%i |", bb->frequency);
   pp_write_text_to_stream (pp);
   if (!(dump_flags & TDF_SLIM))
@@ -485,8 +505,8 @@ redirect_edge_and_branch_force (edge e, basic_block dest)
    the labels).  If I is NULL, splits just after labels.  The newly created edge
    is returned.  The new basic block is created just after the old one.  */
 
-edge
-split_block (basic_block bb, void *i)
+static edge
+split_block_1 (basic_block bb, void *i)
 {
   basic_block new_bb;
   edge res;
@@ -530,12 +550,24 @@ split_block (basic_block bb, void *i)
   return res;
 }
 
+edge
+split_block (basic_block bb, gimple i)
+{
+  return split_block_1 (bb, i);
+}
+
+edge
+split_block (basic_block bb, rtx i)
+{
+  return split_block_1 (bb, i);
+}
+
 /* Splits block BB just after labels.  The newly created edge is returned.  */
 
 edge
 split_block_after_labels (basic_block bb)
 {
-  return split_block (bb, NULL);
+  return split_block_1 (bb, NULL);
 }
 
 /* Moves block BB immediately after block AFTER.  Returns false if the
@@ -569,14 +601,10 @@ delete_basic_block (basic_block bb)
       struct loop *loop = bb->loop_father;
 
       /* If we remove the header or the latch of a loop, mark the loop for
-	 removal by setting its header and latch to NULL.  */
+	 removal.  */
       if (loop->latch == bb
 	  || loop->header == bb)
-	{
-	  loop->header = NULL;
-	  loop->latch = NULL;
-	  loops_state_set (LOOPS_NEED_FIXUP);
-	}
+	mark_loop_for_removal (loop);
 
       remove_bb_from_loops (bb);
     }
@@ -680,8 +708,8 @@ split_edge (edge e)
    HEAD and END are the first and the last statement belonging
    to the block.  If both are NULL, an empty block is created.  */
 
-basic_block
-create_basic_block (void *head, void *end, basic_block after)
+static basic_block
+create_basic_block_1 (void *head, void *end, basic_block after)
 {
   basic_block ret;
 
@@ -698,12 +726,25 @@ create_basic_block (void *head, void *end, basic_block after)
   return ret;
 }
 
+basic_block
+create_basic_block (gimple_seq seq, basic_block after)
+{
+  return create_basic_block_1 (seq, NULL, after);
+}
+
+basic_block
+create_basic_block (rtx head, rtx end, basic_block after)
+{
+  return create_basic_block_1 (head, end, after);
+}
+
+
 /* Creates an empty basic block just after basic block AFTER.  */
 
 basic_block
 create_empty_bb (basic_block after)
 {
-  return create_basic_block (NULL, NULL, after);
+  return create_basic_block_1 (NULL, NULL, after);
 }
 
 /* Checks whether we may merge blocks BB1 and BB2.  */
@@ -760,11 +801,7 @@ merge_blocks (basic_block a, basic_block b)
 	  /* ... we merge two loop headers, in which case we kill
 	     the inner loop.  */
 	  if (b->loop_father->header == b)
-	    {
-	      b->loop_father->header = NULL;
-	      b->loop_father->latch = NULL;
-	      loops_state_set (LOOPS_NEED_FIXUP);
-	    }
+	    mark_loop_for_removal (b->loop_father);
 	}
       /* If we merge a loop header into its predecessor, update the loop
 	 structure.  */
@@ -774,6 +811,11 @@ merge_blocks (basic_block a, basic_block b)
 	  add_bb_to_loop  (a, b->loop_father);
 	  a->loop_father->header = a;
 	}
+      /* If we merge a loop latch into its predecessor, update the loop
+         structure.  */
+      if (b->loop_father->latch
+	  && b->loop_father->latch == b)
+	b->loop_father->latch = a;
       remove_bb_from_loops (b);
     }
 
@@ -833,6 +875,9 @@ make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
 
   fallthru = split_block_after_labels (bb);
   dummy = fallthru->src;
+  dummy->count = 0;
+  dummy->frequency = 0;
+  fallthru->count = 0;
   bb = fallthru->dest;
 
   /* Redirect back edges we want to keep.  */
@@ -842,19 +887,15 @@ make_forwarder_block (basic_block bb, bool (*redirect_edge_p) (edge),
 
       if (redirect_edge_p (e))
 	{
+	  dummy->frequency += EDGE_FREQUENCY (e);
+	  if (dummy->frequency > BB_FREQ_MAX)
+	    dummy->frequency = BB_FREQ_MAX;
+
+	  dummy->count += e->count;
+	  fallthru->count += e->count;
 	  ei_next (&ei);
 	  continue;
 	}
-
-      dummy->frequency -= EDGE_FREQUENCY (e);
-      dummy->count -= e->count;
-      if (dummy->frequency < 0)
-	dummy->frequency = 0;
-      if (dummy->count < 0)
-	dummy->count = 0;
-      fallthru->count -= e->count;
-      if (fallthru->count < 0)
-	fallthru->count = 0;
 
       e_src = e->src;
       jump = redirect_edge_and_branch_force (e, bb);
@@ -969,7 +1010,7 @@ tidy_fallthru_edges (void)
 	  s = single_succ_edge (b);
 	  if (! (s->flags & EDGE_COMPLEX)
 	      && s->dest == c
-	      && !find_reg_note (BB_END (b), REG_CROSSING_JUMP, NULL_RTX))
+	      && !(JUMP_P (BB_END (b)) && CROSSING_JUMP_P (BB_END (b))))
 	    tidy_fallthru_edge (s);
 	}
     }
@@ -1103,9 +1144,7 @@ duplicate_block (basic_block bb, edge e, basic_block after)
 	  && cloop->header == bb)
 	{
 	  add_bb_to_loop (new_bb, loop_outer (cloop));
-	  cloop->header = NULL;
-	  cloop->latch = NULL;
-	  loops_state_set (LOOPS_NEED_FIXUP);
+	  mark_loop_for_removal (cloop);
 	}
       else
 	{

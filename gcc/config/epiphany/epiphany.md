@@ -1,5 +1,5 @@
 ;; Machine description of the Adaptiva epiphany cpu for GNU C compiler
-;; Copyright (C) 1994-2014 Free Software Foundation, Inc.
+;; Copyright (C) 1994-2015 Free Software Foundation, Inc.
 ;; Contributed by Embecosm on behalf of Adapteva, Inc.
 
 ;; This file is part of GCC.
@@ -976,7 +976,7 @@
       REAL_VALUE_TYPE offset;
       rtx limit;
       rtx tmp = gen_reg_rtx (SFmode);
-      rtx label = gen_label_rtx ();
+      rtx_code_label *label = gen_label_rtx ();
       rtx bit31;
       rtx cc1 = gen_rtx_REG (CC_FPmode, CCFP_REGNUM);
       rtx cmp = gen_rtx_LT (VOIDmode, cc1, CONST0_RTX (SFmode));
@@ -1687,7 +1687,7 @@
         (compare:CC (match_operand:SI 1 "gpr_operand"  "r")
                     (match_operand:SI 2 "arith_int_operand" "L")))
    (set (match_operand:SI 0 "gpr_operand" "=r")
-        (plus:SI (match_dup 1) (match_operand:SI 3 "const_int_operand" "L")))]
+        (plus:SI (match_dup 1) (match_operand:SI 3 "const_int_operand" "CnL")))]
   "INTVAL (operands[2]) == -INTVAL (operands[3])"
   "sub %0,%1,%2"
   [(set_attr "type" "compare")])
@@ -1870,7 +1870,7 @@
     {
       if (operands[3] != const0_rtx)
 	operands[2] = gen_rtx_MINUS (SImode, operands[2], operands[3]);
-      operands[2] = gen_rtx_SET (VOIDmode, operands[0], operands[2]);
+      operands[2] = gen_rtx_SET (operands[0], operands[2]);
       operands[3] = operands[0];
     }
   operands[4] = gen_rtx_fmt_ee (cmp_code, SImode,
@@ -1946,7 +1946,7 @@
 {
   rtx cmp_op0 = XEXP (operands[1], 0);
   rtx cmp_op1 = XEXP (operands[1], 1);
-  enum machine_mode cmp_in_mode;
+  machine_mode cmp_in_mode;
   enum rtx_code code = GET_CODE (operands[1]);
 
   cmp_in_mode = GET_MODE (cmp_op0);
@@ -1960,7 +1960,7 @@
       && !rtx_equal_p (operands[0], operands[3]))
     {
       rtx tmp = operands[2]; operands[2] = operands[3]; operands[3] = tmp;
-      code = (FLOAT_MODE_P (GET_MODE (cmp_op0))
+      code = (FLOAT_MODE_P (GET_MODE (cmp_op0)) && !flag_finite_math_only
 	      ? reverse_condition_maybe_unordered (code)
 	      : reverse_condition (code));
     }
@@ -2269,7 +2269,7 @@
 	(gen_rtx_PARALLEL
 	  (VOIDmode,
 	   gen_rtvec (2, gen_rtx_SET
-			   (VOIDmode, operands[0],
+			   (operands[0],
 			    gen_rtx_CALL (VOIDmode, operands[1], operands[2])),
 			 gen_rtx_CLOBBER (VOIDmode,
 					  gen_rtx_REG (SImode, GPR_LR)))));
@@ -2312,7 +2312,7 @@
 	(gen_rtx_PARALLEL
 	  (VOIDmode,
 	   gen_rtvec (2, gen_rtx_SET
-			   (VOIDmode, operands[0],
+			   (operands[0],
 			    gen_rtx_CALL (VOIDmode, operands[1], operands[2])),
 			 ret_rtx)));
       emit_insn (target_uninterruptible ? gen_gie (): gen_gid ());
@@ -2628,7 +2628,7 @@
 	(VOIDmode,
 	 gen_rtvec
 	  (4,
-	   gen_rtx_SET (VOIDmode, operands[5],
+	   gen_rtx_SET (operands[5],
 			gen_rtx_MULT (SImode, operands[6], operands[4])),
 	   gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CC_FPmode, CCFP_REGNUM)),
 	   operands[9], operands[10])));
@@ -2640,7 +2640,7 @@
 	(VOIDmode,
 	 gen_rtvec
 	  (4,
-	   gen_rtx_SET (VOIDmode, operands[7],
+	   gen_rtx_SET (operands[7],
 			gen_rtx_MULT (SImode, operands[8], operands[4])),
 	   gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (CC_FPmode, CCFP_REGNUM)),
 	   operands[9], operands[10])));

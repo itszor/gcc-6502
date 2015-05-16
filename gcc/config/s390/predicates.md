@@ -1,5 +1,5 @@
 ;; Predicate definitions for S/390 and zSeries.
-;; Copyright (C) 2005-2014 Free Software Foundation, Inc.
+;; Copyright (C) 2005-2015 Free Software Foundation, Inc.
 ;; Contributed by Hartmut Penner (hpenner@de.ibm.com) and
 ;;                Ulrich Weigand (uweigand@de.ibm.com).
 ;;
@@ -314,7 +314,7 @@
 (define_special_predicate "load_multiple_operation"
   (match_code "parallel")
 {
-  enum machine_mode elt_mode;
+  machine_mode elt_mode;
   int count = XVECLEN (op, 0);
   unsigned int dest_regno;
   rtx src_addr;
@@ -374,7 +374,7 @@
   (match_code "parallel")
 {
   rtx pattern = op;
-  rtx insn;
+  rtx_insn *insn;
   int icode;
 
   /* This is redundant but since this predicate is evaluated
@@ -406,8 +406,7 @@
   if (icode < 0)
     return false;
 
-  extract_insn (insn);
-  constrain_operands (1);
+  extract_constrain_insn (insn);
 
   return which_alternative >= 0;
 })
@@ -418,7 +417,7 @@
 (define_special_predicate "store_multiple_operation"
   (match_code "parallel")
 {
-  enum machine_mode elt_mode;
+  machine_mode elt_mode;
   int count = XVECLEN (op, 0);
   unsigned int src_regno;
   rtx dest_addr;

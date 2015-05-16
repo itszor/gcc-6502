@@ -15,12 +15,14 @@ class Statement_inserter;
 class Block;
 class Function;
 class Unnamed_label;
+class Assignment_statement;
 class Temporary_statement;
 class Variable_declaration_statement;
 class Expression_statement;
 class Return_statement;
 class Thunk_statement;
 class Label_statement;
+class If_statement;
 class For_statement;
 class For_range_statement;
 class Switch_statement;
@@ -45,6 +47,7 @@ class Bexpression;
 class Bstatement;
 class Bvariable;
 class Ast_dump_context;
+class Dataflow;
 
 // This class is used to traverse assignments made by a statement
 // which makes assignments.
@@ -250,7 +253,7 @@ class Statement
 
   // Make a type switch statement.
   static Type_switch_statement*
-  make_type_switch_statement(Named_object* var, Expression*, Location);
+  make_type_switch_statement(const std::string&, Expression*, Location);
 
   // Make a send statement.
   static Send_statement*
@@ -331,6 +334,22 @@ class Statement
   is_block_statement() const
   { return this->classification_ == STATEMENT_BLOCK; }
 
+  // If this is an assignment statement, return it.  Otherwise return
+  // NULL.
+  Assignment_statement*
+  assignment_statement()
+  {
+    return this->convert<Assignment_statement, STATEMENT_ASSIGNMENT>();
+  }
+
+  // If this is an temporary statement, return it.  Otherwise return
+  // NULL.
+  Temporary_statement*
+  temporary_statement()
+  {
+    return this->convert<Temporary_statement, STATEMENT_TEMPORARY>();
+  }
+
   // If this is a variable declaration statement, return it.
   // Otherwise return NULL.
   Variable_declaration_statement*
@@ -363,6 +382,11 @@ class Statement
   label_statement()
   { return this->convert<Label_statement, STATEMENT_LABEL>(); }
 
+  // If this is an if statement, return it.  Otherwise return NULL.
+  If_statement*
+  if_statement()
+  { return this->convert<If_statement, STATEMENT_IF>(); }
+
   // If this is a for statement, return it.  Otherwise return NULL.
   For_statement*
   for_statement()
@@ -384,6 +408,11 @@ class Statement
   Type_switch_statement*
   type_switch_statement()
   { return this->convert<Type_switch_statement, STATEMENT_TYPE_SWITCH>(); }
+
+  // If this is a send statement, return it.  Otherwise return NULL.
+  Send_statement*
+  send_statement()
+  { return this->convert<Send_statement, STATEMENT_SEND>(); }
 
   // If this is a select statement, return it.  Otherwise return NULL.
   Select_statement*
@@ -507,6 +536,54 @@ class Statement
   Location location_;
 };
 
+// An assignment statement.
+
+class Assignment_statement : public Statement
+{
+ public:
+  Assignment_statement(Expression* lhs, Expression* rhs,
+		       Location location)
+    : Statement(STATEMENT_ASSIGNMENT, location),
+      lhs_(lhs), rhs_(rhs)
+  { }
+
+  Expression*
+  lhs() const
+  { return this->lhs_; }
+
+  Expression*
+  rhs() const
+  { return this->rhs_; }
+
+ protected:
+  int
+  do_traverse(Traverse* traverse);
+
+  bool
+  do_traverse_assignments(Traverse_assignments*);
+
+  void
+  do_determine_types();
+
+  void
+  do_check_types(Gogo*);
+
+  Statement*
+  do_flatten(Gogo*, Named_object*, Block*, Statement_inserter*);
+
+  Bstatement*
+  do_get_backend(Translate_context*);
+
+  void
+  do_dump_statement(Ast_dump_context*) const;
+
+ private:
+  // Left hand side--the lvalue.
+  Expression* lhs_;
+  // Right hand side--the rvalue.
+  Expression* rhs_;
+};
+
 // A statement which creates and initializes a temporary variable.
 
 class Temporary_statement : public Statement
@@ -514,8 +591,7 @@ class Temporary_statement : public Statement
  public:
   Temporary_statement(Type* type, Expression* init, Location location)
     : Statement(STATEMENT_TEMPORARY, location),
-      type_(type), init_(init), bvariable_(NULL), are_hidden_fields_ok_(false),
-      is_address_taken_(false)
+      type_(type), init_(init), bvariable_(NULL), is_address_taken_(false)
   { }
 
   // Return the type of the temporary variable.
@@ -526,11 +602,6 @@ class Temporary_statement : public Statement
   Expression*
   init() const
   { return this->init_; }
-
-  // Note that it is OK for this statement to set hidden fields.
-  void
-  set_hidden_fields_are_ok()
-  { this->are_hidden_fields_ok_ = true; }
 
   // Record that something takes the address of this temporary
   // variable.
@@ -556,6 +627,9 @@ class Temporary_statement : public Statement
   void
   do_check_types(Gogo*);
 
+  Statement*
+  do_flatten(Gogo*, Named_object*, Block*, Statement_inserter*);
+
   Bstatement*
   do_get_backend(Translate_context*);
 
@@ -569,9 +643,6 @@ class Temporary_statement : public Statement
   Expression* init_;
   // The backend representation of the temporary variable.
   Bvariable* bvariable_;
-  // True if this statement may set hidden fields when assigning the
-  // value to the temporary.  This is used for generated method stubs.
-  bool are_hidden_fields_ok_;
   // True if something takes the address of this temporary variable.
   bool is_address_taken_;
 };
@@ -619,19 +690,13 @@ class Return_statement : public Statement
  public:
   Return_statement(Expression_list* vals, Location location)
     : Statement(STATEMENT_RETURN, location),
-      vals_(vals), are_hidden_fields_ok_(false), is_lowered_(false)
+      vals_(vals), is_lowered_(false)
   { }
 
   // The list of values being returned.  This may be NULL.
   const Expression_list*
   vals() const
   { return this->vals_; }
-
-  // Note that it is OK for this return statement to set hidden
-  // fields.
-  void
-  set_hidden_fields_are_ok()
-  { this->are_hidden_fields_ok_ = true; }
 
  protected:
   int
@@ -657,9 +722,6 @@ class Return_statement : public Statement
  private:
   // Return values.  This may be NULL.
   Expression_list* vals_;
-  // True if this statement may pass hidden fields in the return
-  // value.  This is used for generated method stubs.
-  bool are_hidden_fields_ok_;
   // True if this statement has been lowered.
   bool is_lowered_;
 };
@@ -712,6 +774,14 @@ class Send_statement : public Statement
       channel_(channel), val_(val)
   { }
 
+  Expression*
+  channel()
+  { return this->channel_; }  
+
+  Expression*
+  val()
+  { return this->val_; }
+
  protected:
   int
   do_traverse(Traverse* traverse);
@@ -721,6 +791,9 @@ class Send_statement : public Statement
 
   void
   do_check_types(Gogo*);
+
+  Statement*
+  do_flatten(Gogo*, Named_object*, Block*, Statement_inserter*);
 
   Bstatement*
   do_get_backend(Translate_context*);
@@ -787,6 +860,10 @@ class Select_clauses
   void
   check_types();
 
+  // Analyze the dataflow across each case statement.
+  void
+  analyze_dataflow(Dataflow*);
+
   // Whether the select clauses may fall through to the statement
   // which follows the overall select statement.
   bool
@@ -842,6 +919,10 @@ class Select_clauses
     // Check types.
     void
     check_types();
+
+    // Analyze the dataflow across each case statement.
+    void
+    analyze_dataflow(Dataflow*);
 
     // Return true if this is the default clause.
     bool
@@ -949,6 +1030,10 @@ class Select_statement : public Statement
   Unnamed_label*
   break_label();
 
+  void
+  analyze_dataflow(Dataflow* dataflow)
+  { this->clauses_->analyze_dataflow(dataflow); }
+
  protected:
   int
   do_traverse(Traverse* traverse)
@@ -1003,6 +1088,10 @@ class Thunk_statement : public Statement
   bool
   simplify_statement(Gogo*, Named_object*, Block*);
 
+  // Return whether ST is a type created to hold thunk parameters.
+  static bool
+  is_thunk_struct(const Struct_type *st);
+
  protected:
   int
   do_traverse(Traverse* traverse);
@@ -1040,6 +1129,9 @@ class Thunk_statement : public Statement
   // Set the name to use for thunk field N.
   void
   thunk_field_param(int n, char* buf, size_t buflen);
+
+  // A list of all the struct types created for thunk statements.
+  static Unordered_set(const Struct_type*) thunk_types;
 
   // The function call to be executed in a separate thread (go) or
   // later (defer).
@@ -1111,6 +1203,46 @@ class Label_statement : public Statement
  private:
   // The label.
   Label* label_;
+};
+
+// An if statement.
+
+class If_statement : public Statement
+{
+ public:
+  If_statement(Expression* cond, Block* then_block, Block* else_block,
+	       Location location)
+    : Statement(STATEMENT_IF, location),
+      cond_(cond), then_block_(then_block), else_block_(else_block)
+  { }
+
+  Expression*
+  condition() const
+  { return this->cond_; }
+
+ protected:
+  int
+  do_traverse(Traverse*);
+
+  void
+  do_determine_types();
+
+  void
+  do_check_types(Gogo*);
+
+  bool
+  do_may_fall_through() const;
+
+  Bstatement*
+  do_get_backend(Translate_context*);
+
+  void
+  do_dump_statement(Ast_dump_context*) const;
+
+ private:
+  Expression* cond_;
+  Block* then_block_;
+  Block* else_block_;
 };
 
 // A for statement.
@@ -1612,11 +1744,11 @@ class Type_case_clauses
 class Type_switch_statement : public Statement
 {
  public:
-  Type_switch_statement(Named_object* var, Expression* expr,
+  Type_switch_statement(const std::string& name, Expression* expr,
 			Location location)
     : Statement(STATEMENT_TYPE_SWITCH, location),
-      var_(var), expr_(expr), clauses_(NULL), break_label_(NULL)
-  { go_assert(var == NULL || expr == NULL); }
+      name_(name), expr_(expr), clauses_(NULL), break_label_(NULL)
+  { }
 
   // Add the clauses.
   void
@@ -1648,8 +1780,9 @@ class Type_switch_statement : public Statement
   do_may_fall_through() const;
 
  private:
-  // The variable holding the value we are switching on.
-  Named_object* var_;
+  // The name of the variable declared in the type switch guard.  Empty if there
+  // is no variable declared.
+  std::string name_;
   // The expression we are switching on if there is no variable.
   Expression* expr_;
   // The type case clauses.

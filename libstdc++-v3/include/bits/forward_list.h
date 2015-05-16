@@ -1,6 +1,6 @@
 // <forward_list.h> -*- C++ -*-
 
-// Copyright (C) 2008-2014 Free Software Foundation, Inc.
+// Copyright (C) 2008-2015 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -274,13 +274,8 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
     struct _Fwd_list_base
     {
     protected:
-      typedef typename __gnu_cxx::__alloc_traits<_Alloc> _Alloc_traits;
-      typedef typename _Alloc_traits::template rebind<_Tp>::other
-        _Tp_alloc_type;
-
-      typedef typename _Alloc_traits::template
-        rebind<_Fwd_list_node<_Tp>>::other _Node_alloc_type;
-
+      typedef __alloc_rebind<_Alloc, _Tp> 		  _Tp_alloc_type;
+      typedef __alloc_rebind<_Alloc, _Fwd_list_node<_Tp>> _Node_alloc_type;
       typedef __gnu_cxx::__alloc_traits<_Node_alloc_type> _Node_alloc_traits;
 
       struct _Fwd_list_impl 
@@ -1047,14 +1042,14 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        *  Requires this != @a x.
        */
       void
-      splice_after(const_iterator __pos, forward_list&& __list)
+      splice_after(const_iterator __pos, forward_list&& __list) noexcept
       {
 	if (!__list.empty())
 	  _M_splice_after(__pos, __list.before_begin(), __list.end());
       }
 
       void
-      splice_after(const_iterator __pos, forward_list& __list)
+      splice_after(const_iterator __pos, forward_list& __list) noexcept
       { splice_after(__pos, std::move(__list)); }
 
       /**
@@ -1069,11 +1064,11 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       void
       splice_after(const_iterator __pos, forward_list&& __list,
-                   const_iterator __i);
+                   const_iterator __i) noexcept;
 
       void
       splice_after(const_iterator __pos, forward_list& __list,
-                   const_iterator __i)
+                   const_iterator __i) noexcept
       { splice_after(__pos, std::move(__list), __i); }
 
       /**
@@ -1091,12 +1086,12 @@ _GLIBCXX_BEGIN_NAMESPACE_CONTAINER
        */
       void
       splice_after(const_iterator __pos, forward_list&&,
-                   const_iterator __before, const_iterator __last)
+                   const_iterator __before, const_iterator __last) noexcept
       { _M_splice_after(__pos, __before, __last); }
 
       void
       splice_after(const_iterator __pos, forward_list&,
-                   const_iterator __before, const_iterator __last)
+                   const_iterator __before, const_iterator __last) noexcept
       { _M_splice_after(__pos, __before, __last); }
 
       /**

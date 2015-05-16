@@ -1,5 +1,5 @@
 /* Machine description for AArch64 architecture.
-   Copyright (C) 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 2009-2015 Free Software Foundation, Inc.
    Contributed by ARM Ltd.
 
    This file is part of GCC.
@@ -132,7 +132,8 @@
 #undef DRIVER_SELF_SPECS
 #define DRIVER_SELF_SPECS \
   " %{!mbig-endian:%{!mlittle-endian:" ENDIAN_SPEC "}}" \
-  " %{!mabi=*:" ABI_SPEC "}"
+  " %{!mabi=*:" ABI_SPEC "}" \
+  MCPU_MTUNE_NATIVE_SPECS
 
 #ifdef HAVE_AS_MABI_OPTION
 #define ASM_MABI_SPEC	"%{mabi=*:-mabi=%*}"

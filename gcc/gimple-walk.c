@@ -1,6 +1,6 @@
 /* Gimple walk support.
 
-   Copyright (C) 2007-2014 Free Software Foundation, Inc.
+   Copyright (C) 2007-2015 Free Software Foundation, Inc.
    Contributed by Aldy Hernandez <aldyh@redhat.com>
 
 This file is part of GCC.
@@ -23,18 +23,26 @@ along with GCC; see the file COPYING3.  If not see
 #include "system.h"
 #include "coretypes.h"
 #include "tm.h"
+#include "hash-set.h"
+#include "vec.h"
+#include "double-int.h"
+#include "input.h"
+#include "alias.h"
+#include "symtab.h"
+#include "inchash.h"
 #include "tree.h"
-#include "stmt.h"
-#include "basic-block.h"
-#include "tree-ssa-alias.h"
-#include "internal-fn.h"
+#include "predict.h"
+#include "hard-reg-set.h"
+#include "function.h"
 #include "gimple-expr.h"
 #include "is-a.h"
+#include "tree-ssa-alias.h"
+#include "basic-block.h"
+#include "fold-const.h"
 #include "gimple.h"
 #include "gimple-iterator.h"
 #include "gimple-walk.h"
-#include "gimple-walk.h"
-#include "demangle.h"
+#include "stmt.h"
 
 /* Walk all the statements in the sequence *PSEQ calling walk_gimple_stmt
    on each one.  WI is as in walk_gimple_stmt.
@@ -94,7 +102,7 @@ walk_gimple_seq (gimple_seq seq, walk_stmt_fn callback_stmt,
 /* Helper function for walk_gimple_stmt.  Walk operands of a GIMPLE_ASM.  */
 
 static tree
-walk_gimple_asm (gimple stmt, walk_tree_fn callback_op,
+walk_gimple_asm (gasm *stmt, walk_tree_fn callback_op,
 		 struct walk_stmt_info *wi)
 {
   tree ret, op;
@@ -115,10 +123,12 @@ walk_gimple_asm (gimple stmt, walk_tree_fn callback_op,
       op = gimple_asm_output_op (stmt, i);
       constraint = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (op)));
       oconstraints[i] = constraint;
-      parse_output_constraint (&constraint, i, 0, 0, &allows_mem, &allows_reg,
-	                       &is_inout);
       if (wi)
-	wi->val_only = (allows_reg || !allows_mem);
+	{
+	  if (parse_output_constraint (&constraint, i, 0, 0, &allows_mem,
+				       &allows_reg, &is_inout))
+	    wi->val_only = (allows_reg || !allows_mem);
+	}
       ret = walk_tree (&TREE_VALUE (op), callback_op, wi, NULL);
       if (ret)
 	return ret;
@@ -129,13 +139,16 @@ walk_gimple_asm (gimple stmt, walk_tree_fn callback_op,
     {
       op = gimple_asm_input_op (stmt, i);
       constraint = TREE_STRING_POINTER (TREE_VALUE (TREE_PURPOSE (op)));
-      parse_input_constraint (&constraint, 0, 0, noutputs, 0,
-			      oconstraints, &allows_mem, &allows_reg);
+
       if (wi)
 	{
-	  wi->val_only = (allows_reg || !allows_mem);
-          /* Although input "m" is not really a LHS, we need a lvalue.  */
-	  wi->is_lhs = !wi->val_only;
+	  if (parse_input_constraint (&constraint, 0, 0, noutputs, 0,
+				      oconstraints, &allows_mem, &allows_reg))
+	    {
+	      wi->val_only = (allows_reg || !allows_mem);
+	      /* Although input "m" is not really a LHS, we need a lvalue.  */
+	      wi->is_lhs = !wi->val_only;
+	    }
 	}
       ret = walk_tree (&TREE_VALUE (op), callback_op, wi, NULL);
       if (ret)
@@ -180,7 +193,7 @@ tree
 walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 		struct walk_stmt_info *wi)
 {
-  struct pointer_set_t *pset = (wi) ? wi->pset : NULL;
+  hash_set<tree> *pset = (wi) ? wi->pset : NULL;
   unsigned i;
   tree ret = NULL_TREE;
 
@@ -236,7 +249,8 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 	  wi->val_only = true;
 	}
 
-      ret = walk_tree (gimple_call_chain_ptr (stmt), callback_op, wi, pset);
+      ret = walk_tree (gimple_call_chain_ptr (as_a <gcall *> (stmt)),
+		       callback_op, wi, pset);
       if (ret)
         return ret;
 
@@ -277,8 +291,8 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
       break;
 
     case GIMPLE_CATCH:
-      ret = walk_tree (gimple_catch_types_ptr (stmt), callback_op, wi,
-		       pset);
+      ret = walk_tree (gimple_catch_types_ptr (as_a <gcatch *> (stmt)),
+		       callback_op, wi, pset);
       if (ret)
 	return ret;
       break;
@@ -291,28 +305,34 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
       break;
 
     case GIMPLE_ASM:
-      ret = walk_gimple_asm (stmt, callback_op, wi);
+      ret = walk_gimple_asm (as_a <gasm *> (stmt), callback_op, wi);
       if (ret)
 	return ret;
       break;
 
     case GIMPLE_OMP_CONTINUE:
-      ret = walk_tree (gimple_omp_continue_control_def_ptr (stmt),
-	  	       callback_op, wi, pset);
-      if (ret)
-	return ret;
+      {
+	gomp_continue *cont_stmt = as_a <gomp_continue *> (stmt);
+	ret = walk_tree (gimple_omp_continue_control_def_ptr (cont_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
 
-      ret = walk_tree (gimple_omp_continue_control_use_ptr (stmt),
-	  	       callback_op, wi, pset);
-      if (ret)
-	return ret;
+	ret = walk_tree (gimple_omp_continue_control_use_ptr (cont_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_OMP_CRITICAL:
-      ret = walk_tree (gimple_omp_critical_name_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
+      {
+	gomp_critical *omp_stmt = as_a <gomp_critical *> (stmt);
+	ret = walk_tree (gimple_omp_critical_name_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_OMP_FOR:
@@ -336,24 +356,27 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 	    return ret;
 	  ret = walk_tree (gimple_omp_for_incr_ptr (stmt, i), callback_op,
 			   wi, pset);
+	  if (ret)
+	    return ret;
 	}
-      if (ret)
-	return ret;
       break;
 
     case GIMPLE_OMP_PARALLEL:
-      ret = walk_tree (gimple_omp_parallel_clauses_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_parallel_child_fn_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
-      ret = walk_tree (gimple_omp_parallel_data_arg_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
+      {
+	gomp_parallel *omp_par_stmt = as_a <gomp_parallel *> (stmt);
+	ret = walk_tree (gimple_omp_parallel_clauses_ptr (omp_par_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+	ret = walk_tree (gimple_omp_parallel_child_fn_ptr (omp_par_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+	ret = walk_tree (gimple_omp_parallel_data_arg_ptr (omp_par_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_OMP_TASK:
@@ -388,7 +411,6 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
 		       wi, pset);
       if (ret)
 	return ret;
-
       ret = walk_tree (gimple_omp_sections_control_ptr (stmt), callback_op,
 		       wi, pset);
       if (ret)
@@ -404,10 +426,21 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
       break;
 
     case GIMPLE_OMP_TARGET:
-      ret = walk_tree (gimple_omp_target_clauses_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
+      {
+	gomp_target *omp_stmt = as_a <gomp_target *> (stmt);
+	ret = walk_tree (gimple_omp_target_clauses_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+	ret = walk_tree (gimple_omp_target_child_fn_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+	ret = walk_tree (gimple_omp_target_data_arg_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_OMP_TEAMS:
@@ -418,27 +451,33 @@ walk_gimple_op (gimple stmt, walk_tree_fn callback_op,
       break;
 
     case GIMPLE_OMP_ATOMIC_LOAD:
-      ret = walk_tree (gimple_omp_atomic_load_lhs_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
-
-      ret = walk_tree (gimple_omp_atomic_load_rhs_ptr (stmt), callback_op, wi,
-		       pset);
-      if (ret)
-	return ret;
+      {
+	gomp_atomic_load *omp_stmt = as_a <gomp_atomic_load *> (stmt);
+	ret = walk_tree (gimple_omp_atomic_load_lhs_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+	ret = walk_tree (gimple_omp_atomic_load_rhs_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_OMP_ATOMIC_STORE:
-      ret = walk_tree (gimple_omp_atomic_store_val_ptr (stmt), callback_op,
-		       wi, pset);
-      if (ret)
-	return ret;
+      {
+	gomp_atomic_store *omp_stmt = as_a <gomp_atomic_store *> (stmt);
+	ret = walk_tree (gimple_omp_atomic_store_val_ptr (omp_stmt),
+			 callback_op, wi, pset);
+	if (ret)
+	  return ret;
+      }
       break;
 
     case GIMPLE_TRANSACTION:
-      ret = walk_tree (gimple_transaction_label_ptr (stmt), callback_op,
-		       wi, pset);
+      ret = walk_tree (gimple_transaction_label_ptr (
+			 as_a <gtransaction *> (stmt)),
+		       callback_op, wi, pset);
       if (ret)
 	return ret;
       break;
@@ -541,15 +580,16 @@ walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
   switch (gimple_code (stmt))
     {
     case GIMPLE_BIND:
-      ret = walk_gimple_seq_mod (gimple_bind_body_ptr (stmt), callback_stmt,
-				 callback_op, wi);
+      ret = walk_gimple_seq_mod (gimple_bind_body_ptr (as_a <gbind *> (stmt)),
+				 callback_stmt, callback_op, wi);
       if (ret)
 	return wi->callback_result;
       break;
 
     case GIMPLE_CATCH:
-      ret = walk_gimple_seq_mod (gimple_catch_handler_ptr (stmt), callback_stmt,
-				 callback_op, wi);
+      ret = walk_gimple_seq_mod (gimple_catch_handler_ptr (
+				   as_a <gcatch *> (stmt)),
+				 callback_stmt, callback_op, wi);
       if (ret)
 	return wi->callback_result;
       break;
@@ -562,14 +602,17 @@ walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
       break;
 
     case GIMPLE_EH_ELSE:
-      ret = walk_gimple_seq_mod (gimple_eh_else_n_body_ptr (stmt),
-			     callback_stmt, callback_op, wi);
-      if (ret)
-	return wi->callback_result;
-      ret = walk_gimple_seq_mod (gimple_eh_else_e_body_ptr (stmt),
-			     callback_stmt, callback_op, wi);
-      if (ret)
-	return wi->callback_result;
+      {
+	geh_else *eh_else_stmt = as_a <geh_else *> (stmt);
+	ret = walk_gimple_seq_mod (gimple_eh_else_n_body_ptr (eh_else_stmt),
+				   callback_stmt, callback_op, wi);
+	if (ret)
+	  return wi->callback_result;
+	ret = walk_gimple_seq_mod (gimple_eh_else_e_body_ptr (eh_else_stmt),
+				   callback_stmt, callback_op, wi);
+	if (ret)
+	  return wi->callback_result;
+      }
       break;
 
     case GIMPLE_TRY:
@@ -616,7 +659,8 @@ walk_gimple_stmt (gimple_stmt_iterator *gsi, walk_stmt_fn callback_stmt,
       break;
 
     case GIMPLE_TRANSACTION:
-      ret = walk_gimple_seq_mod (gimple_transaction_body_ptr (stmt),
+      ret = walk_gimple_seq_mod (gimple_transaction_body_ptr (
+				   as_a <gtransaction *> (stmt)),
 			     callback_stmt, callback_op, wi);
       if (ret)
 	return wi->callback_result;
@@ -739,11 +783,11 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 	    }
 	}
     }
-  else if (is_gimple_call (stmt))
+  else if (gcall *call_stmt = dyn_cast <gcall *> (stmt))
     {
       if (visit_store)
 	{
-	  tree arg = gimple_call_lhs (stmt);
+	  tree arg = gimple_call_lhs (call_stmt);
 	  if (arg)
 	    {
 	      tree lhs = get_base_loadstore (arg);
@@ -752,9 +796,9 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 	    }
 	}
       if (visit_load || visit_addr)
-	for (i = 0; i < gimple_call_num_args (stmt); ++i)
+	for (i = 0; i < gimple_call_num_args (call_stmt); ++i)
 	  {
-	    tree arg = gimple_call_arg (stmt, i);
+	    tree arg = gimple_call_arg (call_stmt, i);
 	    if (visit_addr
 		&& TREE_CODE (arg) == ADDR_EXPR)
 	      ret |= visit_addr (stmt, TREE_OPERAND (arg, 0), arg, data);
@@ -766,29 +810,29 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 	      }
 	  }
       if (visit_addr
-	  && gimple_call_chain (stmt)
-	  && TREE_CODE (gimple_call_chain (stmt)) == ADDR_EXPR)
-	ret |= visit_addr (stmt, TREE_OPERAND (gimple_call_chain (stmt), 0),
-			   gimple_call_chain (stmt), data);
+	  && gimple_call_chain (call_stmt)
+	  && TREE_CODE (gimple_call_chain (call_stmt)) == ADDR_EXPR)
+	ret |= visit_addr (stmt, TREE_OPERAND (gimple_call_chain (call_stmt), 0),
+			   gimple_call_chain (call_stmt), data);
       if (visit_addr
-	  && gimple_call_return_slot_opt_p (stmt)
-	  && gimple_call_lhs (stmt) != NULL_TREE
-	  && TREE_ADDRESSABLE (TREE_TYPE (gimple_call_lhs (stmt))))
-	ret |= visit_addr (stmt, gimple_call_lhs (stmt),
-			   gimple_call_lhs (stmt), data);
+	  && gimple_call_return_slot_opt_p (call_stmt)
+	  && gimple_call_lhs (call_stmt) != NULL_TREE
+	  && TREE_ADDRESSABLE (TREE_TYPE (gimple_call_lhs (call_stmt))))
+	ret |= visit_addr (stmt, gimple_call_lhs (call_stmt),
+			   gimple_call_lhs (call_stmt), data);
     }
-  else if (gimple_code (stmt) == GIMPLE_ASM)
+  else if (gasm *asm_stmt = dyn_cast <gasm *> (stmt))
     {
       unsigned noutputs;
       const char *constraint;
       const char **oconstraints;
       bool allows_mem, allows_reg, is_inout;
-      noutputs = gimple_asm_noutputs (stmt);
+      noutputs = gimple_asm_noutputs (asm_stmt);
       oconstraints = XALLOCAVEC (const char *, noutputs);
       if (visit_store || visit_addr)
-	for (i = 0; i < gimple_asm_noutputs (stmt); ++i)
+	for (i = 0; i < gimple_asm_noutputs (asm_stmt); ++i)
 	  {
-	    tree link = gimple_asm_output_op (stmt, i);
+	    tree link = gimple_asm_output_op (asm_stmt, i);
 	    tree op = get_base_loadstore (TREE_VALUE (link));
 	    if (op && visit_store)
 	      ret |= visit_store (stmt, op, TREE_VALUE (link), data);
@@ -804,9 +848,9 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 	      }
 	  }
       if (visit_load || visit_addr)
-	for (i = 0; i < gimple_asm_ninputs (stmt); ++i)
+	for (i = 0; i < gimple_asm_ninputs (asm_stmt); ++i)
 	  {
-	    tree link = gimple_asm_input_op (stmt, i);
+	    tree link = gimple_asm_input_op (asm_stmt, i);
 	    tree op = TREE_VALUE (link);
 	    if (visit_addr
 		&& TREE_CODE (op) == ADDR_EXPR)
@@ -833,9 +877,9 @@ walk_stmt_load_store_addr_ops (gimple stmt, void *data,
 	      }
 	  }
     }
-  else if (gimple_code (stmt) == GIMPLE_RETURN)
+  else if (greturn *return_stmt = dyn_cast <greturn *> (stmt))
     {
-      tree op = gimple_return_retval (stmt);
+      tree op = gimple_return_retval (return_stmt);
       if (op)
 	{
 	  if (visit_addr

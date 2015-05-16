@@ -1,5 +1,5 @@
 ;;  Machine Description for TI MSP43* processors
-;;  Copyright (C) 2013-2014 Free Software Foundation, Inc.
+;;  Copyright (C) 2013-2015 Free Software Foundation, Inc.
 ;;  Contributed by Red Hat.
 
 ;; This file is part of GCC.
@@ -72,6 +72,10 @@
 
 (define_predicate "msp430_nonsubreg_operand"
   (match_code "reg,mem"))
+
+(define_predicate "msp430_nonsubreg_or_imm_operand"
+  (ior (match_operand 0 "msp430_nonsubreg_operand")
+       (match_operand 0 "immediate_operand")))
 
 ; TRUE for constants which are bit positions for zero_extract
 (define_predicate "msp430_bitpos"
