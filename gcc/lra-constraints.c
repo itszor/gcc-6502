@@ -157,6 +157,7 @@
 #include "params.h"
 #include "lra-int.h"
 #include "sparseset.h"
+#include "rtl-iter.h"
 
 /* Value of LRA_CURR_RELOAD_NUM at the beginning of BB of the current
    insn.  Remember that LRA_CURR_RELOAD_NUM is the number of emitted
@@ -3200,38 +3201,6 @@ process_address_1 (int nop, bool check_only_p,
   return true;
 }
 
-      else
-        {
-	  start_sequence ();
-	  new_reg = base_plus_disp_to_reg (&ad);
-	  insns = get_insns ();
-	  last_insn = get_last_insn ();
-	  /* If we generated at least two insns, try last insn source as
-	     an address.  If we succeed, we generate one less insn.  */
-	  if (last_insn != insns && (set = single_set (last_insn)) != NULL_RTX
-	      && GET_CODE (SET_SRC (set)) == PLUS
-	      && REG_P (XEXP (SET_SRC (set), 0))
-	      && CONSTANT_P (XEXP (SET_SRC (set), 1)))
-	    {
-	      *ad.inner = SET_SRC (set);
-	      if (valid_address_p (ad.mode, *ad.outer, ad.as))
-		{
-		  *ad.base_term = XEXP (SET_SRC (set), 0);
-		  *ad.disp_term = XEXP (SET_SRC (set), 1);
-		  cl = base_reg_class (ad.mode, ad.as, ad.base_outer_code,
-				       get_index_code (&ad));
-		  regno = REGNO (*ad.base_term);
-		  if (regno >= FIRST_PSEUDO_REGISTER
-		      && cl != lra_get_allocno_class (regno))
-		    lra_change_class (regno, cl, "      Change to", true);
-		  new_reg = SET_SRC (set);
-		  delete_insns_since (PREV_INSN (last_insn));
-		}
-	    }
-	  end_sequence ();
-	  emit_insn (insns);
-	  *ad.inner = new_reg;
-	}
 
 /* If CHECK_ONLY_P is false, do address reloads until it is necessary.
    Use process_address_1 as a helper function.  Return true for any
@@ -3436,7 +3405,7 @@ swap_operands (int nop)
 typedef struct rrp_insn
 {
   int idx;
-  rtx insn;
+  rtx_insn *insn;
   bitmap depends_on;
   bitmap used_by;
   bitmap uses_regs;
@@ -3450,7 +3419,7 @@ static vec<rrp_insn> rrp_insns;
 static vec<int> pseudo_idx;
 
 static int
-find_used_regs_1 (rtx *loc, void *data)
+find_used_regs_1 (const_rtx *loc, void *data)
 {
   rrp_insn *ri = (rrp_insn *) data;
 
@@ -3469,7 +3438,12 @@ find_used_regs_1 (rtx *loc, void *data)
 static void
 find_used_regs (rtx *loc, void *ss)
 {
-  for_each_rtx (loc, find_used_regs_1, ss);
+  subrtx_iterator::array_type array;
+  FOR_EACH_SUBRTX (iter, array, *loc, ALL)
+    {
+      const_rtx x = *iter;
+      find_used_regs_1 (&x, ss);
+    }
 }
 
 static void
@@ -3507,19 +3481,21 @@ output_insn (int num, vec<int> *outp)
 }
 
 void
-lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
+lra_reduce_register_pressure (rtx_insn *curr_insn, rtx_insn **before,
+			      rtx_insn **after)
 {
-  rtx orig_prev = PREV_INSN (curr_insn), orig_next = NEXT_INSN (curr_insn);
+  rtx_insn *orig_prev = PREV_INSN (curr_insn),
+	   *orig_next = NEXT_INSN (curr_insn);
 
-  if (*before)
+  if (*before != NULL_RTX)
     emit_insn_before (*before, curr_insn);
-  if (*after)
+  if (*after != NULL_RTX)
     emit_insn_after (*after, curr_insn);
 
   if (lra_dump_file)
     {
       fprintf (lra_dump_file, "+++ reload sequence:\n");
-      for (rtx insn = NEXT_INSN (orig_prev); insn != orig_next;
+      for (rtx_insn *insn = NEXT_INSN (orig_prev); insn != orig_next;
 	   insn = NEXT_INSN (insn))
 	dump_insn_slim (lra_dump_file, insn);
       fprintf (lra_dump_file, "+++ end sequence\n");
@@ -3530,7 +3506,7 @@ lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
   pseudo_idx.reserve (max_reg_num ());
 
   unsigned int i;
-  rtx insn;
+  rtx_insn *insn;
   bitmap_iterator bi;
 
   for (i = 0; i < (unsigned) max_reg_num (); i++)
@@ -3688,28 +3664,30 @@ lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
       fprintf (lra_dump_file, "+++ end sequence\n");
     }
 
-  for (rtx insn = NEXT_INSN (orig_prev); insn != NULL_RTX && insn != curr_insn;)
+  for (rtx_insn *insn = NEXT_INSN (orig_prev);
+       insn != NULL_RTX && insn != curr_insn;)
     {
-      rtx next = NEXT_INSN (insn);
+      rtx_insn *next = NEXT_INSN (insn);
 
       if (lra_dump_file)
         fprintf (lra_dump_file, "(removing before-insn %d)\n",
 		 (int) INSN_UID (insn));
       remove_insn (insn);
-      NEXT_INSN (insn) = PREV_INSN (insn) = NULL_RTX;
+      SET_NEXT_INSN (insn) = SET_PREV_INSN (insn) = NULL_RTX;
       
       insn = next;
     }
 
-  for (rtx insn = NEXT_INSN (curr_insn); insn != NULL_RTX && insn != orig_next;)
+  for (rtx_insn *insn = NEXT_INSN (curr_insn);
+       insn != NULL_RTX && insn != orig_next;)
     {
-      rtx next = NEXT_INSN (insn);
+      rtx_insn *next = NEXT_INSN (insn);
 
       if (lra_dump_file)
         fprintf (lra_dump_file, "(removing after-insn %d)\n",
 		 (int) INSN_UID (insn));
       remove_insn (insn);
-      NEXT_INSN (insn) = PREV_INSN (insn) = NULL_RTX;
+      SET_NEXT_INSN (insn) = SET_PREV_INSN (insn) = NULL_RTX;
       
       insn = next;
     }
@@ -3717,11 +3695,11 @@ lra_reduce_register_pressure (rtx curr_insn, rtx *before, rtx *after)
   bool is_before = true, is_after = false;
   bool in_sequence = false;
 
-  *before = *after = NULL;
+  *before = *after = 0;
 
   for (i = 0; i < out.length (); i++)
     {
-      rtx insn = rrp_insns[out[i]].insn;
+      rtx_insn *insn = rrp_insns[out[i]].insn;
       if (insn == curr_insn)
         {
 	  if (in_sequence)

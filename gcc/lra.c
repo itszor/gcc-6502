@@ -297,7 +297,7 @@ lra_delete_dead_insn (rtx_insn *insn)
 
   /* If the previous insn sets a register that dies in our insn,
      delete it too.  */
-  if (prev && single_set (PATTERN (prev))
+  if (prev && GET_CODE (PATTERN (prev)) == SET
       && (prev_dest = SET_DEST (PATTERN (prev)), REG_P (prev_dest))
       && reg_mentioned_p (prev_dest, PATTERN (insn))
       && find_regno_note (insn, REG_DEAD, REGNO (prev_dest))
@@ -2053,7 +2053,7 @@ check_rtl (bool final_p)
 #if 1 || defined(ENABLED_CHECKING)
 	    bool rval;
 	    extract_insn (insn);
-	    rval = constrain_operands (1);
+	    rval = constrain_operands (1, get_enabled_alternatives (insn));
 	    if (!rval)
 	      {
 	        fprintf (stderr, "about to fail on insn:\n");
