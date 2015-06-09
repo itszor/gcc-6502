@@ -299,7 +299,7 @@
 {
   int regno;
   
-  if (MEM_P (op))
+  if (memory_operand (op, mode))
     return true;
   
   if (CONSTANT_P (op))
