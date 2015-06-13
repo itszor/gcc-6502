@@ -3011,6 +3011,7 @@ m65x_reorg (void)
 	  if (NONDEBUG_INSN_P (insn))
 	    {
 	      rtx set;
+	    retry:
 	      int icode = recog_memoized (insn);
 
 	      switch (icode)
@@ -3023,19 +3024,27 @@ m65x_reorg (void)
 		      rtx dst = SET_DEST (set);
 		      rtx src = SET_SRC (set);
 
+		      /* Split insns that store to indirect-indexed or
+		         ZP-indirect addresses from somewhere other than the
+			 accumulator into moves via the accumulator, if it is
+			 dead anyway:
+
+			   (zp),y := <X>  -->
+
+			   lda <X>
+			   sta (zp,Y)
+		      */
+
 		      if (MEM_P (dst)
 			  && (m65x_indirect_indexed_addr_p (QImode,
 							    XEXP (dst, 0), true)
 			      || m65x_address_register_p (XEXP (dst, 0), true))
-			  && !accumulator_operand (src, QImode))
+			  && !accumulator_operand (src, QImode)
+			  && !REGNO_REG_SET_P (&live, ACC_REGNUM))
 			{
-
-			  if (!REGNO_REG_SET_P (&live, ACC_REGNUM))
-			    {
-			      emit_insn_before (gen_movqi_insn (acc, src),
-						insn);
-			      SET_SRC (set) = acc;
-			    }
+			  emit_insn_before (gen_movqi_insn (acc, src),
+					    insn);
+			  SET_SRC (set) = acc;
 			}
 		    }
 		  break;
@@ -3047,6 +3056,7 @@ m65x_reorg (void)
 		      PATTERN (insn)
 			= gen_movqi_insn (SET_DEST (set), SET_SRC (set));
 		      INSN_CODE (insn) = -1;
+		      goto retry;
 		    }
 		  break;
 
@@ -3060,6 +3070,21 @@ m65x_reorg (void)
 			= gen_addqi3 (SET_DEST (set),
 				      XEXP (SET_SRC (set), 0),
 				      XEXP (SET_SRC (set), 1));
+		      INSN_CODE (insn) = -1;
+		    }
+		  break;
+
+		case CODE_FOR_addhi3_noclobacc:
+		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
+		      && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
+		      && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
+		      && !REGNO_REG_SET_P (&live, ACC_REGNUM)
+		      && (set = single_set (insn)))
+		    {
+		      PATTERN (insn)
+			= gen_addhi3_clobacc (SET_DEST (set),
+					      XEXP (SET_SRC (set), 0),
+					      XEXP (SET_SRC (set), 1));
 		      INSN_CODE (insn) = -1;
 		    }
 		  break;
@@ -3081,6 +3106,12 @@ m65x_static_chain (const_tree fndecl, bool incoming_p)
     return NULL;
 
   return default_static_chain (fndecl, incoming_p);
+}
+
+bool
+m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
+{
+  return true;
 }
 
 #undef TARGET_OPTION_OVERRIDE
@@ -3214,5 +3245,8 @@ m65x_static_chain (const_tree fndecl, bool incoming_p)
 
 #undef TARGET_STATIC_CHAIN
 #define TARGET_STATIC_CHAIN m65x_static_chain
+
+#undef TARGET_PREFER_CONSTANT_EQUIV_P
+#define TARGET_PREFER_CONSTANT_EQUIV_P m65x_prefer_constant_equiv_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;

@@ -1334,6 +1334,17 @@ process_addr_reg (rtx *loc, bool check_only_p, rtx_insn **before, rtx_insn **aft
       else
 	return false;
     }
+  /* This is somewhat of a hack: we started with an address that used a
+     register of the wrong class, and which had a constant value.  We've
+     created a new register with the right class, but now we want to initialise
+     it with the constant value, not a copy of the previous register.  */
+  rtx cst;
+  if (REG_P (*loc) && (regno = REGNO (*loc)) >= FIRST_PSEUDO_REGISTER
+      && ira_reg_equiv[regno].defined_p
+      && ira_reg_equiv[regno].profitable_p
+      && (cst = ira_reg_equiv[regno].constant) != NULL_RTX
+      && targetm.prefer_constant_equiv_p (cst))
+    reg = cst;
   if (before_p)
     {
       push_to_sequence (*before);
