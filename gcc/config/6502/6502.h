@@ -139,26 +139,32 @@
    29 : s5
    30 : s6
    31 : s7
-   32 : virtual FP/lo
-   33 : virtual FP/hi
-   34 : virtual AP/lo
-   35 : virtual AP/hi
-   36 : virtual NZ reg. CCMODE is always 4 bytes!
-   37: "
-   38: "
-   39: "
-   40: virtual carry reg.
-   41: "
-   42: "
-   43: "
-   44: virtual overflow reg.
-   45: "
-   46: "
-   47: "
-   48: hard SP register
-   49: "
-   50: fixed/local tmp0 (zp)
-   51: fixed/local tmp1 (zp)
+   32 : e0
+   33 : e1
+   34 : e2
+   .. : ...
+   62 : e30
+   63 : e31
+   64 : virtual FP/lo
+   65 : virtual FP/hi
+   66 : virtual AP/lo
+   67 : virtual AP/hi
+   68 : virtual NZ reg. CCMODE is always 4 bytes!
+   69: "
+   70: "
+   71: "
+   72: virtual carry reg.
+   73: "
+   74: "
+   75: "
+   76: virtual overflow reg.
+   77: "
+   78: "
+   79: "
+   80: hard SP register
+   81: "
+   82: fixed/local tmp0 (zp)
+   83: fixed/local tmp1 (zp)
 */
 
 #define ACC_REGNUM 0
@@ -171,16 +177,16 @@
 #define FIRST_CALLER_SAVED 24
 #define LAST_CALLER_SAVED (FIRST_CALLER_SAVED + 7)
 #define FIRST_ZP_REGISTER SP_REGNUM
-#define LAST_ZP_REGISTER LAST_CALLER_SAVED
-#define NZ_REGNUM 36
-#define CARRY_REGNUM 40
-#define OVERFLOW_REGNUM 44
+#define LAST_ZP_REGISTER 63
+#define NZ_REGNUM 68
+#define CARRY_REGNUM 72
+#define OVERFLOW_REGNUM 76
 /* We pretend this is 2 bytes because it is used as a pointer, and pointers are
    supposed to be HImode.  It's an opaque quantity anyway so it doesn't matter
    if it's a lie.  */
-#define HARDSP_REGNUM 48
-#define TMP0_REGNUM 50
-#define TMP1_REGNUM 51
+#define HARDSP_REGNUM 80
+#define TMP0_REGNUM 82
+#define TMP1_REGNUM 83
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
@@ -197,6 +203,11 @@
     0, 0, 0, 0, 0, 0, 0, 0,	\
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
+    /* extra/extended regs. */	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
+    0, 0, 0, 0, 0, 0, 0, 0,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -209,12 +220,17 @@
     1, 1, 1, 1, 1, 1, 1, 1,	\
     /* callee-saved regs.  */	\
     0, 0, 0, 0, 0, 0, 0, 0,	\
+    /* extra/extended regs.  */	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
+    1, 1, 1, 1, 1, 1, 1, 1,	\
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 52
+#define FIRST_PSEUDO_REGISTER 84
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -223,7 +239,11 @@
     24, 25, 26, 27, 28, 29, 30, 31, \
     32, 33, 34, 35, 36, 37, 38, 39, \
     40, 41, 42, 43, 44, 45, 46, 47, \
-    48, 49, 50, 51 }
+    48, 49, 50, 51, 52, 53, 54, 55, \
+    56, 57, 58, 59, 60, 61, 62, 63, \
+    64, 65, 66, 67, 68, 69, 70, 71, \
+    72, 73, 74, 75, 76, 77, 78, 79, \
+    80, 81, 82, 83 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -286,20 +306,10 @@ enum reg_class
 {				\
   "NO_REGS",			\
   "HARD_ACCUM_REG",		\
-  /*"WORD_ACCUM_REGS",		\
-  "ACCUM_REGS",*/			\
   "HARD_X_REG",			\
-  /*"WORD_X_REGS",		\
-  "X_REGS",*/			\
   "HARD_Y_REG",			\
-  /*"WORD_Y_REGS",		\
-  "Y_REGS",*/			\
   "HARD_INDEX_REGS",		\
-  /*"WORD_INDEX_REGS",		\
-  "INDEX_REGS",*/			\
   "ACTUALLY_HARD_REGS",		\
-  /*"WORD_HARD_REGS",		\
-  "HARD_REGS",*/			\
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
@@ -313,31 +323,21 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000, 0x00000 },	\
-  { 0x00000001, 0x00000 },	\
-  /*{ 0x00000003, 0x000 },	\
-  { 0x0000000f, 0x000 },*/	\
-  { 0x00000010, 0x00000 },	\
-  /*{ 0x00000030, 0x000 },	\
-  { 0x000000f0, 0x000 },*/	\
-  { 0x00000100, 0x00000 },	\
-  /*{ 0x00000300, 0x000 },	\
-  { 0x00000f00, 0x000 },*/	\
-  { 0x00000110, 0x00000 },	\
-  /*{ 0x00000330, 0x000 },	\
-  { 0x00000ff0, 0x000 },*/	\
-  { 0x00000111, 0x00000 },	\
-  /*{ 0x00000333, 0x000 },	\
-  { 0x00000fff, 0x000 },*/	\
-  { 0x0000f000, 0x00000 },	\
-  { 0x00ff0000, 0x00000 },	\
-  { 0xff000000, 0x00000 },	\
-  { 0x00000000, 0x0fff0 },	\
-  { 0xfffff000, 0xc0000 },	\
-  { 0xfffff111, 0x00000 },	\
-  { 0x00000000, 0x00003 },	\
-  { 0x00000000, 0x0000c },	\
-  { 0xffffffff, 0xffff0 },	\
+  { 0x00000000, 0x00000000, 0x00000 }, /* NO_REGS */		\
+  { 0x00000001, 0x00000000, 0x00000 }, /* HARD_ACCUM_REG */	\
+  { 0x00000010, 0x00000000, 0x00000 }, /* HARD_X_REG */		\
+  { 0x00000100, 0x00000000, 0x00000 }, /* HARD_Y_REG */		\
+  { 0x00000110, 0x00000000, 0x00000 }, /* HARD_INDEX_REGS */	\
+  { 0x00000111, 0x00000000, 0x00000 }, /* ACTUALLY_HARD_REGS */	\
+  { 0x0000f000, 0x00000000, 0x00000 }, /* STACK_REG */		\
+  { 0x00ff0000, 0x00000000, 0x00000 }, /* ARG_REGS */		\
+  { 0xff000000, 0x00000000, 0x00000 }, /* CALLEE_SAVED_REGS */	\
+  { 0x00000000, 0x00000000, 0x0fff0 }, /* CC_REGS */		\
+  { 0xfffff000, 0xffffffff, 0xc0000 }, /* GENERAL_REGS */	\
+  { 0xfffff111, 0xffffffff, 0x00000 }, /* HARD_ZP_REGS */	\
+  { 0x00000000, 0x00000000, 0x00003 }, /* VFP_REG */		\
+  { 0x00000000, 0x00000000, 0x0000c }, /* VAP_REG */		\
+  { 0xffffffff, 0xffffffff, 0xffff0 }, /* ALL_REGS */		\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -425,8 +425,8 @@ enum reg_class
 /* Registers accessing stack frame.  */
 
 #define STACK_POINTER_REGNUM		SP_REGNUM
-#define FRAME_POINTER_REGNUM		32
-#define ARG_POINTER_REGNUM		34
+#define FRAME_POINTER_REGNUM		64
+#define ARG_POINTER_REGNUM		66
 #define HARD_FRAME_POINTER_REGNUM	FP_REGNUM
 
 /* Eliminating frame pointer/arg pointer.  */
@@ -556,6 +556,10 @@ typedef int CUMULATIVE_ARGS;
     "sp0", "sp1", "fp0", "fp1",					\
     "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7",		\
     "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",		\
+    "e0",  "e1",  "e2",  "e3",  "e4",  "e5",  "e6",  "e7",	\
+    "e8",  "e9",  "e10", "e11", "e12", "e13", "e14", "e15",	\
+    "e16", "e17", "e18", "e19", "e20", "e21", "e22", "e23",	\
+    "e24", "e25", "e26", "e27", "e28", "e29", "e30", "e31",	\
     "?vfpl", "?vfph", "?vapl", "?vaph",				\
     "?nz0", "?nz1", "?nz2", "?nz3",				\
     "?carry0", "?carry1", "?carry2", "?carry3",			\

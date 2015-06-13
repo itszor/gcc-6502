@@ -308,6 +308,8 @@ m65x_option_override (void)
 static void
 m65x_file_start (void)
 {
+  unsigned int i;
+
   fprintf (asm_out_file, "\t.feature at_in_identifiers\n");
   fprintf (asm_out_file, "\t.feature dollar_in_identifiers\n");
   fprintf (asm_out_file, "\t.autoimport +\n");
@@ -341,6 +343,13 @@ m65x_file_start (void)
 
   fprintf (asm_out_file, "\t.importzp _s0, _s1, _s2, _s3, _s4, "
 			 "_s5, _s6, _s7\n");
+
+  for (i = 0; i < 32; i++)
+    {
+      if ((i & 7) == 0)
+        fprintf (asm_out_file, "\t.importzp ");
+      fprintf (asm_out_file, "_e%d%s", i, (i & 7) == 7 ? "\n" : ", ");
+    }
 
   fprintf (asm_out_file, "\t.importzp _tmp0, _tmp1\n");
 }
