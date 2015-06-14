@@ -45,7 +45,8 @@ LIB2ADD += $(srcdir)/config/6502/softregs.S \
 	   $(srcdir)/config/6502/softfpregs.S \
 	   $(srcdir)/config/6502/fprenorm-right.S \
 	   $(srcdir)/config/6502/fprenorm-left.S \
-	   $(srcdir)/config/6502/savestack.S
+	   $(srcdir)/config/6502/savestack.S \
+	   $(srcdir)/config/6502/savestack_sp.S \
 
 crt0.o: $(srcdir)/config/6502/crt0.S
 	$(gcc_compile) -c $<
