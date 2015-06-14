@@ -2240,7 +2240,35 @@ m65x_expand_prologue (void)
   rtx push_rtx = gen_rtx_MEM (QImode,
 		   gen_rtx_POST_DEC (HImode,
 				     gen_rtx_REG (HImode, HARDSP_REGNUM)));
-  
+
+  if (optimize_size && !frame_pointer_needed && info->pretend_size == 0)
+    {
+      int num_saved = 0;
+
+      for (regno = FIRST_CALLER_SAVED; regno <= LAST_CALLER_SAVED; regno++)
+        if (df_regs_ever_live_p (regno))
+	  num_saved++;
+
+      if (num_saved == 8)
+        {
+	  if (info->stack_adj_total > 0)
+	    {
+	      int neg_adj = -info->stack_adj_total;
+	      rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+	      emit_insn (gen_movqi (xreg,
+				    gen_int_mode (neg_adj & 0xff, QImode)));
+	      emit_insn (gen_movqi (yreg,
+				    gen_int_mode ((neg_adj >> 8) & 0xff,
+						  QImode)));
+	      emit_insn (gen_m65x_savestack_s7s0_sp (xreg, yreg));
+	    }
+	  else
+	    emit_insn (gen_m65x_savestack_s7s0 ());
+
+	  return;
+	}
+    }
+
   /* Push SP if we modify it.  */
   if (info->stack_adj_total != 0)
     for (regno = 1; regno >= 0; regno--)
@@ -2324,6 +2352,31 @@ m65x_expand_epilogue (void)
 				    gen_rtx_REG (HImode, HARDSP_REGNUM)));
 
   emit_insn (gen_blockage ());
+
+  if (optimize_size && !frame_pointer_needed && info->pretend_size == 0)
+    {
+      int num_restored = 0;
+
+      for (regno = FIRST_CALLER_SAVED; regno <= LAST_CALLER_SAVED; regno++)
+        if (df_regs_ever_live_p (regno))
+	  num_restored++;
+
+      if (num_restored == 8)
+        {
+	  emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
+	  emit_insn (gen_rtx_CLOBBER (VOIDmode,
+				      gen_rtx_REG (QImode, TMP0_REGNUM)));
+	  emit_insn (gen_rtx_CLOBBER (VOIDmode,
+				      gen_rtx_REG (QImode, TMP1_REGNUM)));
+
+	  if (info->stack_adj_total > 0)
+	    emit_jump_insn (gen_m65x_restorestack_s7s0_sp_rts ());
+	  else
+	    emit_jump_insn (gen_m65x_restorestack_s7s0_rts ());
+
+	  return;
+	}
+    }
 
   for (regno = FIRST_CALLER_SAVED; regno <= LAST_CALLER_SAVED; regno++)
     if (df_regs_ever_live_p (regno))
