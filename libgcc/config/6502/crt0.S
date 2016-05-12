@@ -6,9 +6,25 @@
         .importzp _tmp0, _tmp1
 
 	.import main
+	.import __STARTUP_LOAD__
 	.import __BSS_RUN__
 	.import __BSS_SIZE__
 	.import __STACKTOP__
+
+#ifdef __C64__
+	.segment "LOADADDR"
+	.word $0801     ; Load address for Basic program
+	.segment "EXEHDR"
+	.word line2, 10 ; Line number 10
+	.byte $9e       ; "SYS"
+	.byte <($30 + __STARTUP_LOAD__ .mod 10000 / 1000)
+	.byte <($30 + __STARTUP_LOAD__ .mod  1000 /  100)
+	.byte <($30 + __STARTUP_LOAD__ .mod   100 /   10)
+	.byte <($30 + __STARTUP_LOAD__ .mod    10)
+	.byte $00       ; End of line
+line2:
+	.byte $00, $00  ; End of basic program
+#endif
 
 	.segment "STARTUP"
 	lda #<__STACKTOP__
