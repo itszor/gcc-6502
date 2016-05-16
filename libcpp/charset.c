@@ -446,6 +446,47 @@ one_utf16_to_utf8 (iconv_t bigend, const uchar **inbufp, size_t *inbytesleftp,
   return 0;
 }
 
+static inline int
+one_utf8_to_petscii (iconv_t bigend, const uchar **inbufp, size_t *inbytesleftp,
+		     uchar **outbufp, size_t *outbytesleftp)
+{
+  int rval;
+  cppchar_t s = 0;
+  const uchar *save_inbuf = *inbufp;
+  size_t save_inbytesleft = *inbytesleftp;
+  uchar *outbuf = *outbufp;
+
+  rval = one_utf8_to_cppchar (inbufp, inbytesleftp, &s);
+  if (rval)
+    return rval;
+
+  if (s > 0x80)
+    {
+      *inbufp = save_inbuf;
+      *inbytesleftp = save_inbytesleft;
+      return EILSEQ;
+    }
+
+  if (*outbytesleftp < 1)
+    {
+      *inbufp = save_inbuf;
+      *inbytesleftp = save_inbytesleft;
+      return E2BIG;
+    }
+
+  /* Swap small and capital chars.  */
+  if (s >= 65 && s <= 90)  
+    s += 32;  
+  else if (s >= 97 && s <= 122)  
+    s -= 32;  
+
+  outbuf[0] = s;
+
+  *outbufp += 1;
+  *outbytesleftp -= 1;
+  return 0;
+}
+
 /* Helper routine for the next few functions.  The 'const' on
    one_conversion means that we promise not to modify what function is
    pointed to, which lets the inliner see through it.  */
@@ -513,6 +554,13 @@ convert_utf8_utf32 (iconv_t cd, const uchar *from, size_t flen,
 		    struct _cpp_strbuf *to)
 {
   return conversion_loop (one_utf8_to_utf32, cd, from, flen, to);
+}
+
+static bool
+convert_utf8_petscii (iconv_t cd, const uchar *from, size_t flen,
+		      struct _cpp_strbuf *to)
+{
+  return conversion_loop (one_utf8_to_petscii, cd, from, flen, to);
 }
 
 static bool
@@ -620,6 +668,7 @@ static const struct cpp_conversion conversion_tab[] = {
   { "UTF-8/UTF-32BE", convert_utf8_utf32, (iconv_t)1 },
   { "UTF-8/UTF-16LE", convert_utf8_utf16, (iconv_t)0 },
   { "UTF-8/UTF-16BE", convert_utf8_utf16, (iconv_t)1 },
+  { "UTF-8/PETSCII" , convert_utf8_petscii, (iconv_t)0 },
   { "UTF-32LE/UTF-8", convert_utf32_utf8, (iconv_t)0 },
   { "UTF-32BE/UTF-8", convert_utf32_utf8, (iconv_t)1 },
   { "UTF-16LE/UTF-8", convert_utf16_utf8, (iconv_t)0 },
