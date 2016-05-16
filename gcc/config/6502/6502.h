@@ -641,6 +641,9 @@ typedef int CUMULATIVE_ARGS;
 
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
+#undef CPP_SPEC
+#define CPP_SPEC "%{mmach=c64:%{!fexec-charset=*:-fexec-charset=petscii}}"
+
 /* ca65 can't handle "# ..." line directives.  This is a really crude way of
    fixing that.  FIXME.  */
 
