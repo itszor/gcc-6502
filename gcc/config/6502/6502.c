@@ -1013,29 +1013,18 @@ m65x_output_ascii (FILE *f, const char *str, int len)
 	}
       else
         {
-	  char c = str[i];
-
-	  if (m65x_machine_option == mach_c64)
-	    {
-	    /* Simple ASCii to PETSCII conversion */
-	    if (c >= 65 && c <= 90)
-	      c += 32;
-	    else if (c >= 97 && c <= 122)
-	      c -= 32;
-	    }
-
 	  switch (state)
 	    {
 	    case START:
-	      fprintf (f, "\t.byte \"%c", c);
+	      fprintf (f, "\t.byte \"%c", str[i]);
 	      break;
 	    
 	    case PRINT:
-	      fputc (c, f);
+	      fputc (str[i], f);
 	      break;
 	    
 	    case NONPRINT:
-	      fprintf (f, ", \"%c", c);
+	      fprintf (f, ", \"%c", str[i]);
 	    }
 	  state = PRINT;
 	}
