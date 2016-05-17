@@ -469,12 +469,12 @@ one_utf8_to_petscii (iconv_t bigend, const uchar **inbufp, size_t *inbytesleftp,
 
   if (*outbytesleftp < 1)
     {
-    *inbufp = save_inbuf;
-    *inbytesleftp = save_inbytesleft;
-    return E2BIG;
+      *inbufp = save_inbuf;
+      *inbytesleftp = save_inbytesleft;
+      return E2BIG;
     }
 
-  /* swap small and capital chars */
+  /* Swap small and capital chars.  */
   if (s >= 65 && s <= 90)  
     s += 32;  
   else if (s >= 97 && s <= 122)  
