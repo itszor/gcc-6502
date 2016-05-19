@@ -999,15 +999,15 @@ m65x_output_ascii (FILE *f, const char *str, int len)
 	  switch (state)
 	    {
 	    case START:
-	      fprintf (f, "\t.byte $%x", str[i]);
+	      fprintf (f, "\t.byte $%x", (unsigned char)str[i]);
 	      break;
 	    
 	    case PRINT:
-	      fprintf (f, "\", $%x", str[i]);
+	      fprintf (f, "\", $%x", (unsigned char)str[i]);
 	      break;
 
 	    case NONPRINT:
-	      fprintf (f, ", $%x", str[i]);
+	      fprintf (f, ", $%x", (unsigned char)str[i]);
 	    }
 	  state = NONPRINT;
 	}
