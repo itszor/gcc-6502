@@ -474,11 +474,15 @@ one_utf8_to_petscii (iconv_t bigend, const uchar **inbufp, size_t *inbytesleftp,
       return E2BIG;
     }
 
-  /* Swap small and capital chars.  */
+  /* Swap lower case and higher case chars.  */
   if (s >= 65 && s <= 90)  
     s += 32;  
   else if (s >= 97 && s <= 122)  
     s -= 32;  
+
+  /* Convert newline to return */
+  if (s == 10)
+    s = 13;
 
   outbuf[0] = s;
 
