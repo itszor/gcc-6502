@@ -27,6 +27,8 @@ line2:
 #endif
 
 	.segment "STARTUP"
+	lda #38
+	sta 1
 	lda #<__STACKTOP__
 	sta _sp0
 	lda #>__STACKTOP__
@@ -70,8 +72,13 @@ nobss:
 #ifdef __SEMI65X__
 	; This is a special hack to exit the semi65x emulator.
 	jmp 0
-#elif defined(__BBCMICRO__) || defined(__C64__)
+#elif defined(__BBCMICRO__)
 	; Return to caller
+	rts
+#elif defined(__C64__)
+	; turn on BASIC ROM again
+	lda #$27
+	sta 1
 	rts
 #else
 #error "Don't know how to exit on this machine"
