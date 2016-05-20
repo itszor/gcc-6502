@@ -18,6 +18,8 @@
 ;(define_register_constraint "hh" "WORD_HARD_REGS")
 ;(define_register_constraint "hs" "HARD_REGS")
 
+(define_register_constraint "Zp" "HARD_ZP_REGS")
+
 (define_constraint "I"
   "An integer 0-255."
   (and (match_code "const_int")
