@@ -641,6 +641,10 @@ typedef int CUMULATIVE_ARGS;
 
 #define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
+#ifndef LIBGCC2_UNITS_PER_WORD
+#define LIBGCC2_UNITS_PER_WORD 4
+#endif
+
 #undef CPP_SPEC
 #define CPP_SPEC "%{mmach=c64:%{!fexec-charset=*:-fexec-charset=petscii}}"
 
