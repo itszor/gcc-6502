@@ -20,6 +20,8 @@ LIB1ASMFUNCS =	\
   _mulsi3	\
   _udivqi3	\
   _umodqi3	\
+  _udivhi3      \
+  _umodhi3      \
   _udivsi3	\
   _umodsi3	\
   _divsi3	\

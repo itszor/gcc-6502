@@ -404,6 +404,60 @@ __umodqi3:
 	rts
 #endif
 
+#ifdef L_udivhi3
+        .export __udivhi3
+__udivhi3:
+        ; (_r1, _r0) / (_r3, _r2)
+        ; quotient in _r5, _r4
+        ; remainder in _r7, _r6
+        lda #0
+        sta _r4
+        sta _r5
+        sta _r6
+        sta _r7
+        ldx #16
+loop:
+        asl _r0         ; left-shift numerator
+        rol _r1
+        rol _r6         ; shift high-order bit into remainder
+        rol _r7
+        lda _r6         ; compare remainder with denominator
+        sec
+        sbc _r2
+        tay
+        lda _r7
+        sbc _r3
+        bcc notgreater
+        rol _r4
+        rol _r5
+        sty _r6
+        sta _r7
+        jmp next
+notgreater:
+        asl _r4
+        rol _r5
+next:
+        dex
+        bne loop
+        lda _r4
+        sta _r0
+        lda _r5
+        sta _r1
+        rts
+#endif
+
+#ifdef L_umodhi3
+        .import __udivhi3
+        .export __umodhi3
+__umodhi3:
+        jsr __udivhi3
+        lda _r6
+        sta _r0
+        lda _r7
+        sta _r1
+        rts
+#endif
+
 #ifdef L_udivsi3
 	.export __udivsi3
 __udivsi3:
@@ -569,7 +623,7 @@ numerator_positive:
 	sbc _r7
 	sta _r7
 denominator_positive:
-	jsr __divsi3
+	jsr __udivsi3
 	pla
 	bpl result_positive
 	; tailcall
