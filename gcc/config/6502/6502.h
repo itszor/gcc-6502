@@ -645,14 +645,12 @@ typedef int CUMULATIVE_ARGS;
 #define LIBGCC2_UNITS_PER_WORD 4
 #endif
 
-#undef CPP_SPEC
-#define CPP_SPEC "%{mmach=c64:%{!fexec-charset=*:-fexec-charset=petscii}}"
-
-/* ca65 can't handle "# ..." line directives.  This is a really crude way of
-   fixing that.  FIXME.  */
+/* ca65 can't handle "# ..." line directives.  The "-P %<g*" part below is a
+   really crude way of fixing that.  FIXME.  */
 
 #undef CC1_SPEC
-#define CC1_SPEC "-P %<g*"
+#define CC1_SPEC \
+  "-P %<g* %{mmach=c64:%{!fexec-charset=*:-fexec-charset=petscii}}"
 
 #undef LIB_SPEC
 #define LIB_SPEC "-L%R/usr/lib libtinyc.a"
