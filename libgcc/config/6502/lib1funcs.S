@@ -292,6 +292,33 @@ no_add:
 	.endscope
 #endif
 
+#ifdef L_mulhi3
+        .export __mulhi3
+__mulhi3:
+        ldx #0
+        ldy #0
+loop:
+        lsr _r1
+        ror _r0
+        bcc no_add
+        txa
+        clc
+        adc _r2
+        tax
+        tya
+        adc _r3
+        tay
+no_add:
+        asl _r2
+        rol _r3
+        lda _r2
+        ora _r3
+        bne loop
+        stx _r0
+        sty _r1
+        rts
+#endif
+
 #ifdef L_mulsi3
 	.export __mulsi3
 __mulsi3:

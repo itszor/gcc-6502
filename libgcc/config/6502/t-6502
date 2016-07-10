@@ -17,6 +17,7 @@ LIB1ASMFUNCS =	\
   _lshrsi3	\
   _ashrsi3	\
   _mulqi3	\
+  _mulhi3       \
   _mulsi3	\
   _udivqi3	\
   _umodqi3	\
