@@ -661,11 +661,11 @@ typedef int CUMULATIVE_ARGS;
 /* Hard-wire the semi65x linker script for now.  */
 #undef LINK_SPEC
 #define LINK_SPEC \
-  "%{mmach=bbcb:--config %R/lib/cc65/cfg/bbcb.cfg;"		\
-  "  mmach=bbcmaster:--config %R/lib/cc65/cfg/bbcmaster.cfg;"	\
-  "  mmach=c64:--config %R/lib/cc65/cfg/c64.cfg;"		\
-  "  mmach=semi65x:--config %R/lib/cc65/cfg/semi65x.cfg;"	\
-  "  :--config %R/lib/cc65/cfg/semi65x.cfg}"
+  "%{mmach=bbcb:%{!T*:--config %R/lib/cc65/cfg/bbcb.cfg};"		\
+  "  mmach=bbcmaster:%{!T*:--config %R/lib/cc65/cfg/bbcmaster.cfg};"	\
+  "  mmach=c64:%{!T*:--config %R/lib/cc65/cfg/c64.cfg};"		\
+  "  mmach=semi65x:%{!T*:--config %R/lib/cc65/cfg/semi65x.cfg};"	\
+  "  :%{!T*:--config %R/lib/cc65/cfg/semi65x.cfg}}"
 
 #undef SYSROOT_SUFFIX_SPEC
 #define SYSROOT_SUFFIX_SPEC \
@@ -691,4 +691,4 @@ extern const char *m65x_fix_dash_l_libs (int argc, const char **argv);
     %{static:} %{L*} %(mfwrap) %(link_libgcc)  %:fix_dash_l_libs(%o) \
     %{fprofile-arcs|fprofile-generate*|coverage:-lgcov}  \
     %{!nostdlib:%{!nodefaultlibs:%(link_gcc_c_sequence)}}\
-    %{!nostdlib:%{!nostartfiles:%E}} %{T*} }}}}}}"
+    %{!nostdlib:%{!nostartfiles:%E}} %{T*:--config %*} }}}}}}"
