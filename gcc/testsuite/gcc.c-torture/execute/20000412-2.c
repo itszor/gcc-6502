@@ -1,3 +1,5 @@
+/* { dg-skip-if "needs too much stack space" { \"6502-*-*\" } { "*" } { "" } } */
+
 int f(int a,int *y)
 {
   int x = a;

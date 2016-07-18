@@ -1,3 +1,5 @@
+/* { dg-skip-if "long long too short" { \"6502-*-*\" } { "*" } { "" } } */
+
 #include <limits.h>
 
 #if ULONG_LONG_MAX != 18446744073709551615ull && ULONG_MAX != 18446744073709551615ull
