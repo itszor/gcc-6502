@@ -7,6 +7,7 @@ LIB1ASMFUNCS =	\
   _fixunssfdi	\
   _cmpsi2	\
   _negsi2	\
+  _neghi2       \
   _ashlqi3	\
   _lshrqi3	\
   _ashrqi3	\
@@ -23,6 +24,8 @@ LIB1ASMFUNCS =	\
   _umodqi3	\
   _udivhi3      \
   _umodhi3      \
+  _divhi3       \
+  _modhi3       \
   _udivsi3	\
   _umodsi3	\
   _divsi3	\
