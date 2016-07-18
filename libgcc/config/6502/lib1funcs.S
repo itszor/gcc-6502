@@ -88,6 +88,19 @@ less:
 	rts
 #endif
 
+#ifdef L_neghi2
+        .export __neghi2
+__neghi2:
+        lda #0
+        sec
+        sbc _r0
+        sta _r0
+        lda #0
+        sbc _r1
+        sta _r1
+        rts
+#endif
+
 #ifdef L_negsi2
 	.export __negsi2
 __negsi2:
@@ -482,6 +495,72 @@ __umodhi3:
         sta _r0
         lda _r7
         sta _r1
+        rts
+#endif
+
+#ifdef L_divhi3
+        .import __udivhi3
+        .import __neghi2
+        .export __divhi3
+__divhi3:
+        lda _r1
+        eor _r3
+        pha
+
+        lda _r1
+        bpl a_positive
+        jsr __neghi2
+a_positive:
+
+        lda _r3
+        bpl b_positive
+        lda #0
+        sec
+        sbc _r2
+        sta _r2
+        lda #0
+        sbc _r3
+        sta _r3
+b_positive:
+
+        jsr __udivhi3
+
+        pla
+        bpl res_positive
+        ; tailcall
+        jmp __neghi2
+res_positive:
+
+        rts
+#endif
+
+#ifdef L_modhi3
+        .import __umodhi3
+        .import __neghi2
+        .export __modhi3
+__modhi3:
+        lda _r1
+        pha
+        
+        bpl numerator_positive
+        jsr __neghi2
+numerator_positive:
+        lda _r3
+        bpl denominator_positive
+        lda #0
+        sec
+        sbc _r2
+        sta _r2
+        lda #0
+        sbc _r3
+        sta _r3
+denominator_positive:
+        jsr __umodhi3
+        pla
+        bpl result_positive
+        ; tailcall
+        jmp __neghi2
+result_positive:
         rts
 #endif
 
