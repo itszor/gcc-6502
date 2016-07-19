@@ -1036,19 +1036,31 @@ m65x_output_ascii (FILE *f, const char *str, int len)
   fputc ('\n', f);
 }
 
+static int
+m65x_reg_renumber (int regno, bool strict_p)
+{
+  if (regno >= FIRST_PSEUDO_REGISTER)
+    {
+      if (!strict_p)
+        return true;
+
+      if (!reg_renumber)
+        return false;
+
+      return reg_renumber[regno];
+    }
+
+  return regno;
+}
+
 static bool
 m65x_reg_ok_for_base_p (const_rtx x, bool strict_p)
 {
-  if (strict_p && IS_ZP_REGNUM (REGNO (x)))
-    return true;
-  else if (!strict_p
-	   && (REGNO (x) >= FIRST_PSEUDO_REGISTER
-	       || IS_ZP_REGNUM (REGNO (x))
-	       || REGNO (x) == FRAME_POINTER_REGNUM
-	       || REGNO (x) == ARG_POINTER_REGNUM))
-    return true;
-  else
-    return false;
+  int regno = m65x_reg_renumber (REGNO (x), strict_p);
+
+  return IS_ZP_REGNUM (regno)
+         || regno == FRAME_POINTER_REGNUM
+         || regno == ARG_POINTER_REGNUM;
 }
 
 static bool
@@ -1060,6 +1072,26 @@ m65x_address_register_p (const_rtx x, int strict_p)
   return false;
 }
 
+static bool
+m65x_reg_ok_for_y_index_p (const_rtx x, bool strict_p)
+{
+  return m65x_reg_renumber (REGNO (x), strict_p) == Y_REGNUM;
+}
+
+static bool
+m65x_reg_ok_for_x_index_p (const_rtx x, bool strict_p)
+{
+  return m65x_reg_renumber (REGNO (x), strict_p) == X_REGNUM;
+}
+
+static bool
+m65x_reg_ok_for_xy_index_p (const_rtx x, bool strict_p)
+{
+  int regno = m65x_reg_renumber (REGNO (x), strict_p);
+  
+  return regno == X_REGNUM || regno == Y_REGNUM;
+}
+
 bool
 m65x_indirect_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
 			      bool strict)
@@ -1069,8 +1101,7 @@ m65x_indirect_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && m65x_reg_ok_for_y_index_p (XEXP (XEXP (x, 0), 0), strict)
       && REG_P (XEXP (x, 1))
       && m65x_address_register_p (XEXP (x, 1), strict))
     return true;
@@ -1104,9 +1135,7 @@ m65x_absolute_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM
-	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && m65x_reg_ok_for_xy_index_p (XEXP (XEXP (x, 0), 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
 
@@ -1122,8 +1151,7 @@ m65x_absolute_x_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
+      && m65x_reg_ok_for_x_index_p (XEXP (XEXP (x, 0), 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -1139,8 +1167,7 @@ m65x_absolute_y_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && m65x_reg_ok_for_y_index_p (XEXP (XEXP (x, 0), 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -1154,8 +1181,7 @@ m65x_zeropage_x_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == QImode
       && REG_P (XEXP (x, 0))
-      && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (x, 0)) == X_REGNUM)
+      && m65x_reg_ok_for_x_index_p (XEXP (x, 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -1169,8 +1195,7 @@ m65x_zeropage_y_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == QImode
       && REG_P (XEXP (x, 0))
-      && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
-	  || REGNO (XEXP (x, 0)) == Y_REGNUM)
+      && m65x_reg_ok_for_y_index_p (XEXP (x, 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -1249,16 +1274,12 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
         if (CONSTANT_ADDRESS_P (x))
 	  legit = true;
 	/* zp,x and zp,y addressing modes, starting at zero.  */
-	else if (REG_P (x)
-		 && ((!strict && REGNO (x) >= FIRST_PSEUDO_REGISTER)
-		     || REGNO (x) == X_REGNUM || REGNO (x) == Y_REGNUM))
+	else if (REG_P (x) && m65x_reg_ok_for_xy_index_p (x, strict))
 	  legit = true;
 	/* zp,x and zp,y addressing modes.  */
 	else if (GET_CODE (x) == PLUS
 		 && REG_P (XEXP (x, 0))
-		 && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
-		     || REGNO (XEXP (x, 0)) == X_REGNUM
-		     || REGNO (XEXP (x, 0)) == Y_REGNUM)
+		 && m65x_reg_ok_for_xy_index_p (XEXP (x, 0), strict)
 		 && CONSTANT_P (XEXP (x, 1)))
 	  legit = true;
       }
@@ -1813,7 +1834,7 @@ m65x_lra_p (void)
 static bool
 m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 {
-  bool strict = reload_in_progress || lra_in_progress || reload_completed;
+  bool strict = false; // reload_in_progress || lra_in_progress || reload_completed;
   
   if (MEM_P (operands[0]))
     {

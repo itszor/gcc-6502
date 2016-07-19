@@ -103,27 +103,27 @@
 (define_constraint "Uo"
   "An indirect offset mem."
   (and (match_code "mem")
-       (match_test "m65x_indirect_offset_addr_p (mode, XEXP (op, 0), false)")))
+       (match_test "m65x_indirect_offset_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "Uy"
   "An indirect indexed mem."
   (and (match_code "mem")
-       (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), false)")))
+       (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "Uj"
   "An absolute indexed mem."
   (and (match_code "mem")
-       (match_test "m65x_absolute_indexed_addr_p (mode, XEXP (op, 0), false)")))
+       (match_test "m65x_absolute_indexed_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "UX"
   "An absolute,X mem."
   (and (match_code "mem")
-       (match_test "m65x_absolute_x_addr_p (mode, XEXP (op, 0), false)")))
+       (match_test "m65x_absolute_x_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "UY"
   "An absolute,Y mem."
   (and (match_code "mem")
-       (match_test "m65x_absolute_y_addr_p (mode, XEXP (op, 0), false)")))
+       (match_test "m65x_absolute_y_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_memory_constraint "Ur"
   "An indirect mem."
@@ -134,17 +134,17 @@
   "A zero page,X mem."
   (and (match_code "mem")
        (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
-		    && m65x_zeropage_x_addr_p (mode, XEXP (op, 0), false)")))
+		    && m65x_zeropage_x_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "ZY"
   "A zero page,Y mem."
   (and (match_code "mem")
        (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
-		    && m65x_zeropage_y_addr_p (mode, XEXP (op, 0), false)")))
+		    && m65x_zeropage_y_addr_p (mode, XEXP (op, 0), true)")))
 
 (define_constraint "Zj"
   "A zero page,[xy] mem."
   (and (match_code "mem")
        (match_test "MEM_ADDR_SPACE (op) == ADDR_SPACE_ZP
 		    && m65x_zeropage_indexed_addr_p (mode, XEXP (op, 0),
-						     false)")))
+						     true)")))
