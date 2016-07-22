@@ -4,6 +4,8 @@
 #include "tm.h"
 #include "rtl.h"
 #include "tree.h"
+#include "stor-layout.h"
+#include "calls.h"
 #include "obstack.h"
 #include "regs.h"
 #include "hard-reg-set.h"
@@ -30,7 +32,7 @@
 #include "df.h"
 
 #undef DEBUG_LEGIT_RELOAD
-#undef DEBUG_SECONDARY_RELOAD
+#define DEBUG_SECONDARY_RELOAD
 #undef DEBUG_ADDRESS
 
 static void
@@ -156,41 +158,80 @@ m65x_print_operand_address (FILE *stream, rtx x)
 }
 
 void
-m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest)
+m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 {
-  const char *fmt;
-
-  switch (mode)
+  if (synth)
     {
-    case CCmode:
-      /* These are used for unsigned comparisons.  */
-      switch (GET_CODE (cond))
+      const char *br;
+
+      switch (mode)
         {
-	case EQ: fmt = "beq %0"; break;
-	case NE: fmt = "bne %0"; break;
-	case LTU: fmt = "bcc %0"; break;
-	case GEU: fmt = "bcs %0"; break;
-	default: gcc_unreachable ();
+	case CCmode:
+	  switch (GET_CODE (cond))
+	    {
+	    case EQ: br = "bne :+"; break;
+	    case NE: br = "beq :+"; break;
+	    case LTU: br = "bcs :+"; break;
+	    case GEU: br = "bcc :+"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+	
+	case CC_NVmode:
+	  switch (GET_CODE (cond))
+	    {
+	    case EQ: br = "bvs :+"; break;
+	    case NE: br = "bvc :+"; break;
+	    case GE: br = "bmi :+"; break;
+	    case LT: br = "bpl :+"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+	
+	default:
+	  gcc_unreachable ();
 	}
-      break;
 
-    case CC_NVmode:
-      /* These are used to synthesize signed comparisons.  */
-      switch (GET_CODE (cond))
-	{
-	case EQ: fmt = "bvc %0"; break;
-	case NE: fmt = "bvs %0"; break;
-	case GE: fmt = "bpl %0"; break;
-	case LT: fmt = "bmi %0"; break;
-	default: gcc_unreachable ();
-	}
-      break;
-
-    default:
-      gcc_unreachable ();
+      output_asm_insn (br, &dest);
+      output_asm_insn ("jmp %0", &dest);
+      output_asm_insn (":", &dest);
     }
-  
-  output_asm_insn (fmt, &dest);
+  else
+    {
+      const char *fmt;
+
+      switch (mode)
+	{
+	case CCmode:
+	  /* These are used for unsigned comparisons.  */
+	  switch (GET_CODE (cond))
+            {
+	    case EQ: fmt = "beq %0"; break;
+	    case NE: fmt = "bne %0"; break;
+	    case LTU: fmt = "bcc %0"; break;
+	    case GEU: fmt = "bcs %0"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+
+	case CC_NVmode:
+	  /* These are used to synthesize signed comparisons.  */
+	  switch (GET_CODE (cond))
+	    {
+	    case EQ: fmt = "bvc %0"; break;
+	    case NE: fmt = "bvs %0"; break;
+	    case GE: fmt = "bpl %0"; break;
+	    case LT: fmt = "bmi %0"; break;
+	    default: gcc_unreachable ();
+	    }
+	  break;
+
+	default:
+	  gcc_unreachable ();
+	}
+
+      output_asm_insn (fmt, &dest);
+    }
 }
 
 
@@ -457,6 +498,20 @@ m65x_address_cost (rtx address, enum machine_mode mode, addr_space_t as,
     return 2;
   else
     return 8;
+}
+
+static int
+m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
+			 reg_class_t to)
+{
+  /*if (mode == QImode && (HARD_REG_CLASS_P (to) || HARD_REG_CLASS_P (from)))
+    return 2;
+  else if (mode == HImode && HARDISH_REG_CLASS_P (to))
+    return 2;
+  else if (ZP_REG_CLASS_P (from) && ZP_REG_CLASS_P (to))
+    return 6;*/
+
+  return 4;
 }
 
 static HOST_WIDE_INT
@@ -735,20 +790,15 @@ base_plus_const_byte_offset_mem (enum machine_mode mode, rtx x)
       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
     return true;
   
-  if (0 && GET_CODE (x) == LO_SUM
-      && (REG_P (XEXP (x, 0)) /*|| GET_CODE (XEXP (x, 0)) == SUBREG*/)
-      && REGNO_OK_FOR_BASE_P (true_regnum (XEXP (x, 0))))
+  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0)))
     {
-      if (GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
-          && REG_P (XEXP (XEXP (x, 1), 0))
-	  && true_regnum (XEXP (XEXP (x, 1), 0)) == Y_REGNUM)
+      if (CONST_INT_P (XEXP (x, 1))
+          && INTVAL (XEXP (x, 1)) >= 0
+	  && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
 	return true;
 
-      if (GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
-	  && CONST_INT_P (XEXP (XEXP (x, 1), 0))
-          && INTVAL (XEXP (XEXP (x, 1), 0)) >= 0
-	  && (INTVAL (XEXP (XEXP (x, 1), 0)) + modesize - 1) < 256)
-	return true;
+      if (REG_P (XEXP (x, 1)))
+        return true;
     }
 
   return false;
@@ -772,19 +822,19 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     {
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
-	  if (reload_class == HARD_ACCUM_REG)
+	  if (reload_class == HARD_ACCUM_REG || reload_class == WORD_ACCUM_REGS)
 	    return NO_REGS;
 	  else
 	    return HARD_ACCUM_REG;
 	}
-      else if (REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
+      /*else if (REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
         {
 	  if (reg_classes_intersect_p (reload_class, GENERAL_REGS))
 	    {
 	      sri->icode = CODE_FOR_reload_inoutqi_zp;
 	      return NO_REGS;
 	    }
-	}
+	}*/
 #ifdef DEBUG_SECONDARY_RELOAD
       else
         {
@@ -795,7 +845,14 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     }
   else if (reload_mode == HImode)
     {
-      if (in_p && REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
+      if (base_plus_const_byte_offset_mem (HImode, x))
+        {
+	  if (reload_class == WORD_ACCUM_REGS)
+	    return NO_REGS;
+	  else
+	    return WORD_ACCUM_REGS;
+	}
+      else if (in_p && REG_P (x) && IS_ZP_REGNUM (REGNO (x)))
 	sri->icode = CODE_FOR_reload_inhi_indexreg;
     }
 
@@ -806,7 +863,7 @@ static bool
 m65x_lra_p (void)
 {
   /* Reload sux!  */
-  return true;
+  return m65x_lra_flag;
 }
 
 bool
@@ -839,14 +896,16 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 	return (register_operand (operands[1], mode)
 		|| immediate_operand (operands[1], mode));
       else
-        return accumulator_operand (operands[1], mode);
+        return (mode == QImode && hard_reg_operand (operands[1], mode))
+		|| (mode != QImode && accumulator_operand (operands[1], mode));
     }
   else if (MEM_P (operands[1]))
     {
       if (CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
 	return register_operand (operands[0], mode);
       else
-        return accumulator_operand (operands[0], mode);
+        return (mode == QImode && hard_reg_operand (operands[0], mode))
+	       || (mode != QImode && accumulator_operand (operands[0], mode));
     }
   else
     return (accumulator_operand (operands[0], mode)
@@ -921,7 +980,7 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 		   gen_rtx_LABEL_REF (Pmode, dest), pc_rtx));
   rtx jmp_insn = emit_jump_insn (branch);
   if (prob != -1)
-    add_reg_note (jmp_insn, REG_BR_PROB, GEN_INT (prob));
+    add_int_reg_note (jmp_insn, REG_BR_PROB, prob);
 }
 
 void
@@ -931,6 +990,9 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
   rtx scratch;
   rtx new_label;
   rtx nvflags = gen_rtx_REG (CC_NVmode, CC_REGNUM);
+
+  if (CONSTANT_P (op0))
+    op0 = force_reg (QImode, op0);
 
   switch (cond)
     {
@@ -1137,6 +1199,9 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 
 #undef TARGET_ADDRESS_COST
 #define TARGET_ADDRESS_COST m65x_address_cost
+
+#undef TARGET_REGISTER_MOVE_COST
+#define TARGET_REGISTER_MOVE_COST m65x_register_move_cost
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
