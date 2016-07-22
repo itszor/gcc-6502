@@ -5184,6 +5184,15 @@ as SH, this hook can be used to avoid excessive spilling.",
  bool, (rtx subst),
  hook_bool_rtx_false)
 
+/* This target hook allows the backend to prefer constants over
+   already-allocated hard registers during register allocation.  */
+DEFHOOK
+(prefer_constant_equiv_p,
+ "A target hook which returns @code{true} if constants are preferred over\n\
+ already-allocated hard registers during register allocation.",
+ bool, (rtx cst),
+ hook_bool_rtx_false)
+
 /* This target hook allows the backend to legitimize base plus
    displacement addressing.  */
 DEFHOOK
