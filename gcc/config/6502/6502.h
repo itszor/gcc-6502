@@ -103,8 +103,6 @@
 #define PTRDIFF_TYPE "int"
 #define SIZE_TYPE "unsigned int"
 
-#define LIBGCC2_HAS_DF_MODE 0
-
 /*****************************************************************************
  * Registers.
  *****************************************************************************/
@@ -510,7 +508,7 @@ typedef int CUMULATIVE_ARGS;
 
 /* Calling functions via a register is disastrous.  */
 
-#define NO_FUNCTION_CSE
+#define NO_FUNCTION_CSE			1
 
 /*****************************************************************************
  * Sections.

@@ -3,6 +3,15 @@
 #include "coretypes.h"
 #include "tm.h"
 #include "rtl.h"
+#include "hash-set.h"
+#include "machmode.h"
+#include "vec.h"
+#include "double-int.h"
+#include "input.h"
+#include "alias.h"
+#include "symtab.h"
+#include "wide-int.h"
+#include "inchash.h"
 #include "tree.h"
 #include "stor-layout.h"
 #include "calls.h"
@@ -10,17 +19,30 @@
 #include "regs.h"
 #include "hard-reg-set.h"
 #include "real.h"
+#include "expmed.h"
+#include "dojump.h"
+#include "explow.h"
+#include "function.h"
+#include "emit-rtl.h"
 #include "insn-config.h"
 #include "conditions.h"
 #include "output.h"
 #include "insn-attr.h"
 #include "flags.h"
 #include "reload.h"
-#include "function.h"
 #include "expr.h"
+#include "insn-codes.h"
 #include "optabs.h"
 #include "toplev.h"
 #include "recog.h"
+#include "predict.h"
+#include "dominance.h"
+#include "cfg.h"
+#include "cfgrtl.h"
+#include "cfganal.h"
+#include "cfgbuild.h"
+#include "cfgcleanup.h"
+#include "basic-block.h"
 #include "ggc.h"
 #include "except.h"
 #include "tm_p.h"
@@ -30,10 +52,12 @@
 #include "dbxout.h"
 #include "langhooks.h"
 #include "df.h"
+#include "rtl-iter.h"
 #include "varasm.h"
 #include "diagnostic.h"
 #include "tree-pass.h"
 #include "context.h"
+#include "builtins.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -44,7 +68,7 @@ gate_reconstruct_absidx (void)
 }
 
 static bool
-m65x_subreg_const (rtx *sym, rtx insn, rtx use, unsigned int subreg_byte)
+m65x_subreg_const (rtx *sym, rtx_insn *insn, rtx use, unsigned int subreg_byte)
 {
   if (GET_CODE (use) == SUBREG
       && CONSTANT_ADDRESS_P (XEXP (use, 0))
@@ -70,12 +94,10 @@ m65x_subreg_const (rtx *sym, rtx insn, rtx use, unsigned int subreg_byte)
 	}
     }
 
-  df_ref *uses;
+  df_ref this_use;
 
-  for (uses = DF_INSN_USES (insn); *uses; uses++)
+  FOR_EACH_INSN_USE (this_use, insn)
     {
-      df_ref this_use = *uses;
-
       if ((DF_REF_FLAGS (this_use) & (DF_REF_READ_WRITE | DF_REF_SUBREG))
 	   == (DF_REF_READ_WRITE | DF_REF_SUBREG))
 	continue;
@@ -141,7 +163,7 @@ rest_of_handle_reconstruct_absidx (void)
 
 	    case DF_REF_REG_MEM_LOAD:
 	    case DF_REF_REG_MEM_STORE:
-	      rtx use_insn = DF_REF_INSN (use);
+	      rtx_insn *use_insn = DF_REF_INSN (use);
 
 	      struct df_link *link = DF_REF_CHAIN (use);
 
@@ -154,7 +176,7 @@ rest_of_handle_reconstruct_absidx (void)
 
 		  if (!DF_REF_IS_ARTIFICIAL (def))
 		    {
-		      rtx def_insn = DF_REF_INSN (def);
+		      rtx_insn *def_insn = DF_REF_INSN (def);
 		      rtx set = single_set (def_insn);
 
 		      if (set && GET_CODE (SET_DEST (set)) == SUBREG)
@@ -231,14 +253,12 @@ const pass_data pass_data_reconstruct_absidx =
   RTL_PASS, /* type */
   "absidx", /* name */
   OPTGROUP_NONE, /* optinfo_flags */
-  true, /* has_gate */
-  true, /* has_execute */
   TV_NONE, /* tv_id */
   0, /* properties_required */
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | TODO_verify_rtl_sharing | 0), /* todo_flags_finish */
+  ( TODO_df_finish | 0), /* todo_flags_finish */
 };
 
 class pass_reconstruct_absidx : public rtl_opt_pass
@@ -249,8 +269,15 @@ public:
   {}
 
   /* opt_pass methods: */
-  bool gate () { return gate_reconstruct_absidx (); }
-  unsigned int execute () { return rest_of_handle_reconstruct_absidx (); }
+  virtual bool gate (function *)
+  {
+    return gate_reconstruct_absidx ();
+  }
+
+  virtual unsigned int execute (function *)
+  {
+    return rest_of_handle_reconstruct_absidx ();
+  }
 
 }; // class pass_reconstruct_absidx
 
@@ -1917,7 +1944,7 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 {
   rtx cmp = gen_rtx_fmt_ee (cond, VOIDmode, cc_reg, const0_rtx);
   rtx dest_label = gen_rtx_LABEL_REF (Pmode, dest);
-  rtx branch = gen_rtx_SET (VOIDmode, pc_rtx,
+  rtx branch = gen_rtx_SET (pc_rtx,
 		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp, dest_label, pc_rtx));
   rtx jmp_insn = emit_jump_insn (branch);
   JUMP_LABEL (jmp_insn) = dest;
@@ -1951,7 +1978,7 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
       emit_insn (gen_compareqi (op0, op1));
       cmp = gen_rtx_fmt_ee (cond, VOIDmode, cmpreg, const0_rtx);
       label_ref = gen_rtx_LABEL_REF (Pmode, dest);
-      jump_insn = emit_jump_insn (gen_rtx_SET (VOIDmode, pc_rtx,
+      jump_insn = emit_jump_insn (gen_rtx_SET (pc_rtx,
 				    gen_rtx_IF_THEN_ELSE (VOIDmode, cmp,
 							  label_ref, pc_rtx)));
       JUMP_LABEL (jump_insn) = dest;
@@ -2330,6 +2357,8 @@ m65x_scalar_mode_supported_p (enum machine_mode mode)
 {
   if (mode == SImode)
     return true;
+  else if (mode == DFmode)
+    return false;
   
   return default_scalar_mode_supported_p (mode);
 }
@@ -2963,7 +2992,7 @@ m65x_reorg (void)
 
   FOR_EACH_BB_FN (bb, cfun)
     {
-      rtx insn, curr;
+      rtx_insn *insn, *curr;
 
       COPY_REG_SET (&live, DF_LIVE_OUT (bb));
       df_simulate_initialize_backwards (bb, &live);
@@ -3034,6 +3063,15 @@ m65x_reorg (void)
 	    }
 	}
     }
+}
+
+rtx
+m65x_static_chain (const_tree fndecl, bool incoming_p)
+{
+  if (!DECL_STATIC_CHAIN (fndecl))
+    return NULL;
+
+  return default_static_chain (fndecl, incoming_p);
 }
 
 #undef TARGET_OPTION_OVERRIDE
@@ -3164,5 +3202,8 @@ m65x_reorg (void)
 
 #undef TARGET_MACHINE_DEPENDENT_REORG
 #define TARGET_MACHINE_DEPENDENT_REORG m65x_reorg
+
+#undef TARGET_STATIC_CHAIN
+#define TARGET_STATIC_CHAIN m65x_static_chain
 
 struct gcc_target targetm = TARGET_INITIALIZER;
