@@ -51,6 +51,7 @@
 #include "debug.h"
 #include "dbxout.h"
 #include "langhooks.h"
+#include "bitmap.h"
 #include "df.h"
 #include "rtl-iter.h"
 #include "varasm.h"
@@ -58,6 +59,8 @@
 #include "tree-pass.h"
 #include "context.h"
 #include "builtins.h"
+#include "regset.h"
+#include "print-rtl.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -422,7 +425,7 @@ m65x_print_operand (FILE *stream, rtx x, int code)
 	  break;
 	
 	case MEM:
-	  output_address (XEXP (x, 0));
+	  output_address (GET_MODE (x), XEXP (x, 0));
 	  break;
 	
 	case CONST_INT:
