@@ -434,7 +434,8 @@ m65x_indirect_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
       && REG_P (XEXP (x, 1))
       && m65x_address_register_p (XEXP (x, 1), strict))
     return true;
@@ -467,7 +468,8 @@ m65x_absolute_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM
+      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM
 	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
@@ -483,7 +485,8 @@ m65x_absolute_x_addr_p (enum machine_mode mode, rtx x, bool strict)
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
+      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -498,7 +501,8 @@ m65x_absolute_y_addr_p (enum machine_mode mode, rtx x, bool strict)
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
+      && ((!strict && REGNO (XEXP (XEXP (x, 0), 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (XEXP (x, 0), 0)) == Y_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -510,7 +514,9 @@ m65x_zeropage_x_addr_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == QImode
-      && REG_P (XEXP (x, 0)) && (!strict || REGNO (XEXP (x, 0)) == X_REGNUM)
+      && REG_P (XEXP (x, 0))
+      && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (x, 0)) == X_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -522,7 +528,9 @@ m65x_zeropage_y_addr_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == QImode
-      && REG_P (XEXP (x, 0)) && (!strict || REGNO (XEXP (x, 0)) == Y_REGNUM)
+      && REG_P (XEXP (x, 0))
+      && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
+	  || REGNO (XEXP (x, 0)) == Y_REGNUM)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
   
@@ -602,12 +610,14 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
 	  legit = true;
 	/* zp,x and zp,y addressing modes, starting at zero.  */
 	else if (REG_P (x)
-		 && (!strict || REGNO (x) == X_REGNUM || REGNO (x) == Y_REGNUM))
+		 && ((!strict && REGNO (x) >= FIRST_PSEUDO_REGISTER)
+		     || REGNO (x) == X_REGNUM || REGNO (x) == Y_REGNUM))
 	  legit = true;
 	/* zp,x and zp,y addressing modes.  */
 	else if (GET_CODE (x) == PLUS
 		 && REG_P (XEXP (x, 0))
-		 && (!strict || REGNO (XEXP (x, 0)) == X_REGNUM
+		 && ((!strict && REGNO (XEXP (x, 0)) >= FIRST_PSEUDO_REGISTER)
+		     || REGNO (XEXP (x, 0)) == X_REGNUM
 		     || REGNO (XEXP (x, 0)) == Y_REGNUM)
 		 && CONSTANT_P (XEXP (x, 1)))
 	  legit = true;
@@ -694,7 +704,7 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 				force_reg (QImode,
 				  gen_int_mode (INTVAL (plus1), QImode))),
 			      force_reg (Pmode, plus0));
-	  else if (0 && mode == QImode && REG_P (plus0) && REG_P (plus1))
+	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
             {
 	      /* This is great in theory, but seems to make generated code a lot
 		 worse.  */
@@ -702,25 +712,26 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 	      rtx acc = gen_reg_rtx (QImode);
 	      rtx tmp = gen_reg_rtx (HImode);
 
-	      plus0_lo = operand_subword (plus0, 0, 1, HImode);
-	      plus0_hi = operand_subword (plus0, 1, 1, HImode);
+	      if (!REG_P (plus1) && !MEM_P (plus1))
+	        plus1 = force_reg (Pmode, plus1);
+
 	      plus1_lo = operand_subword (plus1, 0, 1, HImode);
 	      plus1_hi = operand_subword (plus1, 1, 1, HImode);
 	      tmp_lo = operand_subword (tmp, 0, 1, HImode);
 	      tmp_hi = operand_subword (tmp, 1, 1, HImode);
 
-	      emit_move_insn (acc, plus0_lo);
-	      emit_move_insn (tmp_lo, acc);
+	      if (!REG_P (plus0) && !MEM_P (plus0))
+		plus0 = force_reg (Pmode, plus0);
 
-	      emit_move_insn (acc, plus0_hi);
-	      emit_insn (gen_clc ());
-	      emit_insn (gen_adcqi3_c (acc, acc, plus1_hi));
-	      emit_move_insn (tmp_hi, acc);
+	      emit_move_insn (tmp, plus0);
+	      emit_insn (gen_addqi3 (tmp_hi, tmp_hi, plus1_hi));
 
 	      x = gen_rtx_PLUS (Pmode,
 		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
 		    tmp);
 	    }
+	  else if (mode == QImode && GET_CODE (plus0) == ZERO_EXTEND)
+	    x = gen_rtx_PLUS (Pmode, plus0, force_reg (Pmode, plus1));
 	}
 	break;
 
@@ -809,12 +820,14 @@ static int
 m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 			 reg_class_t to)
 {
-  if (mode == QImode && (HARD_REG_CLASS_P (to) || HARD_REG_CLASS_P (from)))
+  /* LRA assumes that register moves of cost 2 never need reloads.  */
+  if (mode == QImode &&
+      ((HARD_REG_CLASS_P (to) && HARD_REG_CLASS_P (from))
+       || (HARD_REG_CLASS_P (to) && ZP_REG_CLASS_P (from))
+       || (ZP_REG_CLASS_P (to) && HARD_REG_CLASS_P (from))))
     return 2;
-  /*else if (mode == HImode && HARDISH_REG_CLASS_P (to))
-    return 2;*/
-  else if (ZP_REG_CLASS_P (from) && ZP_REG_CLASS_P (to))
-    return 6;
+  if (mode != QImode || (ZP_REG_CLASS_P (from) && ZP_REG_CLASS_P (to)))
+    return 8;
 
   return 4;
 }
@@ -1122,17 +1135,9 @@ m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
   HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
 
   if (modesize == 1)
-    return true;
+    return regno == 0 || regno == 4 || regno == 8 || IS_ZP_REGNUM (regno);
 
-  if (modesize <= 0)
-    return regno >= 12;
-
-  /* For the "hard" registers, force values to have the actual LSB in the hard
-     register for greater-than-byte-size modes.  */
-  if (regno < 12)
-    return false; // (regno % modesize) == 0;
-  else
-    return true;
+  return IS_ZP_REGNUM (regno);
 }
 
 /* Model the accumulator, X and Y registers as able to hold any value up to 32
@@ -1147,18 +1152,17 @@ m65x_hard_regno_nregs (int regno ATTRIBUTE_UNUSED, enum machine_mode mode)
 }
 
 static reg_class_t
-m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
+m65x_spill_class (reg_class_t klass, enum machine_mode mode)
 {
   switch (klass)
     {
-#if 0
     case HARD_ACCUM_REG:
     case HARD_X_REG:
     case HARD_Y_REG:
     case HARD_INDEX_REGS:
     case ACTUALLY_HARD_REGS:
-      return GENERAL_REGS;
-#endif
+    case GENERAL_REGS:
+      return NO_REGS;
     
     default:
       return NO_REGS;
@@ -1170,6 +1174,14 @@ m65x_preferred_reload_class (rtx x, reg_class_t klass)
 {
   /*if (klass == ACTUALLY_HARD_REGS)
     return HARD_ACCUM_REG;*/
+  switch (klass)
+    {
+    case HARD_ZP_REGS:
+      return GENERAL_REGS;
+
+    default:
+      ;
+    }
 
   return klass;
 }
@@ -1220,7 +1232,9 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     {
       fprintf (stderr, "reload-%s ", in_p ? "in" : "out");
       dump_value_slim (stderr, x, 1);
-      fprintf (stderr, " class=%s", reg_class_names[reload_class]);
+      fprintf (stderr, " class=%s mode=%s reload_mode=%s",
+	       reg_class_names[reload_class], GET_MODE_NAME (mode),
+	       GET_MODE_NAME (reload_mode));
       if (spilled_pseudo)
 	fprintf (stderr, "  (spilled to stack)\n");
       else
@@ -1230,7 +1244,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
      else a register of class RELOAD_CLASS needs to be copied to X.  */
 
-  if (reload_mode == QImode && mode == HImode)
+  if (reload_mode == QImode)
     {
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
@@ -1270,30 +1284,10 @@ m65x_lra_p (void)
   return m65x_lra_flag;
 }
 
-bool
-m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
+static bool
+m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands)
 {
   bool strict = reload_in_progress || lra_in_progress || reload_completed;
-  bool retval = false;
-//#define return retval =
-
-  if (0 && reload_in_progress)
-    {
-      if ((REG_P (operands[0]) || GET_CODE (operands[0]) == SUBREG)
-	  && true_regnum (operands[0]) == -1)
-	return false;
-
-      if ((REG_P (operands[1]) || GET_CODE (operands[1]) == SUBREG)
-	  && true_regnum (operands[1]) == -1)
-	return false;
-    }
-
-#if 0
-  fprintf (stderr, "valid mov operands? op0=\n");
-  debug_rtx (operands[0]);
-  fprintf (stderr, "op1=\n");
-  debug_rtx (operands[1]);
-#endif
   
   if (MEM_P (operands[0]))
     {
@@ -1356,10 +1350,28 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 	       && (hard_reg_operand (operands[1], mode)
 		   || rtx_equal_p (operands[1], const0_rtx)))
 	   || rtx_equal_p (operands[0], operands[1]);
-#undef return
+
+  return false;
+}
+
+bool
+m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
+{
+  int retval;
+
+#if 0
+  fprintf (stderr, "valid mov operands? op0=\n");
+  debug_rtx (operands[0]);
+  fprintf (stderr, "op1=\n");
+  debug_rtx (operands[1]);
+#endif
+  
+  retval = m65x_valid_mov_operands_1 (mode, operands);
+
 #if 0
   fprintf (stderr, "returning %s\n", retval ? "true" : "false");
 #endif
+  
   return retval;
 }
 
@@ -1925,11 +1937,11 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
   acc = gen_reg_rtx (QImode);
 
-  if ((operands[0] != operands[1]
+  if ((!rtx_equal_p (operands[0], operands[1])
        && reg_overlap_mentioned_p (operands[0], operands[1]))
-      || (operands[0] != operands[2]
+      || (!rtx_equal_p (operands[0], operands[2])
 	  && reg_overlap_mentioned_p (operands[0], operands[2]))
-      || MEM_P (operands[0]) && !incdec_operand (operands[0], mode))
+      || (MEM_P (operands[0]) && !incdec_operand (operands[0], mode)))
     dest = gen_reg_rtx (mode);
 
   /* Do subtractions of immediates as subtractions not additions with negated
@@ -2175,6 +2187,49 @@ m65x_addr_space_convert (rtx op, tree from_type, tree to_type)
     return force_reg (QImode, op);
   else
     gcc_unreachable ();
+}
+
+bool
+m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
+				    addr_space_t as, enum rtx_code outer,
+				    enum rtx_code index)
+{
+  switch (as)
+    {
+    case ADDR_SPACE_GENERIC:
+      switch (outer)
+        {
+	case MEM:
+	case ADDRESS:
+	  return IS_ZP_REGNUM (regno);
+	case PLUS:
+	  if (mode == QImode)
+	    return index == REG && IS_ZP_REGNUM (regno);
+	  else
+	    return index != REG && IS_ZP_REGNUM (regno);
+	default:
+	  gcc_unreachable ();
+	}
+
+    case ADDR_SPACE_ZP:
+      switch (outer)
+        {
+	case MEM:
+	case ADDRESS:
+	  return regno == X_REGNUM || regno == Y_REGNUM;
+	case PLUS:
+	  return index != REG && index != MEM
+		 && (regno == X_REGNUM || regno == Y_REGNUM);
+	default:
+	  gcc_unreachable ();
+	}
+      break;
+
+    default:
+      gcc_unreachable ();
+    }
+
+  return false;
 }
 
 #undef TARGET_OPTION_OVERRIDE
