@@ -27,4 +27,13 @@
 #include "opts.h"
 #include "flags.h"
 
+static const struct default_options m65x_option_optimization_table[] =
+  {
+    { OPT_LEVELS_1_PLUS, OPT_fomit_frame_pointer, NULL, 1 },
+    { OPT_LEVELS_NONE, 0, NULL, 0 }
+  };
+
+#undef TARGET_OPTION_OPTIMIZATION_TABLE
+#define TARGET_OPTION_OPTIMIZATION_TABLE m65x_option_optimization_table
+
 struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;
