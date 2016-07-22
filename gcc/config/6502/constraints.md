@@ -90,7 +90,18 @@
 		    || GET_CODE (XEXP (op, 0)) == SYMBOL_REF
 		    || GET_CODE (XEXP (op, 0)) == LABEL_REF")))
 
-(define_memory_constraint "U"
+(define_constraint "Uc"
   "A constant mem."
   (and (match_code "mem")
        (match_test "CONSTANT_ADDRESS_P (XEXP (op, 0))")))
+
+(define_constraint "Uy"
+  "An indirect indexed mem."
+  (and (match_code "mem")
+       (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), true)")))
+
+(define_memory_constraint "Ur"
+  "An indirect mem."
+  (and (match_code "mem")
+       (match_test "REG_P (XEXP (op, 0))
+		    && REGNO_OK_FOR_BASE_P (REGNO (XEXP (op, 0)))")))

@@ -1,7 +1,7 @@
 (define_predicate "accumulator_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
+  if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -11,7 +11,7 @@
 (define_predicate "x_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
+  if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -21,7 +21,7 @@
 (define_predicate "y_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
+  if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -35,7 +35,7 @@
 (define_predicate "hard_reg_operand"
   (match_code "reg,subreg")
 {
-  if (GET_CODE (op) == SUBREG && SUBREG_BYTE (op) == 0)
+  if (GET_CODE (op) == SUBREG)
     op = SUBREG_REG (op);
   
   return REG_P (op)
@@ -63,8 +63,8 @@
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
   	 || IS_ZP_REGNUM (regno)
-	 /*|| regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM*/
+	 || regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
@@ -91,8 +91,8 @@
 	 || regno == X_REGNUM
 	 || regno == Y_REGNUM
   	 || IS_ZP_REGNUM (regno)
-	 /*|| regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM*/
+	 || regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 
@@ -217,7 +217,7 @@
   (match_code "eq,ne,lt,ge"))
 
 (define_predicate "compareqi_src_operand"
-  (match_code "reg,const_int,mem,label_ref,const")
+  (match_code "reg,subreg,const_int,mem,label_ref,const")
 {
   int regno;
   
@@ -227,8 +227,8 @@
   if (CONSTANT_P (op))
     return true;
 
-  /*if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);*/
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
   
   if (!REG_P (op))
     return false;
@@ -236,8 +236,8 @@
   regno = REGNO (op);
   
   return IS_ZP_REGNUM (regno)
-	 /*|| regno == FRAME_POINTER_REGNUM
-	 || regno == ARG_POINTER_REGNUM*/
+	 || regno == FRAME_POINTER_REGNUM
+	 || regno == ARG_POINTER_REGNUM
 	 || regno >= FIRST_PSEUDO_REGISTER;
 })
 

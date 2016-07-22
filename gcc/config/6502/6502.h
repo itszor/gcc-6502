@@ -149,12 +149,17 @@
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
   m65x_hard_regno_mode_ok ((REGNO), (MODE))
 
+#if 1
 #define MODES_TIEABLE_P(MODE1, MODE2) 1
+#else
+#define MODES_TIEABLE_P(MODE1, MODE2) \
+  (GET_MODE_SIZE (MODE1) != 1 && GET_MODE_SIZE (MODE2) != 1)
+#endif
 
 #if 0
-/* We don't need a definition of this for now.  */
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
-  (HARD_REG_CLASS_P (CLASS) && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO))
+  ((HARD_REG_CLASS_P (CLASS) || HARDISH_REG_CLASS_P (CLASS)) \
+   && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO))
 #endif
 
 /*****************************************************************************
@@ -260,6 +265,7 @@ enum reg_class
 
 #define BASE_REG_CLASS	GENERAL_REGS
 #define INDEX_REG_CLASS	WORD_Y_REGS
+#define INDEX_REG_CLASS	NO_REGS
 
 #define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))
 
