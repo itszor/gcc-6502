@@ -103,10 +103,9 @@
 (define_constraint "Uy"
   "An indirect indexed mem."
   (and (match_code "mem")
-       (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), true)")))
+       (match_test "m65x_indirect_indexed_addr_p (mode, XEXP (op, 0), false)")))
 
 (define_memory_constraint "Ur"
   "An indirect mem."
   (and (match_code "mem")
-       (match_test "REG_P (XEXP (op, 0))
-		    && REGNO_OK_FOR_BASE_P (REGNO (XEXP (op, 0)))")))
+       (match_test "REG_P (XEXP (op, 0))")))
