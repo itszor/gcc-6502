@@ -69,13 +69,7 @@
 
 (define_predicate "mov_src_operand"
   (ior (match_operand 0 "general_operand")
-       (match_operand 0 "sym_const_operand"))
-{
-  /*fprintf (stderr, "mov_src_operand:");
-  dump_value_slim (stderr, op, 0);
-  fprintf (stderr, "\n");*/
-  return true;
-})
+       (match_operand 0 "sym_const_operand")))
 
 (define_predicate "const_mem_operand"
   (and (match_code "mem")
