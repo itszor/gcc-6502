@@ -11,6 +11,7 @@ extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
 extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);
 extern bool m65x_valid_mov_operands (enum machine_mode mode, rtx *operands);
 extern bool m65x_indirect_indexed_addr_p (enum machine_mode, rtx, bool);
+extern bool m65x_indirect_offset_addr_p (enum machine_mode, rtx, bool);
 extern bool m65x_legitimate_address_p (enum machine_mode mode, rtx, bool);
 extern rtx m65x_adjust_address (rtx, enum machine_mode, HOST_WIDE_INT);
 extern rtx m65x_legitimize_reload_address (rtx *, enum machine_mode, int, int,
@@ -24,5 +25,7 @@ extern HOST_WIDE_INT m65x_elimination_offset (int from, int to);
 
 extern void m65x_expand_prologue (void);
 extern void m65x_expand_epilogue (void);
+
+extern bool m65x_peephole_find_temp_regs (int, int, ...);
 
 #endif
