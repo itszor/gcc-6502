@@ -58,21 +58,22 @@
   return true;
 })
 
-(define_predicate "mov_src_operand"
-  (match_code "reg,subreg,const_int,mem,label_ref,symbol_ref,const")
+(define_predicate "sym_const_operand"
+  (match_code "subreg,label_ref,symbol_ref,plus,const")
 {
-  if (memory_operand (op, mode))
-    return true;
+  if (GET_CODE (op) == PLUS || GET_CODE (op) == SUBREG)
+    return sym_const_operand (XEXP (op, 0), mode);
+  
+  return true;
+})
 
-  if (CONSTANT_P (op))
-    return true;
-
-  if (GET_CODE (op) == SUBREG)
-    op = SUBREG_REG (op);
-
-  if (!REG_P (op))
-    return false;
-
+(define_predicate "mov_src_operand"
+  (ior (match_operand 0 "general_operand")
+       (match_operand 0 "sym_const_operand"))
+{
+  /*fprintf (stderr, "mov_src_operand:");
+  dump_value_slim (stderr, op, 0);
+  fprintf (stderr, "\n");*/
   return true;
 })
 
@@ -236,15 +237,6 @@
 
 (define_predicate "symlab_ref_operand"
   (match_code "label_ref,symbol_ref"))
-
-(define_predicate "sym_const_operand"
-  (match_code "label_ref,symbol_ref,plus,const")
-{
-  if (GET_CODE (op) == PLUS)
-    return sym_const_operand (XEXP (op, 0), mode);
-  
-  return true;
-})
 
 (define_predicate "zp_reg_or_imm_operand"
   (ior (match_operand 0 "immediate_operand")
