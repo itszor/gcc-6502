@@ -510,7 +510,8 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
       fprintf (stderr, "%s address (strict: %s, %s):\n",
 	       legit ? "legitimate" : "illegitimate", strict ? "yes" : "no",
 	       reload_in_progress ? "reload in progress"
-	       : reload_completed ? "reload completed" : "before reload");
+	       : lra_in_progress ? "lra in progress" : reload_completed
+	       ? "reload completed" : "before reload");
       debug_rtx (x);
     }
 
@@ -557,29 +558,33 @@ m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 			    force_reg (QImode,
 				       gen_int_mode (INTVAL (plus1), QImode))),
 			  force_reg (Pmode, plus0));
-#if 0
-      else if (REG_P (plus0) && REG_P (plus1))
+      else if (0 && mode == QImode && REG_P (plus0) && REG_P (plus1))
         {
-	  rtx temp = gen_reg_rtx (Pmode), par;
-	  par = gen_rtx_PARALLEL (VOIDmode, rtvec_alloc (4));
-	  XVECEXP (par, 0, 0) = gen_rtx_SET (VOIDmode, temp,
-				  gen_rtx_PLUS (Pmode,
-				    gen_rtx_AND (Pmode, plus1,
-						 gen_int_mode (0xff00, Pmode)),
-				    plus0));
-	  XVECEXP (par, 0, 1) = gen_rtx_CLOBBER (VOIDmode,
-				  gen_rtx_REG (CC_Cmode, CARRY_REGNUM));
-	  XVECEXP (par, 0, 2) = gen_rtx_CLOBBER (VOIDmode,
-				  gen_rtx_REG (CC_NZmode, NZ_REGNUM));
-	  XVECEXP (par, 0, 3) = gen_rtx_CLOBBER (VOIDmode,
-				  gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM));
-	  emit_insn (par);
+	  /* This is great in theory, but seems to make generated code a lot
+	     worse.  */
+	  rtx plus1_lo, plus1_hi, tmp_lo, tmp_hi, plus0_lo, plus0_hi;
+	  rtx acc = gen_reg_rtx (QImode);
+	  rtx tmp = gen_reg_rtx (HImode);
+
+	  plus0_lo = operand_subword (plus0, 0, 1, HImode);
+	  plus0_hi = operand_subword (plus0, 1, 1, HImode);
+	  plus1_lo = operand_subword (plus1, 0, 1, HImode);
+	  plus1_hi = operand_subword (plus1, 1, 1, HImode);
+	  tmp_lo = operand_subword (tmp, 0, 1, HImode);
+	  tmp_hi = operand_subword (tmp, 1, 1, HImode);
+
+	  emit_move_insn (acc, plus0_lo);
+	  emit_move_insn (tmp_lo, acc);
+
+	  emit_move_insn (acc, plus0_hi);
+	  emit_insn (gen_clc ());
+	  emit_insn (gen_adcqi3_c (acc, acc, plus1_hi));
+	  emit_move_insn (tmp_hi, acc);
+	  
 	  x = gen_rtx_PLUS (Pmode,
-		gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode,
-					      gen_lowpart (QImode, plus1))),
-		temp);
+		gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
+		tmp);
 	}
-#endif
     }
   
   if (TARGET_DEBUG_LEGITIMIZE_ADDR)
@@ -1073,7 +1078,10 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[0], 0), strict))
-	    return register_operand (operands[1], mode);
+	    return (!reload_completed
+		    && register_operand (operands[1], mode))
+		   || (reload_completed
+		       && accumulator_operand (operands[1], mode));
 	  else
 	    return hard_reg_operand (operands[1], mode)
 		   || immediate_operand (operands[1], mode);
@@ -1091,10 +1099,12 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
 					    strict)
 	      || m65x_address_register_p (XEXP (operands[1], 0), strict))
-	    return register_operand (operands[0], mode);
+	    return (!reload_completed
+		    && register_operand (operands[0], mode))
+		   || (reload_completed
+		       && accumulator_operand (operands[0], mode));
 	  else
-	    return hard_reg_operand (operands[0], mode)
-		   || immediate_operand (operands[0], mode);
+	    return hard_reg_operand (operands[0], mode);
 	}
     }
   else
@@ -1109,7 +1119,8 @@ m65x_valid_mov_operands (enum machine_mode mode, rtx *operands)
 		   || hard_reg_operand (operands[1], mode)))
 	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
-		   || rtx_equal_p (operands[1], const0_rtx)));
+		   || rtx_equal_p (operands[1], const0_rtx)))
+	   || rtx_equal_p (operands[0], operands[1]);
 #undef return
 #if 0
   fprintf (stderr, "returning %s\n", retval ? "true" : "false");
