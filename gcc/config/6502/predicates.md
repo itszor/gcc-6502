@@ -114,6 +114,23 @@
   return IS_ZP_REGNUM (regno) || regno >= FIRST_PSEUDO_REGISTER;
 })
 
+(define_predicate "ptr_reg_operand"
+  (match_code "reg,subreg")
+{
+  int regno;
+  
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+  
+  if (!REG_P (op))
+    return false;
+  
+  regno = REGNO (op);
+  
+  return IS_ZP_REGNUM (regno) || regno == ARG_POINTER_REGNUM
+	 || regno == FRAME_POINTER_REGNUM || regno >= FIRST_PSEUDO_REGISTER;
+})
+
 (define_predicate "reload_zpreg_operand"
   (match_code "reg,subreg")
 {
