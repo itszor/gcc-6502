@@ -120,6 +120,7 @@ m65x_print_operand_address (FILE *stream, rtx x)
 {
   switch (GET_CODE (x))
     {
+#if 0
     case PLUS:
       if (GET_MODE (x) == HImode
 	  && REG_P (XEXP (x, 0)) && IS_ZP_REGNUM (REGNO (XEXP (x, 0)))
@@ -131,17 +132,18 @@ m65x_print_operand_address (FILE *stream, rtx x)
       else
         output_operand_lossage ("invalid PLUS operand");
       break;
+#endif
 
+#if 1
     case LO_SUM:
       if (GET_MODE (x) == HImode
           && REG_P (XEXP (x, 0)) && IS_ZP_REGNUM (REGNO (XEXP (x, 0)))
-	  && GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
-	  && REG_P (XEXP (XEXP (x, 1), 0))
-	  && REGNO (XEXP (XEXP (x, 1), 0)) == Y_REGNUM)
+	  && REG_P (XEXP (x, 1)) && REGNO (XEXP (x, 1)) == Y_REGNUM)
 	asm_fprintf (stream, "(%r),y", REGNO (XEXP (x, 0)));
       else
         output_operand_lossage ("invalid LO_SUM operand");
       break;
+#endif
 
     case REG:
       asm_fprintf (stream, "(%r)", REGNO (x));
@@ -255,7 +257,11 @@ m65x_reg_ok_for_base_p (const_rtx x, bool strict_p)
 	   && (REGNO (x) >= FIRST_PSEUDO_REGISTER
 	       || IS_ZP_REGNUM (REGNO (x))
 	       || REGNO (x) == FRAME_POINTER_REGNUM
-	       || REGNO (x) == ARG_POINTER_REGNUM))
+	       || REGNO (x) == ARG_POINTER_REGNUM
+	       || reg_mentioned_p (virtual_incoming_args_rtx, x)
+	       || reg_mentioned_p (virtual_outgoing_args_rtx, x)
+	       || reg_mentioned_p (virtual_stack_dynamic_rtx, x)
+	       || reg_mentioned_p (virtual_stack_vars_rtx, x)))
     return true;
   else
     return false;
@@ -264,21 +270,23 @@ m65x_reg_ok_for_base_p (const_rtx x, bool strict_p)
 static bool
 m65x_address_register_p (const_rtx x, int strict_p)
 {
-  if ((REG_P (x) && m65x_reg_ok_for_base_p (x, strict_p))
-      /*|| (GET_CODE (x) == SUBREG && REG_P (XEXP (x, 0))
-	  && m65x_reg_ok_for_base_p (XEXP (x, 0), strict_p))*/)
+  if (REG_P (x) && m65x_reg_ok_for_base_p (x, strict_p))
     return true;
   
   return false;
 }
 
 bool
-m65x_indirect_indexed_addr_p (rtx x, bool strict)
+m65x_indirect_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 {
   if (GET_CODE (x) == LO_SUM && m65x_address_register_p (XEXP (x, 0), strict)
-      && GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
-      && REG_P (XEXP (XEXP (x, 1), 0))
-      && (!strict || REGNO (XEXP (XEXP (x, 1), 0)) == Y_REGNUM))
+      && ((mode == QImode && REG_P (XEXP (x, 1))
+	   && (!strict || REGNO (XEXP (x, 1)) == Y_REGNUM))
+	  || (mode != QImode
+	      && ((REG_P (XEXP (x, 1))
+		   && (!strict || REGNO (XEXP (x, 1)) == Y_REGNUM))
+		  || (CONST_INT_P (XEXP (x, 1)) && INTVAL (XEXP (x, 1)) >= 0
+		      && INTVAL (XEXP (x, 1)) < 256)))))
     return true;
 
   return false;
@@ -297,23 +305,29 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict)
   if (CONSTANT_ADDRESS_P (x))
     return true;
 
-  /*if (m65x_indirect_indexed_addr_p (x, strict))
-    return true;*/
-
+  /* Plain (mem (reg)) can't be disallowed, else the middle end gets very
+     upset.  */
   if (m65x_address_register_p (x, strict))
     return true;
 
-  if (GET_CODE (x) == PLUS)
-    {
-      HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  if (m65x_indirect_indexed_addr_p (mode, x, strict))
+    return true;
 
-      if (m65x_address_register_p (XEXP (x, 0), strict)
-	  && ((!strict && CONST_INT_P (XEXP (x, 1))
-	       && INTVAL (XEXP (x, 1)) >= 0
-	       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
-	      || (strict && REG_P (XEXP (x, 1))
-		  && REGNO (XEXP (x, 1)) == Y_REGNUM)))
+  if (0 && !strict)
+    {
+      if (m65x_address_register_p (x, strict))
 	return true;
+
+      if (GET_CODE (x) == PLUS)
+	{
+	  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+
+	  if (m65x_address_register_p (XEXP (x, 0), strict)
+	      && CONST_INT_P (XEXP (x, 1))
+	      && INTVAL (XEXP (x, 1)) >= 0
+	      && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+	    return true;
+	}
     }
 
   return false;
@@ -330,28 +344,123 @@ m65x_mode_dependent_address (const_rtx x,
 }
 
 static rtx
-m65x_legitimize_address (rtx x, rtx oldx,
-			 enum machine_mode mode ATTRIBUTE_UNUSED)
+m65x_legitimize_address (rtx x, rtx oldx, enum machine_mode mode)
 {
-  if (REG_P (oldx))
-    x = gen_rtx_LO_SUM (Pmode, oldx, gen_rtx_ZERO_EXTEND (Pmode, GEN_INT (0)));
-  
+  if (mode == QImode)
+    {
+      x = oldx;
+
+      if (REG_P (x))
+	x = gen_rtx_LO_SUM (Pmode, x, force_reg (HImode, GEN_INT (0)));
+      else if (GET_CODE (x) == PLUS && CONST_INT_P (XEXP (x, 1))
+	       && INTVAL (XEXP (x, 1)) >= 0 && INTVAL (XEXP (x, 1)) < 256)
+	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, XEXP (x, 0)),
+			    force_reg (HImode, XEXP (x, 1)));
+      else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
+	       && REG_P (XEXP (x, 1)))
+	{
+	  rtx tmp = gen_reg_rtx (Pmode);
+	  emit_insn (gen_rtx_SET (VOIDmode, tmp, gen_rtx_PLUS (Pmode, 
+				    gen_rtx_HIGH (Pmode, XEXP (x, 1)),
+				    XEXP (x, 0))));
+	  return gen_rtx_LO_SUM (Pmode, tmp, XEXP (x, 1));
+	}
+      else if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
+	       && REG_P (XEXP (x, 1)))
+	return x;
+      else
+	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, x),
+			    force_reg (HImode, GEN_INT (0)));
+    }
+  else
+    {
+      int modesize = GET_MODE_SIZE (mode);
+      
+      if (REG_P (x))
+        x = gen_rtx_LO_SUM (Pmode, x, GEN_INT (0));
+      else if (GET_CODE (x) == PLUS && CONST_INT_P (XEXP (x, 1))
+	       && INTVAL (XEXP (x, 1)) >= 0
+	       && (INTVAL (XEXP (x, 1)) + modesize - 1) < 256)
+	x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, XEXP (x, 0)), XEXP (x, 1));
+      else if (GET_CODE (x) == PLUS && REG_P (XEXP (x, 0))
+	       && REG_P (XEXP (x, 1)))
+	{
+	  rtx tmp = gen_reg_rtx (Pmode);
+	  emit_insn (gen_rtx_SET (VOIDmode, tmp, gen_rtx_PLUS (Pmode,
+				    gen_rtx_HIGH (Pmode, XEXP (x, 1)),
+				    XEXP (x, 0))));
+	  return gen_rtx_LO_SUM (Pmode, tmp, XEXP (x, 1));
+	}
+      else if (GET_CODE (x) == LO_SUM)
+        return x;
+      else
+        x = gen_rtx_LO_SUM (Pmode, force_reg (Pmode, x), GEN_INT (0));
+    }
+
+  fprintf (stderr, "legitimized address:\n");
+  debug_rtx (x);
+
   return x;
 }
 
 /* This might not be useful.  */
 
 static rtx
-m65x_delegitimize_address (rtx x)
+m65x_delegitimize_address (rtx orig_x)
 {
-  if (GET_CODE (x) == LO_SUM
-      && GET_CODE (XEXP (x, 1)) == ZERO_EXTEND
-      && CONST_INT_P (XEXP (XEXP (x, 1), 0))
-      && INTVAL (XEXP (XEXP (x, 1), 0)) >= 0
-      && INTVAL (XEXP (XEXP (x, 1), 0)) < 256)
-    x = gen_rtx_PLUS (GET_MODE (x), XEXP (x, 0), XEXP (XEXP (x, 1), 0));
+  rtx x = delegitimize_mem_from_attrs (orig_x);
+  
+  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
+      && CONST_INT_P (XEXP (x, 1)))
+    x = gen_rtx_PLUS (GET_MODE (x), XEXP (x, 0), XEXP (x, 1));
+
+  fprintf (stderr, "delegitimized:\n");
+  debug_rtx (orig_x);
+  fprintf (stderr, "to:\n");
+  debug_rtx (x);
 
   return x;
+}
+
+rtx
+m65x_adjust_address (rtx mem, enum machine_mode mode, HOST_WIDE_INT adj)
+{
+  rtx x;
+  
+  gcc_assert (MEM_P (mem));
+  
+  x = XEXP (mem, 0);
+  
+  if (GET_CODE (x) == LO_SUM && REG_P (XEXP (x, 0))
+      && CONST_INT_P (XEXP (x, 1)))
+    {
+      HOST_WIDE_INT offset = INTVAL (XEXP (x, 1));
+      offset += adj;
+      if (offset >= 0 && offset < 256)
+	return change_address (mem, mode, gen_rtx_LO_SUM (Pmode, XEXP (x, 0),
+			       GEN_INT (offset)));
+    }
+  
+  return adjust_address (x, mode, adj);
+}
+
+static int
+m65x_address_cost (rtx address, enum machine_mode mode, addr_space_t as,
+		   bool speed)
+{
+  if (GET_CODE (address) == PLUS
+      && REG_P (XEXP (address, 0))
+      && CONST_INT_P (XEXP (address, 1))
+      && INTVAL (XEXP (address, 1)) >= 0
+      && INTVAL (XEXP (address, 2)) < 256)
+    return 6;
+  else if (GET_CODE (address) == PLUS
+	   && REG_P (XEXP (address, 0)) && REG_P (XEXP (address, 1)))
+    return 4;
+  else if (CONSTANT_ADDRESS_P (address))
+    return 2;
+  else
+    return 8;
 }
 
 static HOST_WIDE_INT
@@ -579,7 +688,7 @@ m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
     }
 }
 
-static const char * __attribute__ ((used))
+const char * __attribute__ ((used))
 m65x_reg_class_name (reg_class_t c)
 {
   switch (c)
@@ -1031,6 +1140,9 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 
 #undef TARGET_LRA_P
 #define TARGET_LRA_P m65x_lra_p
+
+#undef TARGET_ADDRESS_COST
+#define TARGET_ADDRESS_COST m65x_address_cost
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
