@@ -1166,7 +1166,14 @@ record_address_regs (machine_mode mode, addr_space_t as, rtx x,
 	  record_address_regs (mode, as, arg0,
 			       ok_for_base_p_nonstrict (arg1, mode, as,
 							PLUS, REG) ? 1 : 0,
-			       PLUS, REG, scale);
+			       code, REG, scale);
+	else if (code0 == ZERO_EXTEND && code1 == REG)
+	  {
+	    rtx inner = XEXP (arg0, 0);
+	    record_address_regs (mode, as, arg1, 0, PLUS, code1, scale);
+	    record_address_regs (GET_MODE (inner), as, inner, 1, PLUS,
+				 GET_CODE (inner), scale);
+	  }
 	/* If one operand is known to be a pointer, it must be the
 	   base with the other operand the index.  Likewise if the
 	   other operand is a MULT.  */
@@ -1223,15 +1230,17 @@ record_address_regs (machine_mode mode, addr_space_t as, rtx x,
 	cost_classes_t cost_classes_ptr;
 	enum reg_class *cost_classes;
 	move_table *move_in_cost;
+	enum machine_mode regmode;
 
 	if (REGNO (x) < FIRST_PSEUDO_REGISTER)
 	  break;
 
 	regno = REGNO (x);
+	regmode = GET_MODE (x);
 	if (allocno_p)
 	  ALLOCNO_BAD_SPILL_P (ira_curr_regno_allocno_map[regno]) = true;
 	pp = COSTS (costs, COST_INDEX (regno));
-	add_cost = (ira_memory_move_cost[Pmode][rclass][1] * scale) / 2;
+	add_cost = (ira_memory_move_cost[regmode][rclass][1] * scale) / 2;
 	if (INT_MAX - add_cost < pp->mem_cost)
 	  pp->mem_cost = INT_MAX;
 	else
@@ -1239,8 +1248,8 @@ record_address_regs (machine_mode mode, addr_space_t as, rtx x,
 	cost_classes_ptr = regno_cost_classes[regno];
 	cost_classes = cost_classes_ptr->classes;
 	pp_costs = pp->cost;
-	ira_init_register_move_cost_if_necessary (Pmode);
-	move_in_cost = ira_may_move_in_cost[Pmode];
+	ira_init_register_move_cost_if_necessary (regmode);
+	move_in_cost = ira_may_move_in_cost[regmode];
 	for (k = cost_classes_ptr->num - 1; k >= 0; k--)
 	  {
 	    i = cost_classes[k];

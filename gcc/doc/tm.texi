@@ -2886,6 +2886,11 @@ machines with non orthogonal register usage for addressing, such
 as SH, this hook can be used to avoid excessive spilling.
 @end deftypefn
 
+@deftypefn {Target Hook} bool TARGET_PREFER_CONSTANT_EQUIV_P (rtx @var{cst})
+A target hook which returns @code{true} if constants are preferred over
+ already-allocated hard registers during register allocation.
+@end deftypefn
+
 @deftypefn {Target Hook} bool TARGET_LEGITIMIZE_ADDRESS_DISPLACEMENT (rtx *@var{disp}, rtx *@var{offset}, machine_mode @var{mode})
 A target hook which returns @code{true} if *@var{disp} is
 legitimezed to valid address displacement with subtracting *@var{offset}

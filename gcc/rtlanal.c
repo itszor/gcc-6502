@@ -5965,6 +5965,8 @@ binary_scale_code_p (enum rtx_code code)
 static rtx *
 get_base_term (rtx *inner)
 {
+  if (GET_MODE_SIZE (GET_MODE (*inner)) < GET_MODE_SIZE (Pmode))
+    return 0;
   if (GET_CODE (*inner) == LO_SUM)
     inner = strip_address_mutations (&XEXP (*inner, 0));
   if (REG_P (*inner)
@@ -6161,6 +6163,20 @@ decompose_normal_address (struct address_info *info)
 	  /* The only other possibilities are a base or an index.  */
 	  rtx *base_term = get_base_term (inner);
 	  rtx *index_term = get_index_term (inner);
+#ifdef DEBUGGING_HACKS
+	  fprintf (stderr, "inner:\n");
+	  debug_rtx (*inner);
+	  if (base_term)
+	    {
+	      fprintf (stderr, "base term:\n");
+	      debug_rtx (*base_term);
+	    }
+	  if (index_term)
+	    {
+	      fprintf (stderr, "index term:\n");
+	      debug_rtx (*index_term);
+	    }
+#endif
 	  gcc_assert (base_term || index_term);
 	  if (!base_term)
 	    set_address_index (info, loc, index_term);

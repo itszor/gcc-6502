@@ -1,4 +1,5 @@
 /* { dg-do assemble } */
+/* { dg-skip-if "too much code for 6502" { "6502-*-*" } { "*" } { "" } } */
 /* { dg-skip-if "too much code for avr" { "avr-*-*" } { "*" } { "" } } */
 /* { dg-skip-if "too much code for pdp11" { "pdp11-*-*" } { "*" } { "" } } */
 /* { dg-xfail-if "jump beyond 128K not supported" { xtensa*-*-* } { "-O0" } { "" } } */
