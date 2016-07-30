@@ -66,6 +66,8 @@
 
 #undef DEBUG_LEGIT_RELOAD
 
+bool sloppy_addressing = true;
+
 static bool
 gate_reconstruct_absidx (void)
 {
@@ -294,6 +296,207 @@ make_pass_reconstruct_absidx (gcc::context *ctxt)
   return new pass_reconstruct_absidx (ctxt);
 }
 
+static bool
+gate_fixup_addresses (void)
+{
+  return 1;
+}
+
+static void
+m65x_add_hipart_insn (rtx dst, rtx src1, rtx src2)
+{
+  if (CONST_INT_P (src2) && INTVAL (src2) == 0)
+    emit_move_insn (dst, src1);
+  else
+    {
+      rtx dstlo = gen_lowpart (QImode, dst);
+      rtx dsthi = gen_highpart_mode (QImode, HImode, dst);
+      rtx src1lo = gen_lowpart (QImode, src1);
+      rtx src1hi = gen_highpart_mode (QImode, HImode, src1);
+      rtx src2hi = gen_highpart_mode (QImode, HImode, src2);
+      emit_move_insn (dstlo, src1lo);
+      emit_insn (gen_addqi3 (dsthi, src1hi, src2hi));
+    }
+}
+
+static unsigned int
+rest_of_handle_fixup_addresses (void)
+{
+  basic_block bb;
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *insn, *curr;
+
+      FOR_BB_INSNS_SAFE (bb, insn, curr)
+        {
+	  int i, n;
+	  rtx_insn *replacement_seq;
+
+	  if (!INSN_P (insn)
+	      || GET_CODE (PATTERN (insn)) == CLOBBER
+	      || GET_CODE (PATTERN (insn)) == USE)
+	    continue;
+
+	  /*fprintf (stderr, "processing insn:\n");
+	  dump_insn_slim (stderr, insn);*/
+	  
+	  insn_code icode = (insn_code) recog_memoized (insn);
+	  extract_insn (insn);
+
+	  rtx *operands = &recog_data.operand[0];
+
+	  switch (icode)
+	    {
+	    case CODE_FOR_movhi_insn:
+	      {
+		start_sequence ();
+	        /* A store.  */
+		if (MEM_P (operands[0])
+		    && GET_CODE (XEXP (operands[0], 0)) == LO_SUM
+		    && REG_P (XEXP (XEXP (operands[0], 0), 0))
+		    && (CONSTANT_ADDRESS_P (XEXP (XEXP (operands[0], 0), 1))
+			|| REG_P (XEXP (XEXP (operands[0], 0), 1)))
+		    && REG_P (operands[1]))
+		  {
+		    rtx base = XEXP (XEXP (operands[0], 0), 0);
+		    rtx yreg = force_reg (QImode,
+				 gen_lowpart (QImode,
+				   XEXP (XEXP (operands[0], 0), 1)));
+		    rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+		    rtx srclo = operand_subword (operands[1], 0, 1, HImode);
+		    rtx srchi = operand_subword (operands[1], 1, 1, HImode);
+		    emit_insn (gen_m65x_storehi_indy_split (base, yreg, srclo,
+							    srchi, areg));
+		  }
+		// A load.
+		else if (REG_P (operands[0])
+		         && MEM_P (operands[1])
+			 && GET_CODE (XEXP (operands[1], 0)) == LO_SUM
+			 && REG_P (XEXP (XEXP (operands[1], 0), 0))
+			 && (CONSTANT_ADDRESS_P (XEXP (XEXP (operands[1], 0),
+						       1))
+			     || REG_P (XEXP (XEXP (operands[1], 0), 1))))
+		  {
+		    rtx base = XEXP (XEXP (operands[1], 0), 0);
+		    rtx yreg = force_reg (QImode,
+				 gen_lowpart (QImode,
+				   XEXP (XEXP (operands[1], 0), 1)));
+		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
+		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
+		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
+							   dsthi));
+		  }
+		else if (REG_P (operands[0])
+			 && MEM_P (operands[1])
+			 && REG_P (XEXP (operands[1], 0)))
+		  {
+		    rtx base = XEXP (operands[1], 0);
+		    rtx yreg = force_reg (QImode, gen_int_mode (0, QImode));
+		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
+		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
+		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
+							   dsthi));
+		  }
+		else
+		  {
+		    end_sequence ();
+		    continue;
+		  }
+		
+		replacement_seq = get_insns ();
+		end_sequence ();
+
+		emit_insn_before (replacement_seq, insn);
+		delete_insn (insn);
+	      }
+	      break;
+
+	    case CODE_FOR_addhi3_insn:
+	      {
+		start_sequence ();
+
+		if (GET_CODE (operands[1]) == HIGH)
+		  {
+		    if (CONSTANT_P (operands[2]))
+		      operands[2] = force_reg (HImode, operands[2]);
+		    m65x_add_hipart_insn (operands[0], operands[2],
+					     XEXP (operands[1], 0));
+		  }
+		else if (GET_CODE (operands[2]) == HIGH)
+		  {
+		    if (CONSTANT_P (operands[1]))
+		      operands[1] = force_reg (HImode, operands[1]);
+		    m65x_add_hipart_insn (operands[0], operands[1],
+					  XEXP (operands[2], 0));
+		  }
+		else
+		  {
+		    end_sequence ();
+		    continue;
+		  }
+		replacement_seq = get_insns ();
+		end_sequence ();
+
+		emit_insn_before (replacement_seq, insn);
+		delete_insn (insn);
+	      }
+	      break;
+
+	    default:
+	      ;
+	    }
+	}
+    }
+
+  sloppy_addressing = false;
+
+  return 0;
+}
+
+namespace {
+
+const pass_data pass_data_fixup_addresses =
+{
+  RTL_PASS, /* type */
+  "addrfix", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  0, /* todo_flags_finish */
+};
+
+class pass_fixup_addresses : public rtl_opt_pass
+{
+public:
+  pass_fixup_addresses(gcc::context *ctxt)
+    : rtl_opt_pass(pass_data_fixup_addresses, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual bool gate (function *)
+  {
+    return gate_fixup_addresses ();
+  }
+
+  virtual unsigned int execute (function *)
+  {
+    return rest_of_handle_fixup_addresses ();
+  }
+
+}; // class pass_reconstruct_absidx
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_fixup_addresses (gcc::context *ctxt)
+{
+  return new pass_fixup_addresses (ctxt);
+}
+
 static void
 m65x_option_override (void)
 {
@@ -301,13 +504,24 @@ m65x_option_override (void)
      in the IEEE754 single float format to line up with byte boundaries.  */
   REAL_MODE_FORMAT (SFmode) = &m65x_single_format;
 
-  opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
-  static struct register_pass_info reconstruct_absidx_info
-    = { pass_reconstruct_absidx, "fwprop1",
-	1, PASS_POS_INSERT_AFTER
-      };
+  /*opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
+  static struct register_pass_info reconstruct_absidx_info =
+    { pass_reconstruct_absidx, "fwprop1",
+      1, PASS_POS_INSERT_AFTER
+    };
 
-  register_pass (&reconstruct_absidx_info);
+  register_pass (&reconstruct_absidx_info);*/
+
+  opt_pass *pass_fixup_addresses = make_pass_fixup_addresses (g);
+  static struct register_pass_info fixup_addresses_info =
+    {
+      pass_fixup_addresses, "split1",
+      1, PASS_POS_INSERT_BEFORE
+    };
+
+  register_pass (&fixup_addresses_info);
+
+  sloppy_addressing = true;
 }
 
 static void
@@ -480,7 +694,13 @@ restart:
       else if (CONSTANT_ADDRESS_P (XEXP (x, 0)))
         output_addr_const (stream, x);
       else
-        output_operand_lossage ("invalid PLUS operand");
+        {
+	  /*fprintf (stderr, "plus:\n");
+	  dump_value_slim (stderr, x, 0);
+	  fprintf (stderr, "\n");
+          output_operand_lossage ("invalid PLUS operand");*/
+	  dump_value_slim (stream, x, 0);
+	}
       break;
 #endif
 
@@ -955,6 +1175,18 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
 	gcc_unreachable ();
 
     case 18:
+      return "pha"		NL
+             "lda #%1"		NL
+	     "sta %0"		NL
+	     "pla";
+
+    case 19:
+      return "pha"		NL
+             "lda %1"		NL
+	     "sta %0"		NL
+	     "pla";
+
+    case 20:
       gcc_assert (rtx_equal_p (operands[0], operands[1]));
       *clobbers_flags = false;
       return "";
@@ -1141,6 +1373,14 @@ m65x_indirect_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && m65x_address_register_p (XEXP (x, 1), strict))
     return true;
 
+  /*if (GET_CODE (x) == LO_SUM
+      && GET_MODE (x) == Pmode
+      && REG_P (XEXP (x, 0))
+      && m65x_address_register_p (XEXP (x, 0), strict)
+      && REG_P (XEXP (x, 1))
+      && m65x_reg_ok_for_y_index_p (XEXP (x, 1), strict))
+    return true;*/
+
   return false;
 }
 
@@ -1165,6 +1405,10 @@ bool
 m65x_absolute_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
 			      bool strict)
 {
+  /*fprintf (stderr, "testing absolute indexed addr: ");
+  dump_value_slim (stderr, x, 0);
+  fprintf (stderr, "\n");*/
+
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
@@ -1173,6 +1417,17 @@ m65x_absolute_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
       && m65x_reg_ok_for_xy_index_p (XEXP (XEXP (x, 0), 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
+
+#if 0
+  if (GET_CODE (x) == PLUS
+      && GET_MODE (x) == Pmode
+      && GET_CODE (XEXP (x, 0)) == SUBREG
+      && SUBREG_BYTE (XEXP (x, 0)) == 0
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && m65x_reg_ok_for_xy_index_p (XEXP (XEXP (x, 0), 0), strict)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+#endif
 
   return false;
 }
@@ -1245,6 +1500,39 @@ m65x_zeropage_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 }
 
 bool
+m65x_sloppy_address_p (machine_mode mode, rtx x, bool strict)
+{
+  gcc_assert (!strict);
+
+  if (GET_CODE (x) == LO_SUM
+      && REG_P (XEXP (x, 0))
+      && (REG_P (XEXP (x, 1))
+          || CONSTANT_ADDRESS_P (XEXP (x, 1))))
+    return true;
+
+  if (GET_CODE (x) == LO_SUM
+      && CONSTANT_ADDRESS_P (XEXP (x, 0))
+      && REG_P (XEXP (x, 1)))
+    return true;
+
+  /*if (GET_CODE (x) == LO_SUM
+      && GET_CODE (XEXP (x, 0)) == PLUS
+      && CONSTANT_ADDRESS_P (XEXP (XEXP (x, 0), 1))
+      && GET_CODE (XEXP (XEXP (x, 0), 0)) == HIGH
+      && REG_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
+      && REG_P (XEXP (x, 1))
+      && REGNO (XEXP (XEXP (XEXP (x, 0), 0), 0)) == REGNO (XEXP (x, 1)))
+    return true;*/
+
+  /*if (GET_CODE (x) == PLUS
+      && REG_P (XEXP (x, 0))
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;*/
+
+  return false;
+}
+
+bool
 m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
 			   addr_space_t as)
 {
@@ -1269,38 +1557,44 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
 	else if (m65x_address_register_p (x, strict))
 	  legit = true;
 
-	else if (mode == QImode
-		 && m65x_indirect_indexed_addr_p (mode, x, strict))
-	  legit = true;
+        else if (sloppy_addressing && m65x_sloppy_address_p (mode, x, strict))
+          legit = true;
 
-	else if ((mode == HImode || mode == SImode)
-		 && m65x_indirect_offset_addr_p (mode, x, strict))
-	  legit = true;
+	else if (!sloppy_addressing)
+	  {
+	    if ((mode == QImode || mode == HImode)
+		&& m65x_indirect_indexed_addr_p (mode, x, strict))
+	      legit = true;
 
-	else if (m65x_absolute_indexed_addr_p (mode, x, strict))
-	  legit = true;
+	    /*else if ((mode == HImode || mode == SImode)
+		     && m65x_indirect_offset_addr_p (mode, x, strict))
+	      legit = true;*/
+
+	    else if (m65x_absolute_indexed_addr_p (mode, x, strict))
+	      legit = true;
 #if 0
-	/* (zp),y addressing mode -- the inner dereference must be in the ZP
-	   named address space: (mem/gen (plus (mem/zp (const)) (yreg))).  */
-	else if (mode == QImode
-		 && GET_CODE (XEXP (x, 0)) == PLUS
-		 && MEM_P (XEXP (XEXP (x, 0), 0))
-		 && MEM_ADDR_SPACE (XEXP (XEXP (x, 0), 0)) == ADDR_SPACE_ZP
-		 && CONSTANT_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
-		 && REG_P (XEXP (XEXP (x, 0), 1))
-		 && (!strict || REGNO (XEXP (XEXP (x, 0), 1)) == Y_REGNUM))
-	  legit = true;
-	
-	/* (zp,x) addressing mode: (mem/gen (mem/zp (plus (xreg) (const)))).  */
-	else if (mode == QImode
-		 && MEM_P (x)
-		 && MEM_ADDR_SPACE (x) == ADDR_SPACE_ZP
-		 && GET_CODE (XEXP (x, 0)) == PLUS
-		 && REG_P (XEXP (XEXP (x, 0), 0))
-		 && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
-		 && CONSTANT_P (XEXP (XEXP (x, 0), 1)))
-	  legit = true;
+	    /* (zp),y addressing mode -- the inner dereference must be in the ZP
+	       named address space: (mem/gen (plus (mem/zp (const)) (yreg))).  */
+	    else if (mode == QImode
+		     && GET_CODE (XEXP (x, 0)) == PLUS
+		     && MEM_P (XEXP (XEXP (x, 0), 0))
+		     && MEM_ADDR_SPACE (XEXP (XEXP (x, 0), 0)) == ADDR_SPACE_ZP
+		     && CONSTANT_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
+		     && REG_P (XEXP (XEXP (x, 0), 1))
+		     && (!strict || REGNO (XEXP (XEXP (x, 0), 1)) == Y_REGNUM))
+	      legit = true;
+
+	    /* (zp,x) addressing mode: (mem/gen (mem/zp (plus (xreg) (const)))).  */
+	    else if (mode == QImode
+		     && MEM_P (x)
+		     && MEM_ADDR_SPACE (x) == ADDR_SPACE_ZP
+		     && GET_CODE (XEXP (x, 0)) == PLUS
+		     && REG_P (XEXP (XEXP (x, 0), 0))
+		     && (!strict || REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM)
+		     && CONSTANT_P (XEXP (XEXP (x, 0), 1)))
+	      legit = true;
 #endif
+	  }
       }
       break;
   
@@ -1377,44 +1671,52 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
       break;
 
     case HImode:
-      if (mode == QImode && REG_P (x))
+      if (sloppy_addressing)
+        {
+	  if (GET_CODE (x) == PLUS)
+	    {
+	      rtx plus0 = XEXP (x, 0);
+	      rtx plus1 = XEXP (x, 1);
+
+	      if (REG_P (plus0) && GET_CODE (plus1) != LO_SUM)
+	        {
+		  rtx tmp = gen_reg_rtx (HImode);
+
+		  if (!REG_P (plus0) && !MEM_P (plus0))
+		    plus0 = force_reg (Pmode, plus0);
+
+		  emit_insn (gen_rtx_SET (tmp,
+			       gen_rtx_PLUS (Pmode,
+			                     gen_rtx_HIGH (Pmode, plus1),
+					     plus0)));
+
+		  x = gen_rtx_LO_SUM (Pmode, tmp, plus1);
+		}
+	    }
+	}
+      else if (mode == QImode && REG_P (x) && x != frame_pointer_rtx)
 	x = gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, const0_rtx), x);
-      else if (GET_CODE (x) == PLUS)
+      else if (mode == QImode && GET_CODE (x) == PLUS)
 	{
 	  rtx plus0 = XEXP (x, 0);
 	  rtx plus1 = XEXP (x, 1);
 
-	  if (mode == QImode && !CONSTANT_ADDRESS_P (plus0)
-	      && CONST_INT_P (plus1) && INTVAL (plus1) >= 0
+	  if (!CONSTANT_ADDRESS_P (plus0)
+	      && plus0 != frame_pointer_rtx
+	      && CONST_INT_P (plus1)
+	      && INTVAL (plus1) >= 0
 	      && (INTVAL (plus1) + modesize - 1) < 256)
-	    x = gen_rtx_PLUS (Pmode,
-			      gen_rtx_ZERO_EXTEND (Pmode,
-				force_reg (QImode,
-				  gen_int_mode (INTVAL (plus1), QImode))),
-			      force_reg (Pmode, plus0));
-	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
-            {
-	      rtx plus1_lo, plus1_hi, tmp_hi;
-	      rtx tmp = gen_reg_rtx (HImode);
-
-	      if (!REG_P (plus1) && !MEM_P (plus1))
-	        plus1 = force_reg (Pmode, plus1);
-
-	      plus1_lo = operand_subword (plus1, 0, 1, HImode);
-	      plus1_hi = operand_subword (plus1, 1, 1, HImode);
-	      tmp_hi = operand_subword (tmp, 1, 1, HImode);
-
-	      if (!REG_P (plus0) && !MEM_P (plus0))
-		plus0 = force_reg (Pmode, plus0);
-
-	      emit_move_insn (tmp, plus0);
-	      emit_insn (gen_addqi3 (tmp_hi, tmp_hi, plus1_hi));
-
+	    {
 	      x = gen_rtx_PLUS (Pmode,
-		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
-		    tmp);
+				gen_rtx_ZERO_EXTEND (Pmode,
+				  force_reg (QImode,
+				    gen_int_mode (INTVAL (plus1), QImode))),
+				force_reg (Pmode, plus0));
 	    }
-	  else if (mode == QImode && GET_CODE (plus0) == ZERO_EXTEND)
+	  else if (GET_CODE (plus0) != ZERO_EXTEND)
+            {
+	    }
+	  else if (GET_CODE (plus0) == ZERO_EXTEND)
 	    x = gen_rtx_PLUS (Pmode, plus0, force_reg (Pmode, plus1));
 	}
 	break;
@@ -1487,6 +1789,12 @@ m65x_address_cost (rtx address, enum machine_mode mode,
 		   && REG_P (XEXP (address, 0))
 		   && CONSTANT_ADDRESS_P (XEXP (address, 1)))))
     return 2;
+  else if (sloppy_addressing
+           && GET_CODE (address) == LO_SUM
+           && GET_CODE (XEXP (address, 0)) == PLUS
+	   && GET_CODE (XEXP (XEXP (address, 0), 0)) == HIGH
+	   && REG_P (XEXP (address, 1)))
+    return 2;
   else
     return 8;
 }
@@ -1524,6 +1832,12 @@ m65x_legitimize_addr_displacement (rtx *disp, rtx *offset, machine_mode mode)
     }
 
   return false;
+}
+
+static bool
+m65x_cannot_substitute_mem_equiv (rtx)
+{
+  return true;
 }
 
 static rtx
@@ -1865,9 +2179,12 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	{
 	  /*if (TARGET_DEBUG_SECONDARY_RELOAD)
 	    fprintf (stderr, "(using reload_inoutqi_zp pattern)\n");*/
-	  sclass = ACTUALLY_HARD_REGS;
+	  //sclass = ACTUALLY_HARD_REGS;
 	  //sri->icode = CODE_FOR_reload_inoutqi_zp;
 	}
+
+      if (GET_CODE (x) == SUBREG && GET_MODE (SUBREG_REG (x)) != QImode)
+        sclass = NO_REGS;
     }
   /*else if (in_p && reload_mode == HImode && ZP_REG_CLASS_P (reload_class)
 	   && REG_P (x))
@@ -1946,6 +2263,8 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 		   || hard_reg_operand (operands[1], mode)))
 	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
+	           || immediate_operand (operands[1], mode)
+		   || ptr_reg_operand (operands[1], mode)
 		   || rtx_equal_p (operands[1], const0_rtx)))
 	   || rtx_equal_p (operands[0], operands[1]);
 
@@ -3329,6 +3648,9 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 
 #undef TARGET_LEGITIMIZE_ADDRESS_DISPLACEMENT
 #define TARGET_LEGITIMIZE_ADDRESS_DISPLACEMENT m65x_legitimize_addr_displacement
+
+/*#undef TARGET_CANNOT_SUBSTITUTE_MEM_EQUIV_P
+#define TARGET_CANNOT_SUBSTITUTE_MEM_EQUIV_P m65x_cannot_substitute_mem_equiv*/
 
 #undef TARGET_REGISTER_MOVE_COST
 #define TARGET_REGISTER_MOVE_COST m65x_register_move_cost

@@ -3621,6 +3621,7 @@ elimination_costs_in_insn (rtx_insn *insn)
 
   if (! insn_is_asm && icode < 0)
     {
+      debug_rtx (insn);
       gcc_assert (DEBUG_INSN_P (insn)
 		  || GET_CODE (PATTERN (insn)) == USE
 		  || GET_CODE (PATTERN (insn)) == CLOBBER

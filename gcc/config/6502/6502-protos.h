@@ -47,4 +47,8 @@ extern void m65x_expand_epilogue (void);
 
 extern bool m65x_peephole_find_temp_regs (int, int, ...);
 
+extern bool sloppy_addressing;
+
+#include "print-rtl.h"
+
 #endif

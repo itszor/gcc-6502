@@ -251,12 +251,8 @@
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
   m65x_hard_regno_mode_ok ((REGNO), (MODE))
 
-#if 1
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
-#else
 #define MODES_TIEABLE_P(MODE1, MODE2) \
   (GET_MODE_SIZE (MODE1) != 1 && GET_MODE_SIZE (MODE2) != 1)
-#endif
 
 #if 0
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
@@ -631,7 +627,7 @@ typedef int CUMULATIVE_ARGS;
 #define HAS_LONG_UNCOND_BRANCH		1
 
 #undef WORD_REGISTER_OPERATIONS
-#define MOVE_MAX			2
+#define MOVE_MAX			1
 
 //#define MAX_FIXED_MODE_SIZE		32
 
