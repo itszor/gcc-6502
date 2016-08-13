@@ -3118,6 +3118,10 @@ process_address_1 (int nop, bool check_only_p,
 	    }
 	}
 
+      /*fprintf (stderr, "lra_constraints: base=");
+      dump_value_slim (stderr, *ad.base, 0);
+      fprintf (stderr, "\n");*/
+
       /* Lovely bit of target-specific code.  Let's see how this goes...  */
       new_reg = lra_create_new_reg (QImode, NULL_RTX, INDEX_REG_CLASS,
 				    "index");

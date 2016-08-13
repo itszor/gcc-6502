@@ -59,6 +59,12 @@ gen_lowpart_general (machine_mode mode, rtx x)
     {
       int offset = 0;
 
+      if (!MEM_P (x))
+        {
+          fprintf (stderr, "gen_lowpart_general refusing to handle:\n");
+          debug_rtx (x);
+        }
+
       /* The only additional case we can do is MEM.  */
       gcc_assert (MEM_P (x));
 

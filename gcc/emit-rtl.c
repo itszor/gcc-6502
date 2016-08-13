@@ -1466,6 +1466,11 @@ gen_highpart_mode (machine_mode outermode, machine_mode innermode, rtx exp)
 {
   if (GET_MODE (exp) != VOIDmode)
     {
+      if (GET_MODE (exp) != innermode)
+        {
+          fprintf (stderr, "mode = %s\n", GET_MODE_NAME (innermode));
+          debug_rtx (exp);
+        }
       gcc_assert (GET_MODE (exp) == innermode);
       return gen_highpart (outermode, exp);
     }

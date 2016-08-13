@@ -189,8 +189,7 @@
 #define TMP1_REGNUM 83
 
 #define IS_ZP_REGNUM(X)						\
-  (((X) < 12 && (((X) % 4) != 0))				\
-   || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
+  (((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
    || (X) == TMP0_REGNUM || (X) == TMP1_REGNUM)
 
 #define IS_HARD_REGNUM(X)					\

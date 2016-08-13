@@ -63,6 +63,7 @@
 #include "print-rtl.h"
 #include "lra.h"
 #include "lra-int.h"
+#include "pass_manager.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -309,13 +310,33 @@ m65x_add_hipart_insn (rtx dst, rtx src1, rtx src2)
     emit_move_insn (dst, src1);
   else
     {
-      rtx dstlo = gen_lowpart (QImode, dst);
-      rtx dsthi = gen_highpart_mode (QImode, HImode, dst);
+      rtx dtmp = dst;
+
+      if (reg_overlap_mentioned_p (dst, src1)
+	  || reg_overlap_mentioned_p (dst, src2))
+	dtmp = gen_reg_rtx (HImode);
+
+      emit_clobber (dtmp);
+
+      /*rtx dstlo = gen_lowpart (QImode, dtmp);
+      rtx dsthi = gen_highpart_mode (QImode, HImode, dtmp);
       rtx src1lo = gen_lowpart (QImode, src1);
       rtx src1hi = gen_highpart_mode (QImode, HImode, src1);
       rtx src2hi = gen_highpart_mode (QImode, HImode, src2);
       emit_move_insn (dstlo, src1lo);
-      emit_insn (gen_addqi3 (dsthi, src1hi, src2hi));
+      rtx set = gen_rtx_SET (dsthi,
+			     simplify_gen_binary (PLUS, QImode, src1hi,
+						  src2hi));*/
+      rtx dsthi = gen_highpart_mode (QImode, HImode, dtmp);
+      rtx src2hi = gen_highpart_mode (QImode, HImode, src2);
+
+      emit_move_insn (dtmp, src1);
+      rtx set = gen_rtx_SET (dsthi,
+			     simplify_gen_binary (PLUS, QImode, dsthi, src2hi));
+      emit_insn (set);
+
+      if (dst != dtmp)
+        emit_move_insn (dst, dtmp);
     }
 }
 
@@ -348,10 +369,69 @@ rest_of_handle_fixup_addresses (void)
 
 	  switch (icode)
 	    {
+	    case CODE_FOR_movqi_noclob:
+	      {
+		start_sequence ();
+		/* A store.  */
+		if (MEM_P (operands[0])
+		    && GET_CODE (XEXP (operands[0], 0)) == LO_SUM
+		    && REG_P (XEXP (XEXP (operands[0], 0), 0))
+		    && (CONSTANT_ADDRESS_P (XEXP (XEXP (operands[0], 0), 1))
+			|| REG_P (XEXP (XEXP (operands[0], 0), 1)))
+		    && REG_P (operands[1]))
+		  {
+		    rtx base = XEXP (XEXP (operands[0], 0), 0);
+		    rtx yreg = force_reg (QImode,
+				 gen_lowpart (QImode,
+				   XEXP (XEXP (operands[0], 0), 1)));
+		    rtx set =
+		      gen_rtx_SET (gen_rtx_MEM (QImode,
+				     gen_rtx_PLUS (Pmode,
+				       gen_rtx_ZERO_EXTEND (Pmode, yreg),
+				       base)),
+				   operands[1]);
+		    emit_insn (set);
+		  }
+		/* A load.  */
+		else if (REG_P (operands[0])
+			 && MEM_P (operands[1])
+			 && GET_CODE (XEXP (operands[1], 0)) == LO_SUM
+			 && REG_P (XEXP (XEXP (operands[1], 0), 0))
+			 && (CONSTANT_ADDRESS_P (XEXP (XEXP (operands[1], 0),
+						       1))
+			     || REG_P (XEXP (XEXP (operands[1], 0), 1))))
+		  {
+		    rtx base = XEXP (XEXP (operands[1], 0), 0);
+		    rtx yreg = force_reg (QImode,
+				 gen_lowpart (QImode,
+				   XEXP (XEXP (operands[1], 0), 1)));
+		    rtx set = gen_rtx_SET (operands[0],
+				gen_rtx_MEM (QImode,
+				  gen_rtx_PLUS (Pmode,
+				    gen_rtx_ZERO_EXTEND (Pmode, yreg),
+				    base)));
+		    emit_insn (set);
+		  }
+		else
+		  {
+		    end_sequence ();
+		    continue;
+		  }
+
+		replacement_seq = get_insns ();
+		end_sequence ();
+
+		//unshare_all_rtl_in_chain (replacement_seq);
+
+		emit_insn_before (replacement_seq, insn);
+		delete_insn (insn);
+	      }
+	      break;
+
 	    case CODE_FOR_movhi_insn:
 	      {
 		start_sequence ();
-	        /* A store.  */
+	        /* A store (reg+reg or reg+imm).  */
 		if (MEM_P (operands[0])
 		    && GET_CODE (XEXP (operands[0], 0)) == LO_SUM
 		    && REG_P (XEXP (XEXP (operands[0], 0), 0))
@@ -369,7 +449,20 @@ rest_of_handle_fixup_addresses (void)
 		    emit_insn (gen_m65x_storehi_indy_split (base, yreg, srclo,
 							    srchi, areg));
 		  }
-		// A load.
+		// Store (reg).
+		else if (MEM_P (operands[0])
+			 && REG_P (XEXP (operands[0], 0))
+			 && REG_P (operands[1]))
+		  {
+		    rtx base = XEXP (operands[0], 0);
+		    rtx yreg = force_reg (QImode, const0_rtx);
+		    rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+		    rtx srclo = operand_subword (operands[1], 0, 1, HImode);
+		    rtx srchi = operand_subword (operands[1], 1, 1, HImode);
+		    emit_insn (gen_m65x_storehi_indy_split (base, yreg, srclo,
+							    srchi, areg));
+		  }
+		// A load (reg+reg or reg+imm).
 		else if (REG_P (operands[0])
 		         && MEM_P (operands[1])
 			 && GET_CODE (XEXP (operands[1], 0)) == LO_SUM
@@ -387,6 +480,18 @@ rest_of_handle_fixup_addresses (void)
 		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
 							   dsthi));
 		  }
+		// Load-indirect.
+		else if (REG_P (operands[0])
+			 && MEM_P (operands[1])
+			 && REG_P (XEXP (operands[1], 0)))
+		  {
+		    rtx base = XEXP (operands[1], 0);
+		    rtx yreg = force_reg (QImode, const0_rtx);
+		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
+		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
+		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
+							   dsthi));
+		  }
 		else if (REG_P (operands[0])
 			 && MEM_P (operands[1])
 			 && REG_P (XEXP (operands[1], 0)))
@@ -398,6 +503,38 @@ rest_of_handle_fixup_addresses (void)
 		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
 							   dsthi));
 		  }
+		else if (REG_P (operands[0])
+			 && (REG_P (operands[1])
+			     || CONST_INT_P (operands[1])))
+		  {
+		    /*
+		    rtx tmp = gen_reg_rtx (QImode);
+
+		    rtx op1lo = gen_lowpart (QImode, operands[1]);
+		    rtx op1hi = gen_highpart_mode (QImode, HImode, operands[1]);
+		    rtx op0lo = gen_lowpart (QImode, operands[0]);
+		    rtx op0hi = gen_highpart_mode (QImode, HImode, operands[0]);
+
+		    if (!reg_overlap_mentioned_p (op0lo, op1hi))
+		      {
+			emit_move_insn (tmp, op1lo);
+			emit_move_insn (op0lo, tmp);
+			emit_move_insn (tmp, op1hi);
+			emit_move_insn (op0hi, tmp);
+		      }
+		    else
+		      {
+			gcc_assert (!reg_overlap_mentioned_p (op0hi, op1lo));
+			emit_move_insn (tmp, op1hi);
+			emit_move_insn (op0hi, tmp);
+			emit_move_insn (tmp, op1lo);
+			emit_move_insn (op0lo, tmp);
+		      }
+		    */
+		    rtx tmp = gen_reg_rtx (QImode);
+		    emit_insn (gen_m65x_movreghi_split (operands[0],
+				 operands[1], tmp));
+		  }
 		else
 		  {
 		    end_sequence ();
@@ -406,6 +543,8 @@ rest_of_handle_fixup_addresses (void)
 		
 		replacement_seq = get_insns ();
 		end_sequence ();
+
+		//unshare_all_rtl_in_chain (replacement_seq);
 
 		emit_insn_before (replacement_seq, insn);
 		delete_insn (insn);
@@ -421,7 +560,7 @@ rest_of_handle_fixup_addresses (void)
 		    if (CONSTANT_P (operands[2]))
 		      operands[2] = force_reg (HImode, operands[2]);
 		    m65x_add_hipart_insn (operands[0], operands[2],
-					     XEXP (operands[1], 0));
+					  XEXP (operands[1], 0));
 		  }
 		else if (GET_CODE (operands[2]) == HIGH)
 		  {
@@ -438,6 +577,8 @@ rest_of_handle_fixup_addresses (void)
 		replacement_seq = get_insns ();
 		end_sequence ();
 
+		//unshare_all_rtl_in_chain (replacement_seq);
+
 		emit_insn_before (replacement_seq, insn);
 		delete_insn (insn);
 	      }
@@ -450,6 +591,10 @@ rest_of_handle_fixup_addresses (void)
     }
 
   sloppy_addressing = false;
+
+  df_note_add_problem ();
+  df_insn_rescan_all ();
+  df_analyze ();
 
   return 0;
 }
@@ -466,7 +611,7 @@ const pass_data pass_data_fixup_addresses =
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  0, /* todo_flags_finish */
+  TODO_df_finish, /* todo_flags_finish */
 };
 
 class pass_fixup_addresses : public rtl_opt_pass
@@ -520,6 +665,15 @@ m65x_option_override (void)
     };
 
   register_pass (&fixup_addresses_info);
+
+  /*opt_pass *fwprop3 = g->get_passes()->get_pass_rtl_fwprop()->clone();
+  static struct register_pass_info fwprop3_info =
+    {
+      fwprop3, "addrfix",
+      1, PASS_POS_INSERT_AFTER
+    };
+
+  register_pass (&fwprop3_info);*/
 
   sloppy_addressing = true;
 }
@@ -1174,7 +1328,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       else
 	gcc_unreachable ();
 
-    case 18:
+    /*case 18:
       return "pha"		NL
              "lda #%1"		NL
 	     "sta %0"		NL
@@ -1184,9 +1338,9 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       return "pha"		NL
              "lda %1"		NL
 	     "sta %0"		NL
-	     "pla";
+	     "pla";*/
 
-    case 20:
+    case 18:
       gcc_assert (rtx_equal_p (operands[0], operands[1]));
       *clobbers_flags = false;
       return "";
@@ -1677,6 +1831,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	    {
 	      rtx plus0 = XEXP (x, 0);
 	      rtx plus1 = XEXP (x, 1);
+	      rtx plus1hi;
 
 	      if (REG_P (plus0) && GET_CODE (plus1) != LO_SUM)
 	        {
@@ -1685,10 +1840,14 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 		  if (!REG_P (plus0) && !MEM_P (plus0))
 		    plus0 = force_reg (Pmode, plus0);
 
+		  if (CONST_INT_P (plus1))
+		    plus1hi = gen_int_mode (INTVAL (plus1) & ~0xff, Pmode);
+		  else
+		    plus1hi = gen_rtx_HIGH (Pmode, plus1);
+
 		  emit_insn (gen_rtx_SET (tmp,
-			       gen_rtx_PLUS (Pmode,
-			                     gen_rtx_HIGH (Pmode, plus1),
-					     plus0)));
+			       simplify_gen_binary (PLUS, Pmode, plus0,
+						    plus1hi)));
 
 		  x = gen_rtx_LO_SUM (Pmode, tmp, plus1);
 		}
@@ -2162,7 +2321,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 
   if (reload_mode == QImode)
     {
-      if (base_plus_const_byte_offset_mem (QImode, x))
+      /*if (base_plus_const_byte_offset_mem (QImode, x))
 	{
 	  if (reload_class == HARD_ACCUM_REG)
 	    sclass = NO_REGS;
@@ -2171,24 +2330,78 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	}
       else if (!HARD_REG_CLASS_P (reload_class) && CONSTANT_P (x)
 	       && mode == QImode)
-        sclass = ACTUALLY_HARD_REGS;
-      else if (ZP_REG_CLASS_P (reload_class)
-	       && zp_reg_operand (x, QImode)
-	       && true_regnum (x) != -1
-	       && true_regnum (x) < FIRST_PSEUDO_REGISTER)
+        sclass = NO_REGS; // ACTUALLY_HARD_REGS;
+      else*/
+      if (ZP_REG_CLASS_P (reload_class)
+          && (REG_P (x) || GET_CODE (x) == SUBREG)
+	  && true_regnum (x) != -1
+	  && IS_ZP_REGNUM (true_regnum (x)))
 	{
-	  /*if (TARGET_DEBUG_SECONDARY_RELOAD)
-	    fprintf (stderr, "(using reload_inoutqi_zp pattern)\n");*/
-	  //sclass = ACTUALLY_HARD_REGS;
+	  //if (TARGET_DEBUG_SECONDARY_RELOAD)
+	  //  fprintf (stderr, "(using reload_inoutqi_zp pattern)\n");
+	  sclass = ACTUALLY_HARD_REGS;
 	  //sri->icode = CODE_FOR_reload_inoutqi_zp;
 	}
-
-      if (GET_CODE (x) == SUBREG && GET_MODE (SUBREG_REG (x)) != QImode)
-        sclass = NO_REGS;
+      else if (ZP_REG_CLASS_P (reload_class)
+	       && CONSTANT_P (x))
+	{
+	  //if (TARGET_DEBUG_SECONDARY_RELOAD)
+	  //  fprintf (stderr, "(using reload_inqi_imm_zp pattern)\n");
+	  sclass = ACTUALLY_HARD_REGS;
+	  //sri->icode = CODE_FOR_reload_inqi_imm_zp;
+	}
+      else if (MEM_P (x)
+	       && (REG_P (XEXP (x, 0))
+	           || GET_CODE (XEXP (x, 0)) == PLUS))
+	{
+	  if (reload_class == HARD_Y_REG)
+	    ;
+	  else if (ZP_REG_CLASS_P (reload_class)
+		   || reload_class == HARD_X_REG
+		   || reload_class == HARD_INDEX_REGS
+		   || reload_class == ACTUALLY_HARD_REGS)
+	    sclass = HARD_ACCUM_REG;
+	  else
+	    {
+	      if (in_p)
+	        sri->icode = CODE_FOR_reload_inqi_mem_zp;
+	      else
+	        sri->icode = CODE_FOR_reload_outqi_mem_zp;
+	    }
+	}
     }
-  /*else if (in_p && reload_mode == HImode && ZP_REG_CLASS_P (reload_class)
-	   && REG_P (x))
-    sri->icode = CODE_FOR_reload_inhi_mem;*/
+  else if (reload_mode == HImode)
+    {
+      if (ZP_REG_CLASS_P (reload_class)
+	  && (REG_P (x) || GET_CODE (x) == SUBREG)
+	  && true_regnum (x) != -1
+	  && IS_ZP_REGNUM (true_regnum (x)))
+	{
+	  if (TARGET_DEBUG_SECONDARY_RELOAD)
+	    fprintf (stderr, "(using reload_inouthi_zp pattern)\n");
+	  //sclass = ACTUALLY_HARD_REGS;
+	  sri->icode = CODE_FOR_reload_inouthi_zp;
+	}
+      else if (ZP_REG_CLASS_P (reload_class)
+	       && CONSTANT_P (x))
+	{
+	  if (TARGET_DEBUG_SECONDARY_RELOAD)
+	    fprintf (stderr, "(using reload_inhi_imm_zp pattern)\n");
+	  //sclass = ACTUALLY_HARD_REGS;
+	  sri->icode = CODE_FOR_reload_inhi_imm_zp;
+	}
+      else if (ZP_REG_CLASS_P (reload_class) && MEM_P (x))
+	{
+	  if (TARGET_DEBUG_SECONDARY_RELOAD)
+	    fprintf (stderr, "(using reload_%shi_mem_zp pattern)\n",
+		     in_p ? "in" : "out");
+
+	  if (in_p)
+	    sri->icode = CODE_FOR_reload_inhi_mem_zp;
+	  else
+	    sri->icode = CODE_FOR_reload_outhi_mem_zp;
+	}
+    }
 
   if (TARGET_DEBUG_SECONDARY_RELOAD)
     fprintf (stderr, "  --> %s\n", reg_class_names[sclass]);
@@ -2263,8 +2476,9 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 		   || hard_reg_operand (operands[1], mode)))
 	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
-	           || immediate_operand (operands[1], mode)
-		   || ptr_reg_operand (operands[1], mode)
+		   || (sloppy_addressing
+		       && (ptr_reg_operand (operands[1], mode)
+		           || immediate_operand (operands[1], mode)))
 		   || rtx_equal_p (operands[1], const0_rtx)))
 	   || rtx_equal_p (operands[0], operands[1]);
 
@@ -2759,10 +2973,8 @@ m65x_expand_epilogue (void)
       if (num_restored == 8)
         {
 	  emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
-	  emit_insn (gen_rtx_CLOBBER (VOIDmode,
-				      gen_rtx_REG (QImode, TMP0_REGNUM)));
-	  emit_insn (gen_rtx_CLOBBER (VOIDmode,
-				      gen_rtx_REG (QImode, TMP1_REGNUM)));
+	  emit_clobber (gen_rtx_REG (QImode, TMP0_REGNUM));
+	  emit_clobber (gen_rtx_REG (QImode, TMP1_REGNUM));
 
 	  if (info->stack_adj_total > 0)
 	    emit_jump_insn (gen_m65x_restorestack_s7s0_sp_rts ());
@@ -2803,8 +3015,8 @@ m65x_expand_epilogue (void)
     emit_use (gen_rtx_REG (HImode, FP_REGNUM));
   
   emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
-  emit_insn (gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (QImode, TMP0_REGNUM)));
-  emit_insn (gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (QImode, TMP1_REGNUM)));
+  emit_clobber (gen_rtx_REG (QImode, TMP0_REGNUM));
+  emit_clobber (gen_rtx_REG (QImode, TMP1_REGNUM));
   
   emit_jump_insn (gen_m65x_return ());
 }

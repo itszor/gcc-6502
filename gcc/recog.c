@@ -321,7 +321,6 @@ insn_invalid_p (rtx_insn *insn, bool in_group)
 		     ? &num_clobbers : 0);
   int is_asm = icode < 0 && asm_noperands (PATTERN (insn)) >= 0;
 
-
   /* If this is an asm and the operand aren't legal, then fail.  Likewise if
      this is not an asm and the insn wasn't recognized.  */
   if ((is_asm && ! check_asm_operands (PATTERN (insn)))
