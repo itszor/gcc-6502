@@ -531,9 +531,9 @@ rest_of_handle_fixup_addresses (void)
 			emit_move_insn (op0lo, tmp);
 		      }
 		    */
-		    rtx tmp = gen_reg_rtx (QImode);
+		    /*rtx tmp = gen_reg_rtx (QImode);*/
 		    emit_insn (gen_m65x_movreghi_split (operands[0],
-				 operands[1], tmp));
+				 operands[1]/*, tmp*/));
 		  }
 		else
 		  {
@@ -585,7 +585,60 @@ rest_of_handle_fixup_addresses (void)
 	      break;
 
 	    default:
-	      ;
+	      {
+		subrtx_ptr_iterator::array_type array;
+		bool changed = false;
+
+		start_sequence ();
+
+		FOR_EACH_SUBRTX_PTR (iter, array, &PATTERN (insn), NONCONST)
+		  {
+		    rtx *loc = *iter;
+		    if (MEM_P (*loc))
+		      {
+		        rtx addr = XEXP (*loc, 0);
+			machine_mode mode = GET_MODE (*loc);
+
+			fprintf (stderr, "found a mem in insn:\n");
+			dump_value_slim (stderr, *loc, 0);
+			fprintf (stderr, "\nThe insn is:\n");
+			dump_insn_slim (stderr, insn);
+
+		        if (GET_CODE (addr) == LO_SUM
+			    && REG_P (XEXP (addr, 0))
+			    && (CONSTANT_ADDRESS_P (XEXP (addr, 1))
+				|| REG_P (XEXP (addr, 1))))
+			  {
+			    rtx base = XEXP (addr, 0);
+			    rtx yreg = force_reg (QImode,
+					 gen_lowpart (QImode, XEXP (addr, 1)));
+			    rtx newaddr = gen_rtx_PLUS (Pmode,
+					   gen_rtx_ZERO_EXTEND (Pmode, yreg),
+					   base);
+			    *loc = change_address (*loc, mode, newaddr);
+			    changed = true;
+			  }
+			else if (REG_P (addr))
+			  {
+			    rtx yreg = force_reg (QImode, const0_rtx);
+			    rtx newaddr = gen_rtx_PLUS (Pmode,
+					    gen_rtx_ZERO_EXTEND (Pmode, yreg),
+					    addr);
+			    *loc = change_address (*loc, mode, newaddr);
+			    changed = true;
+			  }
+		      }
+		  }
+		if (changed)
+		  {
+		    replacement_seq = get_insns ();
+		    end_sequence ();
+
+		    emit_insn_before (replacement_seq, insn);
+		  }
+		else
+		  end_sequence ();
+	      }
 	    }
 	}
     }
@@ -3119,6 +3172,37 @@ m65x_pop (enum machine_mode mode, rtx dest)
 		  gen_rtx_PRE_INC (Pmode,
 				   gen_rtx_REG (Pmode, HARDSP_REGNUM)));
   return gen_popqi1 (dest, pop_rtx);
+}
+
+void
+m65x_emit_push_ay (void)
+{
+  rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
+  emit_insn (m65x_push (QImode, areg));
+  if (TARGET_PHX)
+    emit_insn (m65x_push (QImode, yreg));
+  else
+    {
+      emit_move_insn (areg, yreg);
+      emit_insn (m65x_push (QImode, areg));
+    }
+}
+
+void
+m65x_emit_pop_ay (void)
+{
+  rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
+  if (TARGET_PHX)
+    emit_insn (m65x_pop (QImode, yreg));
+  else
+    {
+      emit_insn (m65x_pop (QImode, areg));
+      emit_move_insn (yreg, areg);
+    }
 }
 
 void
