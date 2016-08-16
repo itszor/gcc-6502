@@ -165,6 +165,10 @@
    81: "
    82: fixed/local tmp0 (zp)
    83: fixed/local tmp1 (zp)
+   84: y0 (spilled index regs)
+   85: y1
+   86: y2
+   87: y3
 */
 
 #define ACC_REGNUM 0
@@ -190,7 +194,8 @@
 
 #define IS_ZP_REGNUM(X)						\
   (((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
-   || (X) == TMP0_REGNUM || (X) == TMP1_REGNUM)
+   || (X) == TMP0_REGNUM || (X) == TMP1_REGNUM                  \
+   || ((X) >= 84 && (X) <= 87))
 
 #define IS_HARD_REGNUM(X)					\
   ((X) == ACC_REGNUM || (X) == X_REGNUM || (X) == Y_REGNUM)
@@ -210,7 +215,7 @@
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1, 1 }
+    1, 1, 1, 1, 0, 0, 0, 0 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -227,9 +232,9 @@
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1, 1 }
+    1, 1, 1, 1, 1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 84
+#define FIRST_PSEUDO_REGISTER 88
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -242,7 +247,7 @@
     56, 57, 58, 59, 60, 61, 62, 63, \
     64, 65, 66, 67, 68, 69, 70, 71, \
     72, 73, 74, 75, 76, 77, 78, 79, \
-    80, 81, 82, 83 }
+    80, 81, 82, 83, 84, 85, 86, 87 }
 
 #define HARD_REGNO_NREGS(REGNO, MODE) \
   m65x_hard_regno_nregs ((REGNO), (MODE))
@@ -291,6 +296,9 @@ enum reg_class
   HARD_ZP_REGS,
   VFP_REG,
   VAP_REG,
+  SPILLED_INDEX_REGS,
+  ALL_INDEX_REGS,
+  IDX_GENERAL_REGS,
   ALL_REGS,
   LIM_REG_CLASSES
 };
@@ -313,26 +321,32 @@ enum reg_class
   "HARD_ZP_REGS",		\
   "VFP_REG",			\
   "VAP_REG",			\
+  "SPILLED_INDEX_REGS",         \
+  "ALL_INDEX_REGS",             \
+  "IDX_GENERAL_REGS",           \
   "ALL_REGS"			\
 }
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000, 0x00000000, 0x00000 }, /* NO_REGS */		\
-  { 0x00000001, 0x00000000, 0x00000 }, /* HARD_ACCUM_REG */	\
-  { 0x00000010, 0x00000000, 0x00000 }, /* HARD_X_REG */		\
-  { 0x00000100, 0x00000000, 0x00000 }, /* HARD_Y_REG */		\
-  { 0x00000110, 0x00000000, 0x00000 }, /* HARD_INDEX_REGS */	\
-  { 0x00000111, 0x00000000, 0x00000 }, /* ACTUALLY_HARD_REGS */	\
-  { 0x0000f000, 0x00000000, 0x00000 }, /* STACK_REG */		\
-  { 0x00ff0000, 0x00000000, 0x00000 }, /* ARG_REGS */		\
-  { 0xff000000, 0x00000000, 0x00000 }, /* CALLEE_SAVED_REGS */	\
-  { 0x00000000, 0x00000000, 0x0fff0 }, /* CC_REGS */		\
-  { 0xfffff000, 0xffffffff, 0xc0000 }, /* GENERAL_REGS */	\
-  { 0xfffff111, 0xffffffff, 0x00000 }, /* HARD_ZP_REGS */	\
-  { 0x00000000, 0x00000000, 0x00003 }, /* VFP_REG */		\
-  { 0x00000000, 0x00000000, 0x0000c }, /* VAP_REG */		\
-  { 0xffffffff, 0xffffffff, 0xffff0 }, /* ALL_REGS */		\
+  { 0x00000000, 0x00000000, 0x000000 }, /* NO_REGS */		\
+  { 0x00000001, 0x00000000, 0x000000 }, /* HARD_ACCUM_REG */	\
+  { 0x00000010, 0x00000000, 0x000000 }, /* HARD_X_REG */		\
+  { 0x00000100, 0x00000000, 0x000000 }, /* HARD_Y_REG */		\
+  { 0x00000110, 0x00000000, 0x000000 }, /* HARD_INDEX_REGS */	\
+  { 0x00000111, 0x00000000, 0x000000 }, /* ACTUALLY_HARD_REGS */	\
+  { 0x0000f000, 0x00000000, 0x000000 }, /* STACK_REG */		\
+  { 0x00ff0000, 0x00000000, 0x000000 }, /* ARG_REGS */		\
+  { 0xff000000, 0x00000000, 0x000000 }, /* CALLEE_SAVED_REGS */	\
+  { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
+  { 0xfffff000, 0xffffffff, 0x0c0000 }, /* GENERAL_REGS */	\
+  { 0xfffff111, 0xffffffff, 0x000000 }, /* HARD_ZP_REGS */	\
+  { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
+  { 0x00000000, 0x00000000, 0x00000c }, /* VAP_REG */		\
+  { 0x00000000, 0x00000000, 0xf00000 }, /* SPILLED_INDEX_REGS */ \
+  { 0x00000100, 0x00000000, 0xf00000 }, /* ALL_INDEX_REGS */    \
+  { 0xfffff000, 0xffffffff, 0xfc0000 }, /* IDX_GENERAL_REGS */  \
+  { 0xffffffff, 0xffffffff, 0xfffff0 }, /* ALL_REGS */		\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -359,7 +373,9 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
      ? GENERAL_REGS :							\
-   (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
+   (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3)             \
+     ? CC_REGS :                                                        \
+   ((REGNO) >= 84 && (REGNO) <= 87) ? SPILLED_INDEX_REGS :  NO_REGS)
 
 /*#define BASE_REG_CLASS	GENERAL_REGS*/
 
@@ -368,16 +384,18 @@ enum reg_class
    : (AS) == ADDR_SPACE_ZP ? HARD_INDEX_REGS				\
    : NO_REGS)
 
-#define INDEX_REG_CLASS	HARD_Y_REG
+#define INDEX_REG_CLASS	ALL_INDEX_REGS
 
 /*#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))*/
 
 #define REGNO_MODE_CODE_OK_FOR_BASE_P(NUM, MODE, AS, OUTER, INDEX)	 \
   m65x_regno_mode_code_ok_for_base_p ((NUM), (MODE), (AS), (OUTER), (INDEX))
 
-#define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == Y_REGNUM)
+#define REGNO_OK_FOR_INDEX_P(NUM) \
+  ((NUM) == Y_REGNUM || ((NUM) >= 84 && (NUM) <= 87))
 
-#define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
+/*#define PREFERRED_RELOAD_CLASS(X, CLASS) \
+  ((CLASS) == SPILLED_INDEX_REGS ? HARD_Y_REG : (CLASS))*/
 
 /*#define SMALL_REGISTER_CLASSES		1*/
 
@@ -559,7 +577,8 @@ typedef int CUMULATIVE_ARGS;
     "?nz0", "?nz1", "?nz2", "?nz3",				\
     "?carry0", "?carry1", "?carry2", "?carry3",			\
     "?ovf0", "?ovf1", "?ovf2", "?ovf3",				\
-    "?hardsp0", "?hardsp1", "tmp0", "tmp1"			\
+    "?hardsp0", "?hardsp1", "tmp0", "tmp1",                     \
+    "y0", "y1", "y2", "y3"			                \
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \

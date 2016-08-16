@@ -340,6 +340,17 @@ m65x_add_hipart_insn (rtx dst, rtx src1, rtx src2)
     }
 }
 
+static rtx
+m65x_make_indirect_indexed (rtx base, rtx idx)
+{
+  rtx yreg = gen_reg_rtx (QImode); // gen_rtx_REG (QImode, Y_REGNUM);
+
+  /*if (!rtx_equal_p (idx, yreg))
+    emit_move_insn (yreg, idx);*/
+
+  return gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg), base);
+}
+
 static unsigned int
 rest_of_handle_fixup_addresses (void)
 {
@@ -381,14 +392,11 @@ rest_of_handle_fixup_addresses (void)
 		    && REG_P (operands[1]))
 		  {
 		    rtx base = XEXP (XEXP (operands[0], 0), 0);
-		    rtx yreg = force_reg (QImode,
-				 gen_lowpart (QImode,
-				   XEXP (XEXP (operands[0], 0), 1)));
+		    rtx idx = gen_lowpart (QImode,
+					   XEXP (XEXP (operands[0], 0), 1));
 		    rtx set =
 		      gen_rtx_SET (gen_rtx_MEM (QImode,
-				     gen_rtx_PLUS (Pmode,
-				       gen_rtx_ZERO_EXTEND (Pmode, yreg),
-				       base)),
+				     m65x_make_indirect_indexed (base, idx)),
 				   operands[1]);
 		    emit_insn (set);
 		  }
@@ -402,14 +410,11 @@ rest_of_handle_fixup_addresses (void)
 			     || REG_P (XEXP (XEXP (operands[1], 0), 1))))
 		  {
 		    rtx base = XEXP (XEXP (operands[1], 0), 0);
-		    rtx yreg = force_reg (QImode,
-				 gen_lowpart (QImode,
-				   XEXP (XEXP (operands[1], 0), 1)));
+		    rtx idx = gen_lowpart (QImode,
+					   XEXP (XEXP (operands[1], 0), 1));
 		    rtx set = gen_rtx_SET (operands[0],
 				gen_rtx_MEM (QImode,
-				  gen_rtx_PLUS (Pmode,
-				    gen_rtx_ZERO_EXTEND (Pmode, yreg),
-				    base)));
+				  m65x_make_indirect_indexed (base, idx)));
 		    emit_insn (set);
 		  }
 		else
@@ -440,13 +445,12 @@ rest_of_handle_fixup_addresses (void)
 		    && REG_P (operands[1]))
 		  {
 		    rtx base = XEXP (XEXP (operands[0], 0), 0);
-		    rtx yreg = force_reg (QImode,
-				 gen_lowpart (QImode,
-				   XEXP (XEXP (operands[0], 0), 1)));
-		    rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+		    rtx idx = force_reg (QImode, gen_lowpart (QImode,
+					   XEXP (XEXP (operands[0], 0), 1)));
 		    rtx srclo = operand_subword (operands[1], 0, 1, HImode);
 		    rtx srchi = operand_subword (operands[1], 1, 1, HImode);
-		    emit_insn (gen_m65x_storehi_indy_split (base, yreg, srclo,
+		    rtx areg = gen_reg_rtx (QImode);
+		    emit_insn (gen_m65x_storehi_indy_split (base, idx, srclo,
 							    srchi, areg));
 		  }
 		// Store (reg).
@@ -455,11 +459,11 @@ rest_of_handle_fixup_addresses (void)
 			 && REG_P (operands[1]))
 		  {
 		    rtx base = XEXP (operands[0], 0);
-		    rtx yreg = force_reg (QImode, const0_rtx);
-		    rtx areg = gen_rtx_REG (QImode, ACC_REGNUM);
+		    rtx idx = force_reg (QImode, const0_rtx);
 		    rtx srclo = operand_subword (operands[1], 0, 1, HImode);
 		    rtx srchi = operand_subword (operands[1], 1, 1, HImode);
-		    emit_insn (gen_m65x_storehi_indy_split (base, yreg, srclo,
+		    rtx areg = gen_reg_rtx (QImode);
+		    emit_insn (gen_m65x_storehi_indy_split (base, idx, srclo,
 							    srchi, areg));
 		  }
 		// A load (reg+reg or reg+imm).
@@ -472,12 +476,11 @@ rest_of_handle_fixup_addresses (void)
 			     || REG_P (XEXP (XEXP (operands[1], 0), 1))))
 		  {
 		    rtx base = XEXP (XEXP (operands[1], 0), 0);
-		    rtx yreg = force_reg (QImode,
-				 gen_lowpart (QImode,
-				   XEXP (XEXP (operands[1], 0), 1)));
+		    rtx idx = force_reg (QImode, gen_lowpart (QImode,
+					   XEXP (XEXP (operands[1], 0), 1)));
 		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
 		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
-		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
+		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, idx,
 							   dsthi));
 		  }
 		// Load-indirect.
@@ -486,21 +489,10 @@ rest_of_handle_fixup_addresses (void)
 			 && REG_P (XEXP (operands[1], 0)))
 		  {
 		    rtx base = XEXP (operands[1], 0);
-		    rtx yreg = force_reg (QImode, const0_rtx);
+		    rtx idx = force_reg (QImode, const0_rtx);
 		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
 		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
-		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
-							   dsthi));
-		  }
-		else if (REG_P (operands[0])
-			 && MEM_P (operands[1])
-			 && REG_P (XEXP (operands[1], 0)))
-		  {
-		    rtx base = XEXP (operands[1], 0);
-		    rtx yreg = force_reg (QImode, gen_int_mode (0, QImode));
-		    rtx dstlo = operand_subword (operands[0], 0, 1, HImode);
-		    rtx dsthi = operand_subword (operands[0], 1, 1, HImode);
-		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, yreg,
+		    emit_insn (gen_m65x_loadhi_indy_split (dstlo, base, idx,
 							   dsthi));
 		  }
 		else if (REG_P (operands[0])
@@ -610,20 +602,16 @@ rest_of_handle_fixup_addresses (void)
 				|| REG_P (XEXP (addr, 1))))
 			  {
 			    rtx base = XEXP (addr, 0);
-			    rtx yreg = force_reg (QImode,
-					 gen_lowpart (QImode, XEXP (addr, 1)));
-			    rtx newaddr = gen_rtx_PLUS (Pmode,
-					   gen_rtx_ZERO_EXTEND (Pmode, yreg),
-					   base);
+			    rtx idx = gen_lowpart (QImode, XEXP (addr, 1));
+			    rtx newaddr
+			      = m65x_make_indirect_indexed (base, idx);
 			    *loc = change_address (*loc, mode, newaddr);
 			    changed = true;
 			  }
 			else if (REG_P (addr))
 			  {
-			    rtx yreg = force_reg (QImode, const0_rtx);
-			    rtx newaddr = gen_rtx_PLUS (Pmode,
-					    gen_rtx_ZERO_EXTEND (Pmode, yreg),
-					    addr);
+			    rtx newaddr
+			      = m65x_make_indirect_indexed (addr, const0_rtx);
 			    *loc = change_address (*loc, mode, newaddr);
 			    changed = true;
 			  }
@@ -1539,7 +1527,7 @@ m65x_reg_ok_for_y_index_p (const_rtx x, bool strict_p)
   if (m65x_reg_renumber (&regno, strict_p, &ret))
     return ret;
 
-  return regno == Y_REGNUM;
+  return regno == Y_REGNUM || (regno >= 84 && regno <= 87);
 }
 
 static bool
@@ -2307,6 +2295,9 @@ m65x_preferred_reload_class (rtx x ATTRIBUTE_UNUSED, reg_class_t klass)
     case HARD_ZP_REGS:
       return GENERAL_REGS;
 
+    case SPILLED_INDEX_REGS:
+      return HARD_Y_REG;
+
     default:
       ;
     }
@@ -2349,7 +2340,7 @@ base_plus_const_byte_offset_mem (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x)
 static reg_class_t
 m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 		       enum machine_mode reload_mode,
-		       secondary_reload_info *sri ATTRIBUTE_UNUSED)
+		       secondary_reload_info *sri)
 {
   bool spilled_pseudo = (REG_P (x) || GET_CODE (x) == SUBREG)
 			&& true_regnum (x) == -1;
@@ -2368,6 +2359,13 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       else
         fputc ('\n', stderr);      
     }
+
+  /*if (HARD_REG_CLASS_P (reload_class)
+      && GET_MODE_SIZE (reload_mode) > 1)
+    {
+      static int num = 1;
+      fprintf (stderr, "too big for hard register (%d)!\n", num++);
+    }*/
 
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
      else a register of class RELOAD_CLASS needs to be copied to X.  */
@@ -2403,27 +2401,31 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	  sclass = ACTUALLY_HARD_REGS;
 	  //sri->icode = CODE_FOR_reload_inqi_imm_zp;
 	}
-      else if (MEM_P (x)
-	       && (REG_P (XEXP (x, 0))
-	           || GET_CODE (XEXP (x, 0)) == PLUS))
+      else if (((REG_P (x) || GET_CODE (x) == SUBREG)
+		&& true_regnum (x) == -1)
+	       || (MEM_P (x)
+		   && (REG_P (XEXP (x, 0))
+	               || GET_CODE (XEXP (x, 0)) == PLUS)))
 	{
-	  if (reload_class == HARD_Y_REG)
-	    ;
-	  else if (ZP_REG_CLASS_P (reload_class)
-		   || reload_class == HARD_X_REG
-		   || reload_class == HARD_INDEX_REGS
-		   || reload_class == ACTUALLY_HARD_REGS)
+	  if (ZP_REG_CLASS_P (reload_class)
+	      || reload_class == HARD_X_REG
+	      || reload_class == HARD_Y_REG
+	      || reload_class == HARD_INDEX_REGS
+	      || reload_class == SPILLED_INDEX_REGS
+	      || reload_class == ALL_INDEX_REGS
+	      || reload_class == IDX_GENERAL_REGS
+	      || reload_class == ACTUALLY_HARD_REGS)
 	    sclass = HARD_ACCUM_REG;
-	  else
+	  /*else if (reload_class == HARD_ACCUM_REG)
 	    {
 	      if (in_p)
 	        sri->icode = CODE_FOR_reload_inqi_mem_zp;
 	      else
 	        sri->icode = CODE_FOR_reload_outqi_mem_zp;
-	    }
+	    }*/
 	}
     }
-  else if (reload_mode == HImode)
+  else if (false && reload_mode == HImode)
     {
       if (ZP_REG_CLASS_P (reload_class)
 	  && (REG_P (x) || GET_CODE (x) == SUBREG)
@@ -2443,7 +2445,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	  //sclass = ACTUALLY_HARD_REGS;
 	  sri->icode = CODE_FOR_reload_inhi_imm_zp;
 	}
-      else if (ZP_REG_CLASS_P (reload_class) && MEM_P (x))
+      /*else if (ZP_REG_CLASS_P (reload_class) && MEM_P (x))
 	{
 	  if (TARGET_DEBUG_SECONDARY_RELOAD)
 	    fprintf (stderr, "(using reload_%shi_mem_zp pattern)\n",
@@ -2453,7 +2455,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 	    sri->icode = CODE_FOR_reload_inhi_mem_zp;
 	  else
 	    sri->icode = CODE_FOR_reload_outhi_mem_zp;
-	}
+	}*/
     }
 
   if (TARGET_DEBUG_SECONDARY_RELOAD)
@@ -2472,8 +2474,6 @@ m65x_lra_p (void)
 static bool
 m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 {
-  bool strict = false; // reload_in_progress || lra_in_progress || reload_completed;
-  
   if (MEM_P (operands[0]))
     {
       if (MEM_ADDR_SPACE (operands[0]) != ADDR_SPACE_GENERIC)
@@ -2487,12 +2487,11 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
       else
         {
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
-					    strict)
-	      || m65x_address_register_p (XEXP (operands[0], 0), strict))
-	    return (relaxed && register_operand (operands[1], mode))
-		   || (!relaxed && accumulator_operand (operands[1], mode));
+					    false)
+	      || m65x_address_register_p (XEXP (operands[0], 0), false))
+	    return accumulator_operand (operands[1], mode);
 	  else
-	    return register_operand (operands[1], mode)
+	    return hard_reg_operand (operands[1], mode)
 		   || immediate_operand (operands[1], mode);
 	}
     }
@@ -2509,12 +2508,11 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
       else
         {
 	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
-					    strict)
-	      || m65x_address_register_p (XEXP (operands[1], 0), strict))
-	    return (relaxed && register_operand (operands[0], mode))
-		   || (!relaxed && accumulator_operand (operands[0], mode));
+					    false)
+	      || m65x_address_register_p (XEXP (operands[1], 0), false))
+	    return accumulator_operand (operands[0], mode);
 	  else
-	    return register_operand (operands[0], mode);
+	    return hard_reg_operand (operands[0], mode);
 	}
     }
   else
