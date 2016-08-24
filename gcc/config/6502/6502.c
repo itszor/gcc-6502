@@ -66,6 +66,42 @@
 
 #undef DEBUG_LEGIT_RELOAD
 
+struct GTY(()) machine_function
+{
+  bool real_insns_ok;
+  bool virt_insns_ok;
+};
+
+/* This is our init_machine_status, as set in
+   m65x_option_override.  */
+static struct machine_function *
+m65x_init_machine_status (void)
+{
+  struct machine_function *m;
+
+  m = ggc_cleared_alloc<machine_function> ();
+  m->virt_insns_ok = true;
+  m->real_insns_ok = false;
+
+  return m;
+}
+
+bool
+m65x_virt_insns_ok (void)
+{
+  if (cfun)
+    return cfun->machine->virt_insns_ok;
+  return true;
+}
+
+bool
+m65x_real_insns_ok (void)
+{
+  if (cfun)
+    return cfun->machine->real_insns_ok;
+  return false;
+}
+
 static bool
 gate_reconstruct_absidx (void)
 {
@@ -308,6 +344,8 @@ m65x_option_override (void)
       };
 
   register_pass (&reconstruct_absidx_info);
+
+  init_machine_status = m65x_init_machine_status;
 }
 
 static void
@@ -480,7 +518,23 @@ restart:
       else if (CONSTANT_ADDRESS_P (XEXP (x, 0)))
         output_addr_const (stream, x);
       else
-        output_operand_lossage ("invalid PLUS operand");
+        {
+	  if (REG_P (XEXP (x, 0)))
+	    asm_fprintf (stream, "(%r,", REGNO (XEXP (x, 0)));
+	  else if (GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+		   && REG_P (XEXP (XEXP (x, 0), 0)))
+	    asm_fprintf (stream, "(zext(%r),", REGNO (XEXP (XEXP (x, 0), 0)));
+	  else
+	    output_operand_lossage ("invalid PLUS operand");
+
+	  if (REG_P (XEXP (x, 1)))
+            asm_fprintf (stream, "%r)", REGNO (XEXP (x, 1)));
+	  else
+            {
+              output_addr_const (stream, XEXP (x, 1));
+	      asm_fprintf (stream, ")");
+	    }
+	}
       break;
 #endif
 
@@ -547,6 +601,24 @@ restart:
     case CONST:
       x = XEXP (x, 0);
       goto restart;
+
+    case PRE_MODIFY:
+      if (REG_P (XEXP (x, 0))
+          && GET_CODE (XEXP (x, 1)) == PLUS
+	  && rtx_equal_p (XEXP (XEXP (x, 1), 0), XEXP (x, 0)))
+	{
+	  asm_fprintf (stream, "(%r += ", REGNO (XEXP (x, 0)));
+	  if (REG_P (XEXP (XEXP (x, 1), 1)))
+	    asm_fprintf (stream, "%r)", REGNO (XEXP (XEXP (x, 1), 1)));
+	  else
+	    {
+	      output_addr_const (stream, XEXP (XEXP (x, 1), 1));
+	      asm_fprintf (stream, ")");
+	    }
+	}
+      else
+        output_operand_lossage ("invalid PRE_MODIFY operand");
+      break;
 
     default:
       output_addr_const (stream, x);
@@ -1127,6 +1199,88 @@ m65x_reg_ok_for_xy_index_p (const_rtx x, bool strict_p)
   return regno == X_REGNUM || regno == Y_REGNUM;
 }
 
+static bool
+m65x_virt_indexed_addr_p (rtx x, bool strict)
+{
+  if (GET_CODE (x) == PLUS
+      && GET_MODE (x) == Pmode
+      && REG_P (XEXP (x, 0))
+      && m65x_address_register_p (XEXP (x, 0), strict)
+      && REG_P (XEXP (x, 1))
+      && m65x_address_register_p (XEXP (x, 1), strict))
+    return true;
+
+  if (GET_CODE (x) == PLUS
+      && GET_MODE (x) == Pmode
+      && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && REG_P (XEXP (XEXP (x, 0), 0))
+      && m65x_address_register_p (XEXP (XEXP (x, 0), 0), strict)
+      && REG_P (XEXP (x, 1))
+      && m65x_address_register_p (XEXP (x, 1), strict))
+    return true;
+
+  return false;
+}
+
+/* We can do (base+index) addressing more efficiently than doing the add
+   separately from the indirection, but we need to alter the base to do so (by
+   the high part of the index).  Using premodify doesn't quite let us do that,
+   but maybe it's close enough (at least if the calculated address is dead
+   afterwards).  */
+
+static bool
+m65x_virt_premodify_addr_p (machine_mode mode, rtx x, bool strict)
+{
+  /*if (GET_CODE (x) == PRE_MODIFY)
+    {
+      fprintf (stderr, "premodify eh, fancy!\n");
+      dump_value_slim (stderr, x, 0);
+      fprintf (stderr, "\n");
+    }*/
+
+  if (GET_CODE (x) == PRE_MODIFY
+      && REG_P (XEXP (x, 0))
+      && m65x_address_register_p (XEXP (x, 0), strict)
+      && GET_CODE (XEXP (x, 1)) == PLUS
+      && rtx_equal_p (XEXP (XEXP (x, 1), 0), XEXP (x, 0))
+      && REG_P (XEXP (XEXP (x, 1), 1))
+      && m65x_address_register_p (XEXP (XEXP (x, 1), 1), strict))
+    return true;
+
+  if (GET_CODE (x) == PRE_MODIFY
+      && REG_P (XEXP (x, 0))
+      && m65x_address_register_p (XEXP (x, 0), strict)
+      && GET_CODE (XEXP (x, 1)) == PLUS
+      && rtx_equal_p (XEXP (XEXP (x, 1), 0), XEXP (x, 0))
+      && CONSTANT_P (XEXP (XEXP (x, 1), 1)))
+    return true;
+
+  return false;
+}
+
+static bool
+m65x_virt_absolute_indexed_addr_p (rtx x, bool strict)
+{
+  if (GET_CODE (x) == PLUS
+      && GET_MODE (x) == Pmode
+      && REG_P (XEXP (x, 0))
+      && m65x_address_register_p (XEXP (x, 0), strict)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+
+  if (GET_CODE (x) == PLUS
+      && GET_MODE (x) == Pmode
+      && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
+      && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
+      && REG_P (XEXP (XEXP (x, 0), 0))
+      && m65x_address_register_p (XEXP (XEXP (x, 0), 0), strict)
+      && CONSTANT_ADDRESS_P (XEXP (x, 1)))
+    return true;
+
+  return false;
+}
+
 bool
 m65x_indirect_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
 			      bool strict)
@@ -1250,6 +1404,40 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
 {
   bool legit = false;
 
+  if (m65x_virt_insns_ok ())
+    {
+      if (CONSTANT_ADDRESS_P (x))
+        legit = true;
+
+      /* Allow pre-increment/post-decrement only for the hardware stack
+	 pointer, i.e. ph* and pl* instructions.  */
+      else if ((GET_CODE (x) == PRE_INC || GET_CODE (x) == POST_DEC)
+	       && mode == QImode
+	       && REG_P (XEXP (x, 0)) && REGNO (XEXP (x, 0)) == HARDSP_REGNUM)
+	legit = true;
+
+      else if (m65x_address_register_p (x, strict))
+	legit = true;
+
+      else if (m65x_virt_indexed_addr_p (x, strict))
+	legit = true;
+
+      else if (m65x_indirect_offset_addr_p (mode, x, strict))
+	legit = true;
+
+      else if (m65x_virt_absolute_indexed_addr_p (x, strict))
+        legit = true;
+
+      else if (m65x_indirect_indexed_addr_p (mode, x, strict))
+        legit = true;
+
+      else if (m65x_virt_premodify_addr_p (mode, x, strict))
+        legit = true;
+
+      goto done;
+    }
+
+
   switch (as)
     {
     case ADDR_SPACE_GENERIC:
@@ -1324,6 +1512,7 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
       gcc_unreachable ();
     }
 
+done:
   if (TARGET_DEBUG_ADDRESS)
     {
       fprintf (stderr, "%s %s address (strict: %s, %s):\n",
@@ -1342,6 +1531,27 @@ static rtx
 m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			 enum machine_mode mode)
 {
+  if (m65x_virt_insns_ok ())
+    {
+      /* Turn (base+index) or (base+offset) addresses into premodifies.  */
+      /*if (GET_CODE (x) == PLUS
+          && GET_MODE (x) == Pmode
+          && REG_P (XEXP (x, 0))
+	  && (REG_P (XEXP (x, 1))
+	      || (CONSTANT_P (XEXP (x, 1))
+	          && !(CONST_INT_P (XEXP (x, 1))
+		       && INTVAL (XEXP (x, 1)) >= 0
+		       && INTVAL (XEXP (x, 1)) < 256))))
+	{
+	  rtx tmp = gen_reg_rtx (Pmode);
+	  emit_move_insn (tmp, XEXP (x, 0));
+	  x = gen_rtx_PRE_MODIFY (Pmode, tmp,
+				  gen_rtx_PLUS (Pmode, tmp, XEXP (x, 1)));
+	}*/
+
+      return x;
+    }
+
   int modesize = GET_MODE_SIZE (mode);
 
   if (CONSTANT_ADDRESS_P (x) || GET_MODE (x) != Pmode)
@@ -1487,6 +1697,11 @@ m65x_address_cost (rtx address, enum machine_mode mode,
 		   && REG_P (XEXP (address, 0))
 		   && CONSTANT_ADDRESS_P (XEXP (address, 1)))))
     return 2;
+  else if (GET_CODE (address) == PRE_MODIFY
+           && REG_P (XEXP (address, 0))
+	   && GET_CODE (XEXP (address, 1)) == PLUS
+	   && rtx_equal_p (XEXP (XEXP (address, 1), 0), XEXP (address, 0)))
+    return 3;
   else
     return 8;
 }
@@ -1495,6 +1710,9 @@ static int
 m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 			 reg_class_t to)
 {
+  if (m65x_virt_insns_ok ())
+    return 2;
+
   /* LRA assumes that register moves of cost 2 never need reloads.  */
   if (mode == QImode &&
       ((HARD_REG_CLASS_P (to) && HARD_REG_CLASS_P (from))
@@ -1829,7 +2047,10 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
 			&& true_regnum (x) == -1;
   reg_class_t sclass = NO_REGS;
   enum machine_mode mode = GET_MODE (x);
-    
+
+  if (m65x_virt_insns_ok ())
+    return NO_REGS;
+
   if (TARGET_DEBUG_SECONDARY_RELOAD)
     {
       fprintf (stderr, "reload-%s ", in_p ? "in" : "out");
@@ -3045,10 +3266,10 @@ m65x_addr_space_valid_pointer_mode (enum machine_mode mode, addr_space_t aspace)
 static bool
 m65x_addr_space_subset_p (addr_space_t subset, addr_space_t superset)
 {
-  if (subset == QImode)
-    return superset == QImode || superset == Pmode;
-  else if (subset == Pmode)
-    return superset == Pmode;
+  if (subset == ADDR_SPACE_ZP)
+    return superset == ADDR_SPACE_ZP || superset == ADDR_SPACE_GENERIC;
+  else if (subset == ADDR_SPACE_GENERIC)
+    return superset == ADDR_SPACE_GENERIC;
   else
     gcc_unreachable ();
 }
@@ -3128,9 +3349,14 @@ m65x_reorg (void)
   if (!optimize)
     split_all_insns_noflow ();
 
+  // cfun->machine->real_insns_ok = true;
+
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
+      bool acc_saved = false;
+      bool x_saved = false;
+      bool y_saved = false;
 
       COPY_REG_SET (&live, DF_LIVE_OUT (bb));
       df_simulate_initialize_backwards (bb, &live);
@@ -3141,10 +3367,22 @@ m65x_reorg (void)
 	    {
 	      rtx set;
 	    retry:
+              enum attr_needs_reg hw_reg_needed;
+
 	      int icode = recog_memoized (insn);
 
 	      switch (icode)
 		{
+                case CODE_FOR_movhi_virt:
+                  set = single_set (insn);
+                  if (REG_P (SET_SRC (set))
+                      && REG_P (SET_DEST (set))
+                      && !REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    {
+                      //emit_insn_before (
+                    }
+                  break;
+#if 0
 		case CODE_FOR_movqi_insn:
 		  set = single_set (insn);
 
@@ -3188,8 +3426,9 @@ m65x_reorg (void)
 		      goto retry;
 		    }
 		  break;
+#endif
 
-		case CODE_FOR_addqi3_noclob:
+		/*case CODE_FOR_addqi3_noclob:
 		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
 		      && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
 		      && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
@@ -3216,16 +3455,123 @@ m65x_reorg (void)
 					      XEXP (SET_SRC (set), 1));
 		      INSN_CODE (insn) = -1;
 		    }
-		  break;
+		  break;*/
 
 		default:
 		  ;
 		}
 
 	      df_simulate_one_insn_backwards (bb, insn, &live);
+
+              if (GET_CODE (PATTERN (insn)) == USE
+                  || GET_CODE (PATTERN (insn)) == CLOBBER)
+                continue;
+
+              hw_reg_needed = get_attr_needs_reg (insn);
+              dump_insn_slim (stderr, insn);
+
+              switch (hw_reg_needed)
+                {
+                case NEEDS_REG_NONE:
+                  fprintf (stderr, "\tnone\n");
+                  break;
+                case NEEDS_REG_A:
+                  fprintf (stderr, "\taccumulator ");
+                  if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    fprintf (stderr, "(it's live)\n");
+                  else
+                    fprintf (stderr, "(it's dead)\n");
+                  break;
+                case NEEDS_REG_Y:
+                  fprintf (stderr, "\tY reg ");
+                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                    fprintf (stderr, "(it's live)\n");
+                  else
+                    fprintf (stderr, "(it's dead)\n");
+                  break;
+                case NEEDS_REG_AY:
+                  {
+                    fprintf (stderr, "\taccumulator & Y reg ");
+                    rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+                    rtx insns = NULL_RTX;
+                    start_sequence ();
+                    if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                      {
+                        emit_insn (m65x_push (QImode, acc));
+                        fprintf (stderr, "(Acc is live)\n");
+                        acc_saved = true;
+                      }
+                    if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                      {
+                        rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+                        fprintf (stderr, "(Y is live)\n");
+                        emit_move_insn (acc, yreg);
+                        m65x_push (QImode, acc);
+                        y_saved = true;
+                      }
+                    if (!REGNO_REG_SET_P (&live, ACC_REGNUM)
+                        && !REGNO_REG_SET_P (&live, Y_REGNUM))
+                      fprintf (stderr, "(they're both dead)\n");
+                    insns = get_insns ();
+                    end_sequence ();
+                    if (insns)
+                      emit_insn_before (insns, insn);
+                  }
+                  break;
+                case NEEDS_REG_PHYS:
+                  fprintf (stderr, "\ta physical register ");
+                  if (!REGNO_REG_SET_P (&live, ACC_REGNUM)
+                      || !REGNO_REG_SET_P (&live, X_REGNUM)
+                      || !REGNO_REG_SET_P (&live, Y_REGNUM))
+                    fprintf (stderr, "(one looks spare)\n");
+                  else
+                    fprintf (stderr, "(they're all live)\n");
+                  break;
+                }
 	    }
 	}
     }
+
+  df_chain_add_problem (DF_UD_CHAIN);
+  df_analyze ();
+  df_set_flags (DF_DEFER_INSN_RESCAN);
+  /*df_maybe_reorganize_use_refs (DF_REF_ORDER_BY_INSN);*/
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *insn, *curr;
+
+      FOR_BB_INSNS_SAFE (bb, insn, curr)
+        {
+          fprintf (stderr, "in insn: ");
+          dump_insn_slim (stderr, insn);
+          fprintf (stderr, "\n");
+
+          df_ref use;
+          FOR_EACH_INSN_USE (use, insn)
+            {
+              fprintf (stderr, "use: ");
+	      rtx x = DF_REF_REG (use);
+              dump_value_slim (stderr, x, 0);
+              fprintf (stderr, "\n");
+              struct df_link *link = DF_REF_CHAIN (use);
+              while (link)
+                {
+                  if (DF_REF_INSN_INFO (link->ref))
+	            {
+                      rtx_insn *def_insn = DF_REF_INSN (link->ref);
+                      fprintf (stderr, "def (insn): ");
+                      dump_insn_slim (stderr, def_insn);
+                      fprintf (stderr, "\n");
+                    }
+
+                  link = link->next;
+                }
+            }
+        }
+    }
+
+  //cfun->machine->virt_insns_ok = false;
 }
 
 rtx
@@ -3382,3 +3728,5 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 #define TARGET_PREFER_CONSTANT_EQUIV_P m65x_prefer_constant_equiv_p
 
 struct gcc_target targetm = TARGET_INITIALIZER;
+
+#include "gt-6502.h"
