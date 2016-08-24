@@ -366,43 +366,27 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
 
-/*#define BASE_REG_CLASS	GENERAL_REGS*/
-
 #define MODE_CODE_BASE_REG_CLASS(MODE, AS, OUTER, INDEX)		\
   ((AS) == ADDR_SPACE_GENERIC ? GENERAL_REGS				\
    : (AS) == ADDR_SPACE_ZP ? HARD_INDEX_REGS				\
    : NO_REGS)
 
-#define INDEX_REG_CLASS	HARD_Y_REG
-
-/*#define REGNO_OK_FOR_BASE_P(NUM) (IS_ZP_REGNUM (NUM))*/
+#define INDEX_REG_CLASS	GENERAL_REGS
 
 #define REGNO_MODE_CODE_OK_FOR_BASE_P(NUM, MODE, AS, OUTER, INDEX)	 \
   m65x_regno_mode_code_ok_for_base_p ((NUM), (MODE), (AS), (OUTER), (INDEX))
 
-#define REGNO_OK_FOR_INDEX_P(NUM) ((NUM) == Y_REGNUM)
+#define REGNO_OK_FOR_INDEX_P(NUM) (IS_ZP_REGNUM (NUM))
 
 #define PREFERRED_RELOAD_CLASS(X, CLASS) CLASS
 
-/*#define SMALL_REGISTER_CLASSES		1*/
-
 #define CLASS_MAX_NREGS(CLASS, MODE)		\
   (GET_MODE_SIZE (MODE))
-
-/*#define SECONDARY_MEMORY_NEEDED(CLASS1, CLASS2, MODE) \
-  ((MODE) == QImode && ZP_REG_CLASS_P (CLASS1) && ZP_REG_CLASS_P (CLASS2))*/
 
 #define HARD_REG_CLASS_P(CLASS)					\
   ((CLASS) == HARD_ACCUM_REG || (CLASS) == HARD_X_REG		\
    || (CLASS) == HARD_Y_REG || (CLASS) == HARD_INDEX_REGS	\
    || (CLASS) == ACTUALLY_HARD_REGS)
-
-/*#define HARDISH_REG_CLASS_P(CLASS)				\
-  ((CLASS) == WORD_ACCUM_REGS || (CLASS) == ACCUM_REGS		\
-   || (CLASS) == WORD_X_REGS || (CLASS) == X_REGS		\
-   || (CLASS) == WORD_Y_REGS || (CLASS) == Y_REGS		\
-   || (CLASS) == WORD_INDEX_REGS || (CLASS) == INDEX_REGS	\
-   || (CLASS) == WORD_HARD_REGS || (CLASS) == HARD_REGS)*/
 
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
@@ -499,6 +483,10 @@ typedef int CUMULATIVE_ARGS;
 #define HAVE_POST_INCREMENT 0
 #define HAVE_PRE_DECREMENT 0
 #define HAVE_POST_DECREMENT 1
+#define HAVE_PRE_MODIFY_REG 1
+#define HAVE_PRE_MODIFY_DISP 1
+#define HAVE_POST_MODIFY_REG 0
+#define HAVE_POST_MODIFY_DISP 0
 
 /*****************************************************************************
  * Costs.
@@ -631,7 +619,7 @@ typedef int CUMULATIVE_ARGS;
 #define HAS_LONG_UNCOND_BRANCH		1
 
 #undef WORD_REGISTER_OPERATIONS
-#define MOVE_MAX			2
+#define MOVE_MAX			1
 
 //#define MAX_FIXED_MODE_SIZE		32
 

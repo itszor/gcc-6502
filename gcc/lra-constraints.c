@@ -1381,7 +1381,8 @@ process_addr_reg (rtx *loc, bool check_only_p, rtx_insn **before, rtx_insn **aft
      created a new register with the right class, but now we want to initialise
      it with the constant value, not a copy of the previous register.  */
   rtx cst;
-  if (REG_P (*loc) && (regno = REGNO (*loc)) >= FIRST_PSEUDO_REGISTER
+  if (false
+      && REG_P (*loc) && (regno = REGNO (*loc)) >= FIRST_PSEUDO_REGISTER
       && ira_reg_equiv[regno].defined_p
       && ira_reg_equiv[regno].profitable_p
       && (cst = ira_reg_equiv[regno].constant) != NULL_RTX
@@ -3122,7 +3123,8 @@ process_address_1 (int nop, bool check_only_p,
 					   new_reg, *ad.index);
 	}
     }
-  else if (ad.index == NULL
+  else if (false
+           && ad.index == NULL
 	   && ad.disp
 	   && CONST_INT_P (*ad.disp)
 	   && INTVAL (*ad.disp) >= 0
@@ -4495,7 +4497,7 @@ curr_insn_transform (bool check_only_p)
 		     REGNO (op), regno);
 	}
     }
-  lra_reduce_register_pressure (curr_insn, &before, &after);
+  //lra_reduce_register_pressure (curr_insn, &before, &after);
   if (before != NULL_RTX || after != NULL_RTX
       || max_regno_before != max_reg_num ())
     change_p = true;
