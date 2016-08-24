@@ -47,4 +47,7 @@ extern void m65x_expand_epilogue (void);
 
 extern bool m65x_peephole_find_temp_regs (int, int, ...);
 
+extern bool m65x_real_insns_ok (void);
+extern bool m65x_virt_insns_ok (void);
+
 #endif
