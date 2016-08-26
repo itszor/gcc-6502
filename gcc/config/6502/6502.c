@@ -1202,20 +1202,20 @@ m65x_reg_ok_for_xy_index_p (const_rtx x, bool strict_p)
 static bool
 m65x_virt_indexed_addr_p (rtx x, bool strict)
 {
-  if (GET_CODE (x) == PLUS
+  /*if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && REG_P (XEXP (x, 0))
       && m65x_address_register_p (XEXP (x, 0), strict)
       && REG_P (XEXP (x, 1))
       && m65x_address_register_p (XEXP (x, 1), strict))
-    return true;
+    return true;*/
 
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && m65x_address_register_p (XEXP (XEXP (x, 0), 0), strict)
+      && m65x_reg_ok_for_y_index_p (XEXP (XEXP (x, 0), 0), strict)
       && REG_P (XEXP (x, 1))
       && m65x_address_register_p (XEXP (x, 1), strict))
     return true;
@@ -1262,19 +1262,19 @@ m65x_virt_premodify_addr_p (machine_mode mode, rtx x, bool strict)
 static bool
 m65x_virt_absolute_indexed_addr_p (rtx x, bool strict)
 {
-  if (GET_CODE (x) == PLUS
+  /*if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && REG_P (XEXP (x, 0))
       && m65x_address_register_p (XEXP (x, 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
-    return true;
+    return true;*/
 
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
       && REG_P (XEXP (XEXP (x, 0), 0))
-      && m65x_address_register_p (XEXP (XEXP (x, 0), 0), strict)
+      && m65x_reg_ok_for_xy_index_p (XEXP (XEXP (x, 0), 0), strict)
       && CONSTANT_ADDRESS_P (XEXP (x, 1)))
     return true;
 
@@ -1419,11 +1419,11 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
       else if (m65x_address_register_p (x, strict))
 	legit = true;
 
-      else if (m65x_virt_indexed_addr_p (x, strict))
-	legit = true;
+      /*else if (m65x_virt_indexed_addr_p (x, strict))
+	legit = true;*/
 
-      else if (m65x_indirect_offset_addr_p (mode, x, strict))
-	legit = true;
+      /*else if (m65x_indirect_offset_addr_p (mode, x, strict))
+	legit = true;*/
 
       else if (m65x_virt_absolute_indexed_addr_p (x, strict))
         legit = true;
@@ -1531,7 +1531,7 @@ static rtx
 m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			 enum machine_mode mode)
 {
-  if (m65x_virt_insns_ok ())
+  if (false && m65x_virt_insns_ok ())
     {
       /* Turn (base+index) or (base+offset) addresses into premodifies.  */
       /*if (GET_CODE (x) == PLUS
@@ -2049,7 +2049,16 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   enum machine_mode mode = GET_MODE (x);
 
   if (m65x_virt_insns_ok ())
-    return NO_REGS;
+    {
+      if (reload_mode == QImode
+          && reload_class != HARD_ACCUM_REG
+          && (spilled_pseudo
+              || (MEM_P (x)
+                  && GET_CODE (XEXP (x, 0)) == PLUS
+                  && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND)))
+        return HARD_ACCUM_REG;
+      return NO_REGS;
+    }
 
   if (TARGET_DEBUG_SECONDARY_RELOAD)
     {
@@ -3494,10 +3503,10 @@ m65x_reorg (void)
                     fprintf (stderr, "\taccumulator & Y reg ");
                     rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
                     rtx insns = NULL_RTX;
-                    start_sequence ();
+                    //start_sequence ();
                     if (REGNO_REG_SET_P (&live, ACC_REGNUM))
                       {
-                        emit_insn (m65x_push (QImode, acc));
+                        //emit_insn (m65x_push (QImode, acc));
                         fprintf (stderr, "(Acc is live)\n");
                         acc_saved = true;
                       }
@@ -3505,17 +3514,17 @@ m65x_reorg (void)
                       {
                         rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
                         fprintf (stderr, "(Y is live)\n");
-                        emit_move_insn (acc, yreg);
-                        m65x_push (QImode, acc);
+                        //emit_move_insn (acc, yreg);
+                        //m65x_push (QImode, acc);
                         y_saved = true;
                       }
                     if (!REGNO_REG_SET_P (&live, ACC_REGNUM)
                         && !REGNO_REG_SET_P (&live, Y_REGNUM))
                       fprintf (stderr, "(they're both dead)\n");
-                    insns = get_insns ();
-                    end_sequence ();
-                    if (insns)
-                      emit_insn_before (insns, insn);
+                    //insns = get_insns ();
+                    //end_sequence ();
+                    //if (insns)
+                    //  emit_insn_before (insns, insn);
                   }
                   break;
                 case NEEDS_REG_PHYS:

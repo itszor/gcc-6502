@@ -5965,8 +5965,8 @@ binary_scale_code_p (enum rtx_code code)
 static rtx *
 get_base_term (rtx *inner)
 {
-  /*if (GET_MODE_SIZE (GET_MODE (*inner)) < GET_MODE_SIZE (Pmode))
-    return 0;*/
+  if (GET_MODE_SIZE (GET_MODE (*inner)) < GET_MODE_SIZE (Pmode))
+    return 0;
   if (GET_CODE (*inner) == LO_SUM)
     inner = strip_address_mutations (&XEXP (*inner, 0));
   if (REG_P (*inner)
