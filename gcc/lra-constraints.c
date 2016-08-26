@@ -3437,8 +3437,7 @@ process_address_1 (int nop, bool check_only_p,
 					   new_reg, *ad.index);
 	}
     }
-  else if (false
-           && ad.index == NULL
+  else if (ad.index == NULL
 	   && ad.disp
 	   && CONST_INT_P (*ad.disp)
 	   && INTVAL (*ad.disp) >= 0
