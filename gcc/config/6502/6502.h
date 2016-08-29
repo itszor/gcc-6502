@@ -251,12 +251,8 @@
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
   m65x_hard_regno_mode_ok ((REGNO), (MODE))
 
-#if 1
-#define MODES_TIEABLE_P(MODE1, MODE2) 1
-#else
 #define MODES_TIEABLE_P(MODE1, MODE2) \
   (GET_MODE_SIZE (MODE1) != 1 && GET_MODE_SIZE (MODE2) != 1)
-#endif
 
 #if 0
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
@@ -485,10 +481,6 @@ typedef int CUMULATIVE_ARGS;
 #define HAVE_POST_INCREMENT 0
 #define HAVE_PRE_DECREMENT 0
 #define HAVE_POST_DECREMENT 1
-#define HAVE_PRE_MODIFY_REG 1
-#define HAVE_PRE_MODIFY_DISP 1
-#define HAVE_POST_MODIFY_REG 0
-#define HAVE_POST_MODIFY_DISP 0
 
 /*****************************************************************************
  * Costs.

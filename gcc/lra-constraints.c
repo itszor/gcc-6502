@@ -4496,7 +4496,7 @@ curr_insn_transform (bool check_only_p)
 		     REGNO (op), regno);
 	}
     }
-  //lra_reduce_register_pressure (curr_insn, &before, &after);
+  lra_reduce_register_pressure (curr_insn, &before, &after);
   if (before != NULL_RTX || after != NULL_RTX
       || max_regno_before != max_reg_num ())
     change_p = true;
