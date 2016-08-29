@@ -1623,7 +1623,8 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
               emit_clobber (tmp);
 	      emit_move_insn (tmp_lo, plus0_lo);
 	      emit_insn (gen_addqi3 (tmp_hi, plus0_hi, plus1_hi));*/
-              emit_insn (gen_separated_indexhi_virt (tmp, plus0, plus1_hi));
+              //emit_insn (gen_separated_indexhi_virt (tmp, plus0, plus1_hi));
+              emit_insn (gen_addhi3_highpart (tmp, plus1_hi, plus0));
 
 	      x = gen_rtx_PLUS (Pmode,
 		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
