@@ -1604,21 +1604,26 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			      force_reg (Pmode, plus0));
 	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
             {
-	      rtx plus1_lo, plus1_hi, tmp_hi;
+	      rtx plus0_lo, plus0_hi, plus1_lo, plus1_hi, tmp_lo, tmp_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
 
-	      if (!REG_P (plus1) && !MEM_P (plus1))
+	      if (!REG_P (plus1) && !MEM_P (plus1) && !CONSTANT_P (plus1))
 	        plus1 = force_reg (Pmode, plus1);
 
-	      plus1_lo = operand_subword (plus1, 0, 1, HImode);
-	      plus1_hi = operand_subword (plus1, 1, 1, HImode);
-	      tmp_hi = operand_subword (tmp, 1, 1, HImode);
+	      plus1_lo = m65x_gen_subreg (QImode, plus1, HImode, 0);
+	      plus1_hi = m65x_gen_subreg (QImode, plus1, HImode, 1);
+	      /*tmp_lo = operand_subword (tmp, 0, 1, HImode);
+	      tmp_hi = operand_subword (tmp, 1, 1, HImode*/
 
-	      if (!REG_P (plus0) && !MEM_P (plus0))
+	      if (!REG_P (plus0) && !MEM_P (plus0) && !CONSTANT_P (plus0))
 		plus0 = force_reg (Pmode, plus0);
 
-	      emit_move_insn (tmp, plus0);
-	      emit_insn (gen_addqi3 (tmp_hi, tmp_hi, plus1_hi));
+	      /*plus0_lo = m65x_gen_subreg (QImode, plus0, HImode, 0);
+	      plus0_hi = m65x_gen_subreg (QImode, plus0, HImode, 1);
+              emit_clobber (tmp);
+	      emit_move_insn (tmp_lo, plus0_lo);
+	      emit_insn (gen_addqi3 (tmp_hi, plus0_hi, plus1_hi));*/
+              emit_insn (gen_separated_indexhi_virt (tmp, plus0, plus1_hi));
 
 	      x = gen_rtx_PLUS (Pmode,
 		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
@@ -1674,6 +1679,9 @@ m65x_address_cost (rtx address, enum machine_mode mode,
 		   addr_space_t as ATTRIBUTE_UNUSED,
 		   bool speed ATTRIBUTE_UNUSED)
 {
+  fprintf (stderr, "address cost for:\n");
+  debug_rtx (address);
+
   if (mode != QImode
       && GET_CODE (address) == PLUS
       && REG_P (XEXP (address, 0))
@@ -1723,6 +1731,62 @@ m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
     return 8;
 
   return 4;
+}
+
+static bool
+m65x_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno, int *total,
+                bool speed)
+{
+  enum rtx_code code = GET_CODE (x);
+  switch (code)
+    {
+    case CONST_INT:
+    case CONST_DOUBLE:
+    case SYMBOL_REF:
+    case LABEL_REF:
+    case CONST:
+      *total = 0;
+      return true;
+    case REG:
+    case MEM:
+      *total += COSTS_N_INSNS (1);
+      return false;
+    case SET:
+      if (REG_P (XEXP (x, 1)))
+        *total = COSTS_N_INSNS (2 * GET_MODE_SIZE (mode));
+      else if (CONSTANT_P (XEXP (x, 1)))
+        *total = COSTS_N_INSNS (GET_MODE_SIZE (mode));
+      else
+        return false;
+      return true;
+    case PLUS:
+    case MINUS:
+      if (REG_P (XEXP (x, 1)))
+        *total += COSTS_N_INSNS (3 * GET_MODE_SIZE (mode));
+      else if (CONSTANT_P (XEXP (x, 1)))
+        *total += COSTS_N_INSNS (2 * GET_MODE_SIZE (mode));
+      else
+        return false;
+      return true;
+    case ASHIFT:
+    case ASHIFTRT:
+    case LSHIFTRT:
+      if (CONST_INT_P (XEXP (x, 1)))
+        {
+          int cost_factor = INTVAL (XEXP (x, 1)) % 8;
+          if (cost_factor > 4)
+            cost_factor = 8 - cost_factor;
+          *total += COSTS_N_INSNS (GET_MODE_SIZE (mode)) * cost_factor;
+          return true;
+        }
+      else
+        *total += 4 * COSTS_N_INSNS (GET_MODE_SIZE (mode));
+      return false;
+    default:
+      ;
+    }
+
+  return false;
 }
 
 static bool
@@ -1992,16 +2056,22 @@ m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
 }
 
 static reg_class_t
-m65x_preferred_reload_class (rtx x ATTRIBUTE_UNUSED, reg_class_t klass)
+m65x_preferred_reload_class (rtx x, reg_class_t klass)
 {
-  switch (klass)
+  /*if (MEM_P (x)
+      && GET_CODE (XEXP (x, 0)) == PLUS
+      && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
+      && REG_P (XEXP (XEXP (XEXP (x, 0), 0), 0)))
+    return HARD_ACCUM_REG;*/
+
+  /*switch (klass)
     {
     case HARD_ZP_REGS:
       return GENERAL_REGS;
 
     default:
       ;
-    }
+    }*/
 
   return klass;
 }
@@ -2048,18 +2118,6 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   reg_class_t sclass = NO_REGS;
   enum machine_mode mode = GET_MODE (x);
 
-  if (m65x_virt_insns_ok ())
-    {
-      if (reload_mode == QImode
-          && reload_class != HARD_ACCUM_REG
-          && (spilled_pseudo
-              || (MEM_P (x)
-                  && GET_CODE (XEXP (x, 0)) == PLUS
-                  && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND)))
-        return HARD_ACCUM_REG;
-      return NO_REGS;
-    }
-
   if (TARGET_DEBUG_SECONDARY_RELOAD)
     {
       fprintf (stderr, "reload-%s ", in_p ? "in" : "out");
@@ -2070,13 +2128,37 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
       if (spilled_pseudo)
 	fprintf (stderr, "  (spilled to stack)\n");
       else
-        fputc ('\n', stderr);      
+        fputc ('\n', stderr);
+      if (REG_P (x) || GET_CODE (x) == SUBREG)
+        fprintf (stderr, "  (true regnum: %d)\n", true_regnum (x));  
+    }
+
+  if (m65x_virt_insns_ok ())
+    {
+      if (reload_mode == QImode
+          && reload_class != HARD_ACCUM_REG
+          && (spilled_pseudo
+              || (MEM_P (x)
+                  && (REG_P (XEXP (x, 0))
+                      || (GET_CODE (XEXP (x, 0)) == PLUS
+                          && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
+                          && REG_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
+                          && REG_P (XEXP (XEXP (x, 0), 1)))))))
+        {
+	  if (TARGET_DEBUG_SECONDARY_RELOAD)
+	    fprintf (stderr, "(using reload_%sqi_indy pattern)\n",
+                     in_p ? "in" : "out");
+          if (in_p)
+            sri->icode = CODE_FOR_reload_inqi_indy;
+          else
+            sri->icode = CODE_FOR_reload_outqi_indy;
+        }
     }
 
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
      else a register of class RELOAD_CLASS needs to be copied to X.  */
 
-  if (reload_mode == QImode)
+  else if (reload_mode == QImode)
     {
       if (base_plus_const_byte_offset_mem (QImode, x))
 	{
@@ -3340,12 +3422,45 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
   return false;
 }
 
+static bool
+is_op_regno (unsigned opno, unsigned regno)
+{
+  return REG_P (recog_data.operand[opno])
+         && REGNO (recog_data.operand[opno]) == regno;
+}
+
+static bool
+is_op_phys_reg (unsigned opno)
+{
+  return REG_P (recog_data.operand[opno])
+         && (REGNO (recog_data.operand[opno]) == ACC_REGNUM
+             || REGNO (recog_data.operand[opno]) == X_REGNUM
+             || REGNO (recog_data.operand[opno]) == Y_REGNUM);
+}
+
+static bool
+op_uses_yreg (unsigned opno)
+{
+  rtx op = recog_data.operand[opno];
+  bool yes = MEM_P (op)
+         && GET_CODE (XEXP (op, 0)) == PLUS
+         && GET_CODE (XEXP (XEXP (op, 0), 0)) == ZERO_EXTEND
+         && REG_P (XEXP (XEXP (XEXP (op, 0), 0), 0))
+         && REGNO (XEXP (XEXP (XEXP (op, 0), 0), 0)) == Y_REGNUM
+         && REG_P (XEXP (XEXP (op, 0), 1));
+  fprintf (stderr, "uses Y reg: %s\n", yes ? "yes" : "no");
+  dump_value_slim (stderr, op, 0);
+  fprintf (stderr, "\n");
+  return yes;
+}
+
 static void
 m65x_reorg (void)
 {
   basic_block bb;
   regset_head live;
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
 
   INIT_REG_SET (&live);
 
@@ -3357,6 +3472,8 @@ m65x_reorg (void)
 
   if (!optimize)
     split_all_insns_noflow ();
+
+  hash_map<rtx, enum attr_needs_reg> clobbers_live;
 
   // cfun->machine->real_insns_ok = true;
 
@@ -3472,70 +3589,108 @@ m65x_reorg (void)
 
 	      df_simulate_one_insn_backwards (bb, insn, &live);
 
-              if (GET_CODE (PATTERN (insn)) == USE
-                  || GET_CODE (PATTERN (insn)) == CLOBBER)
-                continue;
-
-              hw_reg_needed = get_attr_needs_reg (insn);
-              dump_insn_slim (stderr, insn);
-
-              switch (hw_reg_needed)
+              if (GET_CODE (PATTERN (insn)) != USE
+                  && GET_CODE (PATTERN (insn)) != CLOBBER)
                 {
-                case NEEDS_REG_NONE:
-                  fprintf (stderr, "\tnone\n");
-                  break;
-                case NEEDS_REG_A:
-                  fprintf (stderr, "\taccumulator ");
-                  if (REGNO_REG_SET_P (&live, ACC_REGNUM))
-                    fprintf (stderr, "(it's live)\n");
-                  else
-                    fprintf (stderr, "(it's dead)\n");
-                  break;
-                case NEEDS_REG_Y:
-                  fprintf (stderr, "\tY reg ");
-                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                    fprintf (stderr, "(it's live)\n");
-                  else
-                    fprintf (stderr, "(it's dead)\n");
-                  break;
-                case NEEDS_REG_AY:
-                  {
-                    fprintf (stderr, "\taccumulator & Y reg ");
-                    rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
-                    rtx insns = NULL_RTX;
-                    //start_sequence ();
-                    if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                  hw_reg_needed = get_attr_needs_reg (insn);
+
+                  extract_constrain_insn_cached (insn);
+
+                  switch (hw_reg_needed)
+                    {
+                    case NEEDS_REG_NONE:
+                      break;
+                    case NEEDS_REG_A:
+                      if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_A);
+                      break;
+                    case NEEDS_REG_A0:
+                      if (!is_op_regno (0, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_A);
+                      break;
+                    case NEEDS_REG_A1:
+                      if (!is_op_regno (1, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_A);
+                      break;
+                    case NEEDS_REG_Y:
+                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_Y);
+                      break;
+                    case NEEDS_REG_AY:
                       {
-                        //emit_insn (m65x_push (QImode, acc));
-                        fprintf (stderr, "(Acc is live)\n");
-                        acc_saved = true;
+                        if (REGNO_REG_SET_P (&live, ACC_REGNUM)
+                            && REGNO_REG_SET_P (&live, Y_REGNUM))
+                          clobbers_live.put (insn, NEEDS_REG_AY);
+                        else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                          clobbers_live.put (insn, NEEDS_REG_A);
+                        else if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                          clobbers_live.put (insn, NEEDS_REG_Y);
                       }
-                    if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                      break;
+                    case NEEDS_REG_A0Y1:
                       {
-                        rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
-                        fprintf (stderr, "(Y is live)\n");
-                        //emit_move_insn (acc, yreg);
-                        //m65x_push (QImode, acc);
-                        y_saved = true;
+                        bool need_a = !is_op_regno (0, ACC_REGNUM)
+                                      && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                        bool need_y = !op_uses_yreg (1)
+                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
+                        if (need_a && need_y)
+                          clobbers_live.put (insn, NEEDS_REG_AY);
+                        else if (need_a)
+                          clobbers_live.put (insn, NEEDS_REG_A);
+                        else if (need_y)
+                          clobbers_live.put (insn, NEEDS_REG_Y);
                       }
-                    if (!REGNO_REG_SET_P (&live, ACC_REGNUM)
-                        && !REGNO_REG_SET_P (&live, Y_REGNUM))
-                      fprintf (stderr, "(they're both dead)\n");
-                    //insns = get_insns ();
-                    //end_sequence ();
-                    //if (insns)
-                    //  emit_insn_before (insns, insn);
-                  }
-                  break;
-                case NEEDS_REG_PHYS:
-                  fprintf (stderr, "\ta physical register ");
-                  if (!REGNO_REG_SET_P (&live, ACC_REGNUM)
-                      || !REGNO_REG_SET_P (&live, X_REGNUM)
-                      || !REGNO_REG_SET_P (&live, Y_REGNUM))
-                    fprintf (stderr, "(one looks spare)\n");
-                  else
-                    fprintf (stderr, "(they're all live)\n");
-                  break;
+                      break;
+                    case NEEDS_REG_A1Y0:
+                      {
+                        bool need_a = !is_op_regno (1, ACC_REGNUM)
+                                      && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                        bool need_y = !op_uses_yreg (0)
+                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
+                        if (need_a && need_y)
+                          clobbers_live.put (insn, NEEDS_REG_AY);
+                        else if (need_a)
+                          clobbers_live.put (insn, NEEDS_REG_A);
+                        else if (need_y)
+                          clobbers_live.put (insn, NEEDS_REG_Y);
+                      }
+                      break;
+                    case NEEDS_REG_AY0:
+                      {
+                        bool need_a = REGNO_REG_SET_P (&live, ACC_REGNUM);
+                        bool need_y = !op_uses_yreg (0)
+                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
+                        if (need_a && need_y)
+                          clobbers_live.put (insn, NEEDS_REG_AY);
+                        else if (need_a)
+                          clobbers_live.put (insn, NEEDS_REG_A);
+                        else if (need_y)
+                          clobbers_live.put (insn, NEEDS_REG_Y);
+                      }
+                      break;
+                    case NEEDS_REG_PHYS:
+                      if (REGNO_REG_SET_P (&live, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, X_REGNUM)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_PHYS);
+                      break;
+                    case NEEDS_REG_PHYS0:
+                      if (!is_op_phys_reg (0)
+                          && REGNO_REG_SET_P (&live, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, X_REGNUM)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_PHYS);
+                      break;
+                    case NEEDS_REG_PHYS1:
+                      if (!is_op_phys_reg (1)
+                          && REGNO_REG_SET_P (&live, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, X_REGNUM)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        clobbers_live.put (insn, NEEDS_REG_PHYS);
+                      break;
+                    }
                 }
 	    }
 	}
@@ -3555,6 +3710,26 @@ m65x_reorg (void)
           fprintf (stderr, "in insn: ");
           dump_insn_slim (stderr, insn);
           fprintf (stderr, "\n");
+
+          enum attr_needs_reg *clob = clobbers_live.get (insn);
+          if (clob)
+            switch (*clob)
+              {
+              case NEEDS_REG_A:
+                fprintf (stderr, "needs A\n");
+                break;
+              case NEEDS_REG_Y:
+                fprintf (stderr, "needs Y\n");
+                break;
+              case NEEDS_REG_AY:
+                fprintf (stderr, "needs A & Y\n");
+                break;
+              case NEEDS_REG_PHYS:
+                fprintf (stderr, "needs physical reg\n");
+                break;
+              default:
+                gcc_unreachable ();
+              }
 
           df_ref use;
           FOR_EACH_INSN_USE (use, insn)
@@ -3687,6 +3862,9 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 
 #undef TARGET_REGISTER_MOVE_COST
 #define TARGET_REGISTER_MOVE_COST m65x_register_move_cost
+
+#undef TARGET_RTX_COSTS
+#define TARGET_RTX_COSTS m65x_rtx_costs
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
