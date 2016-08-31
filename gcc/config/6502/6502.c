@@ -3481,9 +3481,6 @@ m65x_reorg (void)
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
-      bool acc_saved = false;
-      bool x_saved = false;
-      bool y_saved = false;
 
       COPY_REG_SET (&live, DF_LIVE_OUT (bb));
       df_simulate_initialize_backwards (bb, &live);
@@ -3697,7 +3694,7 @@ m65x_reorg (void)
 	}
     }
 
-  df_chain_add_problem (DF_UD_CHAIN);
+  df_chain_add_problem (DF_DU_CHAIN);
   df_analyze ();
   df_set_flags (DF_DEFER_INSN_RESCAN);
   /*df_maybe_reorganize_use_refs (DF_REF_ORDER_BY_INSN);*/
@@ -3705,6 +3702,9 @@ m65x_reorg (void)
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
+      bool acc_saved = false;
+      bool x_saved = false;
+      bool y_saved = false;
 
       FOR_BB_INSNS_SAFE (bb, insn, curr)
         {
@@ -3732,21 +3732,21 @@ m65x_reorg (void)
                 gcc_unreachable ();
               }
 
-          df_ref use;
-          FOR_EACH_INSN_USE (use, insn)
+          df_ref def;
+          FOR_EACH_INSN_DEF (def, insn)
             {
-              fprintf (stderr, "use: ");
-	      rtx x = DF_REF_REG (use);
+              fprintf (stderr, "def: ");
+	      rtx x = DF_REF_REG (def);
               dump_value_slim (stderr, x, 0);
               fprintf (stderr, "\n");
-              struct df_link *link = DF_REF_CHAIN (use);
+              struct df_link *link = DF_REF_CHAIN (def);
               while (link)
                 {
                   if (DF_REF_INSN_INFO (link->ref))
 	            {
-                      rtx_insn *def_insn = DF_REF_INSN (link->ref);
-                      fprintf (stderr, "def (insn): ");
-                      dump_insn_slim (stderr, def_insn);
+                      rtx_insn *use_insn = DF_REF_INSN (link->ref);
+                      fprintf (stderr, "use (insn): ");
+                      dump_insn_slim (stderr, use_insn);
                       fprintf (stderr, "\n");
                     }
 
