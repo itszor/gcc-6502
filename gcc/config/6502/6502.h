@@ -217,7 +217,7 @@
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1, 1, 0, 0, 0 }
+    1, 1, 1, 1, 1, 1, 1 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -294,9 +294,9 @@ enum reg_class
   ARG_REGS,
   CALLEE_SAVED_REGS,
   CC_REGS,
+  SHADOW_HARD_REGS,
   GENERAL_REGS,
   HARD_ZP_REGS,
-  SHADOW_HARD_REGS,
   VFP_REG,
   VAP_REG,
   ALL_REGS,
@@ -317,9 +317,9 @@ enum reg_class
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
   "CC_REGS",			\
+  "SHADOW_HARD_REGS",           \
   "GENERAL_REGS",		\
   "HARD_ZP_REGS",		\
-  "SHADOW_HARD_REGS",           \
   "VFP_REG",			\
   "VAP_REG",			\
   "ALL_REGS"			\
@@ -337,9 +337,9 @@ enum reg_class
   { 0x00ff0000, 0x00000000, 0x000000 }, /* ARG_REGS */		\
   { 0xff000000, 0x00000000, 0x000000 }, /* CALLEE_SAVED_REGS */	\
   { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
-  { 0xfffff000, 0xffffffff, 0x0c0000 }, /* GENERAL_REGS */	\
-  { 0xfffff111, 0xffffffff, 0x000000 }, /* HARD_ZP_REGS */	\
   { 0x00000000, 0x00000000, 0x700000 }, /* SHADOW_HARD_REGS */  \
+  { 0xfffff000, 0xffffffff, 0x7c0000 }, /* GENERAL_REGS */	\
+  { 0xfffff111, 0xffffffff, 0x000000 }, /* HARD_ZP_REGS */	\
   { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
   { 0x00000000, 0x00000000, 0x00000c }, /* VAP_REG */		\
   { 0xffffffff, 0xffffffff, 0x7ffff0 }, /* ALL_REGS */		\
@@ -369,7 +369,11 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
      ? GENERAL_REGS :							\
-   (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3) ? CC_REGS : NO_REGS)
+   (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3)             \
+     ? CC_REGS :                                                        \
+   (REGNO) >= SHADOW_A && (REGNO) <= SHADOW_Y                           \
+     ? SHADOW_HARD_REGS :                                               \
+   NO_REGS)
 
 #define MODE_CODE_BASE_REG_CLASS(MODE, AS, OUTER, INDEX)		\
   ((AS) == ADDR_SPACE_GENERIC ? GENERAL_REGS				\
@@ -397,7 +401,8 @@ enum reg_class
 
 #define ZP_REG_CLASS_P(CLASS) \
   ((CLASS) == ARG_REGS || (CLASS) == CALLEE_SAVED_REGS \
-   || (CLASS) == GENERAL_REGS || (CLASS) == STACK_REG)
+   || (CLASS) == GENERAL_REGS || (CLASS) == STACK_REG \
+   || (CLASS) == SHADOW_HARD_REGS)
 
 /*****************************************************************************
  * Stack layout/calling conventions.

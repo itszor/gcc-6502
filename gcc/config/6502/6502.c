@@ -1639,14 +1639,14 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
       break;
 
     case HImode:
-      if (mode == QImode && REG_P (x))
+      if (REG_P (x))
 	x = gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, const0_rtx), x);
       else if (GET_CODE (x) == PLUS)
 	{
 	  rtx plus0 = XEXP (x, 0);
 	  rtx plus1 = XEXP (x, 1);
 
-	  if (mode == QImode && !CONSTANT_ADDRESS_P (plus0)
+	  if (!CONSTANT_ADDRESS_P (plus0)
 	      && CONST_INT_P (plus1) && INTVAL (plus1) >= 0
 	      && (INTVAL (plus1) + modesize - 1) < 256)
 	    x = gen_rtx_PLUS (Pmode,
@@ -1654,7 +1654,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 				force_reg (QImode,
 				  gen_int_mode (INTVAL (plus1), QImode))),
 			      force_reg (Pmode, plus0));
-	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
+	  else if (GET_CODE (plus0) != ZERO_EXTEND)
             {
 	      rtx plus0_lo, plus0_hi, plus1_lo, plus1_hi, tmp_lo, tmp_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
@@ -1682,7 +1682,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
 		    tmp);
 	    }
-	  else if (mode == QImode && GET_CODE (plus0) == ZERO_EXTEND)
+	  else if (GET_CODE (plus0) == ZERO_EXTEND)
 	    x = gen_rtx_PLUS (Pmode, plus0, force_reg (Pmode, plus1));
 	}
 	break;
@@ -3533,7 +3533,7 @@ emit_save (unsigned mask)
 {
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
-  rtx yreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
   rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
   rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
@@ -3553,7 +3553,7 @@ emit_restore (unsigned mask)
 {
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
-  rtx yreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
   rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
   rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
@@ -3597,7 +3597,7 @@ maybe_make_indirect_indexed (machine_mode mode, rtx mem)
                gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg), addr));
     }
 
-  return mem;
+  return change_address (mem, mode, addr);
 }
 
 static bool
@@ -3673,6 +3673,130 @@ m65x_devirt_movqi (rtx temp)
 }
 
 static bool
+m65x_devirt_movhisi (machine_mode mode, rtx temp)
+{
+  rtx *op = &recog_data.operand[0];
+  int modesize = GET_MODE_SIZE (mode);
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  /*rtx xreg = gen_rtx_REG (QImode, X_REGNUM);*/
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
+  switch (which_alternative)
+    {
+    case 0: /* hz, hz.  */
+      {
+        gcc_assert (REG_P (op[0]) && REG_P (op[1]));
+
+        if (REGNO (op[0]) < REGNO (op[1]))
+          for (int i = modesize - 1; i >= 0; i--)
+            {
+              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+              rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+              emit_move_insn (temp, srcpart);
+              emit_move_insn (dstpart, temp);
+            }
+        else
+          for (int i = 0; i < modesize; i++)
+            {
+              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+              rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+              emit_move_insn (temp, srcpart);
+              emit_move_insn (dstpart, temp);
+            }
+      }
+      break;
+    case 3: /* hz, Ur.  */
+      emit_move_insn (yreg, const0_rtx);
+      /* Fallthru.  */
+    case 1: /* hz, Uy.  */
+      {
+        rtx mempart = maybe_make_indirect_indexed (QImode, op[1]);
+        if (reg_overlap_mentioned_p (op[0], mempart))
+          {
+            /* This is a bit inefficient, and we should probably discourage it
+               somehow.  Could be improved for SImode.  */
+            rtx dstpart;
+            for (int i = 0; i < modesize; i++)
+              {
+                dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                emit_move_insn (acc, mempart);
+                if (i + 1 < modesize)
+                  {
+                    emit_insn (m65x_push (QImode, acc));
+                    emit_insn (gen_addqi3 (yreg, yreg, const1_rtx));
+                  }
+              }
+            emit_move_insn (dstpart, acc);
+            for (int i = modesize - 2; i >= 0; i--)
+              {
+                dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                emit_insn (m65x_pop (QImode, acc));
+                emit_move_insn (dstpart, acc);
+              }
+          }
+        else
+          for (int i = 0; i < modesize; i++)
+            {
+              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+              emit_move_insn (acc, mempart);
+              emit_move_insn (dstpart, acc);
+              if (i + 1 < modesize)
+                emit_insn (gen_addqi3 (yreg, yreg, const1_rtx));
+            }
+      }
+      break;
+    case 4: /* Ur, hz.  */
+      emit_move_insn (yreg, const0_rtx);
+      /* Fallthru.  */
+    case 2: /* Uy, hz.  */
+      {
+        rtx mempart = maybe_make_indirect_indexed (QImode, op[0]);
+        for (int i = 0; i < modesize; i++)
+          {
+            rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+            emit_move_insn (acc, srcpart);
+            emit_move_insn (mempart, acc);
+            if (i + 1 < modesize)
+              emit_insn (gen_addqi3 (yreg, yreg, const1_rtx));
+          }
+      }
+      break;
+    case 5: /* hz, m.  */
+      for (int i = 0; i < modesize; i++)
+        {
+          rtx mempart = adjust_address (op[1], QImode, i);
+          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+          emit_move_insn (temp, mempart);
+          emit_move_insn (dstpart, temp);
+        }
+      break;
+    case 6: /* m, hz.  */
+    case 8: /* m, iS.  */
+      for (int i = 0; i < modesize; i++)
+        {
+          rtx mempart = adjust_address (op[0], QImode, i);
+          rtx srcpart = m65x_gen_subreg (QImode, op[1], mode, i);
+          emit_move_insn (temp, srcpart);
+          emit_move_insn (mempart, temp);
+        }
+      break;
+    case 7: /* hz, iS.  */
+      for (int i = 0; i < modesize; i++)
+        {
+          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+          rtx srcpart = m65x_gen_subreg (QImode, op[1], mode, i);
+          emit_move_insn (temp, srcpart);
+          emit_move_insn (dstpart, temp);
+        }
+      break;
+    default:
+      return false;
+    }
+
+  return true;
+}
+
+static bool
 m65x_devirt (int icode, unsigned mask, rtx temp)
 {
   bool done_replacement = false;
@@ -3685,7 +3809,12 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
       break;
     case CODE_FOR_movhi_virt:
     case CODE_FOR_movsi_virt:
+      done_replacement
+        = m65x_devirt_movhisi (icode == CODE_FOR_movhi_virt ? HImode : SImode,
+                               temp);
       break;
+    default:
+      ;
     }
   emit_restore (mask);
 
@@ -3825,8 +3954,7 @@ rest_of_handle_devirt (void)
                       if (!is_op_regno (0, ACC_REGNUM)
                           && REGNO_REG_SET_P (&live, ACC_REGNUM))
                         save_regs |= SAVE_A;
-                      if (!op_uses_yreg (1)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
                         save_regs |= SAVE_Y;
                       done_replacement = m65x_devirt (icode, save_regs,
                                                       NULL_RTX);
@@ -3838,8 +3966,7 @@ rest_of_handle_devirt (void)
                       if (!is_op_regno (1, ACC_REGNUM)
                           && REGNO_REG_SET_P (&live, ACC_REGNUM))
                         save_regs |= SAVE_A;
-                      if (!op_uses_yreg (0)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
                         save_regs |= SAVE_Y;
                       done_replacement = m65x_devirt (icode, save_regs,
                                                       NULL_RTX);
@@ -3850,8 +3977,7 @@ rest_of_handle_devirt (void)
                       int save_regs = 0;
                       if (REGNO_REG_SET_P (&live, ACC_REGNUM))
                         save_regs |= SAVE_A;
-                      if (!op_uses_yreg (0)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
                         save_regs |= SAVE_Y;
                       done_replacement = m65x_devirt (icode, save_regs,
                                                       NULL_RTX);
@@ -3954,13 +4080,10 @@ rest_of_handle_devirt (void)
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
-      bool acc_saved = false;
-      bool x_saved = false;
-      bool y_saved = false;
 
       FOR_BB_INSNS_SAFE (bb, insn, curr)
         {
-          fprintf (stderr, "in insn: ");
+          /*fprintf (stderr, "in insn: ");
           dump_insn_slim (stderr, insn);
           fprintf (stderr, "\n");
 
@@ -3982,7 +4105,7 @@ rest_of_handle_devirt (void)
                 break;
               default:
                 gcc_unreachable ();
-              }
+              }*/
 
           df_ref def;
           FOR_EACH_INSN_DEF (def, insn)
@@ -4049,6 +4172,18 @@ m65x_reorg (void)
                 {
                   PATTERN (insn) = gen_movqi_insn (SET_DEST (set),
                                                    SET_SRC (set));
+                  INSN_CODE (insn) = -1;
+                }
+              break;
+            case CODE_FOR_addqi3_insn_noclob:
+              if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
+                  && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
+                  && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
+                  && (set = single_set (insn)))
+                {
+                  PATTERN (insn) = gen_addqi3_insn (SET_DEST (set),
+                                                    XEXP (SET_SRC (set), 0),
+                                                    XEXP (SET_SRC (set), 1));
                   INSN_CODE (insn) = -1;
                 }
               break;
