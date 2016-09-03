@@ -165,6 +165,9 @@
    81: "
    82: fixed/local tmp0 (zp)
    83: fixed/local tmp1 (zp)
+   84: Shadow/saved accumulator
+   85: Shadow/saved X reg
+   86: Shadow/saved Y reg
 */
 
 #define ACC_REGNUM 0
@@ -187,11 +190,14 @@
 #define HARDSP_REGNUM 80
 #define TMP0_REGNUM 82
 #define TMP1_REGNUM 83
+#define SHADOW_A 84
+#define SHADOW_X 85
+#define SHADOW_Y 86
 
 #define IS_ZP_REGNUM(X)						\
   (((X) < 12 && (((X) % 4) != 0))				\
    || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
-   || (X) == TMP0_REGNUM || (X) == TMP1_REGNUM)
+   || (X) >= TMP0_REGNUM || (X) <= SHADOW_Y)
 
 #define IS_HARD_REGNUM(X)					\
   ((X) == ACC_REGNUM || (X) == X_REGNUM || (X) == Y_REGNUM)
@@ -211,7 +217,7 @@
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1, 1 }
+    1, 1, 1, 1, 0, 0, 0 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -228,9 +234,9 @@
     /* fp, ap, cc regs.  */	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
-    1, 1, 1, 1 }
+    1, 1, 1, 1, 1, 1, 1 }
 
-#define FIRST_PSEUDO_REGISTER 84
+#define FIRST_PSEUDO_REGISTER 87
 
 #define REG_ALLOC_ORDER \
   { 0, 1, 2, 3, 4, 5, 6, 7, \
@@ -290,6 +296,7 @@ enum reg_class
   CC_REGS,
   GENERAL_REGS,
   HARD_ZP_REGS,
+  SHADOW_HARD_REGS,
   VFP_REG,
   VAP_REG,
   ALL_REGS,
@@ -312,6 +319,7 @@ enum reg_class
   "CC_REGS",			\
   "GENERAL_REGS",		\
   "HARD_ZP_REGS",		\
+  "SHADOW_HARD_REGS",           \
   "VFP_REG",			\
   "VAP_REG",			\
   "ALL_REGS"			\
@@ -319,21 +327,22 @@ enum reg_class
 
 #define REG_CLASS_CONTENTS	\
 {				\
-  { 0x00000000, 0x00000000, 0x00000 }, /* NO_REGS */		\
-  { 0x00000001, 0x00000000, 0x00000 }, /* HARD_ACCUM_REG */	\
-  { 0x00000010, 0x00000000, 0x00000 }, /* HARD_X_REG */		\
-  { 0x00000100, 0x00000000, 0x00000 }, /* HARD_Y_REG */		\
-  { 0x00000110, 0x00000000, 0x00000 }, /* HARD_INDEX_REGS */	\
-  { 0x00000111, 0x00000000, 0x00000 }, /* ACTUALLY_HARD_REGS */	\
-  { 0x0000f000, 0x00000000, 0x00000 }, /* STACK_REG */		\
-  { 0x00ff0000, 0x00000000, 0x00000 }, /* ARG_REGS */		\
-  { 0xff000000, 0x00000000, 0x00000 }, /* CALLEE_SAVED_REGS */	\
-  { 0x00000000, 0x00000000, 0x0fff0 }, /* CC_REGS */		\
-  { 0xfffff000, 0xffffffff, 0xc0000 }, /* GENERAL_REGS */	\
-  { 0xfffff111, 0xffffffff, 0x00000 }, /* HARD_ZP_REGS */	\
-  { 0x00000000, 0x00000000, 0x00003 }, /* VFP_REG */		\
-  { 0x00000000, 0x00000000, 0x0000c }, /* VAP_REG */		\
-  { 0xffffffff, 0xffffffff, 0xffff0 }, /* ALL_REGS */		\
+  { 0x00000000, 0x00000000, 0x000000 }, /* NO_REGS */		\
+  { 0x00000001, 0x00000000, 0x000000 }, /* HARD_ACCUM_REG */	\
+  { 0x00000010, 0x00000000, 0x000000 }, /* HARD_X_REG */		\
+  { 0x00000100, 0x00000000, 0x000000 }, /* HARD_Y_REG */		\
+  { 0x00000110, 0x00000000, 0x000000 }, /* HARD_INDEX_REGS */	\
+  { 0x00000111, 0x00000000, 0x000000 }, /* ACTUALLY_HARD_REGS */	\
+  { 0x0000f000, 0x00000000, 0x000000 }, /* STACK_REG */		\
+  { 0x00ff0000, 0x00000000, 0x000000 }, /* ARG_REGS */		\
+  { 0xff000000, 0x00000000, 0x000000 }, /* CALLEE_SAVED_REGS */	\
+  { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
+  { 0xfffff000, 0xffffffff, 0x0c0000 }, /* GENERAL_REGS */	\
+  { 0xfffff111, 0xffffffff, 0x000000 }, /* HARD_ZP_REGS */	\
+  { 0x00000000, 0x00000000, 0x700000 }, /* SHADOW_HARD_REGS */  \
+  { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
+  { 0x00000000, 0x00000000, 0x00000c }, /* VAP_REG */		\
+  { 0xffffffff, 0xffffffff, 0x7ffff0 }, /* ALL_REGS */		\
 }
 
 #define REGNO_REG_CLASS(REGNO)						\
@@ -546,7 +555,8 @@ typedef int CUMULATIVE_ARGS;
     "?nz0", "?nz1", "?nz2", "?nz3",				\
     "?carry0", "?carry1", "?carry2", "?carry3",			\
     "?ovf0", "?ovf1", "?ovf2", "?ovf3",				\
-    "?hardsp0", "?hardsp1", "tmp0", "tmp1"			\
+    "?hardsp0", "?hardsp1", "tmp0", "tmp1",                     \
+    "sa", "sx", "sy"                                            \
   }
 
 #define PRINT_OPERAND(STREAM, X, CODE) \
