@@ -330,6 +330,50 @@ make_pass_reconstruct_absidx (gcc::context *ctxt)
   return new pass_reconstruct_absidx (ctxt);
 }
 
+static unsigned int rest_of_handle_devirt (void);
+
+namespace {
+
+const pass_data pass_data_devirt =
+{
+  RTL_PASS, /* type */
+  "devirt", /* name */
+  OPTGROUP_NONE, /* optinfo_flags */
+  TV_NONE, /* tv_id */
+  0, /* properties_required */
+  0, /* properties_provided */
+  0, /* properties_destroyed */
+  0, /* todo_flags_start */
+  ( TODO_df_finish | 0), /* todo_flags_finish */
+};
+
+class pass_devirt : public rtl_opt_pass
+{
+public:
+  pass_devirt(gcc::context *ctxt)
+    : rtl_opt_pass(pass_data_devirt, ctxt)
+  {}
+
+  /* opt_pass methods: */
+  virtual bool gate (function *)
+  {
+    return true;
+  }
+
+  virtual unsigned int execute (function *)
+  {
+    return rest_of_handle_devirt ();
+  }
+};
+
+} // anon namespace
+
+rtl_opt_pass *
+make_pass_devirt (gcc::context *ctxt)
+{
+  return new pass_devirt (ctxt);
+}
+
 static void
 m65x_option_override (void)
 {
@@ -337,13 +381,21 @@ m65x_option_override (void)
      in the IEEE754 single float format to line up with byte boundaries.  */
   REAL_MODE_FORMAT (SFmode) = &m65x_single_format;
 
-  opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
+  /*opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
   static struct register_pass_info reconstruct_absidx_info
     = { pass_reconstruct_absidx, "fwprop1",
 	1, PASS_POS_INSERT_AFTER
       };
 
-  register_pass (&reconstruct_absidx_info);
+  register_pass (&reconstruct_absidx_info);*/
+  
+  opt_pass *pass_devirt = make_pass_devirt (g);
+  static struct register_pass_info devirt_info
+    = { pass_devirt, "pro_and_epilogue",
+        1, PASS_POS_INSERT_AFTER
+      };
+
+  register_pass (&devirt_info);
 
   init_machine_status = m65x_init_machine_status;
 }
@@ -2202,8 +2254,6 @@ m65x_lra_p (void)
 static bool
 m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 {
-  bool strict = false; // reload_in_progress || lra_in_progress || reload_completed;
-  
   if (MEM_P (operands[0]))
     {
       if (MEM_ADDR_SPACE (operands[0]) != ADDR_SPACE_GENERIC)
@@ -2216,14 +2266,19 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 		   || (!TARGET_PHX && accumulator_operand (operands[1], mode)));
       else
         {
-	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[0], 0),
-					    strict)
-	      || m65x_address_register_p (XEXP (operands[0], 0), strict))
-	    return (relaxed && register_operand (operands[1], mode))
-		   || (!relaxed && accumulator_operand (operands[1], mode));
-	  else
-	    return register_operand (operands[1], mode)
-		   || immediate_operand (operands[1], mode);
+          rtx addr = XEXP (operands[0], 0);
+	  if (m65x_indirect_indexed_addr_p (mode, addr, false)
+	      || (TARGET_ZPIND
+                  && m65x_address_register_p (addr, false)))
+	    return accumulator_operand (operands[1], mode);
+	  else if (m65x_absolute_x_addr_p (mode, addr, false))
+	    return accumulator_operand (operands[1], mode)
+		   || y_reg_operand (operands[1], mode);
+          else if (m65x_absolute_y_addr_p (mode, addr, false))
+            return accumulator_operand (operands[1], mode)
+                   || x_reg_operand (operands[1], mode);
+          else
+            return hard_reg_operand (operands[1], mode);
 	}
     }
   else if (MEM_P (operands[1]))
@@ -2238,13 +2293,19 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 		   || (!TARGET_PHX && accumulator_operand (operands[0], mode)));
       else
         {
-	  if (m65x_indirect_indexed_addr_p (mode, XEXP (operands[1], 0),
-					    strict)
-	      || m65x_address_register_p (XEXP (operands[1], 0), strict))
-	    return (relaxed && register_operand (operands[0], mode))
-		   || (!relaxed && accumulator_operand (operands[0], mode));
-	  else
-	    return register_operand (operands[0], mode);
+          rtx addr = XEXP (operands[1], 0);
+	  if (m65x_indirect_indexed_addr_p (mode, addr, false)
+	      || (TARGET_ZPIND
+                  && m65x_address_register_p (addr, false)))
+	    return accumulator_operand (operands[0], mode);
+	  else if (m65x_absolute_x_addr_p (mode, addr, false))
+	    return accumulator_operand (operands[0], mode)
+                   || y_reg_operand (operands[0], mode);
+          else if (m65x_absolute_y_addr_p (mode, addr, false))
+            return accumulator_operand (operands[0], mode)
+                   || x_reg_operand (operands[0], mode);
+          else
+            return hard_reg_operand (operands[0], mode);
 	}
     }
   else
@@ -2255,11 +2316,10 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
 	       && accumulator_operand (operands[1], mode))
            || (hard_reg_operand (operands[0], mode)
 	       && (ptr_reg_operand (operands[1], mode)
-		   || immediate_operand (operands[1], mode)
-		   || hard_reg_operand (operands[1], mode)))
+		   || immediate_operand (operands[1], mode)))
 	   || (ptr_reg_operand (operands[0], mode)
 	       && (hard_reg_operand (operands[1], mode)
-		   || rtx_equal_p (operands[1], const0_rtx)))
+		   || (TARGET_STZ && rtx_equal_p (operands[1], const0_rtx))))
 	   || rtx_equal_p (operands[0], operands[1]);
 
   return false;
@@ -3440,6 +3500,15 @@ is_op_phys_reg (unsigned opno)
 }
 
 static bool
+any_op_phys_reg (void)
+{
+  for (unsigned i = 0; i < recog_data.n_operands; i++)
+    if (is_op_phys_reg (i))
+      return true;
+  return false;
+}
+
+static bool
 op_uses_yreg (unsigned opno)
 {
   rtx op = recog_data.operand[opno];
@@ -3455,8 +3524,189 @@ op_uses_yreg (unsigned opno)
   return yes;
 }
 
+#define SAVE_A 1
+#define SAVE_X 2
+#define SAVE_Y 4
+
 static void
-m65x_reorg (void)
+emit_save (unsigned mask)
+{
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
+  rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
+  rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
+
+  /* These are ordered so they could be changed into pha/txa/pha etc. insns if
+     beneficial.  */
+  if (mask & SAVE_A)
+    emit_move_insn (acc_shadow, acc);
+  if (mask & SAVE_X)
+    emit_move_insn (xreg_shadow, xreg);
+  if (mask & SAVE_Y)
+    emit_move_insn (yreg_shadow, yreg);
+}
+
+static void
+emit_restore (unsigned mask)
+{
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
+  rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
+  rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
+
+  /* As above, pla/tax/pla etc.  */
+  if (mask & SAVE_Y)
+    emit_move_insn (yreg, yreg_shadow);
+  if (mask & SAVE_X)
+    emit_move_insn (xreg, xreg_shadow);
+  if (mask & SAVE_A)
+    emit_move_insn (acc, acc_shadow);
+}
+
+static rtx
+reg_from_mask (unsigned mask)
+{
+  if (mask & SAVE_A)
+    return gen_rtx_REG (QImode, ACC_REGNUM);
+  if (mask & SAVE_X)
+    return gen_rtx_REG (QImode, X_REGNUM);
+  if (mask & SAVE_Y)
+    return gen_rtx_REG (QImode, Y_REGNUM);
+  gcc_unreachable ();
+}
+
+static rtx
+maybe_make_indirect_indexed (machine_mode mode, rtx mem)
+{
+  rtx addr = XEXP (mem, 0);
+  
+  if (REG_P (addr))
+    {
+      if (TARGET_ZPIND)
+        return mem;
+
+      rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
+      emit_move_insn (yreg, const0_rtx);
+
+      return change_address (mem, mode,
+               gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg), addr));
+    }
+
+  return mem;
+}
+
+static bool
+m65x_devirt_movqi (rtx temp)
+{
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
+  switch (which_alternative)
+    {
+    case 4: /* v.movqi hz, hz.  */
+    case 17: /* v.movqi hz, m.  */
+    case 18: /* v.movqi m, hz.  */
+    case 19: /* v.movqi hz, iS.  */
+      if (temp)
+        {
+          emit_move_insn (temp, recog_data.operand[1]);
+          emit_move_insn (recog_data.operand[0], temp);
+        }
+      else
+        emit_move_insn (recog_data.operand[0], recog_data.operand[1]);
+      break;
+    case 7: /* v.popqi r, > (no_phx).  */
+      emit_insn (m65x_pop (QImode, acc));
+      emit_move_insn (recog_data.operand[0], acc);
+      break;
+    case 8: /* v.popqi r, > (phx).  */
+      if (temp)
+        {
+          emit_insn (m65x_pop (QImode, temp));
+          emit_move_insn (recog_data.operand[0], temp);
+        }
+      else
+        emit_insn (m65x_pop (QImode, recog_data.operand[0]));
+      break;
+    case 11: /* v.pushqi <, r (no_phx).  */
+      emit_move_insn (acc, recog_data.operand[1]);
+      emit_insn (m65x_push (QImode, acc));
+      break;
+    case 12: /* v.pushqi <, r (phx).  */
+      if (temp)
+        {
+          emit_move_insn (temp, recog_data.operand[1]);
+          emit_insn (m65x_push (QImode, temp));
+        }
+      else
+        emit_insn (m65x_push (QImode, recog_data.operand[1]));
+      break;
+    case 13: /* v.movqi hz, Uy.  */
+    case 14: /* v.movqi Uy, hz.  */
+      emit_move_insn (acc, recog_data.operand[1]);
+      emit_move_insn (recog_data.operand[0], acc);
+      break;
+    case 15: /* v.movqi hz, Ur.  */
+      emit_move_insn (acc,
+                      maybe_make_indirect_indexed (QImode,
+                                                   recog_data.operand[1]));
+      emit_move_insn (recog_data.operand[0], acc);
+      break;
+    case 16: /* v.movqi Ur, hz.  */
+    case 20: /* v.movqi m, iS.  */
+      emit_move_insn (acc, recog_data.operand[1]);
+      emit_move_insn (maybe_make_indirect_indexed (QImode,
+                                                   recog_data.operand[0]),
+                      acc);
+      break;
+    default:
+      return false;
+    }
+
+  return true;
+}
+
+static bool
+m65x_devirt (int icode, unsigned mask, rtx temp)
+{
+  bool done_replacement = false;
+
+  emit_save (mask);
+  switch (icode)
+    {
+    case CODE_FOR_movqi_virt:
+      done_replacement = m65x_devirt_movqi (temp);
+      break;
+    case CODE_FOR_movhi_virt:
+    case CODE_FOR_movsi_virt:
+      break;
+    }
+  emit_restore (mask);
+
+  return done_replacement;
+}
+
+static rtx
+choose_phys_reg (regset_head *live)
+{
+  if (!REGNO_REG_SET_P (live, ACC_REGNUM))
+    return gen_rtx_REG (QImode, ACC_REGNUM);
+  else if (!REGNO_REG_SET_P (live, X_REGNUM))
+    return gen_rtx_REG (QImode, X_REGNUM);
+  else if (!REGNO_REG_SET_P (live, Y_REGNUM))
+    return gen_rtx_REG (QImode, Y_REGNUM);
+
+  return NULL_RTX;
+}
+
+static unsigned int
+rest_of_handle_devirt (void)
 {
   basic_block bb;
   regset_head live;
@@ -3476,223 +3726,225 @@ m65x_reorg (void)
 
   hash_map<rtx, enum attr_needs_reg> clobbers_live;
 
-  // cfun->machine->real_insns_ok = true;
+  cfun->machine->real_insns_ok = true;
 
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
+      unsigned pass = 0;
+      int icode;
+      
+      /* The idea here is that virtual insns that need specific hard registers
+         are dealt with first, and those might cause live ranges to be broken
+         (and so potentially free up registers).  Then insns which can make do
+         with any hard reg have a greater chance of being able to find such a
+         reg now unused.  (This clearly isn't perfect).  */
+      
+      for (pass = 0; pass < 2; pass++)
+        {
+          COPY_REG_SET (&live, DF_LIVE_OUT (bb));
+          df_simulate_initialize_backwards (bb, &live);
 
-      COPY_REG_SET (&live, DF_LIVE_OUT (bb));
-      df_simulate_initialize_backwards (bb, &live);
-
-      FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
-	{
-	  if (NONDEBUG_INSN_P (insn))
+          FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
 	    {
+	      if (!NONDEBUG_INSN_P (insn))
+                continue;
+
 	      rtx set;
-	    retry:
               enum attr_needs_reg hw_reg_needed;
-
-	      int icode = recog_memoized (insn);
-
-	      switch (icode)
-		{
-                case CODE_FOR_movhi_virt:
-                  set = single_set (insn);
-                  if (REG_P (SET_SRC (set))
-                      && REG_P (SET_DEST (set))
-                      && !REGNO_REG_SET_P (&live, ACC_REGNUM))
-                    {
-                      //emit_insn_before (
-                    }
-                  break;
-#if 0
-		case CODE_FOR_movqi_insn:
-		  set = single_set (insn);
-
-		  if (set)
-		    {
-		      rtx dst = SET_DEST (set);
-		      rtx src = SET_SRC (set);
-
-		      /* Split insns that store to indirect-indexed or
-		         ZP-indirect addresses from somewhere other than the
-			 accumulator into moves via the accumulator, if it is
-			 dead anyway:
-
-			   (zp),y := <X>  -->
-
-			   lda <X>
-			   sta (zp,Y)
-		      */
-
-		      if (MEM_P (dst)
-			  && (m65x_indirect_indexed_addr_p (QImode,
-							    XEXP (dst, 0), true)
-			      || m65x_address_register_p (XEXP (dst, 0), true))
-			  && !accumulator_operand (src, QImode)
-			  && !REGNO_REG_SET_P (&live, ACC_REGNUM))
-			{
-			  emit_insn_before (gen_movqi_insn (acc, src),
-					    insn);
-			  SET_SRC (set) = acc;
-			}
-		    }
-		  break;
-
-		case CODE_FOR_movqi_noclob:
-		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
-		      && (set = single_set (insn)))
-		    {
-		      PATTERN (insn)
-			= gen_movqi_insn (SET_DEST (set), SET_SRC (set));
-		      INSN_CODE (insn) = -1;
-		      goto retry;
-		    }
-		  break;
-#endif
-
-		/*case CODE_FOR_addqi3_noclob:
-		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
-		      && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
-		      && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
-		      && (set = single_set (insn)))
-		    {
-		      PATTERN (insn)
-			= gen_addqi3 (SET_DEST (set),
-				      XEXP (SET_SRC (set), 0),
-				      XEXP (SET_SRC (set), 1));
-		      INSN_CODE (insn) = -1;
-		    }
-		  break;
-
-		case CODE_FOR_addhi3_noclobacc:
-		  if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
-		      && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
-		      && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
-		      && !REGNO_REG_SET_P (&live, ACC_REGNUM)
-		      && (set = single_set (insn)))
-		    {
-		      PATTERN (insn)
-			= gen_addhi3_clobacc (SET_DEST (set),
-					      XEXP (SET_SRC (set), 0),
-					      XEXP (SET_SRC (set), 1));
-		      INSN_CODE (insn) = -1;
-		    }
-		  break;*/
-
-		default:
-		  ;
-		}
+              rtx replacement_seq;
+              bool done_replacement = false;
 
 	      df_simulate_one_insn_backwards (bb, insn, &live);
 
-              if (GET_CODE (PATTERN (insn)) != USE
-                  && GET_CODE (PATTERN (insn)) != CLOBBER)
-                {
-                  hw_reg_needed = get_attr_needs_reg (insn);
+              if (GET_CODE (PATTERN (insn)) == USE
+                  || GET_CODE (PATTERN (insn)) == CLOBBER)
+                continue;
 
-                  extract_constrain_insn_cached (insn);
+              hw_reg_needed = get_attr_needs_reg (insn);
 
-                  switch (hw_reg_needed)
+              icode = recog_memoized (insn);
+              extract_constrain_insn_cached (insn);
+
+              start_sequence ();
+
+              if (pass == 0)
+                switch (hw_reg_needed)
+                  {
+                  case NEEDS_REG_A:
                     {
-                    case NEEDS_REG_NONE:
-                      break;
-                    case NEEDS_REG_A:
-                      if (REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_A);
-                      break;
-                    case NEEDS_REG_A0:
+                      bool do_save = REGNO_REG_SET_P (&live, ACC_REGNUM);
+                      done_replacement = m65x_devirt (icode,
+                                                      do_save ? SAVE_A : 0,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_A0:
+                    {
+                      bool do_save = !is_op_regno (0, ACC_REGNUM)
+                                     && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                      done_replacement = m65x_devirt (icode,
+                                                      do_save ? SAVE_A : 0,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_A1:
+                    {
+                      bool do_save = !is_op_regno (1, ACC_REGNUM)
+                                     && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                      done_replacement = m65x_devirt (icode,
+                                                      do_save ? SAVE_A : 0,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_Y:
+                    {
+                      bool do_save = REGNO_REG_SET_P (&live, Y_REGNUM);
+                      done_replacement = m65x_devirt (icode,
+                                                      do_save ? SAVE_Y : 0,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_AY:
+                    {
+                      int save_regs = 0;
+                      if (REGNO_REG_SET_P (&live, ACC_REGNUM)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        save_regs = SAVE_A | SAVE_Y;
+                      else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                        save_regs = SAVE_A;
+                      else if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                        save_regs = SAVE_Y;
+                      done_replacement = m65x_devirt (icode, save_regs,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_A0Y1:
+                    {
+                      int save_regs = 0;
                       if (!is_op_regno (0, ACC_REGNUM)
                           && REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_A);
-                      break;
-                    case NEEDS_REG_A1:
+                        save_regs |= SAVE_A;
+                      if (!op_uses_yreg (1)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        save_regs |= SAVE_Y;
+                      done_replacement = m65x_devirt (icode, save_regs,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_A1Y0:
+                    {
+                      int save_regs = 0;
                       if (!is_op_regno (1, ACC_REGNUM)
                           && REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_A);
-                      break;
-                    case NEEDS_REG_Y:
-                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_Y);
-                      break;
-                    case NEEDS_REG_AY:
-                      {
-                        if (REGNO_REG_SET_P (&live, ACC_REGNUM)
-                            && REGNO_REG_SET_P (&live, Y_REGNUM))
-                          clobbers_live.put (insn, NEEDS_REG_AY);
-                        else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
-                          clobbers_live.put (insn, NEEDS_REG_A);
-                        else if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                          clobbers_live.put (insn, NEEDS_REG_Y);
-                      }
-                      break;
-                    case NEEDS_REG_A0Y1:
-                      {
-                        bool need_a = !is_op_regno (0, ACC_REGNUM)
-                                      && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                        bool need_y = !op_uses_yreg (1)
-                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
-                        if (need_a && need_y)
-                          clobbers_live.put (insn, NEEDS_REG_AY);
-                        else if (need_a)
-                          clobbers_live.put (insn, NEEDS_REG_A);
-                        else if (need_y)
-                          clobbers_live.put (insn, NEEDS_REG_Y);
-                      }
-                      break;
-                    case NEEDS_REG_A1Y0:
-                      {
-                        bool need_a = !is_op_regno (1, ACC_REGNUM)
-                                      && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                        bool need_y = !op_uses_yreg (0)
-                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
-                        if (need_a && need_y)
-                          clobbers_live.put (insn, NEEDS_REG_AY);
-                        else if (need_a)
-                          clobbers_live.put (insn, NEEDS_REG_A);
-                        else if (need_y)
-                          clobbers_live.put (insn, NEEDS_REG_Y);
-                      }
-                      break;
-                    case NEEDS_REG_AY0:
-                      {
-                        bool need_a = REGNO_REG_SET_P (&live, ACC_REGNUM);
-                        bool need_y = !op_uses_yreg (0)
-                                      && REGNO_REG_SET_P (&live, Y_REGNUM);
-                        if (need_a && need_y)
-                          clobbers_live.put (insn, NEEDS_REG_AY);
-                        else if (need_a)
-                          clobbers_live.put (insn, NEEDS_REG_A);
-                        else if (need_y)
-                          clobbers_live.put (insn, NEEDS_REG_Y);
-                      }
-                      break;
-                    case NEEDS_REG_PHYS:
-                      if (REGNO_REG_SET_P (&live, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, X_REGNUM)
+                        save_regs |= SAVE_A;
+                      if (!op_uses_yreg (0)
                           && REGNO_REG_SET_P (&live, Y_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_PHYS);
-                      break;
-                    case NEEDS_REG_PHYS0:
-                      if (!is_op_phys_reg (0)
-                          && REGNO_REG_SET_P (&live, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, X_REGNUM)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_PHYS);
-                      break;
-                    case NEEDS_REG_PHYS1:
-                      if (!is_op_phys_reg (1)
-                          && REGNO_REG_SET_P (&live, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, X_REGNUM)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
-                        clobbers_live.put (insn, NEEDS_REG_PHYS);
-                      break;
+                        save_regs |= SAVE_Y;
+                      done_replacement = m65x_devirt (icode, save_regs,
+                                                      NULL_RTX);
                     }
+                    break;
+                  case NEEDS_REG_AY0:
+                    {
+                      int save_regs = 0;
+                      if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                        save_regs |= SAVE_A;
+                      if (!op_uses_yreg (0)
+                          && REGNO_REG_SET_P (&live, Y_REGNUM))
+                        save_regs |= SAVE_Y;
+                      done_replacement = m65x_devirt (icode, save_regs,
+                                                      NULL_RTX);
+                    }
+                    break;
+                  case NEEDS_REG_NONE:
+                  case NEEDS_REG_PHYS:
+                  case NEEDS_REG_PHYS0:
+                  case NEEDS_REG_PHYS1:
+                    break;
+                  default:
+                    gcc_unreachable ();
+                  }
+              else
+                switch (hw_reg_needed)
+                  {
+                  case NEEDS_REG_NONE:
+                  case NEEDS_REG_A:
+                  case NEEDS_REG_A0:
+                  case NEEDS_REG_A1:
+                  case NEEDS_REG_Y:
+                  case NEEDS_REG_AY:
+                  case NEEDS_REG_A0Y1:
+                  case NEEDS_REG_A1Y0:
+                  case NEEDS_REG_AY0:
+                    break;
+                  case NEEDS_REG_PHYS:
+                    {
+                      rtx temp = NULL_RTX;
+                      unsigned mask = 0;
+                      if (!any_op_phys_reg ())
+                        {
+                          temp = choose_phys_reg (&live);
+                          if (!temp)
+                            {
+                              mask = SAVE_A;
+                              temp = acc;
+                            }
+                        }
+                      done_replacement = m65x_devirt (icode, mask, temp);
+                    }
+                    break;
+                  case NEEDS_REG_PHYS0:
+                    {
+                      rtx temp = NULL_RTX;
+                      unsigned mask = 0;
+                      if (!is_op_phys_reg (0))
+                        {
+                          temp = choose_phys_reg (&live);
+                          if (!temp)
+                            {
+                              mask = SAVE_A;
+                              temp = acc;
+                            }
+                        }
+                      done_replacement = m65x_devirt (icode, mask, temp);
+                    }
+                    break;
+                  case NEEDS_REG_PHYS1:
+                    {
+                      rtx temp = NULL_RTX;
+                      unsigned mask = 0;
+                      if (!is_op_phys_reg (1))
+                        {
+                          temp = choose_phys_reg (&live);
+                          if (!temp)
+                            {
+                              mask = SAVE_A;
+                              temp = acc;
+                            }
+                        }
+                      done_replacement = m65x_devirt (icode, mask, temp);
+                    }
+                    break;
+                  default:
+                    gcc_unreachable ();
+                  }
+              replacement_seq = get_insns ();
+              end_sequence ();
+
+              if (done_replacement)
+                {
+                  emit_insn_before (replacement_seq, insn);
+                  delete_insn (insn);
                 }
-	    }
-	}
+              else
+                /* Just force re-recognition.  */
+                INSN_CODE (insn) = -1;
+            }
+        }
     }
+
+  cfun->machine->virt_insns_ok = false;
 
   df_chain_add_problem (DF_DU_CHAIN);
   df_analyze ();
@@ -3755,8 +4007,58 @@ m65x_reorg (void)
             }
         }
     }
+  return 0;
+}
 
-  //cfun->machine->virt_insns_ok = false;
+static void
+m65x_reorg (void)
+{
+  basic_block bb;
+  regset_head live;
+
+  INIT_REG_SET (&live);
+
+  compute_bb_for_insn ();
+
+  df_live_add_problem ();
+  df_live_set_all_dirty ();
+  df_analyze ();
+
+  if (!optimize)
+    split_all_insns_noflow ();
+
+  FOR_EACH_BB_FN (bb, cfun)
+    {
+      rtx_insn *insn, *curr;
+      COPY_REG_SET (&live, DF_LIVE_OUT (bb));
+      df_simulate_initialize_backwards (bb, &live);
+
+      FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
+	{
+	  if (!NONDEBUG_INSN_P (insn))
+            continue;
+
+          rtx set;
+          int icode = recog_memoized (insn);
+
+          switch (icode)
+            {
+            case CODE_FOR_movqi_noclob:
+              if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
+                  && (set = single_set (insn)))
+                {
+                  PATTERN (insn) = gen_movqi_insn (SET_DEST (set),
+                                                   SET_SRC (set));
+                  INSN_CODE (insn) = -1;
+                }
+              break;
+            default:
+              ;
+            }
+
+	  df_simulate_one_insn_backwards (bb, insn, &live);
+        }
+    }
 }
 
 rtx
