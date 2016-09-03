@@ -1676,7 +1676,12 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	      emit_move_insn (tmp_lo, plus0_lo);
 	      emit_insn (gen_addqi3 (tmp_hi, plus0_hi, plus1_hi));*/
               //emit_insn (gen_separated_indexhi_virt (tmp, plus0, plus1_hi));
-              emit_insn (gen_addhi3_highpart (tmp, plus1_hi, plus0));
+              if (CONSTANT_P (plus1_hi))
+                emit_insn (gen_addhi3 (tmp, plus0,
+                             simplify_gen_binary (ASHIFT, Pmode, plus1_hi,
+                                                  GEN_INT (8))));
+              else
+                emit_insn (gen_addhi3_highpart (tmp, plus1_hi, plus0));
 
 	      x = gen_rtx_PLUS (Pmode,
 		    gen_rtx_ZERO_EXTEND (Pmode, force_reg (QImode, plus1_lo)),
@@ -3797,6 +3802,222 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
 }
 
 static bool
+m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
+{
+  rtx *op = &recog_data.operand[0];
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx src2_lo = simplify_gen_subreg (QImode, op[2], HImode, 0);
+  rtx dst_lo = simplify_gen_subreg (QImode, op[0], HImode, 0);
+  rtx src2_hi = simplify_gen_subreg (QImode, op[2], HImode, 1);
+  rtx dst_hi = simplify_gen_subreg (QImode, op[0], HImode, 1);
+
+  if (!rtx_equal_p (dst_lo, src2_lo))
+    {
+      emit_move_insn (acc, src2_lo);
+      emit_move_insn (dst_lo, acc);
+    }
+
+  if (!rtx_equal_p (dst_hi, src2_hi) || !rtx_equal_p (op[1], const0_rtx))
+    {
+      emit_move_insn (acc, src2_hi);
+      if (!rtx_equal_p (op[1], const0_rtx))
+        emit_insn (gen_addqi3 (acc, acc, op[1]));
+      emit_move_insn (dst_hi, acc);
+    }
+
+  return true;
+}
+
+static bool
+m65x_devirt_add (machine_mode mode, rtx temp)
+{
+  rtx *op = &recog_data.operand[0];
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  int modesize = GET_MODE_SIZE (mode);
+
+  switch (which_alternative)
+    {
+    case 0: /* r, r, r.  */
+      emit_insn (gen_clc ());
+      for (int i = 0; i < modesize; i++)
+        {
+          bool last = (i == modesize - 1);
+          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+          rtx src1part = simplify_gen_subreg (QImode, op[1], mode, i);
+          rtx src2part = simplify_gen_subreg (QImode, op[2], mode, i);
+          emit_move_insn (acc, src1part);
+          if (last)
+            emit_insn (gen_adcqi3 (acc, acc, src2part));
+          else
+            emit_insn (gen_adcqi3_c (acc, acc, src2part));
+          emit_move_insn (dstpart, acc);
+        }
+      break;
+    case 1: /* r, 0, iS.  */
+      {
+        bool add = true;
+
+        if (CONST_INT_P (op[2]) && INTVAL (op[2]) < 0)
+          {
+            op[2] = GEN_INT (-INTVAL (op[2]));
+            add = false;
+          }
+
+        /* Special-case multibyte decrement by 1.  */
+        if (!add && CONST_INT_P (op[2]) && INTVAL (op[2]) == 1)
+          {
+            rtx labels[3];
+
+            for (int i = 0; i < modesize - 1; i++)
+              {
+                labels[i] = gen_label_rtx ();
+                rtx op1part = simplify_gen_subreg (QImode, op[1], mode, i);
+                emit_insn (gen_loadqi_nz (acc, op1part));
+                m65x_emit_cbranchqi (NE,
+                  gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY, labels[i]);
+              }
+
+            for (int i = modesize - 1; i >= 0; i--)
+              {
+                rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                if (i < modesize - 1)
+                  emit_label (labels[i]);
+                emit_insn (gen_incdecqi3 (dstpart, dstpart, constm1_rtx));
+              }
+          }
+        else
+          {
+            bool valid_carry = false;
+            bool valid_nz = false;
+            int ones = 0, trailing_zeros = 0;
+            rtx end_label = NULL_RTX;
+
+            if (CONST_INT_P (op[2]))
+              {
+                for (int i = 0; i < modesize; i++)
+                  {
+                    int byte = (INTVAL (op[2]) >> (i * 8)) & 0xff;
+                    if (byte == 1)
+                      ones++;
+                    else if (byte != 0)
+                      {
+                        ones = -1;
+                        break;
+                      }
+                  }
+
+                for (int i = modesize - 1; i >= 0; i--)
+                  if (((INTVAL (op[2]) >> (i * 8)) & 0xff) == 0)
+                    trailing_zeros++;
+                  else
+                    break;
+              }
+
+            /* If we're adding and there's only one 1-byte, then we'll only use
+	       increments, so no need to clear the carry flag.  */
+            if (!add || ones != 1)
+              {
+                if (add)
+                  emit_insn (gen_clc ());
+                else
+                  emit_insn (gen_sec ());
+              }
+
+            for (int i = 0; i < modesize; i++)
+              {
+                bool last = i + 1 == modesize;
+
+                rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                rtx op1part = simplify_gen_subreg (QImode, op[1], mode, i);
+                rtx op2part = simplify_gen_subreg (QImode, op[2], mode, i);
+
+                if (CONST_INT_P (op2part))
+                  {
+                    unsigned HOST_WIDE_INT remaining
+                      = INTVAL (op[2]) >> (i * 8);
+                    unsigned HOST_WIDE_INT thispart = INTVAL (op2part);
+
+                    if (thispart == 0 && !valid_carry && !valid_nz)
+                      {
+                        emit_move_insn (dstpart, op1part);
+                        continue;
+                      }
+                    else if ((add || last) && !valid_carry && remaining == 1)
+                      {
+                        emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+                                     add ? const1_rtx : constm1_rtx));
+                        if (!last)
+                          {
+                            if (!end_label)
+                              end_label = gen_label_rtx ();
+                            m65x_emit_cbranchqi (NE,
+                              gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+                                           end_label);
+                          }
+                        valid_nz = add;
+                        continue;
+                      }
+                    else if (valid_nz && remaining == 0)
+                      {
+                        emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+                                     add ? const1_rtx : constm1_rtx));
+                        if (!last)
+                          {
+                            if (!end_label)
+                              end_label = gen_label_rtx ();
+                            m65x_emit_cbranchqi (NE,
+                              gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+                                           end_label);
+                          }
+                        continue;
+                      }
+                    else if (last && valid_carry && remaining == 0)
+                      {
+                        if (!end_label)
+                          end_label = gen_label_rtx ();
+                        m65x_emit_cbranchqi (add ? EQ : NE,
+                          gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
+                                       end_label);
+                        emit_insn (gen_incdecqi3 (dstpart, dstpart,
+                                     add ? const1_rtx : constm1_rtx));
+                        continue;
+                      }
+                  }
+                emit_move_insn (acc, op1part);
+
+                if (add)
+                  {
+                    if (last)
+                      emit_insn (gen_adcqi3 (acc, acc, op2part));
+                    else
+                      emit_insn (gen_adcqi3_c (acc, acc, op2part));
+                  }
+                else
+                  {
+                    if (last)
+                      emit_insn (gen_sbcqi3 (acc, acc, op2part));
+                    else
+                      emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+                  }
+
+                emit_move_insn (dstpart, acc);
+
+                valid_carry = true;
+                gcc_assert (!valid_nz);
+              }
+
+            if (end_label)
+              emit_label (end_label);
+          }
+      }
+      break;
+    default:
+      return false;
+    }
+  return true;
+}
+
+static bool
 m65x_devirt (int icode, unsigned mask, rtx temp)
 {
   bool done_replacement = false;
@@ -3812,6 +4033,15 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
       done_replacement
         = m65x_devirt_movhisi (icode == CODE_FOR_movhi_virt ? HImode : SImode,
                                temp);
+      break;
+    case CODE_FOR_addhi3_highpart:
+      done_replacement = m65x_devirt_addhi3_highpart (temp);
+      break;
+    case CODE_FOR_addhi3_virt:
+    case CODE_FOR_addsi3_virt:
+      done_replacement
+        = m65x_devirt_add (icode == CODE_FOR_addhi3_virt ? HImode : SImode,
+                           temp);
       break;
     default:
       ;
