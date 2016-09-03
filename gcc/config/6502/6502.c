@@ -4018,6 +4018,32 @@ m65x_devirt_add (machine_mode mode, rtx temp)
 }
 
 static bool
+m65x_devirt_sub (machine_mode mode, rtx temp)
+{
+  rtx *op = &recog_data.operand[0];
+  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  int modesize = GET_MODE_SIZE (mode);
+
+  emit_insn (gen_sec ());
+
+  for (int i = 0; i < modesize; i++)
+    {
+      bool last = (i == modesize - 1);
+      rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+      rtx src1part = simplify_gen_subreg (QImode, op[1], mode, i);
+      rtx src2part = simplify_gen_subreg (QImode, op[2], mode, i);
+      emit_move_insn (acc, src1part);
+      if (last)
+        emit_insn (gen_sbcqi3 (acc, acc, src2part));
+      else
+        emit_insn (gen_sbcqi3_c (acc, acc, src2part));
+      emit_move_insn (dstpart, acc);
+    }
+
+  return true;
+}
+
+static bool
 m65x_devirt (int icode, unsigned mask, rtx temp)
 {
   bool done_replacement = false;
@@ -4041,6 +4067,12 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
     case CODE_FOR_addsi3_virt:
       done_replacement
         = m65x_devirt_add (icode == CODE_FOR_addhi3_virt ? HImode : SImode,
+                           temp);
+      break;
+    case CODE_FOR_subhi3_virt:
+    case CODE_FOR_subsi3_virt:
+      done_replacement
+        = m65x_devirt_sub (icode == CODE_FOR_subhi3_virt ? HImode : SImode,
                            temp);
       break;
     default:
