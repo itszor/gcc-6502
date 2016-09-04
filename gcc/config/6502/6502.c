@@ -447,6 +447,7 @@ m65x_file_start (void)
     }
 
   fprintf (asm_out_file, "\t.importzp _tmp0, _tmp1\n");
+  fprintf (asm_out_file, "\t.importzp _sa, _sx, _sy\n");
 }
 
 static void m65x_asm_globalize_label (FILE *, const char *);
@@ -1737,8 +1738,8 @@ m65x_address_cost (rtx address, enum machine_mode mode,
 		   addr_space_t as ATTRIBUTE_UNUSED,
 		   bool speed ATTRIBUTE_UNUSED)
 {
-  fprintf (stderr, "address cost for:\n");
-  debug_rtx (address);
+  /*fprintf (stderr, "address cost for:\n");
+  debug_rtx (address);*/
 
   if (mode != QImode
       && GET_CODE (address) == PLUS
@@ -2195,8 +2196,8 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     {
       if (reload_mode == QImode
           && reload_class != HARD_ACCUM_REG
-          && (spilled_pseudo
-              || (MEM_P (x)
+          && (/*spilled_pseudo
+              ||*/ (MEM_P (x)
                   && (REG_P (XEXP (x, 0))
                       || (GET_CODE (XEXP (x, 0)) == PLUS
                           && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
@@ -2770,7 +2771,12 @@ m65x_expand_prologue (void)
 
   if (frame_pointer_needed)
     {
-      insn = emit_insn (gen_addhi3 (hard_frame_pointer_rtx, stack_pointer_rtx,
+      insn = emit_move_insn (hard_frame_pointer_rtx, stack_pointer_rtx);
+      RTX_FRAME_RELATED_P (insn) = 1;
+      /* Don't generate a 3-operand add with immediate offset here (the
+         pattern doesn't exist).  */
+      insn = emit_insn (gen_addhi3 (hard_frame_pointer_rtx,
+                                    hard_frame_pointer_rtx,
 				    gen_int_mode (-info->frame_size, Pmode)));
       RTX_FRAME_RELATED_P (insn) = 1;
     }
@@ -3776,7 +3782,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
         }
       break;
     case 6: /* m, hz.  */
-    case 8: /* m, iS.  */
+    case 8: /* UjUc, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx mempart = adjust_address (op[0], QImode, i);
@@ -3843,8 +3849,8 @@ m65x_devirt_add (machine_mode mode, rtx temp)
         {
           bool last = (i == modesize - 1);
           rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-          rtx src1part = simplify_gen_subreg (QImode, op[1], mode, i);
-          rtx src2part = simplify_gen_subreg (QImode, op[2], mode, i);
+          rtx src1part = m65x_gen_subreg (QImode, op[1], mode, i);
+          rtx src2part = m65x_gen_subreg (QImode, op[2], mode, i);
           emit_move_insn (acc, src1part);
           if (last)
             emit_insn (gen_adcqi3 (acc, acc, src2part));
@@ -3928,8 +3934,8 @@ m65x_devirt_add (machine_mode mode, rtx temp)
                 bool last = i + 1 == modesize;
 
                 rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-                rtx op1part = simplify_gen_subreg (QImode, op[1], mode, i);
-                rtx op2part = simplify_gen_subreg (QImode, op[2], mode, i);
+                rtx op1part = m65x_gen_subreg (QImode, op[1], mode, i);
+                rtx op2part = m65x_gen_subreg (QImode, op[2], mode, i);
 
                 if (CONST_INT_P (op2part))
                   {
@@ -4372,19 +4378,19 @@ rest_of_handle_devirt (void)
           df_ref def;
           FOR_EACH_INSN_DEF (def, insn)
             {
-              fprintf (stderr, "def: ");
+              //fprintf (stderr, "def: ");
 	      rtx x = DF_REF_REG (def);
-              dump_value_slim (stderr, x, 0);
-              fprintf (stderr, "\n");
+              /*dump_value_slim (stderr, x, 0);
+              fprintf (stderr, "\n");*/
               struct df_link *link = DF_REF_CHAIN (def);
               while (link)
                 {
                   if (DF_REF_INSN_INFO (link->ref))
 	            {
                       rtx_insn *use_insn = DF_REF_INSN (link->ref);
-                      fprintf (stderr, "use (insn): ");
+                      /*fprintf (stderr, "use (insn): ");
                       dump_insn_slim (stderr, use_insn);
-                      fprintf (stderr, "\n");
+                      fprintf (stderr, "\n");*/
                     }
 
                   link = link->next;
