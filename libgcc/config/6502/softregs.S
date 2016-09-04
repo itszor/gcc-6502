@@ -7,6 +7,7 @@
 	.exportzp _e16, _e17, _e18, _e19, _e20, _e21, _e22, _e23
 	.exportzp _e24, _e25, _e26, _e27, _e28, _e29, _e30, _e31
 	.exportzp _tmp0, _tmp1
+	.exportzp _sa, _sx, _sy
 _sp0:	.byte 0
 _sp1:	.byte 0
 _fp0:	.byte 0
@@ -61,3 +62,6 @@ _e30:	.byte 0
 _e31:	.byte 0
 _tmp0:	.byte 0
 _tmp1:	.byte 0
+_sa:	.byte 0
+_sx:	.byte 0
+_sy:	.byte 0
