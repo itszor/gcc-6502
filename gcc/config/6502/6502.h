@@ -470,12 +470,8 @@ typedef int CUMULATIVE_ARGS;
  * Trampolines.
  *****************************************************************************/
 
-#define TRAMPOLINE_SIZE			0
-
-#if 0
-#define INITIALIZE_TRAMPOLINE(ADDR, FNADDR, STATIC_CHAIN) \
-  do { /* Unimplemented.  */ } while (0)
-#endif
+#define STATIC_CHAIN_REGNUM             FIRST_CALLER_SAVED
+#define TRAMPOLINE_SIZE			11
 
 /*****************************************************************************
  * Library calls.

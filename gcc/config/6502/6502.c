@@ -4498,6 +4498,31 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
   return true;
 }
 
+void
+m65x_asm_trampoline_template (FILE *f)
+{
+  asm_fprintf (f, "\tlda #0\n");
+  asm_fprintf (f, "\tsta _s0\n");
+  asm_fprintf (f, "\tlda #0\n");
+  asm_fprintf (f, "\tsta _s1\n");
+  asm_fprintf (f, "\tjmp $ffff\n");
+}
+
+void
+m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
+{
+  emit_block_move (m_tramp, assemble_trampoline_template (),
+                   GEN_INT (TRAMPOLINE_SIZE), BLOCK_OP_NORMAL);
+  rtx mem = adjust_address (m_tramp, QImode, 1);
+  emit_move_insn (mem, gen_lowpart (QImode, static_chain));
+  mem = adjust_address (m_tramp, QImode, 5);
+  emit_move_insn (mem, gen_highpart_mode (QImode, HImode, static_chain));
+
+  mem = adjust_address (m_tramp, HImode, 9);
+  rtx fnaddr = XEXP (DECL_RTL (fndecl), 0);
+  emit_move_insn (mem, fnaddr);
+}
+
 #undef TARGET_OPTION_OVERRIDE
 #define TARGET_OPTION_OVERRIDE m65x_option_override
 
@@ -4638,6 +4663,12 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 
 #undef TARGET_PREFER_CONSTANT_EQUIV_P
 #define TARGET_PREFER_CONSTANT_EQUIV_P m65x_prefer_constant_equiv_p
+
+#undef TARGET_ASM_TRAMPOLINE_TEMPLATE
+#define TARGET_ASM_TRAMPOLINE_TEMPLATE m65x_asm_trampoline_template
+
+#undef TARGET_TRAMPOLINE_INIT
+#define TARGET_TRAMPOLINE_INIT m65x_trampoline_init
 
 struct gcc_target targetm = TARGET_INITIALIZER;
 
