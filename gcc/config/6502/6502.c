@@ -1648,7 +1648,8 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	  rtx plus1 = XEXP (x, 1);
 
 	  if (!CONSTANT_ADDRESS_P (plus0)
-	      && CONST_INT_P (plus1) && INTVAL (plus1) >= 0
+	      && CONST_INT_P (plus1)
+              && INTVAL (plus1) >= 0
 	      && (INTVAL (plus1) + modesize - 1) < 256)
 	    x = gen_rtx_PLUS (Pmode,
 			      gen_rtx_ZERO_EXTEND (Pmode,
@@ -1668,7 +1669,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	      /*tmp_lo = operand_subword (tmp, 0, 1, HImode);
 	      tmp_hi = operand_subword (tmp, 1, 1, HImode*/
 
-	      if (!REG_P (plus0) && !MEM_P (plus0) && !CONSTANT_P (plus0))
+	      if (!REG_P (plus0) && !CONSTANT_P (plus0))
 		plus0 = force_reg (Pmode, plus0);
 
 	      /*plus0_lo = m65x_gen_subreg (QImode, plus0, HImode, 0);
@@ -1677,7 +1678,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	      emit_move_insn (tmp_lo, plus0_lo);
 	      emit_insn (gen_addqi3 (tmp_hi, plus0_hi, plus1_hi));*/
               //emit_insn (gen_separated_indexhi_virt (tmp, plus0, plus1_hi));
-              if (CONSTANT_P (plus1_hi))
+              if (CONST_INT_P (plus1_hi))
                 emit_insn (gen_addhi3 (tmp, plus0,
                              simplify_gen_binary (ASHIFT, Pmode, plus1_hi,
                                                   GEN_INT (8))));
@@ -3808,6 +3809,14 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
 }
 
 static bool
+m65x_index_reg_p (rtx reg)
+{
+  if (GET_CODE (reg) == SUBREG)
+    reg = SUBREG_REG (reg);
+  return REG_P (reg) && (REGNO (reg) == X_REGNUM || REGNO (reg) == Y_REGNUM);
+}
+
+static bool
 m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
 {
   rtx *op = &recog_data.operand[0];
@@ -3825,9 +3834,19 @@ m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
 
   if (!rtx_equal_p (dst_hi, src2_hi) || !rtx_equal_p (op[1], const0_rtx))
     {
-      emit_move_insn (acc, src2_hi);
-      if (!rtx_equal_p (op[1], const0_rtx))
-        emit_insn (gen_addqi3 (acc, acc, op[1]));
+      rtx op1 = src2_hi, op2 = op[1];
+      if (m65x_index_reg_p (op2))
+        {
+          /* If we have something like _rN = _rM + x, we can't add the X
+             directly to the accumulator, but we can move it into the
+             accumulator first and do the sum the other way round.  Unless we
+             run out of luck and get two index regs (hopefully impossible).  */
+          gcc_assert (!m65x_index_reg_p (op1));
+          std::swap (op1, op2);
+        }
+      emit_move_insn (acc, op1);
+      if (!rtx_equal_p (op2, const0_rtx))
+        emit_insn (gen_addqi3 (acc, acc, op2));
       emit_move_insn (dst_hi, acc);
     }
 
