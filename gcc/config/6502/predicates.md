@@ -330,3 +330,7 @@
   (ior (match_operand 0 "qimode_src_operand")
        (and (match_test "TARGET_TRB_TSB")
 	    (match_operand 0 "accumulator_operand"))))
+
+(define_predicate "highpart_operand"
+  (ior (match_operand 0 "nonmemory_operand")
+       (match_code "const")))
