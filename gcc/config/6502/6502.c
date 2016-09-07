@@ -1661,7 +1661,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	      rtx plus0_lo, plus0_hi, plus1_lo, plus1_hi, tmp_lo, tmp_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
 
-	      if (!REG_P (plus1) && !MEM_P (plus1) && !CONSTANT_P (plus1))
+	      if (!REG_P (plus1) && !CONSTANT_P (plus1))
 	        plus1 = force_reg (Pmode, plus1);
 
 	      plus1_lo = m65x_gen_subreg (QImode, plus1, HImode, 0);
