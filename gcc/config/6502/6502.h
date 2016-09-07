@@ -79,6 +79,8 @@
 #define FUNCTION_BOUNDARY		8
 #define PARM_BOUNDARY			8
 
+#define MAX_OFILE_ALIGNMENT             65536
+
 /*****************************************************************************
  * Layout of source language data types.
  *****************************************************************************/
@@ -567,7 +569,7 @@ typedef int CUMULATIVE_ARGS;
   m65x_print_operand_address ((STREAM), (X))
 
 #define ASM_OUTPUT_ALIGN(STREAM, POWER) \
-  fprintf ((STREAM), ".align %d", 1 << (POWER))
+  fprintf ((STREAM), "\t.align %d\n", 1 << (POWER))
 
 #define ASM_FPRINTF_EXTENSIONS(FILE, ARGS, P)			\
   case 'r':							\
