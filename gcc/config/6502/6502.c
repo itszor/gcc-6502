@@ -2213,6 +2213,11 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
           else
             sri->icode = CODE_FOR_reload_outqi_indy;
         }
+      else if (reload_mode == QImode
+               && !reg_classes_intersect_p (reload_class, ACTUALLY_HARD_REGS)
+               && MEM_P (x)
+               && CONSTANT_ADDRESS_P (XEXP (x, 0)))
+        sclass = ACTUALLY_HARD_REGS;
     }
 
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
@@ -3495,6 +3500,11 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
   return false;
 }
 
+#define MASK_A 1
+#define MASK_X 2
+#define MASK_Y 4
+#define MASK_AXY (MASK_A | MASK_X | MASK_Y)
+
 static bool
 is_op_regno (unsigned opno, unsigned regno)
 {
@@ -3503,19 +3513,22 @@ is_op_regno (unsigned opno, unsigned regno)
 }
 
 static bool
-is_op_phys_reg (unsigned opno)
+is_op_phys_reg (unsigned opno, unsigned withmask)
 {
   return REG_P (recog_data.operand[opno])
-         && (REGNO (recog_data.operand[opno]) == ACC_REGNUM
-             || REGNO (recog_data.operand[opno]) == X_REGNUM
-             || REGNO (recog_data.operand[opno]) == Y_REGNUM);
+         && ((REGNO (recog_data.operand[opno]) == ACC_REGNUM
+              && (withmask & MASK_A))
+             || (REGNO (recog_data.operand[opno]) == X_REGNUM
+                 && (withmask & MASK_X))
+             || (REGNO (recog_data.operand[opno]) == Y_REGNUM
+                 && (withmask & MASK_Y)));
 }
 
 static bool
 any_op_phys_reg (void)
 {
   for (unsigned i = 0; i < recog_data.n_operands; i++)
-    if (is_op_phys_reg (i))
+    if (is_op_phys_reg (i, MASK_AXY))
       return true;
   return false;
 }
@@ -3536,10 +3549,6 @@ op_uses_yreg (unsigned opno)
   return yes;
 }
 
-#define SAVE_A 1
-#define SAVE_X 2
-#define SAVE_Y 4
-
 static void
 emit_save (unsigned mask)
 {
@@ -3552,11 +3561,11 @@ emit_save (unsigned mask)
 
   /* These are ordered so they could be changed into pha/txa/pha etc. insns if
      beneficial.  */
-  if (mask & SAVE_A)
+  if (mask & MASK_A)
     emit_move_insn (acc_shadow, acc);
-  if (mask & SAVE_X)
+  if (mask & MASK_X)
     emit_move_insn (xreg_shadow, xreg);
-  if (mask & SAVE_Y)
+  if (mask & MASK_Y)
     emit_move_insn (yreg_shadow, yreg);
 }
 
@@ -3571,22 +3580,22 @@ emit_restore (unsigned mask)
   rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
 
   /* As above, pla/tax/pla etc.  */
-  if (mask & SAVE_Y)
+  if (mask & MASK_Y)
     emit_move_insn (yreg, yreg_shadow);
-  if (mask & SAVE_X)
+  if (mask & MASK_X)
     emit_move_insn (xreg, xreg_shadow);
-  if (mask & SAVE_A)
+  if (mask & MASK_A)
     emit_move_insn (acc, acc_shadow);
 }
 
 static rtx
 reg_from_mask (unsigned mask)
 {
-  if (mask & SAVE_A)
+  if (mask & MASK_A)
     return gen_rtx_REG (QImode, ACC_REGNUM);
-  if (mask & SAVE_X)
+  if (mask & MASK_X)
     return gen_rtx_REG (QImode, X_REGNUM);
-  if (mask & SAVE_Y)
+  if (mask & MASK_Y)
     return gen_rtx_REG (QImode, Y_REGNUM);
   gcc_unreachable ();
 }
@@ -3622,9 +3631,13 @@ m65x_devirt_movqi (rtx temp)
   switch (which_alternative)
     {
     case 4: /* v.movqi hz, hz.  */
-    case 17: /* v.movqi hz, m.  */
-    case 18: /* v.movqi m, hz.  */
-    case 19: /* v.movqi hz, iS.  */
+    case 17: /* v.movqi hz, UY.  */
+    case 18: /* v.movqi hz, UX.  */
+    case 19: /* v.movqi UY, hz.  */
+    case 20: /* v.movqi UX, hz.  */
+    case 21: /* v.movqi hz, m.  */
+    case 22: /* v.movqi m, hz.  */
+    case 23: /* v.movqi hz, iS.  */
       if (temp)
         {
           emit_move_insn (temp, recog_data.operand[1]);
@@ -3671,7 +3684,7 @@ m65x_devirt_movqi (rtx temp)
       emit_move_insn (recog_data.operand[0], acc);
       break;
     case 16: /* v.movqi Ur, hz.  */
-    case 20: /* v.movqi m, iS.  */
+    case 24: /* v.movqi m, iS.  */
       emit_move_insn (acc, recog_data.operand[1]);
       emit_move_insn (maybe_make_indirect_indexed (QImode,
                                                    recog_data.operand[0]),
@@ -4109,13 +4122,13 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
 }
 
 static rtx
-choose_phys_reg (regset_head *live)
+choose_phys_reg (regset_head *live, unsigned allowed)
 {
-  if (!REGNO_REG_SET_P (live, ACC_REGNUM))
+  if (!REGNO_REG_SET_P (live, ACC_REGNUM) && (allowed & MASK_A))
     return gen_rtx_REG (QImode, ACC_REGNUM);
-  else if (!REGNO_REG_SET_P (live, X_REGNUM))
+  else if (!REGNO_REG_SET_P (live, X_REGNUM) && (allowed & MASK_X))
     return gen_rtx_REG (QImode, X_REGNUM);
-  else if (!REGNO_REG_SET_P (live, Y_REGNUM))
+  else if (!REGNO_REG_SET_P (live, Y_REGNUM) && (allowed & MASK_Y))
     return gen_rtx_REG (QImode, Y_REGNUM);
 
   return NULL_RTX;
@@ -4150,210 +4163,228 @@ rest_of_handle_devirt (void)
       unsigned pass = 0;
       int icode;
       
-      /* The idea here is that virtual insns that need specific hard registers
-         are dealt with first, and those might cause live ranges to be broken
-         (and so potentially free up registers).  Then insns which can make do
-         with any hard reg have a greater chance of being able to find such a
-         reg now unused.  (This clearly isn't perfect).  */
-      
-      for (pass = 0; pass < 2; pass++)
-        {
-          COPY_REG_SET (&live, DF_LIVE_OUT (bb));
-          df_simulate_initialize_backwards (bb, &live);
+      COPY_REG_SET (&live, DF_LIVE_OUT (bb));
+      df_simulate_initialize_backwards (bb, &live);
 
-          FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
-	    {
-	      if (!NONDEBUG_INSN_P (insn))
-                continue;
+      FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
+	{
+	  if (!NONDEBUG_INSN_P (insn))
+            continue;
 
-	      rtx set;
-              enum attr_needs_reg hw_reg_needed;
-              rtx replacement_seq;
-              bool done_replacement = false;
+	  rtx set;
+          enum attr_needs_reg hw_reg_needed;
+          rtx replacement_seq;
+          bool done_replacement = false;
 
-	      df_simulate_one_insn_backwards (bb, insn, &live);
+	  df_simulate_one_insn_backwards (bb, insn, &live);
 
-              if (GET_CODE (PATTERN (insn)) == USE
-                  || GET_CODE (PATTERN (insn)) == CLOBBER)
-                continue;
+          if (GET_CODE (PATTERN (insn)) == USE
+              || GET_CODE (PATTERN (insn)) == CLOBBER)
+            continue;
 
-              hw_reg_needed = get_attr_needs_reg (insn);
+          hw_reg_needed = get_attr_needs_reg (insn);
 
-              icode = recog_memoized (insn);
-              extract_constrain_insn_cached (insn);
+          icode = recog_memoized (insn);
+          extract_constrain_insn_cached (insn);
 
-              start_sequence ();
+          start_sequence ();
 
-              if (pass == 0)
-                switch (hw_reg_needed)
-                  {
-                  case NEEDS_REG_A:
-                    {
-                      bool do_save = REGNO_REG_SET_P (&live, ACC_REGNUM);
-                      done_replacement = m65x_devirt (icode,
-                                                      do_save ? SAVE_A : 0,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_A0:
-                    {
-                      bool do_save = !is_op_regno (0, ACC_REGNUM)
-                                     && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                      done_replacement = m65x_devirt (icode,
-                                                      do_save ? SAVE_A : 0,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_A1:
-                    {
-                      bool do_save = !is_op_regno (1, ACC_REGNUM)
-                                     && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                      done_replacement = m65x_devirt (icode,
-                                                      do_save ? SAVE_A : 0,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_Y:
-                    {
-                      bool do_save = REGNO_REG_SET_P (&live, Y_REGNUM);
-                      done_replacement = m65x_devirt (icode,
-                                                      do_save ? SAVE_Y : 0,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_AY:
-                    {
-                      int save_regs = 0;
-                      if (REGNO_REG_SET_P (&live, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, Y_REGNUM))
-                        save_regs = SAVE_A | SAVE_Y;
-                      else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        save_regs = SAVE_A;
-                      else if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                        save_regs = SAVE_Y;
-                      done_replacement = m65x_devirt (icode, save_regs,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_A0Y1:
-                    {
-                      int save_regs = 0;
-                      if (!is_op_regno (0, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        save_regs |= SAVE_A;
-                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                        save_regs |= SAVE_Y;
-                      done_replacement = m65x_devirt (icode, save_regs,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_A1Y0:
-                    {
-                      int save_regs = 0;
-                      if (!is_op_regno (1, ACC_REGNUM)
-                          && REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        save_regs |= SAVE_A;
-                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                        save_regs |= SAVE_Y;
-                      done_replacement = m65x_devirt (icode, save_regs,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_AY0:
-                    {
-                      int save_regs = 0;
-                      if (REGNO_REG_SET_P (&live, ACC_REGNUM))
-                        save_regs |= SAVE_A;
-                      if (REGNO_REG_SET_P (&live, Y_REGNUM))
-                        save_regs |= SAVE_Y;
-                      done_replacement = m65x_devirt (icode, save_regs,
-                                                      NULL_RTX);
-                    }
-                    break;
-                  case NEEDS_REG_NONE:
-                  case NEEDS_REG_PHYS:
-                  case NEEDS_REG_PHYS0:
-                  case NEEDS_REG_PHYS1:
-                    break;
-                  default:
-                    gcc_unreachable ();
-                  }
-              else
-                switch (hw_reg_needed)
-                  {
-                  case NEEDS_REG_NONE:
-                  case NEEDS_REG_A:
-                  case NEEDS_REG_A0:
-                  case NEEDS_REG_A1:
-                  case NEEDS_REG_Y:
-                  case NEEDS_REG_AY:
-                  case NEEDS_REG_A0Y1:
-                  case NEEDS_REG_A1Y0:
-                  case NEEDS_REG_AY0:
-                    break;
-                  case NEEDS_REG_PHYS:
-                    {
-                      rtx temp = NULL_RTX;
-                      unsigned mask = 0;
-                      if (!any_op_phys_reg ())
-                        {
-                          temp = choose_phys_reg (&live);
-                          if (!temp)
-                            {
-                              mask = SAVE_A;
-                              temp = acc;
-                            }
-                        }
-                      done_replacement = m65x_devirt (icode, mask, temp);
-                    }
-                    break;
-                  case NEEDS_REG_PHYS0:
-                    {
-                      rtx temp = NULL_RTX;
-                      unsigned mask = 0;
-                      if (!is_op_phys_reg (0))
-                        {
-                          temp = choose_phys_reg (&live);
-                          if (!temp)
-                            {
-                              mask = SAVE_A;
-                              temp = acc;
-                            }
-                        }
-                      done_replacement = m65x_devirt (icode, mask, temp);
-                    }
-                    break;
-                  case NEEDS_REG_PHYS1:
-                    {
-                      rtx temp = NULL_RTX;
-                      unsigned mask = 0;
-                      if (!is_op_phys_reg (1))
-                        {
-                          temp = choose_phys_reg (&live);
-                          if (!temp)
-                            {
-                              mask = SAVE_A;
-                              temp = acc;
-                            }
-                        }
-                      done_replacement = m65x_devirt (icode, mask, temp);
-                    }
-                    break;
-                  default:
-                    gcc_unreachable ();
-                  }
-              replacement_seq = get_insns ();
-              end_sequence ();
-
-              if (done_replacement)
+          if (pass == 0)
+            switch (hw_reg_needed)
+              {
+              case NEEDS_REG_A:
                 {
-                  emit_insn_before (replacement_seq, insn);
-                  delete_insn (insn);
+                  bool do_save = REGNO_REG_SET_P (&live, ACC_REGNUM);
+                  done_replacement = m65x_devirt (icode,
+                                                  do_save ? MASK_A : 0,
+                                                  NULL_RTX);
                 }
-              else
-                /* Just force re-recognition.  */
-                INSN_CODE (insn) = -1;
+                break;
+              case NEEDS_REG_A0:
+                {
+                  bool do_save = !is_op_regno (0, ACC_REGNUM)
+                                 && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                  done_replacement = m65x_devirt (icode,
+                                                  do_save ? MASK_A : 0,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_A1:
+                {
+                  bool do_save = !is_op_regno (1, ACC_REGNUM)
+                                 && REGNO_REG_SET_P (&live, ACC_REGNUM);
+                  done_replacement = m65x_devirt (icode,
+                                                  do_save ? MASK_A : 0,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_Y:
+                {
+                  bool do_save = REGNO_REG_SET_P (&live, Y_REGNUM);
+                  done_replacement = m65x_devirt (icode,
+                                                  do_save ? MASK_Y : 0,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_AY:
+                {
+                  int save_regs = 0;
+                  if (REGNO_REG_SET_P (&live, ACC_REGNUM)
+                      && REGNO_REG_SET_P (&live, Y_REGNUM))
+                    save_regs = MASK_A | MASK_Y;
+                  else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    save_regs = MASK_A;
+                  else if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                    save_regs = MASK_Y;
+                  done_replacement = m65x_devirt (icode, save_regs,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_A0Y1:
+                {
+                  int save_regs = 0;
+                  if (!is_op_regno (0, ACC_REGNUM)
+                      && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    save_regs |= MASK_A;
+                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                    save_regs |= MASK_Y;
+                  done_replacement = m65x_devirt (icode, save_regs,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_A1Y0:
+                {
+                  int save_regs = 0;
+                  if (!is_op_regno (1, ACC_REGNUM)
+                      && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    save_regs |= MASK_A;
+                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                    save_regs |= MASK_Y;
+                  done_replacement = m65x_devirt (icode, save_regs,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_Y0A:
+                {
+                  int save_regs = 0;
+                  if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                    save_regs |= MASK_A;
+                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                    save_regs |= MASK_Y;
+                  done_replacement = m65x_devirt (icode, save_regs,
+                                                  NULL_RTX);
+                }
+                break;
+              case NEEDS_REG_AX0:
+              case NEEDS_REG_AX1:
+              case NEEDS_REG_AY0:
+              case NEEDS_REG_AY1:
+                {
+                  unsigned needreg = (hw_reg_needed == NEEDS_REG_AX0
+                                      || hw_reg_needed == NEEDS_REG_AX1)
+                                     ? (MASK_A | MASK_X)
+                                     : (MASK_A | MASK_Y);
+                  unsigned whichop = (hw_reg_needed == NEEDS_REG_AX0
+                                      || hw_reg_needed == NEEDS_REG_AY0)
+                                     ? 0 : 1;
+                  rtx temp = NULL_RTX;
+                  unsigned mask = 0;
+                  if (!is_op_phys_reg (whichop, needreg))
+                    {
+                      temp = choose_phys_reg (&live, needreg);
+                      if (!temp)
+                        {
+                          mask = MASK_A;
+                          temp = acc;
+                        }
+                      done_replacement = m65x_devirt (icode, mask, temp);
+                    }
+                }
+                break;
+              case NEEDS_REG_PHYS:
+                {
+                  rtx temp = NULL_RTX;
+                  unsigned mask = 0;
+                  if (!any_op_phys_reg ())
+                    {
+                      temp = choose_phys_reg (&live, MASK_AXY);
+                      if (!temp)
+                        {
+                          mask = MASK_A;
+                          temp = acc;
+                        }
+                    }
+                  done_replacement = m65x_devirt (icode, mask, temp);
+                }
+                break;
+              case NEEDS_REG_PHYS0:
+                {
+                  rtx temp = NULL_RTX;
+                  unsigned mask = 0;
+                  if (!is_op_phys_reg (0, MASK_AXY))
+                    {
+                      temp = choose_phys_reg (&live, MASK_AXY);
+                      if (!temp)
+                        {
+                          mask = MASK_A;
+                          temp = acc;
+                        }
+                    }
+                  done_replacement = m65x_devirt (icode, mask, temp);
+                }
+                break;
+              case NEEDS_REG_PHYS1:
+                {
+                  rtx temp = NULL_RTX;
+                  unsigned mask = 0;
+                  if (!is_op_phys_reg (1, MASK_AXY))
+                    {
+                      temp = choose_phys_reg (&live, MASK_AXY);
+                      if (!temp)
+                        {
+                          mask = MASK_A;
+                          temp = acc;
+                        }
+                    }
+                  done_replacement = m65x_devirt (icode, mask, temp);
+                }
+                break;
+              case NEEDS_REG_NONE:
+                break;
+              default:
+                gcc_unreachable ();
+              }
+          else
+            switch (hw_reg_needed)
+              {
+              case NEEDS_REG_NONE:
+              case NEEDS_REG_A:
+              case NEEDS_REG_A0:
+              case NEEDS_REG_A1:
+              case NEEDS_REG_Y:
+              case NEEDS_REG_AY:
+              case NEEDS_REG_A0Y1:
+              case NEEDS_REG_A1Y0:
+              case NEEDS_REG_Y0A:
+              case NEEDS_REG_AX0:
+              case NEEDS_REG_AX1:
+              case NEEDS_REG_AY0:
+              case NEEDS_REG_AY1:
+                break;
+              default:
+                gcc_unreachable ();
+              }
+          replacement_seq = get_insns ();
+          end_sequence ();
+
+          if (done_replacement)
+            {
+              emit_insn_before (replacement_seq, insn);
+              delete_insn (insn);
             }
+          else
+            /* Just force re-recognition.  */
+            INSN_CODE (insn) = -1;
         }
     }
 
