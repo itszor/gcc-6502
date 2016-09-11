@@ -3596,6 +3596,17 @@ lra_reduce_register_pressure (rtx_insn *curr_insn, rtx_insn **before,
       fprintf (lra_dump_file, "+++ end sequence\n");
     }
 
+  /* REG_DEAD notes may become invalid if we reorder instructions.  */
+#if 0
+  rtx note, next;
+  for (rtx note = REG_NOTES (curr_insn); note; note = next)
+    {
+      next = XEXP (note, 1);
+      if (REG_NOTE_KIND (note) == REG_DEAD)
+        remove_note (curr_insn, note);
+    }
+#endif
+
   rrp_insns = vNULL;
   pseudo_idx = vNULL;
   pseudo_idx.reserve (max_reg_num ());
@@ -3741,17 +3752,18 @@ lra_reduce_register_pressure (rtx_insn *curr_insn, rtx_insn **before,
 
       for (i = 0; i < out.length (); i++)
 	{
+          unsigned idx = out[i];
 	  unsigned int reg;
 
 	  fprintf (lra_dump_file, "live before: [ ");
-	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].live_before, 0, reg, bi)
+	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[idx].live_before, 0, reg, bi)
 	    fprintf (lra_dump_file, "r%u ", reg);
 	  fprintf (lra_dump_file, "]\n");
 
-	  dump_insn_slim (lra_dump_file, rrp_insns[i].insn);
+	  dump_insn_slim (lra_dump_file, rrp_insns[idx].insn);
 
 	  fprintf (lra_dump_file, "live after: [ ");
-	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[i].live_after, 0, reg, bi)
+	  EXECUTE_IF_SET_IN_BITMAP (rrp_insns[idx].live_after, 0, reg, bi)
 	    fprintf (lra_dump_file, "r%u ", reg);
 	  fprintf (lra_dump_file, "]\n");
 	}

@@ -52,6 +52,7 @@
 #include "dbxout.h"
 #include "langhooks.h"
 #include "bitmap.h"
+#include "sbitmap.h"
 #include "df.h"
 #include "rtl-iter.h"
 #include "varasm.h"
@@ -1484,8 +1485,8 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
       else if (m65x_indirect_indexed_addr_p (mode, x, strict))
         legit = true;
 
-      else if (m65x_virt_premodify_addr_p (mode, x, strict))
-        legit = true;
+      /*else if (m65x_virt_premodify_addr_p (mode, x, strict))
+        legit = true;*/
 
       goto done;
     }
@@ -2194,30 +2195,34 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
     }
 
   if (m65x_virt_insns_ok ())
-    {
-      if (reload_mode == QImode
-          && reload_class != HARD_ACCUM_REG
-          && (/*spilled_pseudo
-              ||*/ (MEM_P (x)
-                  && (REG_P (XEXP (x, 0))
-                      || (GET_CODE (XEXP (x, 0)) == PLUS
-                          && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
-                          && REG_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
-                          && REG_P (XEXP (XEXP (x, 0), 1)))))))
-        {
-	  if (TARGET_DEBUG_SECONDARY_RELOAD)
-	    fprintf (stderr, "(using reload_%sqi_indy pattern)\n",
-                     in_p ? "in" : "out");
-          if (in_p)
-            sri->icode = CODE_FOR_reload_inqi_indy;
-          else
-            sri->icode = CODE_FOR_reload_outqi_indy;
-        }
-      else if (reload_mode == QImode
-               && !reg_classes_intersect_p (reload_class, ACTUALLY_HARD_REGS)
-               && MEM_P (x)
-               && CONSTANT_ADDRESS_P (XEXP (x, 0)))
-        sclass = ACTUALLY_HARD_REGS;
+    switch (reload_mode)
+      {
+      case QImode:
+        if (reload_class != HARD_ACCUM_REG
+            && (MEM_P (x)
+                && (REG_P (XEXP (x, 0))
+                    || (GET_CODE (XEXP (x, 0)) == PLUS
+                        && GET_CODE (XEXP (XEXP (x, 0), 0)) == ZERO_EXTEND
+                        && REG_P (XEXP (XEXP (XEXP (x, 0), 0), 0))
+                        && REG_P (XEXP (XEXP (x, 0), 1))))))
+          {
+	    if (TARGET_DEBUG_SECONDARY_RELOAD)
+	      fprintf (stderr, "(using reload_%sqi_indy pattern)\n",
+                       in_p ? "in" : "out");
+            if (in_p)
+              sri->icode = CODE_FOR_reload_inqi_indy;
+            else
+              sri->icode = CODE_FOR_reload_outqi_indy;
+          }
+        else if (!reg_classes_intersect_p (reload_class, ACTUALLY_HARD_REGS)
+                 && MEM_P (x)
+                 && CONSTANT_ADDRESS_P (XEXP (x, 0)))
+          sclass = ACTUALLY_HARD_REGS;
+        break;
+      case HImode:
+        break;
+      default:
+        ;
     }
 
   /* If IN_P, X needs to be copied to a register of class RELOAD_CLASS,
@@ -4141,6 +4146,9 @@ rest_of_handle_devirt (void)
   regset_head live;
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  sbitmap blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
+
+  bitmap_clear (blocks);
 
   INIT_REG_SET (&live);
 
@@ -4149,9 +4157,6 @@ rest_of_handle_devirt (void)
   df_live_add_problem ();
   df_live_set_all_dirty ();
   df_analyze ();
-
-  if (!optimize)
-    split_all_insns_noflow ();
 
   hash_map<rtx, enum attr_needs_reg> clobbers_live;
 
@@ -4380,6 +4385,7 @@ rest_of_handle_devirt (void)
           if (done_replacement)
             {
               emit_insn_before (replacement_seq, insn);
+              bitmap_set_bit (blocks, BLOCK_FOR_INSN (insn)->index);
               delete_insn (insn);
             }
           else
@@ -4389,6 +4395,10 @@ rest_of_handle_devirt (void)
     }
 
   cfun->machine->virt_insns_ok = false;
+
+  /* We might generate new basic blocks above.  Break them up now.  */
+  if (!bitmap_empty_p (blocks))
+    find_many_sub_basic_blocks (blocks);
 
   df_chain_add_problem (DF_DU_CHAIN);
   df_analyze ();
@@ -4523,9 +4533,18 @@ m65x_static_chain (const_tree fndecl, bool incoming_p)
   return default_static_chain (fndecl, incoming_p);
 }
 
-bool
+static bool
 m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 {
+  return true;
+}
+
+static bool
+m65x_cannot_subst_mem_equiv_p (rtx x)
+{
+  /*fprintf (stderr, "can we substitute ");
+  dump_value_slim (stderr, x, 0);
+  fprintf (stderr, " ?\n");*/
   return true;
 }
 
@@ -4694,6 +4713,9 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 
 #undef TARGET_PREFER_CONSTANT_EQUIV_P
 #define TARGET_PREFER_CONSTANT_EQUIV_P m65x_prefer_constant_equiv_p
+
+#undef TARGET_CANNOT_SUBSTITUTE_MEM_EQUIV_P
+#define TARGET_CANNOT_SUBSTITUTE_MEM_EQUIV_P m65x_cannot_subst_mem_equiv_p
 
 #undef TARGET_ASM_TRAMPOLINE_TEMPLATE
 #define TARGET_ASM_TRAMPOLINE_TEMPLATE m65x_asm_trampoline_template
