@@ -132,7 +132,8 @@
   
   regno = REGNO (op);
   
-  return IS_ZP_REGNUM (regno) || regno >= FIRST_PSEUDO_REGISTER;
+  return IS_ZP_REGNUM (regno)
+         || regno >= FIRST_PSEUDO_REGISTER;
 })
 
 (define_predicate "ptr_reg_operand"
