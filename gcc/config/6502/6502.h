@@ -410,12 +410,12 @@ enum reg_class
  * Stack layout/calling conventions.
  *****************************************************************************/
 
-#define STACK_GROWS_DOWNWARDS
+#define STACK_GROWS_DOWNWARD            1
 
 /* Hardware stack has "empty" discipline.  */
 
 #define STACK_PUSH_CODE			POST_DEC
-#define FRAME_GROWS_DOWNWARDS		0
+#define FRAME_GROWS_DOWNWARD		0
 #define STARTING_FRAME_OFFSET		0
 
 #define FIRST_PARM_OFFSET(FNDECL)	0
