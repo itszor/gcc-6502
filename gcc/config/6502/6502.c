@@ -1878,9 +1878,6 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
   if (!named || mode == VOIDmode)
     return NULL_RTX;
 
-  if (targetm.calls.must_pass_in_stack (mode, type))
-    return NULL_RTX;
-
   if (*pcum < 8)
     return gen_rtx_REG (mode, (*pcum) + FIRST_ARG_REGISTER);
   else
@@ -3914,21 +3911,45 @@ m65x_devirt_add (machine_mode mode, rtx temp)
   switch (which_alternative)
     {
     case 0: /* r, r, r.  */
-      emit_insn (gen_clc ());
-      for (int i = 0; i < modesize; i++)
-        {
-          bool last = (i == modesize - 1);
-          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-          rtx src1part = m65x_gen_subreg (QImode, op[1], mode, i);
-          rtx src2part = m65x_gen_subreg (QImode, op[2], mode, i);
-          emit_move_insn (acc, src1part);
-          if (last)
-            emit_insn (gen_adcqi3 (acc, acc, src2part));
-          else
-            emit_insn (gen_adcqi3_c (acc, acc, src2part));
-          emit_move_insn (dstpart, acc);
-        }
+      {
+        unsigned stacked_parts = 0;
+
+        emit_insn (gen_clc ());
+
+        for (int i = 0; i < modesize; i++)
+          {
+            bool last = (i == modesize - 1);
+            rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+            rtx src1part = m65x_gen_subreg (QImode, op[1], mode, i);
+            rtx src2part = m65x_gen_subreg (QImode, op[2], mode, i);
+            emit_move_insn (acc, src1part);
+            if (last)
+              emit_insn (gen_adcqi3 (acc, acc, src2part));
+            else
+              emit_insn (gen_adcqi3_c (acc, acc, src2part));
+            if (i + 1 < modesize
+                && ((reg_overlap_mentioned_p (dstpart, op[1])
+                     && !rtx_equal_p (dstpart, src1part))
+                    || (reg_overlap_mentioned_p (dstpart, op[2])
+                        && !rtx_equal_p (dstpart, src2part))))
+              {
+                emit_insn (m65x_push (QImode, acc));
+                stacked_parts |= 1 << i;
+              }
+            else
+              emit_move_insn (dstpart, acc);
+          }
+
+        for (int i = modesize - 2; i >= 0; i--)
+          if (stacked_parts & (1 << i))
+            {
+              emit_insn (m65x_pop (QImode, acc));
+              rtx dstpart =  simplify_gen_subreg (QImode, op[0], mode, i);
+              emit_move_insn (dstpart, acc);
+            }
+      }
       break;
+
     case 1: /* r, 0, iS.  */
       {
         bool add = true;
@@ -4099,6 +4120,7 @@ m65x_devirt_sub (machine_mode mode, rtx temp)
   rtx *op = &recog_data.operand[0];
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   int modesize = GET_MODE_SIZE (mode);
+  unsigned stacked_parts = 0;
 
   emit_insn (gen_sec ());
 
@@ -4113,8 +4135,26 @@ m65x_devirt_sub (machine_mode mode, rtx temp)
         emit_insn (gen_sbcqi3 (acc, acc, src2part));
       else
         emit_insn (gen_sbcqi3_c (acc, acc, src2part));
-      emit_move_insn (dstpart, acc);
+      if (i + 1 < modesize
+          && ((reg_overlap_mentioned_p (dstpart, op[1])
+               && !rtx_equal_p (dstpart, src1part))
+              || (reg_overlap_mentioned_p (dstpart, op[2])
+                  && !rtx_equal_p (dstpart, src2part))))
+        {
+          emit_insn (m65x_push (QImode, acc));
+          stacked_parts |= 1 << i;
+        }
+      else
+        emit_move_insn (dstpart, acc);
     }
+
+  for (int i = modesize - 2; i >= 0; i--)
+    if (stacked_parts & (1 << i))
+      {
+        emit_insn (m65x_pop (QImode, acc));
+        rtx dstpart =  simplify_gen_subreg (QImode, op[0], mode, i);
+        emit_move_insn (dstpart, acc);
+      }
 
   return true;
 }
