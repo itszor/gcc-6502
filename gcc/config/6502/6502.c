@@ -1874,17 +1874,14 @@ m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
 		   const_tree type, bool named)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
-  int modesize;
 
-  if (mode == BLKmode)
-    modesize = int_size_in_bytes (type);
-  else
-    modesize = GET_MODE_SIZE (mode);
-
-  if (!named)
+  if (!named || mode == VOIDmode)
     return NULL_RTX;
 
-  if ((*pcum) + modesize <= 8)
+  if (targetm.calls.must_pass_in_stack (mode, type))
+    return NULL_RTX;
+
+  if (*pcum < 8)
     return gen_rtx_REG (mode, (*pcum) + FIRST_ARG_REGISTER);
   else
     return NULL_RTX;
@@ -1897,15 +1894,50 @@ m65x_function_arg_advance (cumulative_args_t ca, enum machine_mode mode,
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
   int modesize;
   
-  if (mode == BLKmode)
+  if (type && mode == BLKmode)
     modesize = int_size_in_bytes (type);
   else
     modesize = GET_MODE_SIZE (mode);
-  
+
   if (!named)
     return;
-  
+
   (*pcum) += modesize;
+}
+
+static int
+m65x_arg_partial_bytes (cumulative_args_t ca, machine_mode mode, tree type,
+                        bool named)
+{
+  CUMULATIVE_ARGS reg = *get_cumulative_args (ca);
+  int arg_size;
+
+  if (named == 0)
+    return 0;
+
+  if (targetm.calls.must_pass_in_stack (mode, type))
+    return 0;
+
+  if (reg >= 8)
+    return 0;
+
+  if (type && mode == BLKmode)
+    arg_size = int_size_in_bytes (type);
+  else
+    arg_size = GET_MODE_SIZE (mode);
+
+  if (reg + arg_size <= 8)
+    return 0;
+
+  return 8 - reg;
+}
+
+static bool
+m65x_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
+{
+  const HOST_WIDE_INT size = int_size_in_bytes (type);
+  /* Don't try to return big things (structs) in registers.  */
+  return (size == -1 || size > 4);
 }
 
 static rtx
@@ -1927,7 +1959,8 @@ m65x_setup_incoming_varargs (cumulative_args_t ca,
 			     int second_time ATTRIBUTE_UNUSED)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
-  *pretend_size = 8 - *pcum;
+  if (*pcum < 8)
+    *pretend_size = 8 - *pcum;
 }
 
 static rtx
@@ -3717,7 +3750,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
       {
         gcc_assert (REG_P (op[0]) && REG_P (op[1]));
 
-        if (REGNO (op[0]) < REGNO (op[1]))
+        if (REGNO (op[0]) > REGNO (op[1]))
           for (int i = modesize - 1; i >= 0; i--)
             {
               rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
@@ -4612,8 +4645,20 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 #undef TARGET_FUNCTION_ARG_ADVANCE
 #define TARGET_FUNCTION_ARG_ADVANCE m65x_function_arg_advance
 
+#undef TARGET_ARG_PARTIAL_BYTES
+#define TARGET_ARG_PARTIAL_BYTES m65x_arg_partial_bytes
+
+#undef TARGET_RETURN_IN_MEMORY
+#define TARGET_RETURN_IN_MEMORY m65x_return_in_memory
+
 #undef TARGET_FUNCTION_VALUE
 #define TARGET_FUNCTION_VALUE m65x_function_value
+
+#undef  TARGET_MUST_PASS_IN_STACK
+#define TARGET_MUST_PASS_IN_STACK must_pass_in_stack_var_size
+
+#undef  TARGET_PASS_BY_REFERENCE
+#define TARGET_PASS_BY_REFERENCE hook_pass_by_reference_must_pass_in_stack
 
 #undef TARGET_SETUP_INCOMING_VARARGS
 #define TARGET_SETUP_INCOMING_VARARGS m65x_setup_incoming_varargs
