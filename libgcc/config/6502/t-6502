@@ -43,7 +43,16 @@ LIB1ASMFUNCS =	\
   _fixsfsi	\
   _fixunssfsi	\
   _floatsisf	\
-  _floatunsisf
+  _floatunsisf  \
+  _cmpdi2       \
+  _ucmpdi2      \
+  _ashldi3      \
+  _lshrdi3      \
+  _ashrdi3      \
+  _muldi3
+
+# __floatundisf __floatdisf __fixunssfdi __fixsfdi
+# __divdi3 __moddi3 __udivdi3 __umoddi3
 
 LIB2ADDEH =
 
