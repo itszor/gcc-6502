@@ -88,7 +88,7 @@
 #define SHORT_TYPE_SIZE			16
 #define INT_TYPE_SIZE			16
 #define LONG_TYPE_SIZE			32
-#define LONG_LONG_TYPE_SIZE		32
+#define LONG_LONG_TYPE_SIZE		64
 #define CHAR_TYPE_SIZE			8
 #define FLOAT_TYPE_SIZE			32
 #define DOUBLE_TYPE_SIZE		32
@@ -99,8 +99,8 @@
 #define WCHAR_TYPE "int"
 #define WCHAR_TYPE_SIZE INT_TYPE_SIZE
 
-#define INTMAX_TYPE "long int"
-#define UINTMAX_TYPE "long unsigned int"
+#define INTMAX_TYPE "long long int"
+#define UINTMAX_TYPE "long long unsigned int"
 
 #define PTRDIFF_TYPE "int"
 #define SIZE_TYPE "unsigned int"

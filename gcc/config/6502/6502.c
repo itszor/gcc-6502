@@ -1934,7 +1934,7 @@ m65x_return_in_memory (const_tree type, const_tree fntype ATTRIBUTE_UNUSED)
 {
   const HOST_WIDE_INT size = int_size_in_bytes (type);
   /* Don't try to return big things (structs) in registers.  */
-  return (size == -1 || size > 4);
+  return (size == -1 || size > 8);
 }
 
 static rtx
@@ -4172,8 +4172,11 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
       break;
     case CODE_FOR_movhi_virt:
     case CODE_FOR_movsi_virt:
+    case CODE_FOR_movdi_virt:
       done_replacement
-        = m65x_devirt_movhisi (icode == CODE_FOR_movhi_virt ? HImode : SImode,
+        = m65x_devirt_movhisi (icode == CODE_FOR_movhi_virt ? HImode
+                               : icode == CODE_FOR_movsi_virt ? SImode
+                               : DImode,
                                temp);
       break;
     case CODE_FOR_addhi3_highpart:
