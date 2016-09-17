@@ -71,6 +71,7 @@ struct GTY(()) machine_function
 {
   bool real_insns_ok;
   bool virt_insns_ok;
+  rtx return_addr_pseudo;
 };
 
 /* This is our init_machine_status, as set in
@@ -567,7 +568,7 @@ restart:
 	{
 	  output_addr_const (stream, XEXP (x, 1));
 	  asm_fprintf (stream, ",%s",
-		       REGNO (XEXP (x, 0)) == X_REGNUM ? "x" : "y");
+		       REGNO (XEXP (XEXP (x, 0), 0)) == X_REGNUM ? "x" : "y");
 	}
       else if (CONSTANT_ADDRESS_P (XEXP (x, 0)))
         output_addr_const (stream, x);
@@ -2737,6 +2738,18 @@ m65x_expand_prologue (void)
 		   gen_rtx_POST_DEC (HImode,
 				     gen_rtx_REG (HImode, HARDSP_REGNUM)));
 
+  if (cfun->machine->return_addr_pseudo)
+    {
+      rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
+      rtx hardsp = gen_rtx_REG (Pmode, HARDSP_REGNUM);
+      rtx stackbase = gen_int_mode (0x101, Pmode);
+      emit_insn (gen_m65x_tsx (xreg, hardsp));
+      rtx from = gen_rtx_MEM (Pmode,
+                   gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, xreg),
+                                        stackbase));
+      emit_move_insn (cfun->machine->return_addr_pseudo, from);
+    }
+
   if (optimize_size && !frame_pointer_needed && info->pretend_size == 0)
     {
       int num_saved = 0;
@@ -2913,6 +2926,19 @@ m65x_expand_epilogue (void)
   emit_insn (gen_rtx_CLOBBER (VOIDmode, gen_rtx_REG (QImode, TMP1_REGNUM)));
   
   emit_jump_insn (gen_m65x_return ());
+}
+
+rtx
+m65x_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
+{
+  if (count == 0 && cfun)
+    {
+      if (!cfun->machine->return_addr_pseudo)
+        cfun->machine->return_addr_pseudo = gen_reg_rtx (Pmode);
+      return cfun->machine->return_addr_pseudo;
+    }
+
+  return NULL_RTX;
 }
 
 static bool
