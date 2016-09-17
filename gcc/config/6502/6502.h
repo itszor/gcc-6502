@@ -477,6 +477,9 @@ typedef int CUMULATIVE_ARGS;
 #define STACK_SAVEAREA_MODE(LEVEL) \
   ((LEVEL) == SAVE_NONLOCAL ? SImode : Pmode)
 
+#define RETURN_ADDR_RTX(COUNT, FRAMEADDR) \
+  m65x_return_addr_rtx ((COUNT), (FRAMEADDR))
+
 /*****************************************************************************
  * Trampolines.
  *****************************************************************************/
