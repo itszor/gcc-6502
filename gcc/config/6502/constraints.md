@@ -4,6 +4,7 @@
 (define_register_constraint "jq" "HARD_INDEX_REGS")
 (define_register_constraint "hq" "ACTUALLY_HARD_REGS")
 (define_register_constraint "hz" "HARD_ZP_REGS")
+(define_register_constraint "hs" "HARD_SP_REG")
 
 (define_constraint "I"
   "An integer 0-255."

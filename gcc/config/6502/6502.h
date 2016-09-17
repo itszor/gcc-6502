@@ -297,6 +297,7 @@ enum reg_class
   CALLEE_SAVED_REGS,
   CC_REGS,
   SHADOW_HARD_REGS,
+  HARD_SP_REG,
   GENERAL_REGS,
   HARD_ZP_REGS,
   VFP_REG,
@@ -320,6 +321,7 @@ enum reg_class
   "CALLEE_SAVED_REGS",		\
   "CC_REGS",			\
   "SHADOW_HARD_REGS",           \
+  "HARD_SP_REG",                \
   "GENERAL_REGS",		\
   "HARD_ZP_REGS",		\
   "VFP_REG",			\
@@ -340,6 +342,7 @@ enum reg_class
   { 0xff000000, 0x00000000, 0x000000 }, /* CALLEE_SAVED_REGS */	\
   { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
   { 0x00000000, 0x00000000, 0x700000 }, /* SHADOW_HARD_REGS */  \
+  { 0x00000000, 0x00000000, 0x030000 }, /* HARD_SP_REG */       \
   { 0xfffff000, 0xffffffff, 0x7c0000 }, /* GENERAL_REGS */	\
   { 0xfffff111, 0xffffffff, 0x000000 }, /* HARD_ZP_REGS */	\
   { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
@@ -375,6 +378,8 @@ enum reg_class
      ? CC_REGS :                                                        \
    (REGNO) >= SHADOW_A && (REGNO) <= SHADOW_Y                           \
      ? SHADOW_HARD_REGS :                                               \
+   (REGNO) >= HARDSP_REGNUM && (REGNO) < (HARDSP_REGNUM + 2)            \
+     ? HARD_SP_REG :                                                    \
    NO_REGS)
 
 #define MODE_CODE_BASE_REG_CLASS(MODE, AS, OUTER, INDEX)		\
@@ -456,8 +461,6 @@ enum reg_class
 
 #define LIBCALL_VALUE(MODE)		0
 
-/* Dummy definition.  */
-
 typedef int CUMULATIVE_ARGS;
 
 #define INIT_CUMULATIVE_ARGS(CUM, FNTYPE, LIBNAME, FNDECL, N_NAMED_ARGS) \
@@ -467,6 +470,12 @@ typedef int CUMULATIVE_ARGS;
 
 #define FUNCTION_PROFILER(FILE, LABELNO) \
   do { /* Unimplemented.  */ } while (0)
+
+/* Nonlocal gotos need to restore the hardware stack pointer as well as the
+   soft one, so reserve extra space (the actual save/restore happens in the
+   save_stack_nonlocal/restore_stack_nonlocal patterns).  */
+#define STACK_SAVEAREA_MODE(LEVEL) \
+  ((LEVEL) == SAVE_NONLOCAL ? SImode : Pmode)
 
 /*****************************************************************************
  * Trampolines.
