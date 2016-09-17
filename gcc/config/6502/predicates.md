@@ -43,6 +43,17 @@
 	     || REGNO (op) == Y_REGNUM || REGNO (op) >= FIRST_PSEUDO_REGISTER);
 })
 
+(define_predicate "hard_sp_reg_operand"
+  (match_code "reg,subreg")
+{
+  if (GET_CODE (op) == SUBREG)
+    op = SUBREG_REG (op);
+
+  return REG_P (op)
+         && (REGNO (op) == HARDSP_REGNUM
+             || REGNO (op) >= FIRST_PSEUDO_REGISTER);
+})
+
 (define_predicate "mov_dst_operand"
   (match_code "reg,subreg,mem")
 {
