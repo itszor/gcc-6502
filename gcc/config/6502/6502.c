@@ -71,7 +71,6 @@ struct GTY(()) machine_function
 {
   bool real_insns_ok;
   bool virt_insns_ok;
-  rtx return_addr_pseudo;
 };
 
 /* This is our init_machine_status, as set in
@@ -1649,7 +1648,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 	  rtx plus0 = XEXP (x, 0);
 	  rtx plus1 = XEXP (x, 1);
 
-	  if (!CONSTANT_ADDRESS_P (plus0)
+          if (!CONSTANT_ADDRESS_P (plus0)
 	      && CONST_INT_P (plus1)
               && INTVAL (plus1) >= 0
 	      && (INTVAL (plus1) + modesize - 1) < 256)
@@ -2738,16 +2737,13 @@ m65x_expand_prologue (void)
 		   gen_rtx_POST_DEC (HImode,
 				     gen_rtx_REG (HImode, HARDSP_REGNUM)));
 
-  if (cfun->machine->return_addr_pseudo)
+  /* This is only needed if the function calls __builtin_return_address: stash
+     the original value of the hardware stack pointer in X.  */
+  if (has_hard_reg_initial_val (QImode, X_REGNUM))
     {
       rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
-      rtx hardsp = gen_rtx_REG (Pmode, HARDSP_REGNUM);
-      rtx stackbase = gen_int_mode (0x101, Pmode);
-      emit_insn (gen_m65x_tsx (xreg, hardsp));
-      rtx from = gen_rtx_MEM (Pmode,
-                   gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, xreg),
-                                        stackbase));
-      emit_move_insn (cfun->machine->return_addr_pseudo, from);
+      rtx hardsp = gen_rtx_REG (QImode, HARDSP_REGNUM);
+      emit_insn (gen_m65x_tsx_qi (xreg, hardsp));
     }
 
   if (optimize_size && !frame_pointer_needed && info->pretend_size == 0)
@@ -2931,11 +2927,16 @@ m65x_expand_epilogue (void)
 rtx
 m65x_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
 {
-  if (count == 0 && cfun)
+  if (count == 0)
     {
-      if (!cfun->machine->return_addr_pseudo)
-        cfun->machine->return_addr_pseudo = gen_reg_rtx (Pmode);
-      return cfun->machine->return_addr_pseudo;
+      /* The X register substitutes as a kind of "frame pointer" for the hard
+         SP reg here.  It's set to the HW stack pointer in the prologue when
+         necessary.  */
+      rtx initial_hard_sp = get_hard_reg_initial_val (QImode, X_REGNUM);
+      return gen_rtx_MEM (Pmode,
+               gen_rtx_PLUS (Pmode,
+                 gen_rtx_ZERO_EXTEND (Pmode, initial_hard_sp),
+                 gen_int_mode (0x101, Pmode)));
     }
 
   return NULL_RTX;
