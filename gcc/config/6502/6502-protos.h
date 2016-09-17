@@ -40,6 +40,8 @@ extern bool m65x_peep_store (rtx base, rtx index, rtx src, bool);
 extern bool m65x_regno_mode_code_ok_for_base_p (int regno,
     enum machine_mode mode, addr_space_t as, enum rtx_code outer,
     enum rtx_code index);
+
+extern rtx m65x_return_addr_rtx (int count, rtx frameaddr);
 #endif
 
 extern void m65x_expand_prologue (void);
