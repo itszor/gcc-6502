@@ -3901,6 +3901,23 @@ m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
   rtx src2_hi = simplify_gen_subreg (QImode, op[2], HImode, 1);
   rtx dst_hi = simplify_gen_subreg (QImode, op[0], HImode, 1);
 
+  if (reg_overlap_mentioned_p (dst_lo, op[1]))
+    {
+      /* If we have rN = hi(rN) + rM, the substitution below will clobber rN
+         before it is read.  Use an alternative sequence.  */
+      gcc_assert (!reg_overlap_mentioned_p (op[0], op[2]));
+
+      emit_move_insn (acc, op[1]);
+      emit_move_insn (dst_hi, acc);
+      emit_move_insn (acc, src2_lo);
+      emit_move_insn (dst_lo, acc);
+      emit_move_insn (acc, src2_hi);
+      emit_insn (gen_addqi3 (acc, acc, dst_hi));
+      emit_move_insn (dst_hi, acc);
+
+      return true;
+    }
+
   if (!rtx_equal_p (dst_lo, src2_lo))
     {
       emit_move_insn (acc, src2_lo);
