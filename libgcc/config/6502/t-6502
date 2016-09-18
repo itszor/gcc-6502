@@ -6,8 +6,9 @@ LIB1ASMFUNCS =	\
   _bswapdi2	\
   _fixunssfdi	\
   _cmpsi2	\
-  _negsi2	\
   _neghi2       \
+  _negsi2	\
+  _negdi2       \
   _ashlqi3	\
   _lshrqi3	\
   _ashrqi3	\
@@ -49,10 +50,12 @@ LIB1ASMFUNCS =	\
   _ashldi3      \
   _lshrdi3      \
   _ashrdi3      \
-  _muldi3
+  _muldi3       \
+  _udivdi3      \
+  _umoddi3
 
 # __floatundisf __floatdisf __fixunssfdi __fixsfdi
-# __divdi3 __moddi3 __udivdi3 __umoddi3
+# __divdi3 __moddi3
 
 LIB2ADDEH =
 
