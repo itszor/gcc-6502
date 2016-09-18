@@ -3936,10 +3936,18 @@ m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
           gcc_assert (!m65x_index_reg_p (op1));
           std::swap (op1, op2);
         }
-      emit_move_insn (acc, op1);
-      if (!rtx_equal_p (op2, const0_rtx))
-        emit_insn (gen_addqi3 (acc, acc, op2));
-      emit_move_insn (dst_hi, acc);
+      if (rtx_equal_p (op2, acc))
+        {
+          emit_insn (gen_addqi3 (acc, acc, op1));
+          emit_move_insn (dst_hi, acc);
+        }
+      else
+        {
+          emit_move_insn (acc, op1);
+          if (!rtx_equal_p (op2, const0_rtx))
+            emit_insn (gen_addqi3 (acc, acc, op2));
+          emit_move_insn (dst_hi, acc);
+        }
     }
 
   return true;
