@@ -351,6 +351,148 @@ copyout:
         rts
 #endif
 
+#ifdef L_udivdi3
+        .export __udivdi3
+__udivdi3:
+        lda #0
+        ldx #0
+        ; e0...e7 are the quotient.
+        ; e8...e15 are the remainder.
+clear:
+        sta _e0,x
+        inx
+        cpx #16
+        bne clear
+
+        ldx #64
+loop:
+        asl _r0         ; shift numerator
+        rol _r1
+        rol _r2
+        rol _r3
+        rol _r4
+        rol _r5
+        rol _r6
+        rol _r7
+        rol _e8         ; left-shift remainder
+        rol _e9
+        rol _e10
+        rol _e11
+        rol _e12
+        rol _e13
+        rol _e14
+        rol _e15
+        
+        ldy #0
+        sec
+        lda _e8
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e9
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e10
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e11
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e12
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e13
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e14
+        sbc (_sp0),y
+        pha
+        iny
+        lda _e15
+        sbc (_sp0),y
+        bcc less
+        rol _e0
+        rol _e1
+        rol _e2
+        rol _e3
+        rol _e4
+        rol _e5
+        rol _e6
+        rol _e7
+        sta _e15
+        pla
+        sta _e14
+        pla
+        sta _e13
+        pla
+        sta _e12
+        pla
+        sta _e11
+        pla
+        sta _e10
+        pla
+        sta _e9
+        pla
+        sta _e8
+        jmp next_bit
+less:
+        pla
+        pla
+        pla
+        pla
+        pla
+        pla
+        pla
+        asl _e0
+        rol _e1
+        rol _e2
+        rol _e3
+        rol _e4
+        rol _e5
+        rol _e6
+        rol _e7
+next_bit:
+        dex
+        beq done
+        ; Tsk, out of range!
+        jmp loop
+done:
+
+        ; Put quotient in the right place
+        ldx #0
+copyout:
+        lda _e0,x
+        sta _r0,x
+        inx
+        cpx #8
+        bne copyout
+
+        rts
+#endif
+
+#ifdef L_umoddi3
+        .import __udivdi3
+        .export __umoddi3
+__umoddi3:
+        jsr __udivdi3
+        ; The above function left the remainder in e8...e15.  Those aren't
+        ; normally live across procedure call boundaries, but it doesn't matter
+        ; here because the whole lifetime is under our control.
+        ldx #0
+copyout:
+        lda _e8,x
+        sta _r0,x
+        inx
+        cpx #8
+        bne copyout
+        rts
+#endif
+
 #ifdef L_neghi2
         .export __neghi2
 __neghi2:
@@ -382,6 +524,38 @@ __negsi2:
 	sbc _r3
 	sta _r3
 	rts
+#endif
+
+#ifdef L_negdi2
+        .export __negdi2
+__negdi2:
+        ldx #0
+        txa
+        sec
+        sbc _r0
+        sta _r0
+        txa
+        sbc _r1
+        sta _r1
+        txa
+        sbc _r2
+        sta _r2
+        txa
+        sbc _r3
+        sta _r3
+        txa
+        sbc _r4
+        sta _r4
+        txa
+        sbc _r5
+        sta _r5
+        txa
+        sbc _r6
+        sta _r6
+        txa
+        sbc _r7
+        sta _r7
+        rts
 #endif
 
 #ifdef L_ashlqi3
@@ -828,6 +1002,8 @@ result_positive:
 #endif
 
 #ifdef L_udivsi3
+        ; This might as well use the _eN registers instead of clobbering the
+        ; _sN registers. FIXME!
 	.export __udivsi3
 __udivsi3:
 	.scope
