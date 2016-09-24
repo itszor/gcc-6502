@@ -345,7 +345,7 @@ const pass_data pass_data_devirt =
   0, /* properties_provided */
   0, /* properties_destroyed */
   0, /* todo_flags_start */
-  ( TODO_df_finish | 0), /* todo_flags_finish */
+  TODO_df_finish | TODO_df_verify, /* todo_flags_finish */
 };
 
 class pass_devirt : public rtl_opt_pass
@@ -1657,7 +1657,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 				force_reg (QImode,
 				  gen_int_mode (INTVAL (plus1), QImode))),
 			      force_reg (Pmode, plus0));
-	  else if (GET_CODE (plus0) != ZERO_EXTEND)
+	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
             {
 	      rtx plus0_lo, plus0_hi, plus1_lo, plus1_hi, tmp_lo, tmp_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
