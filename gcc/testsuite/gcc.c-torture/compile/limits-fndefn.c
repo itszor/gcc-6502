@@ -1,3 +1,4 @@
+/* { dg-skip-if "too complex for 6502" { 6502-*-* } { "*" } { "" } } */
 /* { dg-skip-if "too complex for avr" { avr-*-* } { "*" } { "" } } */
 /* { dg-skip-if "ptxas times out" { nvptx-*-* } { "*" } { "" } } */
 /* { dg-timeout-factor 4.0 } */
