@@ -181,6 +181,7 @@
 #define LAST_ARG_REGISTER (FIRST_ARG_REGISTER + 7)
 #define FIRST_CALLER_SAVED 24
 #define LAST_CALLER_SAVED (FIRST_CALLER_SAVED + 7)
+#define FIRST_EXTRA_REGISTER 32
 #define FIRST_ZP_REGISTER SP_REGNUM
 #define LAST_ZP_REGISTER 63
 #define NZ_REGNUM 68
@@ -265,6 +266,9 @@
 
 #define HARD_REGNO_MODE_OK(REGNO, MODE) \
   m65x_hard_regno_mode_ok ((REGNO), (MODE))
+
+#define HARD_REGNO_RENAME_OK(SRC, DST) \
+  df_regs_ever_live_p (DST)
 
 #define MODES_TIEABLE_P(MODE1, MODE2) \
   (GET_MODE_SIZE (MODE1) != 1 && GET_MODE_SIZE (MODE2) != 1)
@@ -491,7 +495,7 @@ typedef int CUMULATIVE_ARGS;
  * Trampolines.
  *****************************************************************************/
 
-#define STATIC_CHAIN_REGNUM             FIRST_CALLER_SAVED
+#define STATIC_CHAIN_REGNUM             FIRST_EXTRA_REGISTER
 #define TRAMPOLINE_SIZE			11
 
 /*****************************************************************************
