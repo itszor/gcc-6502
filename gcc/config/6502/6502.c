@@ -4680,9 +4680,9 @@ void
 m65x_asm_trampoline_template (FILE *f)
 {
   asm_fprintf (f, "\tlda #0\n");
-  asm_fprintf (f, "\tsta _s0\n");
+  asm_fprintf (f, "\tsta _e0\n");
   asm_fprintf (f, "\tlda #0\n");
-  asm_fprintf (f, "\tsta _s1\n");
+  asm_fprintf (f, "\tsta _e1\n");
   asm_fprintf (f, "\tjmp $ffff\n");
 }
 
