@@ -1900,6 +1900,18 @@ notzero:
 rightshift:
 	jsr _m65x_renormalize_right
 repack:
+
+	bit _m65x_fpe0_mant
+	bpl no_rounding
+	inc _m65x_fpe0_mant+1
+	bne no_rounding
+	inc _m65x_fpe0_mant+2
+	bne no_rounding
+	inc _m65x_fpe0_mant+3
+	bne no_rounding
+	inc _m65x_fpe0_mant+4
+	jsr _m65x_renormalize_right
+no_rounding:
 	
 	lda _m65x_fpe0_mant+1
 	sta _r0
@@ -1910,7 +1922,7 @@ repack:
 	sta _r2
 	lda _m65x_fpe0_exp
 	sta _r3
-	
+
 	rts
 #endif
 
