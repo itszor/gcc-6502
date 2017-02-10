@@ -1336,10 +1336,10 @@ m65x_virt_absolute_indexed_addr_p (rtx x, bool strict)
 }
 
 bool
-m65x_indirect_indexed_addr_p (enum machine_mode mode ATTRIBUTE_UNUSED, rtx x,
-			      bool strict)
+m65x_indirect_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 {
-  if (GET_CODE (x) == PLUS
+  if (mode == QImode
+      && GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
       && GET_CODE (XEXP (x, 0)) == ZERO_EXTEND
       && GET_MODE (XEXP (XEXP (x, 0), 0)) == QImode
@@ -1476,7 +1476,8 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
       /*else if (m65x_virt_indexed_addr_p (x, strict))
 	legit = true;*/
 
-      /*else if (m65x_indirect_offset_addr_p (mode, x, strict))
+      /*else if (GET_MODE_SIZE (mode) > 1
+	       && m65x_indirect_offset_addr_p (mode, x, strict))
 	legit = true;*/
 
       else if (m65x_virt_absolute_indexed_addr_p (x, strict))
@@ -3565,6 +3566,7 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
 #define MASK_A 1
 #define MASK_X 2
 #define MASK_Y 4
+#define MASK_C 8
 #define MASK_AXY (MASK_A | MASK_X | MASK_Y)
 
 static bool
@@ -3620,7 +3622,12 @@ emit_save (unsigned mask)
   rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
   rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
   rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
+  rtx push_rtx = gen_rtx_MEM (CCmode,
+		   gen_rtx_POST_DEC (Pmode,
+				     gen_rtx_REG (Pmode, HARDSP_REGNUM)));
 
+  if (mask & MASK_C)
+    emit_insn (gen_pushflags (push_rtx));
   /* These are ordered so they could be changed into pha/txa/pha etc. insns if
      beneficial.  */
   if (mask & MASK_A)
@@ -3640,6 +3647,9 @@ emit_restore (unsigned mask)
   rtx acc_shadow = gen_rtx_REG (QImode, SHADOW_A);
   rtx xreg_shadow = gen_rtx_REG (QImode, SHADOW_X);
   rtx yreg_shadow = gen_rtx_REG (QImode, SHADOW_Y);
+  rtx pop_rtx = gen_rtx_MEM (CCmode,
+		  gen_rtx_PRE_INC (Pmode,
+				   gen_rtx_REG (Pmode, HARDSP_REGNUM)));
 
   /* As above, pla/tax/pla etc.  */
   if (mask & MASK_Y)
@@ -3648,6 +3658,8 @@ emit_restore (unsigned mask)
     emit_move_insn (xreg, xreg_shadow);
   if (mask & MASK_A)
     emit_move_insn (acc, acc_shadow);
+  if (mask & MASK_C)
+    emit_insn (gen_popflags (pop_rtx));
 }
 
 static rtx
@@ -3792,7 +3804,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
             }
       }
       break;
-    case 3: /* hz, Ur.  */
+    /*case 3:*/ /* hz, Ur.  */
       emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
     case 1: /* hz, Uy.  */
@@ -3832,7 +3844,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
             }
       }
       break;
-    case 4: /* Ur, hz.  */
+    /*case 4:*/ /* Ur, hz.  */
       emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
     case 2: /* Uy, hz.  */
@@ -3848,7 +3860,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           }
       }
       break;
-    case 5: /* hz, m.  */
+    case 3: /* hz, m.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx mempart = adjust_address (op[1], QImode, i);
@@ -3857,8 +3869,8 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           emit_move_insn (dstpart, temp);
         }
       break;
-    case 6: /* m, hz.  */
-    case 8: /* UjUc, iS.  */
+    case 4: /* m, hz.  */
+    case 6: /* UjUc, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx mempart = adjust_address (op[0], QImode, i);
@@ -3867,7 +3879,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           emit_move_insn (mempart, temp);
         }
       break;
-    case 7: /* hz, iS.  */
+    case 5: /* hz, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
@@ -4212,6 +4224,20 @@ m65x_devirt_sub (machine_mode mode, rtx temp)
 }
 
 static bool
+m65x_devirt_extendqihi2 (rtx temp)
+{
+  rtx *op = &recog_data.operand[0];
+  rtx dstlo = simplify_gen_subreg (QImode, op[0], HImode, 0);
+  rtx dsthi = simplify_gen_subreg (QImode, op[0], HImode, 1);
+
+  emit_move_insn (dstlo, op[1]);
+  emit_move_insn (temp, const0_rtx);
+  emit_move_insn (dsthi, temp);
+
+  return true;
+}
+
+static bool
 m65x_devirt (int icode, unsigned mask, rtx temp)
 {
   bool done_replacement = false;
@@ -4245,6 +4271,9 @@ m65x_devirt (int icode, unsigned mask, rtx temp)
       done_replacement
         = m65x_devirt_sub (icode == CODE_FOR_subhi3_virt ? HImode : SImode,
                            temp);
+      break;
+    case CODE_FOR_zero_extendqihi2_virt:
+      done_replacement = m65x_devirt_extendqihi2 (temp);
       break;
     default:
       ;
@@ -4306,8 +4335,10 @@ rest_of_handle_devirt (void)
 
 	  rtx set;
           enum attr_needs_reg hw_reg_needed;
-          rtx replacement_seq;
+          rtx_insn *replacement_seq;
           bool done_replacement = false;
+	  unsigned carry_mask = 0;
+	    // = REGNO_REG_SET_P (&live, CARRY_REGNUM) ? MASK_C : 0;
 
 	  df_simulate_one_insn_backwards (bb, insn, &live);
 
@@ -4329,7 +4360,7 @@ rest_of_handle_devirt (void)
                 {
                   bool do_save = REGNO_REG_SET_P (&live, ACC_REGNUM);
                   done_replacement = m65x_devirt (icode,
-                                                  do_save ? MASK_A : 0,
+                                                  (do_save ? MASK_A : 0) | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4338,7 +4369,7 @@ rest_of_handle_devirt (void)
                   bool do_save = !is_op_regno (0, ACC_REGNUM)
                                  && REGNO_REG_SET_P (&live, ACC_REGNUM);
                   done_replacement = m65x_devirt (icode,
-                                                  do_save ? MASK_A : 0,
+                                                  (do_save ? MASK_A : 0) | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4347,7 +4378,7 @@ rest_of_handle_devirt (void)
                   bool do_save = !is_op_regno (1, ACC_REGNUM)
                                  && REGNO_REG_SET_P (&live, ACC_REGNUM);
                   done_replacement = m65x_devirt (icode,
-                                                  do_save ? MASK_A : 0,
+                                                  (do_save ? MASK_A : 0) | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4355,7 +4386,7 @@ rest_of_handle_devirt (void)
                 {
                   bool do_save = REGNO_REG_SET_P (&live, Y_REGNUM);
                   done_replacement = m65x_devirt (icode,
-                                                  do_save ? MASK_Y : 0,
+                                                  (do_save ? MASK_Y : 0) | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4369,7 +4400,7 @@ rest_of_handle_devirt (void)
                     save_regs = MASK_A;
                   else if (REGNO_REG_SET_P (&live, Y_REGNUM))
                     save_regs = MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs,
+                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4381,7 +4412,7 @@ rest_of_handle_devirt (void)
                     save_regs |= MASK_A;
                   if (REGNO_REG_SET_P (&live, Y_REGNUM))
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs,
+                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4393,7 +4424,7 @@ rest_of_handle_devirt (void)
                     save_regs |= MASK_A;
                   if (REGNO_REG_SET_P (&live, Y_REGNUM))
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs,
+                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4404,7 +4435,7 @@ rest_of_handle_devirt (void)
                     save_regs |= MASK_A;
                   if (REGNO_REG_SET_P (&live, Y_REGNUM))
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs,
+                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4430,7 +4461,7 @@ rest_of_handle_devirt (void)
                           mask = MASK_A;
                           temp = acc;
                         }
-                      done_replacement = m65x_devirt (icode, mask, temp);
+                      done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
                     }
                 }
                 break;
@@ -4447,7 +4478,20 @@ rest_of_handle_devirt (void)
                           temp = acc;
                         }
                     }
-                  done_replacement = m65x_devirt (icode, mask, temp);
+                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
+                }
+                break;
+              case NEEDS_REG_PCLOB:
+                {
+                  unsigned mask = 0;
+                  rtx temp = choose_phys_reg (&live, MASK_AXY);
+                  if (!temp)
+                    {
+                      mask = MASK_A;
+                      temp = acc;
+                    }
+                  done_replacement =
+		    m65x_devirt (icode, mask | carry_mask, temp);
                 }
                 break;
               case NEEDS_REG_PHYS0:
@@ -4463,7 +4507,7 @@ rest_of_handle_devirt (void)
                           temp = acc;
                         }
                     }
-                  done_replacement = m65x_devirt (icode, mask, temp);
+                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
                 }
                 break;
               case NEEDS_REG_PHYS1:
@@ -4479,7 +4523,7 @@ rest_of_handle_devirt (void)
                           temp = acc;
                         }
                     }
-                  done_replacement = m65x_devirt (icode, mask, temp);
+                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
                 }
                 break;
               case NEEDS_REG_NONE:
@@ -4512,6 +4556,15 @@ rest_of_handle_devirt (void)
 
           if (done_replacement)
             {
+	      if (dump_file)
+	        {
+		  fprintf (dump_file, "(carry live=%s) replacing:\n",
+			   carry_mask ? "yes" : "no");
+		  dump_insn_slim (dump_file, insn);
+		  fprintf (dump_file, "\nwith:\n");
+		  dump_rtl_slim (dump_file, replacement_seq, NULL, -1, 0);
+		  fprintf (dump_file, "\n");
+		}
               emit_insn_before (replacement_seq, insn);
               bitmap_set_bit (blocks, BLOCK_FOR_INSN (insn)->index);
               delete_insn (insn);
