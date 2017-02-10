@@ -1355,6 +1355,21 @@ __lesf2:
 	.export __eqsf2
 __eqsf2:
 	.scope
+	lda _r2
+	and #$7f
+	ora _r3
+	ora _r1
+	ora _r0
+	bne not_plusminus_zero
+
+	lda _r6
+	and #$7f
+	ora _r7
+	ora _r5
+	ora _r4
+	beq eq
+
+not_plusminus_zero:
 	lda _r0
 	cmp _r4
 	bne ne
@@ -1367,6 +1382,7 @@ __eqsf2:
 	lda _r3
 	cmp _r7
 	bne ne
+eq:
 	lda #1
 	sta _r0
 	rts
