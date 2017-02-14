@@ -3567,6 +3567,8 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
 #define MASK_X 2
 #define MASK_Y 4
 #define MASK_C 8
+#define MASK_NZ 16
+#define MASK_V 32
 #define MASK_AXY (MASK_A | MASK_X | MASK_Y)
 
 static bool
@@ -3626,7 +3628,7 @@ emit_save (unsigned mask)
 		   gen_rtx_POST_DEC (Pmode,
 				     gen_rtx_REG (Pmode, HARDSP_REGNUM)));
 
-  if (mask & MASK_C)
+  if (mask & (MASK_C | MASK_NZ | MASK_V))
     emit_insn (gen_pushflags (push_rtx));
   /* These are ordered so they could be changed into pha/txa/pha etc. insns if
      beneficial.  */
@@ -3658,7 +3660,7 @@ emit_restore (unsigned mask)
     emit_move_insn (xreg, xreg_shadow);
   if (mask & MASK_A)
     emit_move_insn (acc, acc_shadow);
-  if (mask & MASK_C)
+  if (mask & (MASK_C | MASK_NZ | MASK_V))
     emit_insn (gen_popflags (pop_rtx));
 }
 
@@ -3693,6 +3695,21 @@ maybe_make_indirect_indexed (machine_mode mode, rtx mem)
     }
 
   return change_address (mem, mode, addr);
+}
+
+static rtx
+make_indirect_indexed (machine_mode mode, rtx mem)
+{
+  mem = maybe_make_indirect_indexed (mode, mem);
+
+  rtx addr = XEXP (mem, 0);
+
+  gcc_assert (GET_CODE (addr) == PLUS
+	      && GET_CODE (XEXP (addr, 0)) == ZERO_EXTEND
+	      && REG_P (XEXP (XEXP (addr, 0), 0))
+	      && REG_P (XEXP (addr, 1)));
+
+  return mem;
 }
 
 static bool
@@ -3804,12 +3821,12 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
             }
       }
       break;
-    /*case 3:*/ /* hz, Ur.  */
-      emit_move_insn (yreg, const0_rtx);
+    case 1: /* hz, Ur.  */
+      //emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
-    case 1: /* hz, Uy.  */
+    /*case 1:*/ /* hz, Uy.  */
       {
-        rtx mempart = maybe_make_indirect_indexed (QImode, op[1]);
+        rtx mempart = make_indirect_indexed (QImode, op[1]);
         if (reg_overlap_mentioned_p (op[0], mempart))
           {
             /* This is a bit inefficient, and we should probably discourage it
@@ -3844,12 +3861,12 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
             }
       }
       break;
-    /*case 4:*/ /* Ur, hz.  */
-      emit_move_insn (yreg, const0_rtx);
+    case 2: /* Ur, hz.  */
+      //emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
-    case 2: /* Uy, hz.  */
+    /*case 2:*/ /* Uy, hz.  */
       {
-        rtx mempart = maybe_make_indirect_indexed (QImode, op[0]);
+        rtx mempart = make_indirect_indexed (QImode, op[0]);
         for (int i = 0; i < modesize; i++)
           {
             rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
@@ -4301,6 +4318,7 @@ rest_of_handle_devirt (void)
 {
   basic_block bb;
   regset_head live;
+  regset_head previous_live_out;
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   sbitmap blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
@@ -4308,10 +4326,12 @@ rest_of_handle_devirt (void)
   bitmap_clear (blocks);
 
   INIT_REG_SET (&live);
+  INIT_REG_SET (&previous_live_out);
 
   compute_bb_for_insn ();
 
   df_live_add_problem ();
+  df_note_add_problem ();
   df_live_set_all_dirty ();
   df_analyze ();
 
@@ -4324,8 +4344,14 @@ rest_of_handle_devirt (void)
       rtx_insn *insn, *curr;
       unsigned pass = 0;
       int icode;
-      
+
+      if (dump_file)
+	{
+	  fprintf (dump_file, "BB %u:\n", bb->index);
+	}
+
       COPY_REG_SET (&live, DF_LIVE_OUT (bb));
+      COPY_REG_SET (&previous_live_out, DF_LIVE_OUT (bb));
       df_simulate_initialize_backwards (bb, &live);
 
       FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
@@ -4337,14 +4363,24 @@ rest_of_handle_devirt (void)
           enum attr_needs_reg hw_reg_needed;
           rtx_insn *replacement_seq;
           bool done_replacement = false;
-	  unsigned carry_mask = 0;
-	    // = REGNO_REG_SET_P (&live, CARRY_REGNUM) ? MASK_C : 0;
+	  unsigned flags_mask = 0;
+
+	  if (REGNO_REG_SET_P (&live, CARRY_REGNUM))
+	    flags_mask |= MASK_C;
+	  if (REGNO_REG_SET_P (&live, NZ_REGNUM))
+	    flags_mask |= MASK_NZ;
+	  if (REGNO_REG_SET_P (&live, OVERFLOW_REGNUM))
+	    flags_mask |= MASK_V;
 
 	  df_simulate_one_insn_backwards (bb, insn, &live);
 
           if (GET_CODE (PATTERN (insn)) == USE
               || GET_CODE (PATTERN (insn)) == CLOBBER)
             continue;
+
+	  bool acc_live = REGNO_REG_SET_P (&live, ACC_REGNUM);
+	  bool x_live = REGNO_REG_SET_P (&live, X_REGNUM);
+	  bool y_live = REGNO_REG_SET_P (&live, Y_REGNUM);
 
           hw_reg_needed = get_attr_needs_reg (insn);
 
@@ -4358,84 +4394,81 @@ rest_of_handle_devirt (void)
               {
               case NEEDS_REG_A:
                 {
-                  bool do_save = REGNO_REG_SET_P (&live, ACC_REGNUM);
+                  bool do_save = acc_live;
                   done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_A : 0) | carry_mask,
-                                                  NULL_RTX);
+                                                  (do_save ? MASK_A : 0)
+						  | flags_mask, NULL_RTX);
                 }
                 break;
               case NEEDS_REG_A0:
-                {
-                  bool do_save = !is_op_regno (0, ACC_REGNUM)
-                                 && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                  done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_A : 0) | carry_mask,
-                                                  NULL_RTX);
-                }
+		if (!is_op_regno (0, ACC_REGNUM))
+		  {
+                    bool do_save = acc_live;
+                    done_replacement = m65x_devirt (icode,
+                                                    (do_save ? MASK_A : 0)
+						    | flags_mask, NULL_RTX);
+		  }
                 break;
               case NEEDS_REG_A1:
-                {
-                  bool do_save = !is_op_regno (1, ACC_REGNUM)
-                                 && REGNO_REG_SET_P (&live, ACC_REGNUM);
-                  done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_A : 0) | carry_mask,
-                                                  NULL_RTX);
-                }
+		if (!is_op_regno (1, ACC_REGNUM))
+		  {
+                    bool do_save = acc_live;
+                    done_replacement = m65x_devirt (icode,
+                                                    (do_save ? MASK_A : 0)
+						    | flags_mask, NULL_RTX);
+		  }
                 break;
               case NEEDS_REG_Y:
                 {
-                  bool do_save = REGNO_REG_SET_P (&live, Y_REGNUM);
+                  bool do_save = y_live;
                   done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_Y : 0) | carry_mask,
-                                                  NULL_RTX);
+                                                  (do_save ? MASK_Y : 0)
+						  | flags_mask, NULL_RTX);
                 }
                 break;
               case NEEDS_REG_AY:
                 {
                   int save_regs = 0;
-                  if (REGNO_REG_SET_P (&live, ACC_REGNUM)
-                      && REGNO_REG_SET_P (&live, Y_REGNUM))
+                  if (acc_live && y_live)
                     save_regs = MASK_A | MASK_Y;
-                  else if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                  else if (acc_live)
                     save_regs = MASK_A;
-                  else if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                  else if (y_live)
                     save_regs = MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
+                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
                                                   NULL_RTX);
                 }
                 break;
               case NEEDS_REG_A0Y1:
                 {
                   int save_regs = 0;
-                  if (!is_op_regno (0, ACC_REGNUM)
-                      && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                  if (!is_op_regno (0, ACC_REGNUM) && acc_live)
                     save_regs |= MASK_A;
-                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                  if (y_live)
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
+                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
                                                   NULL_RTX);
                 }
                 break;
               case NEEDS_REG_A1Y0:
                 {
                   int save_regs = 0;
-                  if (!is_op_regno (1, ACC_REGNUM)
-                      && REGNO_REG_SET_P (&live, ACC_REGNUM))
+                  if (!is_op_regno (1, ACC_REGNUM) && acc_live)
                     save_regs |= MASK_A;
-                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                  if (y_live)
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
+                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
                                                   NULL_RTX);
                 }
                 break;
               case NEEDS_REG_Y0A:
                 {
                   int save_regs = 0;
-                  if (REGNO_REG_SET_P (&live, ACC_REGNUM))
+                  if (acc_live)
                     save_regs |= MASK_A;
-                  if (REGNO_REG_SET_P (&live, Y_REGNUM))
+                  if (y_live)
                     save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | carry_mask,
+                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
                                                   NULL_RTX);
                 }
                 break;
@@ -4461,7 +4494,8 @@ rest_of_handle_devirt (void)
                           mask = MASK_A;
                           temp = acc;
                         }
-                      done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
+                      done_replacement = m65x_devirt (icode, mask | flags_mask,
+						      temp);
                     }
                 }
                 break;
@@ -4478,7 +4512,8 @@ rest_of_handle_devirt (void)
                           temp = acc;
                         }
                     }
-                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
+                  done_replacement = m65x_devirt (icode, mask | flags_mask,
+						  temp);
                 }
                 break;
               case NEEDS_REG_PCLOB:
@@ -4491,7 +4526,7 @@ rest_of_handle_devirt (void)
                       temp = acc;
                     }
                   done_replacement =
-		    m65x_devirt (icode, mask | carry_mask, temp);
+		    m65x_devirt (icode, mask | flags_mask, temp);
                 }
                 break;
               case NEEDS_REG_PHYS0:
@@ -4506,8 +4541,9 @@ rest_of_handle_devirt (void)
                           mask = MASK_A;
                           temp = acc;
                         }
+                      done_replacement = m65x_devirt (icode, mask | flags_mask,
+						      temp);
                     }
-                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
                 }
                 break;
               case NEEDS_REG_PHYS1:
@@ -4522,8 +4558,9 @@ rest_of_handle_devirt (void)
                           mask = MASK_A;
                           temp = acc;
                         }
+                      done_replacement = m65x_devirt (icode, mask | flags_mask,
+						      temp);
                     }
-                  done_replacement = m65x_devirt (icode, mask | carry_mask, temp);
                 }
                 break;
               case NEEDS_REG_NONE:
@@ -4558,8 +4595,18 @@ rest_of_handle_devirt (void)
             {
 	      if (dump_file)
 	        {
-		  fprintf (dump_file, "(carry live=%s) replacing:\n",
-			   carry_mask ? "yes" : "no");
+		  fprintf (dump_file, "replacing: [live:");
+		  fprintf (dump_file, "%s%s%s",
+			   (flags_mask & MASK_C) ? " cflag" : "",
+			   (flags_mask & MASK_NZ) ? " nzflag" : "",
+			   (flags_mask & MASK_V) ? " vflag" : "");
+		  if (acc_live)
+		    fprintf (dump_file, " a");
+		  if (x_live)
+		    fprintf (dump_file, " x");
+		  if (y_live)
+		    fprintf (dump_file, " y");
+		  fprintf (dump_file, "]\n");
 		  dump_insn_slim (dump_file, insn);
 		  fprintf (dump_file, "\nwith:\n");
 		  dump_rtl_slim (dump_file, replacement_seq, NULL, -1, 0);
@@ -4573,6 +4620,37 @@ rest_of_handle_devirt (void)
             /* Just force re-recognition.  */
             INSN_CODE (insn) = -1;
         }
+
+      if (dump_file)
+        {
+	  COPY_REG_SET (&live, DF_LIVE_IN (bb));
+	  df_simulate_initialize_forwards (bb, &live);
+
+	  FOR_BB_INSNS (bb, insn)
+            {
+	      if (!NONDEBUG_INSN_P (insn))
+        	continue;
+
+	      df_simulate_one_insn_forwards (bb, insn, &live);
+	    }
+
+	  bitmap_iterator bi;
+	  unsigned i;
+
+	  EXECUTE_IF_AND_COMPL_IN_BITMAP (&live, &previous_live_out, 0, i, bi)
+            {
+	      asm_fprintf (dump_file,
+			   "BB %d: %r is live now but was dead before\n",
+			   bb->index, i);
+	    }
+
+	  EXECUTE_IF_AND_COMPL_IN_BITMAP (&previous_live_out, &live, 0, i, bi)
+            {
+	      asm_fprintf (dump_file,
+			   "BB %d: %r was dead before but is live now\n",
+			   bb->index, i);
+	    }
+	}
     }
 
   cfun->machine->virt_insns_ok = false;
@@ -4581,6 +4659,9 @@ rest_of_handle_devirt (void)
   if (!bitmap_empty_p (blocks))
     find_many_sub_basic_blocks (blocks);
 
+  df_finish_pass (false);
+
+#if 0
   df_chain_add_problem (DF_DU_CHAIN);
   df_analyze ();
   df_set_flags (DF_DEFER_INSN_RESCAN);
@@ -4639,6 +4720,10 @@ rest_of_handle_devirt (void)
             }
         }
     }
+
+  df_finish_pass (false);
+#endif
+
   return 0;
 }
 
