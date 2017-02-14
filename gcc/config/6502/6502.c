@@ -1476,9 +1476,9 @@ m65x_legitimate_address_p (enum machine_mode mode, rtx x, bool strict,
       /*else if (m65x_virt_indexed_addr_p (x, strict))
 	legit = true;*/
 
-      /*else if (GET_MODE_SIZE (mode) > 1
+      else if (GET_MODE_SIZE (mode) > 1
 	       && m65x_indirect_offset_addr_p (mode, x, strict))
-	legit = true;*/
+	legit = true;
 
       else if (m65x_virt_absolute_indexed_addr_p (x, strict))
         legit = true;
@@ -3680,18 +3680,26 @@ static rtx
 maybe_make_indirect_indexed (machine_mode mode, rtx mem)
 {
   rtx addr = XEXP (mem, 0);
-  
+  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+
   if (REG_P (addr))
     {
       if (TARGET_ZPIND)
         return mem;
 
-      rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
-
       emit_move_insn (yreg, const0_rtx);
 
       return change_address (mem, mode,
                gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg), addr));
+    }
+  else if (GET_CODE (addr) == PLUS
+	   && REG_P (XEXP (addr, 0))
+	   && CONST_INT_P (XEXP (addr, 1)))
+    {
+      emit_move_insn (yreg, gen_int_mode (INTVAL (XEXP (addr, 1)), QImode));
+      return change_address (mem, mode,
+	       gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg),
+			     XEXP (addr, 0)));
     }
 
   return change_address (mem, mode, addr);
@@ -3824,7 +3832,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
     case 1: /* hz, Ur.  */
       //emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
-    /*case 1:*/ /* hz, Uy.  */
+    case 3: /* hz, Uy.  */
       {
         rtx mempart = make_indirect_indexed (QImode, op[1]);
         if (reg_overlap_mentioned_p (op[0], mempart))
@@ -3864,7 +3872,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
     case 2: /* Ur, hz.  */
       //emit_move_insn (yreg, const0_rtx);
       /* Fallthru.  */
-    /*case 2:*/ /* Uy, hz.  */
+    case 4: /* Uy, hz.  */
       {
         rtx mempart = make_indirect_indexed (QImode, op[0]);
         for (int i = 0; i < modesize; i++)
@@ -3877,7 +3885,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           }
       }
       break;
-    case 3: /* hz, m.  */
+    case 5: /* hz, m.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx mempart = adjust_address (op[1], QImode, i);
@@ -3886,8 +3894,8 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           emit_move_insn (dstpart, temp);
         }
       break;
-    case 4: /* m, hz.  */
-    case 6: /* UjUc, iS.  */
+    case 6: /* m, hz.  */
+    case 8: /* UjUc, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx mempart = adjust_address (op[0], QImode, i);
@@ -3896,7 +3904,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
           emit_move_insn (mempart, temp);
         }
       break;
-    case 5: /* hz, iS.  */
+    case 7: /* hz, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
