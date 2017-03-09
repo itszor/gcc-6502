@@ -398,6 +398,16 @@ m65x_option_override (void)
 
   register_pass (&devirt_info);
 
+  /* The devirt pass inserts some redundant stuff.  Running postreload again
+     can help clean that up.  */
+  rtl_opt_pass *pass_postreload2 = make_pass_postreload_cse (g);
+  static struct register_pass_info postreload2_info
+    = { pass_postreload2, "devirt",
+	1, PASS_POS_INSERT_AFTER
+      };
+
+  register_pass (&postreload2_info);
+
   init_machine_status = m65x_init_machine_status;
 }
 
@@ -1817,7 +1827,9 @@ m65x_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno, int *total,
       if (REG_P (XEXP (x, 1)))
         *total = COSTS_N_INSNS (2 * GET_MODE_SIZE (mode));
       else if (CONSTANT_P (XEXP (x, 1)))
-        *total = COSTS_N_INSNS (GET_MODE_SIZE (mode));
+        /* If we're loading a constant, it's pretty much never better to CSE
+	   it to a register, I don't think.  So make this artificially low.  */
+	*total = 0;
       else
         return false;
       return true;
@@ -4668,6 +4680,8 @@ rest_of_handle_devirt (void)
     find_many_sub_basic_blocks (blocks);
 
   df_finish_pass (false);
+
+  cleanup_cfg (0);
 
 #if 0
   df_chain_add_problem (DF_DU_CHAIN);
