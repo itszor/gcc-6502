@@ -3689,14 +3689,14 @@ reg_from_mask (unsigned mask)
 }
 
 static rtx
-maybe_make_indirect_indexed (machine_mode mode, rtx mem)
+make_indirect_indexed_1 (machine_mode mode, rtx mem, bool force)
 {
   rtx addr = XEXP (mem, 0);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
 
   if (REG_P (addr))
     {
-      if (TARGET_ZPIND)
+      if (!force && TARGET_ZPIND)
         return mem;
 
       emit_move_insn (yreg, const0_rtx);
@@ -3713,14 +3713,22 @@ maybe_make_indirect_indexed (machine_mode mode, rtx mem)
 	       gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, yreg),
 			     XEXP (addr, 0)));
     }
+  else
+    gcc_unreachable ();
 
   return change_address (mem, mode, addr);
 }
 
 static rtx
+maybe_make_indirect_indexed (machine_mode mode, rtx mem)
+{
+  return make_indirect_indexed_1 (mode, mem, false);
+}
+
+static rtx
 make_indirect_indexed (machine_mode mode, rtx mem)
 {
-  mem = maybe_make_indirect_indexed (mode, mem);
+  mem = make_indirect_indexed_1 (mode, mem, true);
 
   rtx addr = XEXP (mem, 0);
 
@@ -3796,10 +3804,13 @@ m65x_devirt_movqi (rtx temp)
       break;
     case 16: /* v.movqi Ur, hz.  */
     case 24: /* v.movqi m, iS.  */
-      emit_move_insn (acc, recog_data.operand[1]);
-      emit_move_insn (maybe_make_indirect_indexed (QImode,
-                                                   recog_data.operand[0]),
-                      acc);
+      {
+        rtx mem = recog_data.operand[0];
+	if (REG_P (mem))
+	  mem = maybe_make_indirect_indexed (QImode, mem);
+	emit_move_insn (acc, recog_data.operand[1]);
+	emit_move_insn (mem, acc);
+      }
       break;
     default:
       return false;
