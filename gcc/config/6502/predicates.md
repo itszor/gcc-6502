@@ -297,6 +297,9 @@
 (define_special_predicate "qimode_ui_comparison"
   (match_code "ltu,geu"))
 
+(define_special_predicate "geu_comparison"
+  (match_code "geu"))
+
 (define_special_predicate "qimode_v_comparison"
   (match_code "ltu,geu"))
 
