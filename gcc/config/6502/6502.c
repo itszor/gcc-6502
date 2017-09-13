@@ -434,11 +434,11 @@ m65x_file_start (void)
       break;
     
     case m6502x:
-      /* There isn't an assembler directive for this mode!  */
+      fprintf (asm_out_file, "\t.setcpu \"6502x\"\n");
       break;
 
     default:
-      sorry ("CPU unsupported");
+      fprintf (asm_out_file, "\t.setcpu \"huc6280\"\n");
       break;
     }
   
@@ -805,16 +805,20 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
   switch (which_alternative)
     {
     case 0:
+      *clobbers_flags = false;
+      return "cl%R0";
+
+    case 1:
       return "ld%R0 #%1";
 
-    case 1: case 3:
+    case 2: case 4:
       return "ld%R0 %1";
 
-    case 2: case 4:
+    case 3: case 5:
       *clobbers_flags = false;
       return "st%R1 %0";
 
-    case 5:
+    case 6:
       switch (REGNO (operands[0]))
         {
         case ACC_REGNUM:
@@ -870,14 +874,14 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
 	}
       break;
 
-    case 6: case 8:
+    case 7: case 9:
       *clobbers_flags = false;
       return "ph%R1";
 
-    case 7: case 9:
+    case 8: case 10:
       return "pl%R0";
 
-    case 10:
+    case 11:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[1], 0)) == PLUS
 	  || CONSTANT_ADDRESS_P (XEXP (operands[1], 0)))
@@ -893,7 +897,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       else
         gcc_unreachable ();
 
-    case 11:
+    case 12:
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[0], 0)) == PLUS
 	  || CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
@@ -909,11 +913,11 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       else
         gcc_unreachable ();
 
-    case 12: case 13:
+    case 13: case 14:
       *clobbers_flags = false;
       return "stz %0";
 
-    case 14:
+    case 15:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
         {
@@ -974,7 +978,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
         gcc_unreachable ();
       break;
 
-    case 15:
+    case 16:
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
 	{
@@ -1038,7 +1042,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
 	gcc_unreachable ();
       break;
 
-    case 16:
+    case 17:
       if ((REG_P (XEXP (operands[1], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[1], 0)) == PLUS)
         return "sta _tmp0"	NL
@@ -1064,7 +1068,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       else
         gcc_unreachable ();
 
-    case 17:
+    case 18:
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[0], 0)) == PLUS)
 	return "sta _tmp0"	NL
@@ -1090,7 +1094,7 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       else
 	gcc_unreachable ();
 
-    case 18:
+    case 19:
       gcc_assert (rtx_equal_p (operands[0], operands[1]));
       *clobbers_flags = false;
       return "";

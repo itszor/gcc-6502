@@ -6,10 +6,7 @@
 #define TARGET_65C02 (m65x_cpu_option == m6502 || m65x_cpu_option == w65sc02 \
 		      || m65x_cpu_option == w65c02)
 #define TARGET_65SC02 (m65x_cpu_option == m6502 || m65x_cpu_option == w65sc02)
-#define TARGET_HUC6280 (m65x_cpu_option == m6502 \
-			|| m65x_cpu_option == w65sc02 \
-			|| m65x_cpu_option == w65c02 \
-			|| m65x_cpu_option == huc6280)
+#define TARGET_HUC6280 (m65x_cpu_option == huc6280)
 #define TARGET_CMOS (m65x_cpu_option == w65sc02 || m65x_cpu_option == w65c02 \
 		     || m65x_cpu_option == huc6280)
 
