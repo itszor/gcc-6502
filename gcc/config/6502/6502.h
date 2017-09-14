@@ -527,6 +527,8 @@ typedef int CUMULATIVE_ARGS;
 
 #define NO_FUNCTION_CSE			1
 
+#define BRANCH_COST(SPEED, PREDICTABLE) 0
+
 /*****************************************************************************
  * Sections.
  *****************************************************************************/
