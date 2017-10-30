@@ -3741,112 +3741,50 @@ make_indirect_indexed (machine_mode mode, rtx mem)
 }
 
 static bool
-m65x_devirt_movqi (rtx temp)
+m65x_devirt_movqi (machine_mode mode, rtx operands[], rtx scratches[])
 {
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
 
-  switch (which_alternative)
-    {
-    case 4: /* v.movqi hz, hz.  */
-    case 17: /* v.movqi hz, UY.  */
-    case 18: /* v.movqi hz, UX.  */
-    case 19: /* v.movqi UY, hz.  */
-    case 20: /* v.movqi UX, hz.  */
-    case 21: /* v.movqi hz, m.  */
-    case 22: /* v.movqi m, hz.  */
-    case 23: /* v.movqi hz, iS.  */
-      if (temp)
-        {
-          emit_move_insn (temp, recog_data.operand[1]);
-          emit_move_insn (recog_data.operand[0], temp);
-        }
-      else
-        emit_move_insn (recog_data.operand[0], recog_data.operand[1]);
-      break;
-    case 7: /* v.popqi r, > (no_phx).  */
-      emit_insn (m65x_pop (QImode, acc));
-      emit_move_insn (recog_data.operand[0], acc);
-      break;
-    case 8: /* v.popqi r, > (phx).  */
-      if (temp)
-        {
-          emit_insn (m65x_pop (QImode, temp));
-          emit_move_insn (recog_data.operand[0], temp);
-        }
-      else
-        emit_insn (m65x_pop (QImode, recog_data.operand[0]));
-      break;
-    case 11: /* v.pushqi <, r (no_phx).  */
-      emit_move_insn (acc, recog_data.operand[1]);
-      emit_insn (m65x_push (QImode, acc));
-      break;
-    case 12: /* v.pushqi <, r (phx).  */
-      if (temp)
-        {
-          emit_move_insn (temp, recog_data.operand[1]);
-          emit_insn (m65x_push (QImode, temp));
-        }
-      else
-        emit_insn (m65x_push (QImode, recog_data.operand[1]));
-      break;
-    case 13: /* v.movqi hz, Uy.  */
-    case 14: /* v.movqi Uy, hz.  */
-      emit_move_insn (acc, recog_data.operand[1]);
-      emit_move_insn (recog_data.operand[0], acc);
-      break;
-    case 15: /* v.movqi hz, Ur.  */
-      emit_move_insn (acc,
-                      maybe_make_indirect_indexed (QImode,
-                                                   recog_data.operand[1]));
-      emit_move_insn (recog_data.operand[0], acc);
-      break;
-    case 16: /* v.movqi Ur, hz.  */
-    case 24: /* v.movqi m, iS.  */
-      {
-        rtx mem = recog_data.operand[0];
-	if (REG_P (mem))
-	  mem = maybe_make_indirect_indexed (QImode, mem);
-	emit_move_insn (acc, recog_data.operand[1]);
-	emit_move_insn (mem, acc);
-      }
-      break;
-    default:
-      return false;
-    }
+  if (GET_CODE (operands[1]) == PRE_INC)
+    emit_insn (m65x_pop (QImode, operands[0]));
+  else if (GET_CODE (operands[0]) == POST_DEC)
+    emit_insn (m65x_push (QImode, operands[1]));
+  else
+    emit_move_insn (operands[0], operands[1]);
 
   return true;
 }
 
 static bool
-m65x_devirt_movhisi (machine_mode mode, rtx temp)
+m65x_devirt_movhisi (machine_mode mode, rtx operands[], rtx scratches[])
 {
-  rtx *op = &recog_data.operand[0];
   int modesize = GET_MODE_SIZE (mode);
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   /*rtx xreg = gen_rtx_REG (QImode, X_REGNUM);*/
-  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  rtx temp = scratches[0];
+  rtx yreg = scratches[1];
 
   switch (which_alternative)
     {
     case 0: /* hz, hz.  */
       {
-        gcc_assert (REG_P (op[0]) && REG_P (op[1]));
+        gcc_assert (REG_P (operands[0]) && REG_P (operands[1]));
 
-        if (REGNO (op[0]) > REGNO (op[1]))
+        if (REGNO (operands[0]) > REGNO (operands[1]))
           for (int i = modesize - 1; i >= 0; i--)
             {
-              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-              rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+              rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+              rtx srcpart = simplify_gen_subreg (QImode, operands[1], mode, i);
               emit_move_insn (temp, srcpart);
               emit_move_insn (dstpart, temp);
             }
         else
           for (int i = 0; i < modesize; i++)
             {
-              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-              rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+              rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+              rtx srcpart = simplify_gen_subreg (QImode, operands[1], mode, i);
               emit_move_insn (temp, srcpart);
               emit_move_insn (dstpart, temp);
             }
@@ -3857,15 +3795,15 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
       /* Fallthru.  */
     case 3: /* hz, Uy.  */
       {
-        rtx mempart = make_indirect_indexed (QImode, op[1]);
-        if (reg_overlap_mentioned_p (op[0], mempart))
+        rtx mempart = make_indirect_indexed (QImode, operands[1]);
+        if (reg_overlap_mentioned_p (operands[0], mempart))
           {
             /* This is a bit inefficient, and we should probably discourage it
                somehow.  Could be improved for SImode.  */
             rtx dstpart;
             for (int i = 0; i < modesize; i++)
               {
-                dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
                 emit_move_insn (acc, mempart);
                 if (i + 1 < modesize)
                   {
@@ -3876,7 +3814,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
             emit_move_insn (dstpart, acc);
             for (int i = modesize - 2; i >= 0; i--)
               {
-                dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
                 emit_insn (m65x_pop (QImode, acc));
                 emit_move_insn (dstpart, acc);
               }
@@ -3884,7 +3822,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
         else
           for (int i = 0; i < modesize; i++)
             {
-              rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+              rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
               emit_move_insn (acc, mempart);
               emit_move_insn (dstpart, acc);
               if (i + 1 < modesize)
@@ -3897,10 +3835,10 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
       /* Fallthru.  */
     case 4: /* Uy, hz.  */
       {
-        rtx mempart = make_indirect_indexed (QImode, op[0]);
+        rtx mempart = make_indirect_indexed (QImode, operands[0]);
         for (int i = 0; i < modesize; i++)
           {
-            rtx srcpart = simplify_gen_subreg (QImode, op[1], mode, i);
+            rtx srcpart = simplify_gen_subreg (QImode, operands[1], mode, i);
             emit_move_insn (acc, srcpart);
             emit_move_insn (mempart, acc);
             if (i + 1 < modesize)
@@ -3911,8 +3849,8 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
     case 5: /* hz, m.  */
       for (int i = 0; i < modesize; i++)
         {
-          rtx mempart = adjust_address (op[1], QImode, i);
-          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+          rtx mempart = adjust_address (operands[1], QImode, i);
+          rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
           emit_move_insn (temp, mempart);
           emit_move_insn (dstpart, temp);
         }
@@ -3921,8 +3859,8 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
     case 8: /* UjUc, iS.  */
       for (int i = 0; i < modesize; i++)
         {
-          rtx mempart = adjust_address (op[0], QImode, i);
-          rtx srcpart = m65x_gen_subreg (QImode, op[1], mode, i);
+          rtx mempart = adjust_address (operands[0], QImode, i);
+          rtx srcpart = m65x_gen_subreg (QImode, operands[1], mode, i);
           emit_move_insn (temp, srcpart);
           emit_move_insn (mempart, temp);
         }
@@ -3930,8 +3868,8 @@ m65x_devirt_movhisi (machine_mode mode, rtx temp)
     case 7: /* hz, iS.  */
       for (int i = 0; i < modesize; i++)
         {
-          rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-          rtx srcpart = m65x_gen_subreg (QImode, op[1], mode, i);
+          rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+          rtx srcpart = m65x_gen_subreg (QImode, operands[1], mode, i);
           emit_move_insn (temp, srcpart);
           emit_move_insn (dstpart, temp);
         }
@@ -3952,41 +3890,40 @@ m65x_index_reg_p (rtx reg)
 }
 
 static bool
-m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
+m65x_devirt_addhi3_highpart (machine_mode mode, rtx operands[], rtx scratches[])
 {
-  rtx *op = &recog_data.operand[0];
-  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
-  rtx src2_lo = simplify_gen_subreg (QImode, op[2], HImode, 0);
-  rtx dst_lo = simplify_gen_subreg (QImode, op[0], HImode, 0);
-  rtx src2_hi = simplify_gen_subreg (QImode, op[2], HImode, 1);
-  rtx dst_hi = simplify_gen_subreg (QImode, op[0], HImode, 1);
+  rtx src2_lo = simplify_gen_subreg (QImode, operands[2], HImode, 0);
+  rtx dst_lo = simplify_gen_subreg (QImode, operands[0], HImode, 0);
+  rtx src2_hi = simplify_gen_subreg (QImode, operands[2], HImode, 1);
+  rtx dst_hi = simplify_gen_subreg (QImode, operands[0], HImode, 1);
+  rtx temp = scratches[0];
 
-  if (reg_overlap_mentioned_p (dst_lo, op[1]))
+  if (reg_overlap_mentioned_p (dst_lo, operands[1]))
     {
       /* If we have rN = hi(rN) + rM, the substitution below will clobber rN
          before it is read.  Use an alternative sequence.  */
-      gcc_assert (!reg_overlap_mentioned_p (op[0], op[2]));
+      gcc_assert (!reg_overlap_mentioned_p (operands[0], operands[2]));
 
-      emit_move_insn (acc, op[1]);
-      emit_move_insn (dst_hi, acc);
-      emit_move_insn (acc, src2_lo);
-      emit_move_insn (dst_lo, acc);
-      emit_move_insn (acc, src2_hi);
-      emit_insn (gen_addqi3 (acc, acc, dst_hi));
-      emit_move_insn (dst_hi, acc);
+      emit_move_insn (temp, operands[1]);
+      emit_move_insn (dst_hi, temp);
+      emit_move_insn (temp, src2_lo);
+      emit_move_insn (dst_lo, temp);
+      emit_move_insn (temp, src2_hi);
+      emit_insn (gen_addqi3 (temp, temp, dst_hi));
+      emit_move_insn (dst_hi, temp);
 
       return true;
     }
 
   if (!rtx_equal_p (dst_lo, src2_lo))
     {
-      emit_move_insn (acc, src2_lo);
-      emit_move_insn (dst_lo, acc);
+      emit_move_insn (temp, src2_lo);
+      emit_move_insn (dst_lo, temp);
     }
 
-  if (!rtx_equal_p (dst_hi, src2_hi) || !rtx_equal_p (op[1], const0_rtx))
+  if (!rtx_equal_p (dst_hi, src2_hi) || !rtx_equal_p (operands[1], const0_rtx))
     {
-      rtx op1 = src2_hi, op2 = op[1];
+      rtx op1 = src2_hi, op2 = operands[1];
       if (m65x_index_reg_p (op2))
         {
           /* If we have something like _rN = _rM + x, we can't add the X
@@ -3996,17 +3933,17 @@ m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
           gcc_assert (!m65x_index_reg_p (op1));
           std::swap (op1, op2);
         }
-      if (rtx_equal_p (op2, acc))
+      if (rtx_equal_p (op2, temp))
         {
-          emit_insn (gen_addqi3 (acc, acc, op1));
-          emit_move_insn (dst_hi, acc);
+          emit_insn (gen_addqi3 (temp, temp, op1));
+          emit_move_insn (dst_hi, temp);
         }
       else
         {
-          emit_move_insn (acc, op1);
+          emit_move_insn (temp, op1);
           if (!rtx_equal_p (op2, const0_rtx))
-            emit_insn (gen_addqi3 (acc, acc, op2));
-          emit_move_insn (dst_hi, acc);
+            emit_insn (gen_addqi3 (temp, temp, op2));
+          emit_move_insn (dst_hi, temp);
         }
     }
 
@@ -4014,10 +3951,9 @@ m65x_devirt_addhi3_highpart (rtx temp ATTRIBUTE_UNUSED)
 }
 
 static bool
-m65x_devirt_add (machine_mode mode, rtx temp)
+m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
 {
-  rtx *op = &recog_data.operand[0];
-  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx temp = scratches[0];
   int modesize = GET_MODE_SIZE (mode);
 
   switch (which_alternative)
@@ -4031,33 +3967,33 @@ m65x_devirt_add (machine_mode mode, rtx temp)
         for (int i = 0; i < modesize; i++)
           {
             bool last = (i == modesize - 1);
-            rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-            rtx src1part = m65x_gen_subreg (QImode, op[1], mode, i);
-            rtx src2part = m65x_gen_subreg (QImode, op[2], mode, i);
-            emit_move_insn (acc, src1part);
+            rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+            rtx src1part = m65x_gen_subreg (QImode, operands[1], mode, i);
+            rtx src2part = m65x_gen_subreg (QImode, operands[2], mode, i);
+            emit_move_insn (temp, src1part);
             if (last)
-              emit_insn (gen_adcqi3 (acc, acc, src2part));
+              emit_insn (gen_adcqi3 (temp, temp, src2part));
             else
-              emit_insn (gen_adcqi3_c (acc, acc, src2part));
+              emit_insn (gen_adcqi3_c (temp, temp, src2part));
             if (i + 1 < modesize
-                && ((reg_overlap_mentioned_p (dstpart, op[1])
+                && ((reg_overlap_mentioned_p (dstpart, operands[1])
                      && !rtx_equal_p (dstpart, src1part))
-                    || (reg_overlap_mentioned_p (dstpart, op[2])
+                    || (reg_overlap_mentioned_p (dstpart, operands[2])
                         && !rtx_equal_p (dstpart, src2part))))
               {
-                emit_insn (m65x_push (QImode, acc));
+                emit_insn (m65x_push (QImode, temp));
                 stacked_parts |= 1 << i;
               }
             else
-              emit_move_insn (dstpart, acc);
+              emit_move_insn (dstpart, temp);
           }
 
         for (int i = modesize - 2; i >= 0; i--)
           if (stacked_parts & (1 << i))
             {
-              emit_insn (m65x_pop (QImode, acc));
-              rtx dstpart =  simplify_gen_subreg (QImode, op[0], mode, i);
-              emit_move_insn (dstpart, acc);
+              emit_insn (m65x_pop (QImode, temp));
+              rtx dstpart =  simplify_gen_subreg (QImode, operands[0], mode, i);
+              emit_move_insn (dstpart, temp);
             }
       }
       break;
@@ -4066,29 +4002,31 @@ m65x_devirt_add (machine_mode mode, rtx temp)
       {
         bool add = true;
 
-        if (CONST_INT_P (op[2]) && INTVAL (op[2]) < 0)
+        if (CONST_INT_P (operands[2]) && INTVAL (operands[2]) < 0)
           {
-            op[2] = GEN_INT (-INTVAL (op[2]));
+            operands[2] = GEN_INT (-INTVAL (operands[2]));
             add = false;
           }
 
         /* Special-case multibyte decrement by 1.  */
-        if (!add && CONST_INT_P (op[2]) && INTVAL (op[2]) == 1)
+        if (!add && CONST_INT_P (operands[2]) && INTVAL (operands[2]) == 1)
           {
             rtx labels[3];
 
             for (int i = 0; i < modesize - 1; i++)
               {
                 labels[i] = gen_label_rtx ();
-                rtx op1part = simplify_gen_subreg (QImode, op[1], mode, i);
-                emit_insn (gen_loadqi_nz (acc, op1part));
+                rtx op1part
+		  = simplify_gen_subreg (QImode, operands[1], mode, i);
+                emit_insn (gen_loadqi_nz (temp, op1part));
                 m65x_emit_cbranchqi (NE,
                   gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY, labels[i]);
               }
 
             for (int i = modesize - 1; i >= 0; i--)
               {
-                rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
+                rtx dstpart
+		  = simplify_gen_subreg (QImode, operands[0], mode, i);
                 if (i < modesize - 1)
                   emit_label (labels[i]);
                 emit_insn (gen_incdecqi3 (dstpart, dstpart, constm1_rtx));
@@ -4101,11 +4039,11 @@ m65x_devirt_add (machine_mode mode, rtx temp)
             int ones = 0, trailing_zeros = 0;
             rtx end_label = NULL_RTX;
 
-            if (CONST_INT_P (op[2]))
+            if (CONST_INT_P (operands[2]))
               {
                 for (int i = 0; i < modesize; i++)
                   {
-                    int byte = (INTVAL (op[2]) >> (i * 8)) & 0xff;
+                    int byte = (INTVAL (operands[2]) >> (i * 8)) & 0xff;
                     if (byte == 1)
                       ones++;
                     else if (byte != 0)
@@ -4116,7 +4054,7 @@ m65x_devirt_add (machine_mode mode, rtx temp)
                   }
 
                 for (int i = modesize - 1; i >= 0; i--)
-                  if (((INTVAL (op[2]) >> (i * 8)) & 0xff) == 0)
+                  if (((INTVAL (operands[2]) >> (i * 8)) & 0xff) == 0)
                     trailing_zeros++;
                   else
                     break;
@@ -4136,14 +4074,15 @@ m65x_devirt_add (machine_mode mode, rtx temp)
               {
                 bool last = i + 1 == modesize;
 
-                rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-                rtx op1part = m65x_gen_subreg (QImode, op[1], mode, i);
-                rtx op2part = m65x_gen_subreg (QImode, op[2], mode, i);
+                rtx dstpart
+		  = simplify_gen_subreg (QImode, operands[0], mode, i);
+                rtx op1part = m65x_gen_subreg (QImode, operands[1], mode, i);
+                rtx op2part = m65x_gen_subreg (QImode, operands[2], mode, i);
 
                 if (CONST_INT_P (op2part))
                   {
                     unsigned HOST_WIDE_INT remaining
-                      = INTVAL (op[2]) >> (i * 8);
+                      = INTVAL (operands[2]) >> (i * 8);
                     unsigned HOST_WIDE_INT thispart = INTVAL (op2part);
 
                     if (thispart == 0 && !valid_carry && !valid_nz)
@@ -4192,24 +4131,24 @@ m65x_devirt_add (machine_mode mode, rtx temp)
                         continue;
                       }
                   }
-                emit_move_insn (acc, op1part);
+                emit_move_insn (temp, op1part);
 
                 if (add)
                   {
                     if (last)
-                      emit_insn (gen_adcqi3 (acc, acc, op2part));
+                      emit_insn (gen_adcqi3 (temp, temp, op2part));
                     else
-                      emit_insn (gen_adcqi3_c (acc, acc, op2part));
+                      emit_insn (gen_adcqi3_c (temp, temp, op2part));
                   }
                 else
                   {
                     if (last)
-                      emit_insn (gen_sbcqi3 (acc, acc, op2part));
+                      emit_insn (gen_sbcqi3 (temp, temp, op2part));
                     else
-                      emit_insn (gen_sbcqi3_c (acc, acc, op2part));
+                      emit_insn (gen_sbcqi3_c (temp, temp, op2part));
                   }
 
-                emit_move_insn (dstpart, acc);
+                emit_move_insn (dstpart, temp);
 
                 valid_carry = true;
                 gcc_assert (!valid_nz);
@@ -4227,58 +4166,57 @@ m65x_devirt_add (machine_mode mode, rtx temp)
 }
 
 static bool
-m65x_devirt_sub (machine_mode mode, rtx temp)
+m65x_devirt_sub (machine_mode mode, rtx operands[], rtx scratches[])
 {
-  rtx *op = &recog_data.operand[0];
-  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   int modesize = GET_MODE_SIZE (mode);
   unsigned stacked_parts = 0;
+  rtx temp = scratches[0];
 
   emit_insn (gen_sec ());
 
   for (int i = 0; i < modesize; i++)
     {
       bool last = (i == modesize - 1);
-      rtx dstpart = simplify_gen_subreg (QImode, op[0], mode, i);
-      rtx src1part = simplify_gen_subreg (QImode, op[1], mode, i);
-      rtx src2part = simplify_gen_subreg (QImode, op[2], mode, i);
-      emit_move_insn (acc, src1part);
+      rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+      rtx src1part = simplify_gen_subreg (QImode, operands[1], mode, i);
+      rtx src2part = simplify_gen_subreg (QImode, operands[2], mode, i);
+      emit_move_insn (temp, src1part);
       if (last)
-        emit_insn (gen_sbcqi3 (acc, acc, src2part));
+        emit_insn (gen_sbcqi3 (temp, temp, src2part));
       else
-        emit_insn (gen_sbcqi3_c (acc, acc, src2part));
+        emit_insn (gen_sbcqi3_c (temp, temp, src2part));
       if (i + 1 < modesize
-          && ((reg_overlap_mentioned_p (dstpart, op[1])
+          && ((reg_overlap_mentioned_p (dstpart, operands[1])
                && !rtx_equal_p (dstpart, src1part))
-              || (reg_overlap_mentioned_p (dstpart, op[2])
+              || (reg_overlap_mentioned_p (dstpart, operands[2])
                   && !rtx_equal_p (dstpart, src2part))))
         {
-          emit_insn (m65x_push (QImode, acc));
+          emit_insn (m65x_push (QImode, temp));
           stacked_parts |= 1 << i;
         }
       else
-        emit_move_insn (dstpart, acc);
+        emit_move_insn (dstpart, temp);
     }
 
   for (int i = modesize - 2; i >= 0; i--)
     if (stacked_parts & (1 << i))
       {
-        emit_insn (m65x_pop (QImode, acc));
-        rtx dstpart =  simplify_gen_subreg (QImode, op[0], mode, i);
-        emit_move_insn (dstpart, acc);
+        emit_insn (m65x_pop (QImode, temp));
+        rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
+        emit_move_insn (dstpart, temp);
       }
 
   return true;
 }
 
 static bool
-m65x_devirt_extendqihi2 (rtx temp)
+m65x_devirt_extendqihi2 (machine_mode mode, rtx operands[], rtx scratches[])
 {
-  rtx *op = &recog_data.operand[0];
-  rtx dstlo = simplify_gen_subreg (QImode, op[0], HImode, 0);
-  rtx dsthi = simplify_gen_subreg (QImode, op[0], HImode, 1);
+  rtx dstlo = simplify_gen_subreg (QImode, operands[0], HImode, 0);
+  rtx dsthi = simplify_gen_subreg (QImode, operands[0], HImode, 1);
+  rtx temp = scratches[0];
 
-  emit_move_insn (dstlo, op[1]);
+  emit_move_insn (dstlo, operands[1]);
   emit_move_insn (temp, const0_rtx);
   emit_move_insn (dsthi, temp);
 
@@ -4286,59 +4224,55 @@ m65x_devirt_extendqihi2 (rtx temp)
 }
 
 static bool
-m65x_devirt (int icode, unsigned mask, rtx temp)
+m65x_devirt (int icode, rtx operands[], rtx scratches[])
 {
-  bool done_replacement = false;
+  bool (*devirt_helper) (machine_mode, rtx operands[], rtx scratches[]) = NULL;
 
-  emit_save (mask);
   switch (icode)
     {
     case CODE_FOR_movqi_virt:
-      done_replacement = m65x_devirt_movqi (temp);
+      devirt_helper = &m65x_devirt_movqi;
       break;
     case CODE_FOR_movhi_virt:
     case CODE_FOR_movsi_virt:
     case CODE_FOR_movdi_virt:
-      done_replacement
-        = m65x_devirt_movhisi (icode == CODE_FOR_movhi_virt ? HImode
-                               : icode == CODE_FOR_movsi_virt ? SImode
-                               : DImode,
-                               temp);
+      devirt_helper = &m65x_devirt_movhisi;
       break;
     case CODE_FOR_addhi3_highpart:
-      done_replacement = m65x_devirt_addhi3_highpart (temp);
+      devirt_helper = &m65x_devirt_addhi3_highpart;
       break;
     case CODE_FOR_addhi3_virt:
     case CODE_FOR_addsi3_virt:
-      done_replacement
-        = m65x_devirt_add (icode == CODE_FOR_addhi3_virt ? HImode : SImode,
-                           temp);
+      devirt_helper = &m65x_devirt_add;
       break;
     case CODE_FOR_subhi3_virt:
     case CODE_FOR_subsi3_virt:
-      done_replacement
-        = m65x_devirt_sub (icode == CODE_FOR_subhi3_virt ? HImode : SImode,
-                           temp);
+      devirt_helper = &m65x_devirt_sub;
       break;
     case CODE_FOR_zero_extendqihi2_virt:
-      done_replacement = m65x_devirt_extendqihi2 (temp);
+      devirt_helper = &m65x_devirt_extendqihi2;
       break;
     default:
-      ;
+      return false;
     }
-  emit_restore (mask);
 
-  return done_replacement;
+  return devirt_helper (GET_MODE (operands[0]), operands, scratches);
 }
 
 static rtx
-choose_phys_reg (regset_head *live, unsigned allowed)
+choose_phys_reg (regset_head *live, regset_head *used, unsigned allowed)
 {
-  if (!REGNO_REG_SET_P (live, ACC_REGNUM) && (allowed & MASK_A))
+  if (!REGNO_REG_SET_P (live, ACC_REGNUM)
+      && !REGNO_REG_SET_P (used, ACC_REGNUM)
+      && (allowed & MASK_A))
     return gen_rtx_REG (QImode, ACC_REGNUM);
-  else if (!REGNO_REG_SET_P (live, X_REGNUM) && (allowed & MASK_X))
+  else if (!REGNO_REG_SET_P (live, X_REGNUM)
+	   && !REGNO_REG_SET_P (used, X_REGNUM)
+	   && (allowed & MASK_X))
     return gen_rtx_REG (QImode, X_REGNUM);
-  else if (!REGNO_REG_SET_P (live, Y_REGNUM) && (allowed & MASK_Y))
+  else if (!REGNO_REG_SET_P (live, Y_REGNUM)
+	   && !REGNO_REG_SET_P (used, Y_REGNUM)
+	   && (allowed & MASK_Y))
     return gen_rtx_REG (QImode, Y_REGNUM);
 
   return NULL_RTX;
@@ -4348,16 +4282,21 @@ static unsigned int
 rest_of_handle_devirt (void)
 {
   basic_block bb;
-  regset_head live;
-  regset_head previous_live_out;
+  regset live = ALLOC_REG_SET (&reg_obstack);
+  regset previous_live_out = ALLOC_REG_SET (&reg_obstack);
+  regset insn_defs = ALLOC_REG_SET (&reg_obstack);
+  regset insn_uses = ALLOC_REG_SET (&reg_obstack);
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
+  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
   sbitmap blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
 
   bitmap_clear (blocks);
 
-  INIT_REG_SET (&live);
-  INIT_REG_SET (&previous_live_out);
+  /*INIT_REG_SET (live);
+  INIT_REG_SET (previous_live_out);
+  INIT_REG_SET (insn_defs);
+  INIT_REG_SET (insn_uses);*/
 
   compute_bb_for_insn ();
 
@@ -4366,14 +4305,13 @@ rest_of_handle_devirt (void)
   df_live_set_all_dirty ();
   df_analyze ();
 
-  hash_map<rtx, enum attr_needs_reg> clobbers_live;
+  /*hash_map<rtx, enum attr_needs_reg> clobbers_live;*/
 
   cfun->machine->real_insns_ok = true;
 
   FOR_EACH_BB_FN (bb, cfun)
     {
       rtx_insn *insn, *curr;
-      unsigned pass = 0;
       int icode;
 
       if (dump_file)
@@ -4381,9 +4319,9 @@ rest_of_handle_devirt (void)
 	  fprintf (dump_file, "BB %u:\n", bb->index);
 	}
 
-      COPY_REG_SET (&live, DF_LIVE_OUT (bb));
-      COPY_REG_SET (&previous_live_out, DF_LIVE_OUT (bb));
-      df_simulate_initialize_backwards (bb, &live);
+      COPY_REG_SET (live, DF_LIVE_OUT (bb));
+      COPY_REG_SET (previous_live_out, DF_LIVE_OUT (bb));
+      df_simulate_initialize_backwards (bb, live);
 
       FOR_BB_INSNS_REVERSE_SAFE (bb, insn, curr)
 	{
@@ -4391,236 +4329,273 @@ rest_of_handle_devirt (void)
             continue;
 
 	  rtx set;
-          enum attr_needs_reg hw_reg_needed;
+          /*enum attr_needs_reg hw_reg_needed;*/
           rtx_insn *replacement_seq;
           bool done_replacement = false;
 	  unsigned flags_mask = 0;
 
-	  if (REGNO_REG_SET_P (&live, CARRY_REGNUM))
-	    flags_mask |= MASK_C;
-	  if (REGNO_REG_SET_P (&live, NZ_REGNUM))
-	    flags_mask |= MASK_NZ;
-	  if (REGNO_REG_SET_P (&live, OVERFLOW_REGNUM))
-	    flags_mask |= MASK_V;
+	  CLEAR_REG_SET (insn_defs);
+	  CLEAR_REG_SET (insn_uses);
 
-	  df_simulate_one_insn_backwards (bb, insn, &live);
+	  df_simulate_defs (insn, insn_defs);
+	  df_simulate_uses (insn, insn_uses);
 
           if (GET_CODE (PATTERN (insn)) == USE
               || GET_CODE (PATTERN (insn)) == CLOBBER)
             continue;
 
-	  bool acc_live = REGNO_REG_SET_P (&live, ACC_REGNUM);
-	  bool x_live = REGNO_REG_SET_P (&live, X_REGNUM);
-	  bool y_live = REGNO_REG_SET_P (&live, Y_REGNUM);
+	  if (REGNO_REG_SET_P (live, CARRY_REGNUM)
+	      && !REGNO_REG_SET_P (insn_defs, CARRY_REGNUM))
+	    flags_mask |= MASK_C;
+	  if (REGNO_REG_SET_P (live, NZ_REGNUM)
+	      && !REGNO_REG_SET_P (insn_defs, NZ_REGNUM))
+	    flags_mask |= MASK_NZ;
+	  if (REGNO_REG_SET_P (live, OVERFLOW_REGNUM)
+	      && !REGNO_REG_SET_P (insn_defs, OVERFLOW_REGNUM))
+	    flags_mask |= MASK_V;
 
-          hw_reg_needed = get_attr_needs_reg (insn);
+	  bool acc_live = REGNO_REG_SET_P (live, ACC_REGNUM)
+			  && !REGNO_REG_SET_P (insn_defs, ACC_REGNUM);
+	  bool x_live = REGNO_REG_SET_P (live, X_REGNUM)
+			&& !REGNO_REG_SET_P (insn_defs, X_REGNUM);
+	  bool y_live = REGNO_REG_SET_P (live, Y_REGNUM)
+			&& !REGNO_REG_SET_P (insn_defs, Y_REGNUM);
+
+          /*hw_reg_needed = get_attr_needs_reg (insn);*/
 
           icode = recog_memoized (insn);
           extract_constrain_insn_cached (insn);
 
+	  /* Nothing interesting to do for any <2 operand instructions.  */
+	  if (recog_data.n_operands < 2)
+	    continue;
+
+	  attr_dv_clobber dv_clobbers = get_attr_dv_clobber (insn);
+	  attr_dv_op0 dv_op0 = get_attr_dv_op0 (insn);
+	  attr_dv_op1 dv_op1 = get_attr_dv_op1 (insn);
+
+	  rtx real_operands[recog_data.n_operands], real_scratches[2];
+
+	  /* Default to copying virtual operands to real ones.  */
+	  real_scratches[0] = real_scratches[1] = NULL_RTX;
+	  for (unsigned i = 0; i < recog_data.n_operands; i++)
+	    real_operands[i] = recog_data.operand[i];
+
           start_sequence ();
 
-          if (pass == 0)
-            switch (hw_reg_needed)
-              {
-              case NEEDS_REG_A:
-                {
-                  bool do_save = acc_live;
-                  done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_A : 0)
-						  | flags_mask, NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_A0:
-		if (!is_op_regno (0, ACC_REGNUM))
-		  {
-                    bool do_save = acc_live;
-                    done_replacement = m65x_devirt (icode,
-                                                    (do_save ? MASK_A : 0)
-						    | flags_mask, NULL_RTX);
-		  }
-                break;
-              case NEEDS_REG_A1:
-		if (!is_op_regno (1, ACC_REGNUM))
-		  {
-                    bool do_save = acc_live;
-                    done_replacement = m65x_devirt (icode,
-                                                    (do_save ? MASK_A : 0)
-						    | flags_mask, NULL_RTX);
-		  }
-                break;
-              case NEEDS_REG_Y:
-                {
-                  bool do_save = y_live;
-                  done_replacement = m65x_devirt (icode,
-                                                  (do_save ? MASK_Y : 0)
-						  | flags_mask, NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_AY:
-                {
-                  int save_regs = 0;
-                  if (acc_live && y_live)
-                    save_regs = MASK_A | MASK_Y;
-                  else if (acc_live)
-                    save_regs = MASK_A;
-                  else if (y_live)
-                    save_regs = MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
-                                                  NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_A0Y1:
-                {
-                  int save_regs = 0;
-                  if (!is_op_regno (0, ACC_REGNUM) && acc_live)
-                    save_regs |= MASK_A;
-                  if (y_live)
-                    save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
-                                                  NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_A1Y0:
-                {
-                  int save_regs = 0;
-                  if (!is_op_regno (1, ACC_REGNUM) && acc_live)
-                    save_regs |= MASK_A;
-                  if (y_live)
-                    save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
-                                                  NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_Y0A:
-                {
-                  int save_regs = 0;
-                  if (acc_live)
-                    save_regs |= MASK_A;
-                  if (y_live)
-                    save_regs |= MASK_Y;
-                  done_replacement = m65x_devirt (icode, save_regs | flags_mask,
-                                                  NULL_RTX);
-                }
-                break;
-              case NEEDS_REG_AX0:
-              case NEEDS_REG_AX1:
-              case NEEDS_REG_AY0:
-              case NEEDS_REG_AY1:
-                {
-                  unsigned needreg = (hw_reg_needed == NEEDS_REG_AX0
-                                      || hw_reg_needed == NEEDS_REG_AX1)
-                                     ? (MASK_A | MASK_X)
-                                     : (MASK_A | MASK_Y);
-                  unsigned whichop = (hw_reg_needed == NEEDS_REG_AX0
-                                      || hw_reg_needed == NEEDS_REG_AY0)
-                                     ? 0 : 1;
-                  rtx temp = NULL_RTX;
-                  unsigned mask = 0;
-                  if (!is_op_phys_reg (whichop, needreg))
-                    {
-                      temp = choose_phys_reg (&live, needreg);
-                      if (!temp)
-                        {
-                          mask = MASK_A;
-                          temp = acc;
-                        }
-                      done_replacement = m65x_devirt (icode, mask | flags_mask,
-						      temp);
-                    }
-                }
-                break;
-              case NEEDS_REG_PHYS:
-                {
-                  rtx temp = NULL_RTX;
-                  unsigned mask = 0;
-                  if (!any_op_phys_reg ())
-                    {
-                      temp = choose_phys_reg (&live, MASK_AXY);
-                      if (!temp)
-                        {
-                          mask = MASK_A;
-                          temp = acc;
-                        }
-                    }
-                  done_replacement = m65x_devirt (icode, mask | flags_mask,
-						  temp);
-                }
-                break;
-              case NEEDS_REG_PCLOB:
-                {
-                  unsigned mask = 0;
-                  rtx temp = choose_phys_reg (&live, MASK_AXY);
-                  if (!temp)
-                    {
-                      mask = MASK_A;
-                      temp = acc;
-                    }
-                  done_replacement =
-		    m65x_devirt (icode, mask | flags_mask, temp);
-                }
-                break;
-              case NEEDS_REG_PHYS0:
-                {
-                  rtx temp = NULL_RTX;
-                  unsigned mask = 0;
-                  if (!is_op_phys_reg (0, MASK_AXY))
-                    {
-                      temp = choose_phys_reg (&live, MASK_AXY);
-                      if (!temp)
-                        {
-                          mask = MASK_A;
-                          temp = acc;
-                        }
-                      done_replacement = m65x_devirt (icode, mask | flags_mask,
-						      temp);
-                    }
-                }
-                break;
-              case NEEDS_REG_PHYS1:
-                {
-                  rtx temp = NULL_RTX;
-                  unsigned mask = 0;
-                  if (!is_op_phys_reg (1, MASK_AXY))
-                    {
-                      temp = choose_phys_reg (&live, MASK_AXY);
-                      if (!temp)
-                        {
-                          mask = MASK_A;
-                          temp = acc;
-                        }
-                      done_replacement = m65x_devirt (icode, mask | flags_mask,
-						      temp);
-                    }
-                }
-                break;
-              case NEEDS_REG_NONE:
-                break;
-              default:
-                gcc_unreachable ();
-              }
-          else
-            switch (hw_reg_needed)
-              {
-              case NEEDS_REG_NONE:
-              case NEEDS_REG_A:
-              case NEEDS_REG_A0:
-              case NEEDS_REG_A1:
-              case NEEDS_REG_Y:
-              case NEEDS_REG_AY:
-              case NEEDS_REG_A0Y1:
-              case NEEDS_REG_A1Y0:
-              case NEEDS_REG_Y0A:
-              case NEEDS_REG_AX0:
-              case NEEDS_REG_AX1:
-              case NEEDS_REG_AY0:
-              case NEEDS_REG_AY1:
-                break;
-              default:
-                gcc_unreachable ();
-              }
+	  bool force_op_indy[2] = { false, false };
+
+	  unsigned save_mask = 0;
+
+	  switch (dv_clobbers)
+	    {
+	    case DV_CLOBBER_A:
+	      if (acc_live)
+		save_mask = MASK_A;
+	      real_scratches[0] = acc;
+	      break;
+	    case DV_CLOBBER_Y:
+	      if (y_live)
+		save_mask = MASK_Y;
+	      real_scratches[0] = yreg;
+	      break;
+	    case DV_CLOBBER_AY:
+	      if (acc_live)
+		save_mask = MASK_A;
+	      if (y_live)
+	        save_mask |= MASK_Y;
+	      real_scratches[0] = acc;
+	      real_scratches[1] = yreg;
+	      break;
+	    case DV_CLOBBER_PHYS:
+	      real_scratches[0]
+		= choose_phys_reg (live, insn_uses, MASK_A | MASK_X | MASK_Y);
+	      if (!real_scratches[0])
+	        {
+		  save_mask = MASK_A;
+		  real_scratches[0] = acc;
+		}
+	      break;
+	    case DV_CLOBBER_NONE:
+	      break;
+	    }
+
+	  switch (dv_op1)
+	    {
+	    case DV_OP1_A:
+	      if (!rtx_equal_p (recog_data.operand[1], acc))
+		real_operands[1] = acc;
+	      break;
+	    case DV_OP1_AX:
+	      if (!rtx_equal_p (recog_data.operand[1], acc)
+	          && !rtx_equal_p (recog_data.operand[1], xreg))
+		{
+		  real_operands[1]
+		    = choose_phys_reg (live, insn_uses, MASK_A | MASK_X);
+		  if (!real_operands[1])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[1] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP1_AY:
+	      if (!rtx_equal_p (recog_data.operand[1], acc)
+		  && !rtx_equal_p (recog_data.operand[1], yreg))
+		{
+		  real_operands[1]
+		    = choose_phys_reg (live, insn_uses, MASK_A | MASK_Y);
+		  if (!real_operands[1])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[1] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP1_AXY:
+	    case DV_OP1_ZP_AXY:
+	      if (!rtx_equal_p (recog_data.operand[1], acc)
+	          && !rtx_equal_p (recog_data.operand[1], xreg)
+		  && !rtx_equal_p (recog_data.operand[1], yreg))
+		{
+		  real_operands[1]
+		    = choose_phys_reg (live, insn_uses,
+				       MASK_A | MASK_X | MASK_Y);
+		  if (!real_operands[1])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[1] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP1_IND:
+	      if (MEM_P (recog_data.operand[1])
+		  && REG_P (recog_data.operand[1])
+		  && !TARGET_ZPIND)
+		{
+		  force_op_indy[1] = true;
+		  if (y_live)
+		    save_mask |= MASK_Y;
+		}
+	      break;
+	    case DV_OP1_NONE:
+	      break;
+	    }
+
+	  switch (dv_op0)
+	    {
+	    case DV_OP0_A:
+	      if (!rtx_equal_p (recog_data.operand[0], acc))
+	        real_operands[0] = acc;
+	      break;
+	    case DV_OP0_AX:
+	      if (!rtx_equal_p (recog_data.operand[0], acc)
+		  && !rtx_equal_p (recog_data.operand[0], xreg))
+		{
+		  real_operands[0]
+		    = choose_phys_reg (live, insn_uses, MASK_A | MASK_X);
+		  if (!real_operands[0])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[0] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP0_AY:
+	      if (!rtx_equal_p (recog_data.operand[0], acc)
+		  && !rtx_equal_p (recog_data.operand[0], yreg))
+		{
+		  real_operands[0]
+		    = choose_phys_reg (live, insn_uses, MASK_A | MASK_Y);
+		  if (!real_operands[0])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[0] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP0_AXY:
+	      if (!rtx_equal_p (recog_data.operand[0], acc)
+	          && !rtx_equal_p (recog_data.operand[0], xreg)
+		  && !rtx_equal_p (recog_data.operand[0], yreg))
+		{
+		  real_operands[0]
+		    = choose_phys_reg (live, insn_uses,
+				       MASK_A | MASK_X | MASK_Y);
+		  if (!real_operands[0])
+		    {
+		      save_mask |= MASK_A;
+		      real_operands[0] = acc;
+		    }
+		}
+	      break;
+	    case DV_OP0_AXY_ZP:
+	      break;
+	    case DV_OP0_IND:
+	      if (MEM_P (recog_data.operand[0])
+	          && REG_P (recog_data.operand[0])
+		  && !TARGET_ZPIND)
+		{
+		  force_op_indy[0] = true;
+		  if (y_live)
+		    save_mask |= MASK_Y;
+		}
+	      break;
+	    case DV_OP0_IND_M:
+	      break;
+	    case DV_OP0_NONE:
+	      break;
+	    }
+
+	  if (acc_live
+	      && ((rtx_equal_p (real_operands[0], acc)
+	           && recog_data.operand[0] != real_operands[0])
+	          || (rtx_equal_p (real_operands[1], acc)
+		      && recog_data.operand[1] != real_operands[1])))
+	    save_mask |= MASK_A;
+
+	  if (x_live
+	      && ((rtx_equal_p (real_operands[0], xreg)
+	           && recog_data.operand[0] != real_operands[0])
+	          || (rtx_equal_p (real_operands[1], xreg)
+		      && recog_data.operand[1] != real_operands[1])))
+	    save_mask |= MASK_X;
+
+	  if (y_live
+	      && ((rtx_equal_p (real_operands[0], yreg)
+		   && recog_data.operand[0] != real_operands[0])
+	          || (rtx_equal_p (real_operands[1], yreg)
+		      && recog_data.operand[1] != real_operands[1])))
+	    save_mask |= MASK_Y;
+
+	  save_mask |= flags_mask;
+
+	  emit_save (save_mask);
+
+	  if (force_op_indy[1])
+	    real_operands[1]
+	      = make_indirect_indexed (GET_MODE (real_operands[1]),
+				       real_operands[1]);
+
+	  else if (recog_data.operand[1] != real_operands[1])
+	    emit_move_insn (real_operands[1], recog_data.operand[1]);
+
+	  if (force_op_indy[0])
+	    real_operands[0]
+	      = make_indirect_indexed (GET_MODE (real_operands[0]),
+				       real_operands[0]);
+
+	  done_replacement = m65x_devirt (icode, real_operands, real_scratches);
+
+	  if (recog_data.operand[0] != real_operands[0] && !force_op_indy[0])
+	    emit_move_insn (recog_data.operand[0], real_operands[0]);
+
+	  emit_restore (save_mask);
+
           replacement_seq = get_insns ();
           end_sequence ();
+
+	  df_simulate_one_insn_backwards (bb, insn, live);
 
           if (done_replacement)
             {
@@ -4650,32 +4625,32 @@ rest_of_handle_devirt (void)
           else
             /* Just force re-recognition.  */
             INSN_CODE (insn) = -1;
-        }
+	}
 
       if (dump_file)
         {
-	  COPY_REG_SET (&live, DF_LIVE_IN (bb));
-	  df_simulate_initialize_forwards (bb, &live);
+	  COPY_REG_SET (live, DF_LIVE_IN (bb));
+	  df_simulate_initialize_forwards (bb, live);
 
 	  FOR_BB_INSNS (bb, insn)
             {
 	      if (!NONDEBUG_INSN_P (insn))
         	continue;
 
-	      df_simulate_one_insn_forwards (bb, insn, &live);
+	      df_simulate_one_insn_forwards (bb, insn, live);
 	    }
 
 	  bitmap_iterator bi;
 	  unsigned i;
 
-	  EXECUTE_IF_AND_COMPL_IN_BITMAP (&live, &previous_live_out, 0, i, bi)
+	  EXECUTE_IF_AND_COMPL_IN_BITMAP (live, previous_live_out, 0, i, bi)
             {
 	      asm_fprintf (dump_file,
 			   "BB %d: %r is live now but was dead before\n",
 			   bb->index, i);
 	    }
 
-	  EXECUTE_IF_AND_COMPL_IN_BITMAP (&previous_live_out, &live, 0, i, bi)
+	  EXECUTE_IF_AND_COMPL_IN_BITMAP (previous_live_out, live, 0, i, bi)
             {
 	      asm_fprintf (dump_file,
 			   "BB %d: %r was dead before but is live now\n",
@@ -4691,6 +4666,11 @@ rest_of_handle_devirt (void)
     find_many_sub_basic_blocks (blocks);
 
   df_finish_pass (false);
+
+  FREE_REG_SET (insn_uses);
+  FREE_REG_SET (insn_defs);
+  FREE_REG_SET (previous_live_out);
+  FREE_REG_SET (live);
 
   cleanup_cfg (0);
 
