@@ -2474,17 +2474,14 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 }
 
 void
-m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
+m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
+			     rtx scratch)
 {
   rtx cmp;
-  rtx scratch;
   rtx new_label;
   rtx nzflags = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cmpreg, label_ref, jump_insn;
-
-  if (CONSTANT_P (op0))
-    op0 = force_reg (QImode, op0);
 
   switch (cond)
     {
@@ -2507,7 +2504,6 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest)
 
     case LT:
     case GE:
-      scratch = gen_reg_rtx (QImode);
       new_label = gen_label_rtx ();
       emit_move_insn (scratch, op0);
       emit_insn (gen_sec ());

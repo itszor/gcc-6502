@@ -294,6 +294,21 @@
 (define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 
+(define_special_predicate "eqne_comparison"
+  (match_code "eq,ne"))
+
+(define_special_predicate "ltge_comparison"
+  (match_code "lt,ge"))
+
+(define_special_predicate "legt_comparison"
+  (match_code "le,gt"))
+
+(define_special_predicate "ltugeu_comparison"
+  (match_code "ltu,geu"))
+
+(define_special_predicate "leugtu_comparison"
+  (match_code "leu,gtu"))
+
 (define_special_predicate "qimode_ui_comparison"
   (match_code "ltu,geu"))
 
