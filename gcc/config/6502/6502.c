@@ -2483,6 +2483,8 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cmpreg, label_ref, jump_insn;
 
+  start_sequence ();
+
   switch (cond)
     {
     case EQ:
@@ -2519,6 +2521,11 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     default:
       gcc_unreachable ();
     }
+
+  rtx seq = get_insns ();
+  end_sequence ();
+
+  emit_insn (seq);
 }
 
 void
