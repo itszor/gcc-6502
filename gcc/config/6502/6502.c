@@ -2436,7 +2436,9 @@ m65x_gen_subreg (enum machine_mode outmode, rtx x, enum machine_mode inmode,
       if (byte > 0)
         x = gen_rtx_LSHIFTRT (HImode, x, GEN_INT (byte * 8));
 
-      return gen_rtx_CONST (QImode, gen_rtx_TRUNCATE (QImode, x));
+      x = gen_rtx_CONST (QImode, gen_rtx_TRUNCATE (QImode, x));
+
+      return copy_rtx (x);
     }
 
   return simplify_gen_subreg (outmode, x, inmode, byte);
@@ -3116,7 +3118,7 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
 	  if (i < modesize - 1)
 	    emit_label (labels[i]);
-	  emit_insn (gen_incdecqi3 (dstpart, dstpart, constm1_rtx));
+	  emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart), constm1_rtx));
 	}
     }
   else
@@ -3201,7 +3203,7 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		}
 	      else if ((add || last) && !valid_carry && remaining == 1)
 		{
-		  emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+		  emit_insn (gen_incdecqi3_nz (dstpart, copy_rtx (dstpart),
 					       add ? const1_rtx : constm1_rtx));
 		  if (!last)
 		    {
@@ -3216,7 +3218,7 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		}
 	      else if (valid_nz && remaining == 0)
 	        {
-		  emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
+		  emit_insn (gen_incdecqi3_nz (dstpart, copy_rtx (dstpart),
 			       add ? const1_rtx : constm1_rtx));
 		  if (!last)
 		    {
@@ -3237,7 +3239,7 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		    gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
 				 end_label);
 
-		  emit_insn (gen_incdecqi3 (dstpart, dstpart,
+		  emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart),
 			       add ? const1_rtx : constm1_rtx));
 
 		  continue;
@@ -4030,7 +4032,8 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
 		  = simplify_gen_subreg (QImode, operands[0], mode, i);
                 if (i < modesize - 1)
                   emit_label (labels[i]);
-                emit_insn (gen_incdecqi3 (dstpart, dstpart, constm1_rtx));
+                emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart),
+					  constm1_rtx));
               }
           }
         else
@@ -4093,8 +4096,10 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                       }
                     else if ((add || last) && !valid_carry && remaining == 1)
                       {
-                        emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
-                                     add ? const1_rtx : constm1_rtx));
+                        emit_insn (gen_incdecqi3_nz (dstpart,
+						     copy_rtx (dstpart),
+                                		     add ? const1_rtx
+							 : constm1_rtx));
                         if (!last)
                           {
                             if (!end_label)
@@ -4108,8 +4113,10 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                       }
                     else if (valid_nz && remaining == 0)
                       {
-                        emit_insn (gen_incdecqi3_nz (dstpart, dstpart,
-                                     add ? const1_rtx : constm1_rtx));
+                        emit_insn (gen_incdecqi3_nz (dstpart,
+						     copy_rtx (dstpart),
+                                		     add ? const1_rtx
+							 : constm1_rtx));
                         if (!last)
                           {
                             if (!end_label)
@@ -4127,7 +4134,7 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                         m65x_emit_cbranchqi (add ? EQ : NE,
                           gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
                                        end_label);
-                        emit_insn (gen_incdecqi3 (dstpart, dstpart,
+                        emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart),
                                      add ? const1_rtx : constm1_rtx));
                         continue;
                       }
