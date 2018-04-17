@@ -23,6 +23,7 @@
 #include "dojump.h"
 #include "explow.h"
 #include "function.h"
+#include "memmodel.h"
 #include "emit-rtl.h"
 #include "insn-config.h"
 #include "conditions.h"
@@ -2464,7 +2465,7 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
   rtx dest_label = gen_rtx_LABEL_REF (Pmode, dest);
   rtx branch = gen_rtx_SET (pc_rtx,
 		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp, dest_label, pc_rtx));
-  rtx jmp_insn = emit_jump_insn (branch);
+  rtx_insn *jmp_insn = emit_jump_insn (branch);
   JUMP_LABEL (jmp_insn) = dest;
   if (prob != -1)
     add_int_reg_note (jmp_insn, REG_BR_PROB, prob);
