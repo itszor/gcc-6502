@@ -2664,8 +2664,10 @@ set_debug_level (enum debug_info_type type, int extended, const char *arg,
 #endif
 	    }
 
+#if 0
 	  if (opts->x_write_symbols == NO_DEBUG)
 	    warning_at (loc, 0, "target system does not support debug output");
+#endif
 	}
     }
   else
