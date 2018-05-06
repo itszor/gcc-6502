@@ -31,6 +31,8 @@ along with GCC; see the file COPYING3.  If not see
 #include "cfgbuild.h"
 #include "except.h"
 #include "stmt.h"
+#include "cfg.h"
+#include "print-rtl.h"
 
 static void make_edges (basic_block, basic_block, int);
 static void make_label_edge (sbitmap, basic_block, rtx, int);
@@ -196,6 +198,8 @@ enum state {
    UPDATE_P should be nonzero if we are updating CFG and zero if we
    are building CFG from scratch.  */
 
+extern void debug_bb_slim (basic_block);
+
 static void
 make_edges (basic_block min, basic_block max, int update_p)
 {
@@ -220,6 +224,9 @@ make_edges (basic_block min, basic_block max, int update_p)
       enum rtx_code code;
       edge e;
       edge_iterator ei;
+
+      //fprintf (stderr, "doing bb %d...\n", (int) bb->index);
+      //debug_bb_slim (bb);
 
       if (STATE (bb) == BLOCK_ORIGINAL)
 	continue;
@@ -304,6 +311,10 @@ make_edges (basic_block min, basic_block max, int update_p)
 	  /* Otherwise, we have a plain conditional or unconditional jump.  */
 	  else
 	    {
+	      /*dump_insn_slim (stderr, insn);
+	      fprintf (stderr, "JUMP_LABEL: ");
+	      dump_value_slim (stderr, JUMP_LABEL (insn), 0);
+	      fprintf (stderr, "\n");*/
 	      gcc_assert (JUMP_LABEL (insn));
 	      make_label_edge (edge_cache, bb, JUMP_LABEL (insn), 0);
 	    }
@@ -660,8 +671,11 @@ find_many_sub_basic_blocks (sbitmap blocks)
   n_succs.safe_grow_cleared (last_basic_block_for_fn (cfun));
 
   FOR_EACH_BB_FN (bb, cfun)
-    SET_STATE (bb,
-	       bitmap_bit_p (blocks, bb->index) ? BLOCK_TO_SPLIT : BLOCK_ORIGINAL);
+    {
+      //debug_bb_slim (bb);
+      SET_STATE (bb,
+		 bitmap_bit_p (blocks, bb->index) ? BLOCK_TO_SPLIT : BLOCK_ORIGINAL);
+    }
 
   FOR_EACH_BB_FN (bb, cfun)
     if (STATE (bb) == BLOCK_TO_SPLIT)

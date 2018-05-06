@@ -65,6 +65,8 @@
 #include "print-rtl.h"
 #include "lra.h"
 #include "lra-int.h"
+#include "tree-cfg.h"
+#include "cfghooks.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -2483,8 +2485,6 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cmpreg, label_ref, jump_insn;
 
-  start_sequence ();
-
   switch (cond)
     {
     case EQ:
@@ -2521,16 +2521,11 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
     default:
       gcc_unreachable ();
     }
-
-  rtx seq = get_insns ();
-  end_sequence ();
-
-  emit_insn (seq);
 }
 
 void
 m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
-			     rtx scratch)
+			     rtx scratch, basic_block bb)
 {
   rtx op0_lo = m65x_gen_subreg (QImode, op0, HImode, 0);
   rtx op1_lo = m65x_gen_subreg (QImode, op1, HImode, 0);
@@ -2541,6 +2536,11 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx cflag = gen_rtx_REG (CC_UImode, CARRY_REGNUM);
   rtx new_label = NULL_RTX;
   int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
+  edge true_edge, false_edge;
+
+  gcc_unreachable ();
+
+  gcc_assert (EDGE_COUNT (bb->succs) == 2);
 
   if ((cond == EQ || cond == NE || cond == LT || cond == GE)
       && REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
@@ -2564,6 +2564,10 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (scratch, op1_hi));
       m65x_emit_cbranchqi (EQ, nzflags, split_branch_probability, dest);
       emit_label (new_label);
+
+      extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
+      remove_edge (true_edge);
+      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;
       break;
 
     case NE:
@@ -2594,6 +2598,10 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
       emit_label (new_label);
+
+      extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
+      remove_edge (true_edge);
+      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;
       break;
     
     case GEU:
@@ -2613,6 +2621,10 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       m65x_emit_cbranchqi (GEU, cflag, split_branch_probability, dest);
       emit_label (new_label);
+
+      extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
+      remove_edge (true_edge);
+      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;
       break;
     
     case LT:

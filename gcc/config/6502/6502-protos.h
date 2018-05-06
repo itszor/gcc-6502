@@ -27,7 +27,7 @@ extern rtx m65x_gen_subreg (enum machine_mode, rtx, enum machine_mode, int);
 extern void m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1,
 					 rtx dest, rtx scratch);
 extern void m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1,
-					 rtx dest, rtx scratch);
+					 rtx dest, rtx scratch, basic_block bb);
 extern HOST_WIDE_INT m65x_elimination_offset (int from, int to);
 
 extern rtx m65x_push (enum machine_mode mode, rtx src);
