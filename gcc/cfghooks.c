@@ -89,6 +89,8 @@ current_ir_type (void)
    Currently it does following: checks edge and basic block list correctness
    and calls into IL dependent checking then.  */
 
+extern void debug_bb_slim (basic_block);
+
 DEBUG_FUNCTION void
 verify_flow_info (void)
 {
@@ -201,6 +203,8 @@ verify_flow_info (void)
       if (n_fallthru > 1)
 	{
 	  error ("wrong amount of branch edges after unconditional jump %i", bb->index);
+	  fprintf (stderr, "n_fallthru = %d\n", (int) n_fallthru);
+	  debug_bb_slim (bb);
 	  err = 1;
 	}
 
