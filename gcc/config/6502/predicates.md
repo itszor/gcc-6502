@@ -364,3 +364,10 @@
 (define_predicate "highpart_operand"
   (ior (match_operand 0 "nonmemory_operand")
        (match_code "const")))
+
+(define_predicate "multibyte_cmp_operand"
+  (ior (match_operand 0 "immediate_operand")
+       (match_operand 0 "zp_reg_operand")
+       (match_operand 0 "const_mem_operand")
+       (match_operand 0 "abs_x_mem_operand")
+       (match_operand 0 "abs_y_mem_operand")))
