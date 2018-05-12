@@ -2541,12 +2541,12 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   gcc_assert (EDGE_COUNT (bb->succs) == 2);
 
   if ((cond == EQ || cond == NE || cond == LT || cond == GE)
-      && REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+      && (!REG_P (op0) || !IS_HARD_REGNUM (REGNO (op0))))
     {
       emit_move_insn (scratch, op0_lo);
       op0_lo = scratch;
     }
-  
+
   if (cond != NE)
     new_label = gen_label_rtx ();
 
@@ -2562,10 +2562,6 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (scratch, op1_hi));
       m65x_emit_cbranchqi (EQ, nzflags, split_branch_probability, dest);
       emit_label (new_label);
-
-      /*extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
-      remove_edge (true_edge);
-      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;*/
       break;
 
     case NE:
@@ -2578,7 +2574,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (scratch, op1_hi));
       m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, dest);
       break;
-    
+
     case LTU:
       /* High part.  */
       emit_move_insn (scratch, op0_hi);
@@ -2587,7 +2583,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
-      if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+      if (!REG_P (op0) || !IS_HARD_REGNUM (REGNO (op0)))
 	{
 	  emit_move_insn (scratch, op0_lo);
 	  op0_lo = scratch;
@@ -2596,12 +2592,8 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
       emit_label (new_label);
-
-      /*extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
-      remove_edge (true_edge);
-      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;*/
       break;
-    
+
     case GEU:
       /* High part.  */
       emit_move_insn (scratch, op1_hi);
@@ -2610,7 +2602,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
 
       /* Low part.  */
-      if (REG_P (op0) && IS_ZP_REGNUM (REGNO (op0)))
+      if (!REG_P (op0) || !IS_HARD_REGNUM (REGNO (op0)))
 	{
 	  emit_move_insn (scratch, op0_lo);
 	  op0_lo = scratch;
@@ -2619,12 +2611,8 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       m65x_emit_cbranchqi (GEU, cflag, split_branch_probability, dest);
       emit_label (new_label);
-
-      /*extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
-      remove_edge (true_edge);
-      false_edge->flags ^= EDGE_FALSE_VALUE | EDGE_FALLTHRU;*/
       break;
-    
+
     case LT:
     case GE:
       emit_insn (gen_compareqi (op0_lo, op1_lo));
@@ -2636,7 +2624,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_label (new_label);
       m65x_emit_cbranchqi (cond, nzflags, split_branch_probability, dest);
       break;
-    
+
     default:
       gcc_unreachable ();
     }
