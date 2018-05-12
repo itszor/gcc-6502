@@ -23,3 +23,9 @@ CC_MODE (CC_C);
    LT -- N is 1.  */
 
 CC_MODE (CC_NZ);
+
+/* We can slightly speed up floating-point maths by rearranging the fields
+   in the IEEE754 single float format to line up with byte boundaries.  */
+
+RESET_FLOAT_FORMAT (SF, m65x_single_format);
+RESET_FLOAT_FORMAT (DF, m65x_single_format);

@@ -381,10 +381,6 @@ make_pass_devirt (gcc::context *ctxt)
 static void
 m65x_option_override (void)
 {
-  /* We can slightly speed up floating-point maths by rearranging the fields
-     in the IEEE754 single float format to line up with byte boundaries.  */
-  REAL_MODE_FORMAT (SFmode) = &m65x_single_format;
-
   /*opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
   static struct register_pass_info reconstruct_absidx_info
     = { pass_reconstruct_absidx, "fwprop1",

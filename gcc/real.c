@@ -3164,21 +3164,23 @@ const struct real_format m65x_single_format =
   {
     encode_m65x_single,
     decode_m65x_single,
-    2,
-    24,
-    24,
-    -125,
-    128,
-    23,
-    23,
-    false,
-    true,
-    false,
-    false,
-    false,
-    true,
-    false,
-    false
+    2,		/* radix.  */
+    24,		/* significand.  */
+    24,		/* significand of NaN.  */
+    -125,	/* Minimum exponent.  */
+    128,	/* Maximum exponent.  */
+    23,		/* signbit_ro.  */
+    23,		/* signbit_rw.  */
+    false,	/* ieee_bits.  */
+    false,	/* round_towards_zero.  */
+    true,	/* has_sign_dependent_rounding.  */
+    false,	/* has_nans.  */
+    false,	/* has_inf.  */
+    false,	/* has_denorm.  */
+    true,	/* has_signed_zero.  */
+    false,	/* qnan_msb_set.  */
+    false,	/* canonical_nan_lsbs_set.  */
+    "m65x_single"
   };
 
 
