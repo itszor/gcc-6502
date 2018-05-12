@@ -3752,7 +3752,10 @@ m65x_devirt_movqi (machine_mode mode, rtx operands[], rtx scratches[])
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
 
   if (GET_CODE (operands[1]) == PRE_INC)
-    emit_insn (m65x_pop (QImode, operands[0]));
+    {
+      emit_insn (m65x_pop (QImode, operands[0]));
+      emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
+    }
   else if (GET_CODE (operands[0]) == POST_DEC)
     emit_insn (m65x_push (QImode, operands[1]));
   else
@@ -3820,6 +3823,7 @@ m65x_devirt_movhisi (machine_mode mode, rtx operands[], rtx scratches[])
               {
                 dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
                 emit_insn (m65x_pop (QImode, acc));
+		emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
                 emit_move_insn (dstpart, acc);
               }
           }
@@ -3996,6 +4000,7 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
           if (stacked_parts & (1 << i))
             {
               emit_insn (m65x_pop (QImode, temp));
+	      emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
               rtx dstpart =  simplify_gen_subreg (QImode, operands[0], mode, i);
               emit_move_insn (dstpart, temp);
             }
@@ -4211,6 +4216,7 @@ m65x_devirt_sub (machine_mode mode, rtx operands[], rtx scratches[])
     if (stacked_parts & (1 << i))
       {
         emit_insn (m65x_pop (QImode, temp));
+	emit_use (gen_rtx_REG (HImode, HARDSP_REGNUM));
         rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
         emit_move_insn (dstpart, temp);
       }
