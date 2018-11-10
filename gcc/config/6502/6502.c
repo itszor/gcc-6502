@@ -4348,13 +4348,16 @@ rest_of_handle_devirt (void)
 	  CLEAR_REG_SET (insn_defs);
 	  CLEAR_REG_SET (insn_uses);
 
-	  df_simulate_defs (insn, insn_defs);
+	  df_simulate_find_defs (insn, insn_defs);
 	  df_simulate_uses (insn, insn_uses);
 
           if (GET_CODE (PATTERN (insn)) == USE
               || GET_CODE (PATTERN (insn)) == CLOBBER)
             continue;
 
+	  /* Set FLAGS_MASK to include flags registers which are live after the
+	     instruction, but are not defined (or clobbered) by the
+	     instruction.  Those are the ones which must be preserved.  */
 	  if (REGNO_REG_SET_P (live, CARRY_REGNUM)
 	      && !REGNO_REG_SET_P (insn_defs, CARRY_REGNUM))
 	    flags_mask |= MASK_C;
@@ -4365,6 +4368,9 @@ rest_of_handle_devirt (void)
 	      && !REGNO_REG_SET_P (insn_defs, OVERFLOW_REGNUM))
 	    flags_mask |= MASK_V;
 
+	  /* Determine if the accumulator, X or Y register is live after the
+	     instruction, but not defined (or clobbered) by the
+	     instruction.  */
 	  bool acc_live = REGNO_REG_SET_P (live, ACC_REGNUM)
 			  && !REGNO_REG_SET_P (insn_defs, ACC_REGNUM);
 	  bool x_live = REGNO_REG_SET_P (live, X_REGNUM)
