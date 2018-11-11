@@ -1,3 +1,5 @@
+#define IN_TARGET_CODE 1
+
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -20,6 +22,7 @@
 #include "hard-reg-set.h"
 #include "real.h"
 #include "expmed.h"
+#include "profile-count.h"
 #include "dojump.h"
 #include "explow.h"
 #include "function.h"
@@ -67,6 +70,8 @@
 #include "lra-int.h"
 #include "tree-cfg.h"
 #include "cfghooks.h"
+#include "stringpool.h"
+#include "attribs.h"
 
 #undef DEBUG_LEGIT_RELOAD
 
@@ -105,6 +110,8 @@ m65x_real_insns_ok (void)
     return cfun->machine->real_insns_ok;
   return false;
 }
+
+#if 0
 
 static bool
 gate_reconstruct_absidx (void)
@@ -328,11 +335,14 @@ public:
 
 } // anon namespace
 
+
 rtl_opt_pass *
 make_pass_reconstruct_absidx (gcc::context *ctxt)
 {
   return new pass_reconstruct_absidx (ctxt);
 }
+
+#endif
 
 static unsigned int rest_of_handle_devirt (void);
 
@@ -697,7 +707,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 
       switch (mode)
         {
-	case CC_NZmode:
+	case E_CC_NZmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: br = "bne :+"; break;
@@ -708,7 +718,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 	
-	case CC_Vmode:
+	case E_CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case LTU: br = "bvs :+"; break;
@@ -717,7 +727,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 
-	case CC_Cmode:
+	case E_CC_Cmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: br = "bcs :+"; break;
@@ -726,7 +736,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 
-	case CC_UImode:
+	case E_CC_UImode:
 	  switch (GET_CODE (cond))
 	    {
 	    case LTU: br = "bcs :+"; break;
@@ -749,7 +759,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 
       switch (mode)
 	{
-	case CC_NZmode:
+	case E_CC_NZmode:
 	  switch (GET_CODE (cond))
             {
 	    case EQ: fmt = "beq %0"; break;
@@ -760,7 +770,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 
-	case CC_Vmode:
+	case E_CC_Vmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case LTU: fmt = "bvc %0"; break;
@@ -769,7 +779,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 
-	case CC_Cmode:
+	case E_CC_Cmode:
 	  switch (GET_CODE (cond))
 	    {
 	    case EQ: fmt = "bcc %0"; break;
@@ -778,7 +788,7 @@ m65x_print_branch (enum machine_mode mode, rtx cond, rtx dest, bool synth)
 	    }
 	  break;
 
-	case CC_UImode:
+	case E_CC_UImode:
 	  switch (GET_CODE (cond))
 	    {
 	    case LTU: fmt = "bcc %0"; break;
@@ -1262,6 +1272,7 @@ m65x_reg_ok_for_xy_index_p (const_rtx x, bool strict_p)
   return regno == X_REGNUM || regno == Y_REGNUM;
 }
 
+#if 0
 static bool
 m65x_virt_indexed_addr_p (rtx x, bool strict)
 {
@@ -1285,6 +1296,7 @@ m65x_virt_indexed_addr_p (rtx x, bool strict)
 
   return false;
 }
+#endif
 
 /* We can do (base+index) addressing more efficiently than doing the add
    separately from the indirection, but we need to alter the base to do so (by
@@ -1292,8 +1304,9 @@ m65x_virt_indexed_addr_p (rtx x, bool strict)
    but maybe it's close enough (at least if the calculated address is dead
    afterwards).  */
 
+#if 0
 static bool
-m65x_virt_premodify_addr_p (machine_mode mode, rtx x, bool strict)
+m65x_virt_premodify_addr_p (machine_mode ARG_UNUSED (mode), rtx x, bool strict)
 {
   /*if (GET_CODE (x) == PRE_MODIFY)
     {
@@ -1321,6 +1334,7 @@ m65x_virt_premodify_addr_p (machine_mode mode, rtx x, bool strict)
 
   return false;
 }
+#endif
 
 static bool
 m65x_virt_absolute_indexed_addr_p (rtx x, bool strict)
@@ -1362,9 +1376,9 @@ m65x_indirect_indexed_addr_p (enum machine_mode mode, rtx x, bool strict)
 }
 
 bool
-m65x_indirect_offset_addr_p (enum machine_mode mode, rtx x, bool strict)
+m65x_indirect_offset_addr_p (machine_mode mode, rtx x, bool strict)
 {
-  HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
+  unsigned int modesize = GET_MODE_SIZE (mode);
 
   if (GET_CODE (x) == PLUS
       && GET_MODE (x) == Pmode
@@ -1630,7 +1644,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 
   switch (GET_MODE (x))
     {
-    case QImode:
+    case E_QImode:
       {
         if (mode != QImode)
 	  return x;
@@ -1650,7 +1664,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
       }
       break;
 
-    case HImode:
+    case E_HImode:
       if (REG_P (x))
 	x = gen_rtx_PLUS (Pmode, gen_rtx_ZERO_EXTEND (Pmode, const0_rtx), x);
       else if (GET_CODE (x) == PLUS)
@@ -1669,7 +1683,7 @@ m65x_legitimize_address (rtx x, rtx oldx ATTRIBUTE_UNUSED,
 			      force_reg (Pmode, plus0));
 	  else if (mode == QImode && GET_CODE (plus0) != ZERO_EXTEND)
             {
-	      rtx plus0_lo, plus0_hi, plus1_lo, plus1_hi, tmp_lo, tmp_hi;
+	      rtx plus1_lo, plus1_hi;
 	      rtx tmp = gen_reg_rtx (HImode);
 
 	      if (!REG_P (plus1) && !CONSTANT_P (plus1))
@@ -1785,6 +1799,12 @@ m65x_address_cost (rtx address, enum machine_mode mode,
     return 8;
 }
 
+static bool
+m65x_different_addr_displacement_p (void)
+{
+  return true;
+}
+
 static int
 m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 			 reg_class_t to)
@@ -1805,8 +1825,8 @@ m65x_register_move_cost (enum machine_mode mode, reg_class_t from,
 }
 
 static bool
-m65x_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno, int *total,
-                bool speed)
+m65x_rtx_costs (rtx x, machine_mode mode, int ARG_UNUSED (outer_code),
+		int ARG_UNUSED (opno), int *total, bool ARG_UNUSED (speed))
 {
   enum rtx_code code = GET_CODE (x);
   switch (code)
@@ -1863,7 +1883,9 @@ m65x_rtx_costs (rtx x, machine_mode mode, int outer_code, int opno, int *total,
 }
 
 static bool
-m65x_legitimize_addr_displacement (rtx *disp, rtx *offset, machine_mode mode)
+m65x_legitimize_addr_displacement (rtx *disp, rtx *offset,
+				   poly_int64 ARG_UNUSED (orig_offset),
+				   machine_mode mode)
 {
   if (mode != QImode)
     return false;
@@ -1883,7 +1905,7 @@ m65x_legitimize_addr_displacement (rtx *disp, rtx *offset, machine_mode mode)
 
 static rtx
 m65x_function_arg (cumulative_args_t ca, enum machine_mode mode,
-		   const_tree type, bool named)
+		   const_tree ARG_UNUSED (type), bool named)
 {
   CUMULATIVE_ARGS *pcum = get_cumulative_args (ca);
 
@@ -2118,8 +2140,8 @@ m65x_asm_select_section (tree exp,
   return get_named_section (exp, sname, reloc);
 }
 
-bool
-m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
+static bool
+m65x_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
   HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
 
@@ -2132,12 +2154,19 @@ m65x_hard_regno_mode_ok (int regno, enum machine_mode mode)
 /* Model the accumulator, X and Y registers as able to hold any value up to 32
    bits in size.  */
 
-HOST_WIDE_INT
-m65x_hard_regno_nregs (int regno ATTRIBUTE_UNUSED, enum machine_mode mode)
+static unsigned int
+m65x_hard_regno_nregs (unsigned int regno ATTRIBUTE_UNUSED,
+		       machine_mode mode)
 {
   HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
   
   return modesize;
+}
+
+static bool
+m65x_modes_tieable_p (machine_mode mode1, machine_mode mode2)
+{
+  return GET_MODE_SIZE (mode1) != 1 && GET_MODE_SIZE (mode2) != 1;
 }
 
 static reg_class_t
@@ -2159,7 +2188,7 @@ m65x_spill_class (reg_class_t klass, enum machine_mode mode ATTRIBUTE_UNUSED)
 }
 
 static reg_class_t
-m65x_preferred_reload_class (rtx x, reg_class_t klass)
+m65x_preferred_reload_class (rtx ARG_UNUSED (x), reg_class_t klass)
 {
   /*if (MEM_P (x)
       && GET_CODE (XEXP (x, 0)) == PLUS
@@ -2239,7 +2268,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
   if (m65x_virt_insns_ok ())
     switch (reload_mode)
       {
-      case QImode:
+      case E_QImode:
         if (reload_class != HARD_ACCUM_REG
             && (MEM_P (x)
                 && (REG_P (XEXP (x, 0))
@@ -2261,7 +2290,7 @@ m65x_secondary_reload (bool in_p, rtx x, reg_class_t reload_class,
                  && CONSTANT_ADDRESS_P (XEXP (x, 0)))
           sclass = ACTUALLY_HARD_REGS;
         break;
-      case HImode:
+      case E_HImode:
         break;
       default:
         ;
@@ -2311,7 +2340,8 @@ m65x_lra_p (void)
 }
 
 static bool
-m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands, bool relaxed)
+m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands,
+			   bool ARG_UNUSED (relaxed))
 {
   if (MEM_P (operands[0]))
     {
@@ -2459,7 +2489,8 @@ m65x_canonicalize_comparison (int *code, rtx *op0, rtx *op1,
 }
 
 static void
-m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
+m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, profile_probability prob,
+		     rtx dest)
 {
   rtx cmp = gen_rtx_fmt_ee (cond, VOIDmode, cc_reg, const0_rtx);
   rtx dest_label = gen_rtx_LABEL_REF (Pmode, dest);
@@ -2467,8 +2498,8 @@ m65x_emit_cbranchqi (enum rtx_code cond, rtx cc_reg, int prob, rtx dest)
 		 gen_rtx_IF_THEN_ELSE (VOIDmode, cmp, dest_label, pc_rtx));
   rtx_insn *jmp_insn = emit_jump_insn (branch);
   JUMP_LABEL (jmp_insn) = dest;
-  if (prob != -1)
-    add_int_reg_note (jmp_insn, REG_BR_PROB, prob);
+  if (prob.initialized_p ())
+    add_reg_br_prob_note (jmp_insn, prob);
 }
 
 void
@@ -2502,16 +2533,20 @@ m65x_emit_qimode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 
     case LT:
     case GE:
-      new_label = gen_label_rtx ();
-      emit_move_insn (scratch, op0);
-      emit_insn (gen_sec ());
-      emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1));
-      m65x_emit_cbranchqi (LTU, vflag,
-			   split_branch_probability == -1 ? -1 :
-			   split_branch_probability / 2, new_label);
-      emit_insn (gen_negate_highbit (scratch, scratch));
-      emit_label (new_label);
-      m65x_emit_cbranchqi (cond, nzflags, split_branch_probability, dest);
+      {
+        profile_probability prob = split_branch_probability,
+			    half_prob = profile_probability::uninitialized ();
+	if (prob.initialized_p ())
+	  half_prob = prob.apply_scale (1, 2);
+	new_label = gen_label_rtx ();
+	emit_move_insn (scratch, op0);
+	emit_insn (gen_sec ());
+	emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1));
+	m65x_emit_cbranchqi (LTU, vflag, half_prob, new_label);
+	emit_insn (gen_negate_highbit (scratch, scratch));
+	emit_label (new_label);
+	m65x_emit_cbranchqi (cond, nzflags, prob, dest);
+      }
       break;
     
     default:
@@ -2531,8 +2566,8 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
   rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
   rtx cflag = gen_rtx_REG (CC_UImode, CARRY_REGNUM);
   rtx new_label = NULL_RTX;
-  int rev_prob = REG_BR_PROB_BASE - split_branch_probability;
-  edge true_edge, false_edge;
+  profile_probability prob = split_branch_probability;
+  profile_probability rev_prob = prob.invert ();
 
   gcc_assert (EDGE_COUNT (bb->succs) == 2);
 
@@ -2556,27 +2591,27 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       /* High part.  */
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_compareqi (scratch, op1_hi));
-      m65x_emit_cbranchqi (EQ, nzflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (EQ, nzflags, prob, dest);
       emit_label (new_label);
       break;
 
     case NE:
       /* Low part.  */
       emit_insn (gen_compareqi (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, nzflags, prob, dest);
 
       /* High part.  */
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_compareqi (scratch, op1_hi));
-      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (NE, nzflags, prob, dest);
       break;
 
     case LTU:
       /* High part.  */
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_compareqi (scratch, op1_hi));
-      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
-      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
+      m65x_emit_cbranchqi (LTU, cflag, prob, dest);
+      m65x_emit_cbranchqi (NE, nzflags, prob, new_label);
 
       /* Low part.  */
       if (!REG_P (op0) || !IS_HARD_REGNUM (REGNO (op0)))
@@ -2586,7 +2621,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	}
 
       emit_insn (gen_compareqi (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (LTU, cflag, prob, dest);
       emit_label (new_label);
       break;
 
@@ -2594,8 +2629,8 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       /* High part.  */
       emit_move_insn (scratch, op1_hi);
       emit_insn (gen_compareqi (scratch, op0_hi));
-      m65x_emit_cbranchqi (LTU, cflag, split_branch_probability, dest);
-      m65x_emit_cbranchqi (NE, nzflags, split_branch_probability, new_label);
+      m65x_emit_cbranchqi (LTU, cflag, prob, dest);
+      m65x_emit_cbranchqi (NE, nzflags, prob, new_label);
 
       /* Low part.  */
       if (!REG_P (op0) || !IS_HARD_REGNUM (REGNO (op0)))
@@ -2605,7 +2640,7 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
 	}
 
       emit_insn (gen_compareqi (op0_lo, op1_lo));
-      m65x_emit_cbranchqi (GEU, cflag, split_branch_probability, dest);
+      m65x_emit_cbranchqi (GEU, cflag, prob, dest);
       emit_label (new_label);
       break;
 
@@ -2614,11 +2649,11 @@ m65x_emit_himode_comparison (enum rtx_code cond, rtx op0, rtx op1, rtx dest,
       emit_insn (gen_compareqi (op0_lo, op1_lo));
       emit_move_insn (scratch, op0_hi);
       emit_insn (gen_sbcqi3_nzv (scratch, scratch, op1_hi));
-      m65x_emit_cbranchqi (LTU, vflag, split_branch_probability / 2,
+      m65x_emit_cbranchqi (LTU, vflag, prob.apply_scale (1, 2),
 			   new_label);
       emit_insn (gen_negate_highbit (scratch, scratch));
       emit_label (new_label);
-      m65x_emit_cbranchqi (cond, nzflags, split_branch_probability, dest);
+      m65x_emit_cbranchqi (cond, nzflags, prob, dest);
       break;
 
     default:
@@ -2725,7 +2760,7 @@ m65x_can_eliminate (const int from, const int to)
 }
 
 void
-m65x_asm_function_prologue (FILE *out, HOST_WIDE_INT size ATTRIBUTE_UNUSED)
+m65x_asm_function_prologue (FILE *out)
 {
   if (TARGET_DEBUG_STACK)
     fprintf (stderr, "function: '%s'\n",
@@ -2956,7 +2991,7 @@ m65x_return_addr_rtx (int count, rtx frameaddr ATTRIBUTE_UNUSED)
 }
 
 static bool
-m65x_scalar_mode_supported_p (enum machine_mode mode)
+m65x_scalar_mode_supported_p (scalar_mode mode)
 {
   if (mode == SImode)
     return true;
@@ -3106,7 +3141,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 
 	  emit_insn (gen_loadqi_nz (gen_reg_rtx (QImode), op1part));
 	  m65x_emit_cbranchqi (NE,
-	    gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY, labels[i]);
+	    gen_rtx_REG (CC_NZmode, NZ_REGNUM), profile_probability::likely (),
+			 labels[i]);
 	}
 
       for (i = modesize - 1; i >= 0; i--)
@@ -3207,8 +3243,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		      if (!end_label)
 		        end_label = gen_label_rtx ();
 		      m65x_emit_cbranchqi (NE,
-			gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
-				     end_label);
+			gen_rtx_REG (CC_NZmode, NZ_REGNUM),
+				     profile_probability::likely (), end_label);
 		    }
 		  valid_nz = add;
 		  continue;
@@ -3222,8 +3258,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		      if (!end_label)
 		        end_label = gen_label_rtx ();
 		      m65x_emit_cbranchqi (NE,
-			gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
-				     end_label);
+			gen_rtx_REG (CC_NZmode, NZ_REGNUM),
+				     profile_probability::likely (), end_label);
 		    }
 		  continue;
 		}
@@ -3233,8 +3269,8 @@ m65x_expand_addsub (enum machine_mode mode, bool add, rtx operands[])
 		    end_label = gen_label_rtx ();
 
 		  m65x_emit_cbranchqi (add ? EQ : NE,
-		    gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
-				 end_label);
+		    gen_rtx_REG (CC_Cmode, CARRY_REGNUM),
+				 profile_probability::likely (), end_label);
 
 		  emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart),
 			       add ? const1_rtx : constm1_rtx));
@@ -3479,7 +3515,7 @@ m65x_peep_store (rtx base, rtx index, rtx src, bool can_clobber_nz)
   return true;
 }
 
-static enum machine_mode
+static scalar_int_mode
 m65x_addr_space_pointer_mode (addr_space_t aspace)
 {
   switch (aspace)
@@ -3494,7 +3530,7 @@ m65x_addr_space_pointer_mode (addr_space_t aspace)
 }
 
 static bool
-m65x_addr_space_valid_pointer_mode (enum machine_mode mode, addr_space_t aspace)
+m65x_addr_space_valid_pointer_mode (scalar_int_mode mode, addr_space_t aspace)
 {
   switch (aspace)
     {
@@ -3583,13 +3619,16 @@ m65x_regno_mode_code_ok_for_base_p (int regno, enum machine_mode mode,
 #define MASK_V 32
 #define MASK_AXY (MASK_A | MASK_X | MASK_Y)
 
+#if 0
 static bool
 is_op_regno (unsigned opno, unsigned regno)
 {
   return REG_P (recog_data.operand[opno])
          && REGNO (recog_data.operand[opno]) == regno;
 }
+#endif
 
+#if 0
 static bool
 is_op_phys_reg (unsigned opno, unsigned withmask)
 {
@@ -3601,16 +3640,20 @@ is_op_phys_reg (unsigned opno, unsigned withmask)
              || (REGNO (recog_data.operand[opno]) == Y_REGNUM
                  && (withmask & MASK_Y)));
 }
+#endif
 
+#if 0
 static bool
 any_op_phys_reg (void)
 {
-  for (unsigned i = 0; i < recog_data.n_operands; i++)
+  for (int i = 0; i < recog_data.n_operands; i++)
     if (is_op_phys_reg (i, MASK_AXY))
       return true;
   return false;
 }
+#endif
 
+#if 0
 static bool
 op_uses_yreg (unsigned opno)
 {
@@ -3626,6 +3669,7 @@ op_uses_yreg (unsigned opno)
   fprintf (stderr, "\n");
   return yes;
 }
+#endif
 
 static void
 emit_save (unsigned mask)
@@ -3676,6 +3720,7 @@ emit_restore (unsigned mask)
     emit_insn (gen_popflags (pop_rtx));
 }
 
+#if 0
 static rtx
 reg_from_mask (unsigned mask)
 {
@@ -3687,6 +3732,7 @@ reg_from_mask (unsigned mask)
     return gen_rtx_REG (QImode, Y_REGNUM);
   gcc_unreachable ();
 }
+#endif
 
 static rtx
 make_indirect_indexed_1 (machine_mode mode, rtx mem, bool force)
@@ -3719,11 +3765,13 @@ make_indirect_indexed_1 (machine_mode mode, rtx mem, bool force)
   return change_address (mem, mode, addr);
 }
 
+#if 0
 static rtx
 maybe_make_indirect_indexed (machine_mode mode, rtx mem)
 {
   return make_indirect_indexed_1 (mode, mem, false);
 }
+#endif
 
 static rtx
 make_indirect_indexed (machine_mode mode, rtx mem)
@@ -3741,12 +3789,9 @@ make_indirect_indexed (machine_mode mode, rtx mem)
 }
 
 static bool
-m65x_devirt_movqi (machine_mode mode, rtx operands[], rtx scratches[])
+m65x_devirt_movqi (machine_mode ARG_UNUSED (mode), rtx operands[],
+		   rtx ARG_UNUSED (scratches[]))
 {
-  rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
-  rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
-  rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
-
   if (GET_CODE (operands[1]) == PRE_INC)
     {
       emit_insn (m65x_pop (QImode, operands[0]));
@@ -3894,7 +3939,8 @@ m65x_index_reg_p (rtx reg)
 }
 
 static bool
-m65x_devirt_addhi3_highpart (machine_mode mode, rtx operands[], rtx scratches[])
+m65x_devirt_addhi3_highpart (machine_mode ARG_UNUSED (mode), rtx operands[],
+			     rtx scratches[])
 {
   rtx src2_lo = simplify_gen_subreg (QImode, operands[2], HImode, 0);
   rtx dst_lo = simplify_gen_subreg (QImode, operands[0], HImode, 0);
@@ -4025,7 +4071,8 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
 		  = simplify_gen_subreg (QImode, operands[1], mode, i);
                 emit_insn (gen_loadqi_nz (temp, op1part));
                 m65x_emit_cbranchqi (NE,
-                  gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY, labels[i]);
+                  gen_rtx_REG (CC_NZmode, NZ_REGNUM),
+			       profile_probability::likely (), labels[i]);
               }
 
             for (int i = modesize - 1; i >= 0; i--)
@@ -4107,7 +4154,8 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                             if (!end_label)
                               end_label = gen_label_rtx ();
                             m65x_emit_cbranchqi (NE,
-                              gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+                              gen_rtx_REG (CC_NZmode, NZ_REGNUM),
+					   profile_probability::likely (),
                                            end_label);
                           }
                         valid_nz = add;
@@ -4124,7 +4172,8 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                             if (!end_label)
                               end_label = gen_label_rtx ();
                             m65x_emit_cbranchqi (NE,
-                              gen_rtx_REG (CC_NZmode, NZ_REGNUM), PROB_LIKELY,
+                              gen_rtx_REG (CC_NZmode, NZ_REGNUM),
+					   profile_probability::likely (),
                                            end_label);
                           }
                         continue;
@@ -4134,7 +4183,8 @@ m65x_devirt_add (machine_mode mode, rtx operands[], rtx scratches[])
                         if (!end_label)
                           end_label = gen_label_rtx ();
                         m65x_emit_cbranchqi (add ? EQ : NE,
-                          gen_rtx_REG (CC_Cmode, CARRY_REGNUM), PROB_LIKELY,
+                          gen_rtx_REG (CC_Cmode, CARRY_REGNUM),
+				       profile_probability::likely (),
                                        end_label);
                         emit_insn (gen_incdecqi3 (dstpart, copy_rtx (dstpart),
                                      add ? const1_rtx : constm1_rtx));
@@ -4221,7 +4271,8 @@ m65x_devirt_sub (machine_mode mode, rtx operands[], rtx scratches[])
 }
 
 static bool
-m65x_devirt_extendqihi2 (machine_mode mode, rtx operands[], rtx scratches[])
+m65x_devirt_extendqihi2 (machine_mode ARG_UNUSED (mode), rtx operands[],
+			 rtx scratches[])
 {
   rtx dstlo = simplify_gen_subreg (QImode, operands[0], HImode, 0);
   rtx dsthi = simplify_gen_subreg (QImode, operands[0], HImode, 1);
@@ -4339,7 +4390,6 @@ rest_of_handle_devirt (void)
 	  if (!NONDEBUG_INSN_P (insn))
             continue;
 
-	  rtx set;
           /*enum attr_needs_reg hw_reg_needed;*/
           rtx_insn *replacement_seq;
           bool done_replacement = false;
@@ -4391,11 +4441,13 @@ rest_of_handle_devirt (void)
 	  attr_dv_op0 dv_op0 = get_attr_dv_op0 (insn);
 	  attr_dv_op1 dv_op1 = get_attr_dv_op1 (insn);
 
-	  rtx real_operands[recog_data.n_operands], real_scratches[2];
+	  rtx *real_operands
+	    = (rtx *) alloca (sizeof (rtx) * recog_data.n_operands);
+	  rtx real_scratches[2];
 
 	  /* Default to copying virtual operands to real ones.  */
 	  real_scratches[0] = real_scratches[1] = NULL_RTX;
-	  for (unsigned i = 0; i < recog_data.n_operands; i++)
+	  for (int i = 0; i < recog_data.n_operands; i++)
 	    real_operands[i] = recog_data.operand[i];
 
           start_sequence ();
@@ -4836,7 +4888,7 @@ m65x_prefer_constant_equiv_p (rtx cst ATTRIBUTE_UNUSED)
 }
 
 static bool
-m65x_cannot_subst_mem_equiv_p (rtx x)
+m65x_cannot_subst_mem_equiv_p (rtx ARG_UNUSED (x))
 {
   /*fprintf (stderr, "can we substitute ");
   dump_value_slim (stderr, x, 0);
@@ -4902,6 +4954,15 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 #undef TARGET_ASM_UNALIGNED_TI_OP
 #define TARGET_ASM_UNALIGNED_TI_OP NULL
 
+#undef TARGET_HARD_REGNO_NREGS
+#define TARGET_HARD_REGNO_NREGS m65x_hard_regno_nregs
+
+#undef TARGET_HARD_REGNO_MODE_OK
+#define TARGET_HARD_REGNO_MODE_OK m65x_hard_regno_mode_ok
+
+#undef TARGET_MODES_TIEABLE_P
+#define TARGET_MODES_TIEABLE_P m65x_modes_tieable_p
+
 #undef TARGET_FUNCTION_ARG
 #define TARGET_FUNCTION_ARG m65x_function_arg
 
@@ -4962,8 +5023,8 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 #undef TARGET_ADDRESS_COST
 #define TARGET_ADDRESS_COST m65x_address_cost
 
-#undef TARGET_DIFFERENT_ADDR_DISPLACEMENT
-#define TARGET_DIFFERENT_ADDR_DISPLACEMENT hook_void_true
+#undef TARGET_DIFFERENT_ADDR_DISPLACEMENT_P
+#define TARGET_DIFFERENT_ADDR_DISPLACEMENT_P m65x_different_addr_displacement_p
 
 #undef TARGET_LEGITIMIZE_ADDRESS_DISPLACEMENT
 #define TARGET_LEGITIMIZE_ADDRESS_DISPLACEMENT m65x_legitimize_addr_displacement

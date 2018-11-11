@@ -261,17 +261,8 @@
     72, 73, 74, 75, 76, 77, 78, 79,     \
     80, 81, 82, 83, 84, 85, 86 }
 
-#define HARD_REGNO_NREGS(REGNO, MODE) \
-  m65x_hard_regno_nregs ((REGNO), (MODE))
-
-#define HARD_REGNO_MODE_OK(REGNO, MODE) \
-  m65x_hard_regno_mode_ok ((REGNO), (MODE))
-
 #define HARD_REGNO_RENAME_OK(SRC, DST) \
   df_regs_ever_live_p (DST)
-
-#define MODES_TIEABLE_P(MODE1, MODE2) \
-  (GET_MODE_SIZE (MODE1) != 1 && GET_MODE_SIZE (MODE2) != 1)
 
 #if 0
 #define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
@@ -432,7 +423,6 @@ enum reg_class
 
 #define STACK_PUSH_CODE			POST_DEC
 #define FRAME_GROWS_DOWNWARD		0
-#define STARTING_FRAME_OFFSET		0
 
 #define FIRST_PARM_OFFSET(FNDECL)	0
 
@@ -658,8 +648,6 @@ typedef int CUMULATIVE_ARGS;
 #define Pmode				HImode
 #define FUNCTION_MODE			QImode
 #define CASE_VECTOR_MODE		HImode
-
-#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) 1
 
 #define STORE_FLAG_VALUE 1
 

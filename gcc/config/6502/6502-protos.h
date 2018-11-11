@@ -8,8 +8,6 @@ extern const char *m65x_print_movqi (int, rtx *, bool);
 extern void m65x_print_operand_address (FILE *, rtx);
 extern void m65x_output_ascii (FILE *, const char *, int);
 extern int m65x_mode_dependent_address_p (rtx);
-extern HOST_WIDE_INT m65x_hard_regno_nregs (int, enum machine_mode);
-extern bool m65x_hard_regno_mode_ok (int, enum machine_mode);
 extern bool m65x_valid_mov_operands (enum machine_mode mode, rtx *operands,
 				     bool);
 extern bool m65x_valid_zp_mov_operands (enum machine_mode mode, rtx *operands);
