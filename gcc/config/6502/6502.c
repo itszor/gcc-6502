@@ -443,7 +443,11 @@ m65x_file_start (void)
       break;
     
     case m6502x:
-      /* There isn't an assembler directive for this mode!  */
+      fprintf (asm_out_file, "\t.setcpu \"6502X\"\n");
+      break;
+
+    case huc6280:
+      fprintf (asm_out_file, "\t.setcpu \"HuC6280\"\n");
       break;
 
     default:
