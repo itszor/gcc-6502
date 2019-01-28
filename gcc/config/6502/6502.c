@@ -4355,6 +4355,10 @@ rest_of_handle_devirt (void)
   rtx acc = gen_rtx_REG (QImode, ACC_REGNUM);
   rtx xreg = gen_rtx_REG (QImode, X_REGNUM);
   rtx yreg = gen_rtx_REG (QImode, Y_REGNUM);
+  rtx nzflag = gen_rtx_REG (CC_NZmode, NZ_REGNUM);
+  rtx vflag = gen_rtx_REG (CC_Vmode, OVERFLOW_REGNUM);
+  rtx cflag = gen_rtx_REG (CC_Cmode, CARRY_REGNUM);
+
   sbitmap blocks = sbitmap_alloc (last_basic_block_for_fn (cfun));
 
   bitmap_clear (blocks);
@@ -4402,7 +4406,7 @@ rest_of_handle_devirt (void)
 	  CLEAR_REG_SET (insn_defs);
 	  CLEAR_REG_SET (insn_uses);
 
-	  df_simulate_find_defs (insn, insn_defs);
+	  df_simulate_find_noclobber_defs (insn, insn_defs);
 	  df_simulate_uses (insn, insn_uses);
 
           if (GET_CODE (PATTERN (insn)) == USE
@@ -4453,8 +4457,6 @@ rest_of_handle_devirt (void)
 	  real_scratches[0] = real_scratches[1] = NULL_RTX;
 	  for (int i = 0; i < recog_data.n_operands; i++)
 	    real_operands[i] = recog_data.operand[i];
-
-          start_sequence ();
 
 	  bool force_op_indy[2] = { false, false };
 
@@ -4643,7 +4645,7 @@ rest_of_handle_devirt (void)
 
 	  save_mask |= flags_mask;
 
-	  emit_save (save_mask);
+	  start_sequence ();
 
 	  if (force_op_indy[1])
 	    real_operands[1]
@@ -4663,12 +4665,43 @@ rest_of_handle_devirt (void)
 	  if (recog_data.operand[0] != real_operands[0] && !force_op_indy[0])
 	    emit_move_insn (recog_data.operand[0], real_operands[0]);
 
-	  emit_restore (save_mask);
-
           replacement_seq = get_insns ();
           end_sequence ();
 
 	  df_simulate_one_insn_backwards (bb, insn, live);
+
+	  unsigned repl_defs = 0;
+
+	  /* This seems like an extraordinarily stupid way of doing this, but
+	     I can't figure out a nicer way right now.  */
+	  for (rtx_insn *r_insn = replacement_seq;
+	       r_insn;
+	       r_insn = NEXT_INSN (r_insn))
+	    {
+	      if (reg_set_p (acc, r_insn))
+	        repl_defs |= MASK_A;
+	      if (reg_set_p (xreg, r_insn))
+	        repl_defs |= MASK_X;
+	      if (reg_set_p (yreg, r_insn))
+	        repl_defs |= MASK_Y;
+	      if (reg_set_p (nzflag, r_insn))
+	        repl_defs |= MASK_NZ;
+	      if (reg_set_p (cflag, r_insn))
+	        repl_defs |= MASK_C;
+	      if (reg_set_p (vflag, r_insn))
+	        repl_defs |= MASK_V;
+	    }
+
+	  /* Don't save/restore anything that the replacement sequence doesn't
+	     actually set or clobber.  */
+	  save_mask &= repl_defs;
+
+	  start_sequence ();
+	  emit_save (save_mask);
+	  emit_insn (replacement_seq);
+	  emit_restore (save_mask);
+	  replacement_seq = get_insns ();
+	  end_sequence ();
 
           if (done_replacement)
             {
