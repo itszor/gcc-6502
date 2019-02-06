@@ -5,6 +5,7 @@
 (define_register_constraint "hq" "ACTUALLY_HARD_REGS")
 (define_register_constraint "hz" "HARD_ZP_REGS")
 (define_register_constraint "hs" "HARD_SP_REG")
+(define_register_constraint "Rs" "GEN_SHADOW_REGS")
 
 (define_constraint "I"
   "An integer 0-255."
