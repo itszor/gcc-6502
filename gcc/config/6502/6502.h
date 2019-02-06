@@ -221,7 +221,7 @@
     1, 1, 1, 1, 1, 1, 1, 1,	\
     1, 1, 1, 1, 1, 1, 1, 1,	\
     /* hard sp, tmp0/tmp1, shadow a/x/y.  */ \
-    1, 1, 1, 1, 1, 1, 1 }
+    1, 1, 1, 1, 0, 0, 0 }
 
 #define CALL_USED_REGISTERS	\
   { 1, 1, 1, 1, 1, 1, 1, 1,	\
@@ -301,6 +301,7 @@ enum reg_class
   SHADOW_HARD_REGS,
   HARD_SP_REG,
   GENERAL_REGS,
+  GEN_SHADOW_REGS,
   HARD_ZP_REGS,
   VFP_REG,
   VAP_REG,
@@ -325,6 +326,7 @@ enum reg_class
   "SHADOW_HARD_REGS",           \
   "HARD_SP_REG",                \
   "GENERAL_REGS",		\
+  "GEN_SHADOW_REGS",		\
   "HARD_ZP_REGS",		\
   "VFP_REG",			\
   "VAP_REG",			\
@@ -345,7 +347,8 @@ enum reg_class
   { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
   { 0x00000000, 0x00000000, 0x700000 }, /* SHADOW_HARD_REGS */  \
   { 0x00000000, 0x00000000, 0x030000 }, /* HARD_SP_REG */       \
-  { 0xfffff000, 0xffffffff, 0x7c0000 }, /* GENERAL_REGS */	\
+  { 0xfffff000, 0xffffffff, 0x0c0000 }, /* GENERAL_REGS */	\
+  { 0xfffff000, 0xffffffff, 0x7c0000 }, /* GEN_SHADOW_REGS */	\
   { 0xfffff111, 0xffffffff, 0x7c0000 }, /* HARD_ZP_REGS */	\
   { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
   { 0x00000000, 0x00000000, 0x00000c }, /* VAP_REG */		\
