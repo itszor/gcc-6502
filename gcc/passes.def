@@ -469,7 +469,6 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_gcse2);
 	  NEXT_PASS (pass_split_after_reload);
 	  NEXT_PASS (pass_ree);
-	  NEXT_PASS (pass_compare_elim_after_reload);
 	  NEXT_PASS (pass_branch_target_load_optimize1);
 	  NEXT_PASS (pass_thread_prologue_and_epilogue);
 	  NEXT_PASS (pass_rtl_dse2);
@@ -499,6 +498,7 @@ along with GCC; see the file COPYING3.  If not see
 	  NEXT_PASS (pass_variable_tracking);
 	  NEXT_PASS (pass_free_cfg);
 	  NEXT_PASS (pass_machine_reorg);
+	  NEXT_PASS (pass_compare_elim_after_reload);
 	  NEXT_PASS (pass_cleanup_barriers);
 	  NEXT_PASS (pass_delay_slots);
 	  NEXT_PASS (pass_split_for_shorten_branches);

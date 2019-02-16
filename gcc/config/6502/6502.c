@@ -1763,6 +1763,25 @@ m65x_adjust_address (rtx mem, enum machine_mode mode, HOST_WIDE_INT adj)
   return adjust_address (x, mode, adj);
 }
 
+machine_mode
+m65x_select_cc_mode (rtx_code op, rtx x, rtx ARG_UNUSED (y))
+{
+  if (GET_MODE_CLASS (GET_MODE (x)) == MODE_FLOAT)
+    return CCmode;
+
+  switch (GET_CODE (x))
+    {
+    case REG:
+    case MEM:
+      if (op == EQ || op == NE)
+        return CC_NZmode;
+      break;
+    default:
+      /* Empty.  */;
+    }
+  return CCmode;
+}
+
 static int
 m65x_address_cost (rtx address, enum machine_mode mode,
 		   addr_space_t as ATTRIBUTE_UNUSED,
@@ -4886,6 +4905,7 @@ m65x_reorg (void)
                   PATTERN (insn) = gen_movqi_insn (SET_DEST (set),
                                                    SET_SRC (set));
                   INSN_CODE (insn) = -1;
+		  df_insn_rescan (insn);
                 }
               break;
             case CODE_FOR_addqi3_insn_noclob:
@@ -4898,6 +4918,7 @@ m65x_reorg (void)
                                                     XEXP (SET_SRC (set), 0),
                                                     XEXP (SET_SRC (set), 1));
                   INSN_CODE (insn) = -1;
+		  df_insn_rescan (insn);
                 }
               break;
             default:
@@ -5074,6 +5095,10 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 
 #undef TARGET_CANONICALIZE_COMPARISON
 #define TARGET_CANONICALIZE_COMPARISON m65x_canonicalize_comparison
+
+/* We have several, but this is the most useful to eliminate.  */
+#undef TARGET_FLAGS_REGNUM
+#define TARGET_FLAGS_REGNUM NZ_REGNUM
 
 #undef TARGET_ASM_INTEGER
 #define TARGET_ASM_INTEGER m65x_asm_integer

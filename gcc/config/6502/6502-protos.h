@@ -40,6 +40,7 @@ extern bool m65x_regno_mode_code_ok_for_base_p (int regno,
     enum rtx_code index);
 
 extern rtx m65x_return_addr_rtx (int count, rtx frameaddr);
+extern machine_mode m65x_select_cc_mode (rtx_code op, rtx x, rtx y);
 #endif
 
 extern void m65x_expand_prologue (void);
