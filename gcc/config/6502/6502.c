@@ -1955,6 +1955,10 @@ m65x_select_cc_mode (rtx_code op, rtx x, rtx ARG_UNUSED (y))
     {
     case REG:
     case MEM:
+    case AND:
+    case IOR:
+    case XOR:
+    case NOT:
       if (op == EQ || op == NE)
         return CC_NZmode;
       break;
@@ -5097,13 +5101,17 @@ m65x_reorg (void)
                   && !REGNO_REG_SET_P (&live, CARRY_REGNUM)
                   && !REGNO_REG_SET_P (&live, OVERFLOW_REGNUM)
                   && (set = single_set (insn)))
-                {
-                  PATTERN (insn) = gen_addqi3_insn (SET_DEST (set),
-                                                    XEXP (SET_SRC (set), 0),
-                                                    XEXP (SET_SRC (set), 1));
-                  INSN_CODE (insn) = -1;
+		{
+		  rtx dest = SET_DEST (set), lhs = XEXP (SET_SRC (set), 0);
+		  rtx rhs = XEXP (SET_SRC (set), 1);
+		  if (CONST_INT_P (rhs)
+		      && (INTVAL (rhs) == 1 || INTVAL (rhs) == -1))
+		    PATTERN (insn) = gen_incdecqi3 (dest, lhs, rhs);
+		  else
+		    PATTERN (insn) = gen_addqi3_insn (dest, lhs, rhs);
+		  INSN_CODE (insn) = -1;
 		  df_insn_rescan (insn);
-                }
+		}
               break;
             default:
               ;
