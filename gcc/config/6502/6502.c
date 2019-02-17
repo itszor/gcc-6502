@@ -910,7 +910,10 @@ m65x_print_movqi_1 (int which_alternative, rtx *operands, bool *clobbers_flags)
       if ((REG_P (XEXP (operands[0], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (operands[0], 0)) == PLUS
 	  || CONSTANT_ADDRESS_P (XEXP (operands[0], 0)))
-        return "sta %0";
+	{
+	  *clobbers_flags = false;
+          return "sta %0";
+	}
       else if (REG_P (XEXP (operands[0], 0)))
         {
 	  operands[0] = XEXP (operands[0], 0);
@@ -1133,6 +1136,185 @@ m65x_print_movqi (int which_alternative, rtx *operands, bool save_flags)
     }
   else
     return insn;
+}
+
+unsigned int
+m65x_mov_length (rtx_insn *insn, bool save_flags)
+{
+  unsigned save_flag_size = save_flags ? 2 : 0;
+
+  extract_insn_cached (insn);
+
+  switch (which_alternative)
+    {
+    case 0: /* hq, i.  */
+      return 2 + save_flag_size;
+    case 1: /* hq, Rs.  */
+      return 2 + save_flag_size;
+    case 2: /* Rs, hq.  */
+      return 2;
+    case 3: /* hq, Uc.  */
+      return 3 + save_flag_size;
+    case 4: /* Uc, hq.  */
+      return 3;
+    case 5: /* hq, hq.  */
+      switch (REGNO (recog_data.operand[0]))
+        {
+	case ACC_REGNUM:
+	  return REGNO (recog_data.operand[1]) == ACC_REGNUM
+		 ? 0 : 1 + save_flag_size;
+	case X_REGNUM:
+	  switch (REGNO (recog_data.operand[1]))
+	    {
+	    case ACC_REGNUM:
+	      return 1 + save_flag_size;
+	    case X_REGNUM:
+	      return 0;
+	    case Y_REGNUM:
+	      return TARGET_PHX ? 2 + save_flag_size : 4 + save_flag_size;
+	    default:
+	      gcc_unreachable ();
+	    }
+	case Y_REGNUM:
+	  switch (REGNO (recog_data.operand[1]))
+	    {
+	    case ACC_REGNUM:
+	      return 1 + save_flag_size;
+	    case X_REGNUM:
+	      return TARGET_PHX ? 2 + save_flag_size : 4 + save_flag_size;
+	    case Y_REGNUM:
+	      return 0;
+	    default:
+	      gcc_unreachable ();
+	    }
+	default:
+	  gcc_unreachable ();
+	}
+    case 6: /* <, hq.  */
+    case 8: /* <, Aq.  */
+      return 1;
+    case 7: /* hq, >.  */
+    case 9: /* Aq, >.  */
+      return 1 + save_flag_size;
+    case 10: /* Aq, m.  */
+      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS
+	  || CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
+        return 2 + save_flag_size;
+      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+        return 8 + save_flag_size;
+      else
+        gcc_unreachable ();
+    case 11: /* m, Aq.  */
+      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS
+	  || CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+	return 2;
+      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+        return 8 + save_flag_size;
+      else
+        gcc_unreachable ();
+    case 12: /* Rs, z.  */
+      return 1;
+    case 13: /* Uc, z.  */
+      return 2;
+    case 14: /* hq, m.  */
+      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS)
+        {
+	  switch (REGNO (recog_data.operand[0]))
+	    {
+	    case ACC_REGNUM:
+	      return 2 + save_flag_size;
+	    case X_REGNUM:
+	      if (abs_y_mem_operand (recog_data.operand[1], QImode))
+	        return 2 + save_flag_size;
+	      else
+	        return 8 + save_flag_size;
+	    case Y_REGNUM:
+	      if (abs_x_mem_operand (recog_data.operand[1], QImode))
+	        return 2 + save_flag_size;
+	      else
+	        return 8 + save_flag_size;
+	    default:
+	      gcc_unreachable ();
+	    }
+	}
+      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+        {
+	  switch (REGNO (recog_data.operand[0]))
+	    {
+	    case ACC_REGNUM:
+	      return 8 + save_flag_size;
+	    case X_REGNUM:
+	    case Y_REGNUM:
+	      return 9 + save_flag_size;
+	    default:
+	      gcc_unreachable ();
+	    }
+	}
+      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
+        return 3 + save_flag_size;
+      else
+        gcc_unreachable ();
+    case 15: /* m, hq.  */
+      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS)
+	{
+	  switch (REGNO (recog_data.operand[1]))
+	    {
+	    case ACC_REGNUM:
+	      return 2;
+	    case X_REGNUM:
+	    case Y_REGNUM:
+	      return 7 + save_flag_size;
+	    default:
+	      gcc_unreachable ();
+	    }
+	}
+      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+        {
+	  switch (REGNO (recog_data.operand[1]))
+	    {
+	    case ACC_REGNUM:
+	      return 8 + save_flag_size;
+	    case X_REGNUM:
+	    case Y_REGNUM:
+	      return 10 + save_flag_size;
+	    default:
+	      gcc_unreachable ();
+	    }
+	}
+      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+        return 3;
+      else
+        gcc_unreachable ();
+    case 16: /* Rs, m.  */
+      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS)
+	return 9 + save_flag_size;
+      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+        return 15 + save_flag_size;
+      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
+        return 9 + save_flag_size;
+      else
+        gcc_unreachable ();
+    case 17: /* m, Rs.  */
+      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS)
+	return 9 + save_flag_size;
+      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+	return 15 + save_flag_size;
+      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+        return 9 + save_flag_size;
+      else
+        gcc_unreachable ();
+    case 18: /* Rshq, 0.  */
+      return 0;
+    default:
+      gcc_unreachable ();
+    }
+  return -1;
 }
 
 void
@@ -4900,7 +5082,9 @@ m65x_reorg (void)
             {
             case CODE_FOR_movqi_noclob:
               if (!REGNO_REG_SET_P (&live, NZ_REGNUM)
-                  && (set = single_set (insn)))
+                  && (set = single_set (insn))
+		  && REG_P (SET_DEST (set))
+		  && IS_HARD_REGNUM (REGNO (SET_DEST (set))))
                 {
                   PATTERN (insn) = gen_movqi_insn (SET_DEST (set),
                                                    SET_SRC (set));
