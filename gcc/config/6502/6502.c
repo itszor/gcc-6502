@@ -5078,11 +5078,7 @@ m65x_reorg (void)
 		{
 		  rtx dest = SET_DEST (set), lhs = XEXP (SET_SRC (set), 0);
 		  rtx rhs = XEXP (SET_SRC (set), 1);
-		  if (CONST_INT_P (rhs)
-		      && (INTVAL (rhs) == 1 || INTVAL (rhs) == -1))
-		    PATTERN (insn) = gen_incdecqi3 (dest, lhs, rhs);
-		  else
-		    PATTERN (insn) = gen_addqi3_insn (dest, lhs, rhs);
+		  PATTERN (insn) = gen_addqi3_insn (dest, lhs, rhs);
 		  INSN_CODE (insn) = -1;
 		  df_insn_rescan (insn);
 		}
