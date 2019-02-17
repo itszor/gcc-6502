@@ -2335,6 +2335,8 @@ public:
   /* opt_pass methods: */
   virtual bool gate (function *) { return (optimize > 0 && reload_completed); }
 
+  opt_pass * clone () { return new pass_postreload_cse (m_ctxt); }
+
   virtual unsigned int execute (function *);
 
 }; // class pass_postreload_cse

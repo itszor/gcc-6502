@@ -6,3 +6,5 @@ MULTILIB_OPTIONS = mmach=bbcb/mmach=bbcmaster/mmach=c64
 MULTILIB_DIRNAMES = bbcb bbcm c64
 MULTILIB_EXCEPTIONS =
 MULTILIB_MATCHES =
+
+PASSES_EXTRA += $(srcdir)/config/6502/6502-passes.def

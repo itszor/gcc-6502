@@ -52,4 +52,6 @@ extern bool m65x_peephole_find_temp_regs (int, int, ...);
 extern bool m65x_real_insns_ok (void);
 extern bool m65x_virt_insns_ok (void);
 
+rtl_opt_pass *make_pass_devirt (gcc::context *ctxt);
+
 #endif
