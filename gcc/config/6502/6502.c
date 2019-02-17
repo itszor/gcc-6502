@@ -4724,7 +4724,7 @@ rest_of_handle_devirt (void)
 	      break;
 	    case DV_OP1_IND:
 	      if (MEM_P (recog_data.operand[1])
-		  && REG_P (recog_data.operand[1])
+		  && REG_P (XEXP (recog_data.operand[1], 0))
 		  && !TARGET_ZPIND)
 		{
 		  force_op_indy[1] = true;
@@ -4787,7 +4787,7 @@ rest_of_handle_devirt (void)
 	      break;
 	    case DV_OP0_IND:
 	      if (MEM_P (recog_data.operand[0])
-	          && REG_P (recog_data.operand[0])
+	          && REG_P (XEXP (recog_data.operand[0], 0))
 		  && !TARGET_ZPIND)
 		{
 		  force_op_indy[0] = true;
