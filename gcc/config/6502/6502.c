@@ -391,32 +391,6 @@ make_pass_devirt (gcc::context *ctxt)
 static void
 m65x_option_override (void)
 {
-  /*opt_pass *pass_reconstruct_absidx = make_pass_reconstruct_absidx (g);
-  static struct register_pass_info reconstruct_absidx_info
-    = { pass_reconstruct_absidx, "fwprop1",
-	1, PASS_POS_INSERT_AFTER
-      };
-
-  register_pass (&reconstruct_absidx_info);*/
-  
-  opt_pass *pass_devirt = make_pass_devirt (g);
-  static struct register_pass_info devirt_info
-    = { pass_devirt, "pro_and_epilogue",
-        1, PASS_POS_INSERT_AFTER
-      };
-
-  register_pass (&devirt_info);
-
-  /* The devirt pass inserts some redundant stuff.  Running postreload again
-     can help clean that up.  */
-  rtl_opt_pass *pass_postreload2 = make_pass_postreload_cse (g);
-  static struct register_pass_info postreload2_info
-    = { pass_postreload2, "devirt",
-	1, PASS_POS_INSERT_AFTER
-      };
-
-  register_pass (&postreload2_info);
-
   init_machine_status = m65x_init_machine_status;
 }
 
