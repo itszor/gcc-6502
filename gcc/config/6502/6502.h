@@ -198,8 +198,7 @@
 #define SHADOW_Y 86
 
 #define IS_ZP_REGNUM(X)						\
-  (((X) < 12 && (((X) % 4) != 0))				\
-   || ((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
+  (((X) >= FIRST_ZP_REGISTER && (X) <= LAST_ZP_REGISTER)	\
    || (X) >= TMP0_REGNUM || (X) <= SHADOW_Y)
 
 #define IS_HARD_REGNUM(X)					\
@@ -349,7 +348,7 @@ enum reg_class
   { 0x00000000, 0x00000000, 0x030000 }, /* HARD_SP_REG */       \
   { 0xfffff000, 0xffffffff, 0x0c0000 }, /* GENERAL_REGS */	\
   { 0xfffff000, 0xffffffff, 0x7c0000 }, /* GEN_SHADOW_REGS */	\
-  { 0xfffff111, 0xffffffff, 0x7c0000 }, /* HARD_ZP_REGS */	\
+  { 0xfffff111, 0xffffffff, 0x0c0000 }, /* HARD_ZP_REGS */	\
   { 0x00000000, 0x00000000, 0x000003 }, /* VFP_REG */		\
   { 0x00000000, 0x00000000, 0x00000c }, /* VAP_REG */		\
   { 0xffffffff, 0xffffffff, 0x7ffff0 }, /* ALL_REGS */		\

@@ -2336,10 +2336,16 @@ m65x_hard_regno_mode_ok (unsigned int regno, machine_mode mode)
 {
   HOST_WIDE_INT modesize = GET_MODE_SIZE (mode);
 
-  if (modesize == 1)
-    return regno == 0 || regno == 4 || regno == 8 || IS_ZP_REGNUM (regno);
+  if (regno >= SHADOW_A && regno <= SHADOW_Y && !m65x_real_insns_ok ())
+    return false;
 
-  return IS_ZP_REGNUM (regno);
+  if (modesize == 1)
+    return regno == 0
+	   || regno == 4
+	   || regno == 8
+	   || IS_ZP_REGNUM (regno);
+
+  return regno >= FIRST_ZP_REGISTER && regno <= LAST_ZP_REGISTER;
 }
 
 /* Model the accumulator, X and Y registers as able to hold any value up to 32
