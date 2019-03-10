@@ -1119,6 +1119,8 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 
   extract_insn_cached (insn);
 
+  rtx* op = recog_data.operand;
+
   switch (which_alternative)
     {
     case 0: /* hq, i.  */
@@ -1132,13 +1134,13 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
     case 4: /* Uc, hq.  */
       return 3;
     case 5: /* hq, hq.  */
-      switch (REGNO (recog_data.operand[0]))
+      switch (REGNO (op[0]))
         {
 	case ACC_REGNUM:
-	  return REGNO (recog_data.operand[1]) == ACC_REGNUM
+	  return REGNO (op[1]) == ACC_REGNUM
 		 ? 0 : 1 + save_flag_size;
 	case X_REGNUM:
-	  switch (REGNO (recog_data.operand[1]))
+	  switch (REGNO (op[1]))
 	    {
 	    case ACC_REGNUM:
 	      return 1 + save_flag_size;
@@ -1150,7 +1152,7 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 	      gcc_unreachable ();
 	    }
 	case Y_REGNUM:
-	  switch (REGNO (recog_data.operand[1]))
+	  switch (REGNO (op[1]))
 	    {
 	    case ACC_REGNUM:
 	      return 1 + save_flag_size;
@@ -1171,20 +1173,26 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
     case 9: /* Aq, >.  */
       return 1 + save_flag_size;
     case 10: /* Aq, m.  */
-      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS
-	  || CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
-        return 2 + save_flag_size;
-      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+      if ((REG_P (XEXP (op[1], 0)) && TARGET_ZPIND)
+	  || (GET_CODE (XEXP (op[1], 0)) == PLUS
+	      && REG_P (XEXP (XEXP (op[1], 0), 1))))
+	return 2 + save_flag_size;
+      else if (CONSTANT_ADDRESS_P (XEXP (op[1], 0))
+	       || GET_CODE (XEXP (op[1], 0)) == PLUS)
+        return 3 + save_flag_size;
+      else if (REG_P (XEXP (op[1], 0)))
         return 8 + save_flag_size;
       else
         gcc_unreachable ();
     case 11: /* m, Aq.  */
-      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS
-	  || CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+      if ((REG_P (XEXP (op[0], 0)) && TARGET_ZPIND)
+	  || (GET_CODE (XEXP (op[0], 0)) == PLUS
+	      && REG_P (XEXP (XEXP (op[0], 0), 1))))
 	return 2;
-      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+      else if (CONSTANT_ADDRESS_P (XEXP (op[0], 0))
+	       || GET_CODE (XEXP (op[0], 0)) == PLUS)
+	return 3;
+      else if (REG_P (XEXP (op[0], 0)))
         return 8 + save_flag_size;
       else
         gcc_unreachable ();
@@ -1193,20 +1201,20 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
     case 13: /* Uc, z.  */
       return 2;
     case 14: /* hq, m.  */
-      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS)
+      if ((REG_P (XEXP (op[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (op[1], 0)) == PLUS)
         {
-	  switch (REGNO (recog_data.operand[0]))
+	  switch (REGNO (op[0]))
 	    {
 	    case ACC_REGNUM:
 	      return 2 + save_flag_size;
 	    case X_REGNUM:
-	      if (abs_y_mem_operand (recog_data.operand[1], QImode))
+	      if (abs_y_mem_operand (op[1], QImode))
 	        return 2 + save_flag_size;
 	      else
 	        return 8 + save_flag_size;
 	    case Y_REGNUM:
-	      if (abs_x_mem_operand (recog_data.operand[1], QImode))
+	      if (abs_x_mem_operand (op[1], QImode))
 	        return 2 + save_flag_size;
 	      else
 	        return 8 + save_flag_size;
@@ -1214,9 +1222,9 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 	      gcc_unreachable ();
 	    }
 	}
-      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+      else if (REG_P (XEXP (op[1], 0)))
         {
-	  switch (REGNO (recog_data.operand[0]))
+	  switch (REGNO (op[0]))
 	    {
 	    case ACC_REGNUM:
 	      return 8 + save_flag_size;
@@ -1227,15 +1235,15 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 	      gcc_unreachable ();
 	    }
 	}
-      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
+      else if (CONSTANT_ADDRESS_P (XEXP (op[1], 0)))
         return 3 + save_flag_size;
       else
         gcc_unreachable ();
     case 15: /* m, hq.  */
-      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS)
+      if ((REG_P (XEXP (op[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (op[0], 0)) == PLUS)
 	{
-	  switch (REGNO (recog_data.operand[1]))
+	  switch (REGNO (op[1]))
 	    {
 	    case ACC_REGNUM:
 	      return 2;
@@ -1246,9 +1254,9 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 	      gcc_unreachable ();
 	    }
 	}
-      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+      else if (REG_P (XEXP (op[0], 0)))
         {
-	  switch (REGNO (recog_data.operand[1]))
+	  switch (REGNO (op[1]))
 	    {
 	    case ACC_REGNUM:
 	      return 8 + save_flag_size;
@@ -1259,27 +1267,27 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
 	      gcc_unreachable ();
 	    }
 	}
-      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+      else if (CONSTANT_ADDRESS_P (XEXP (op[0], 0)))
         return 3;
       else
         gcc_unreachable ();
     case 16: /* Rs, m.  */
-      if ((REG_P (XEXP (recog_data.operand[1], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[1], 0)) == PLUS)
+      if ((REG_P (XEXP (op[1], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (op[1], 0)) == PLUS)
 	return 9 + save_flag_size;
-      else if (REG_P (XEXP (recog_data.operand[1], 0)))
+      else if (REG_P (XEXP (op[1], 0)))
         return 15 + save_flag_size;
-      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[1], 0)))
+      else if (CONSTANT_ADDRESS_P (XEXP (op[1], 0)))
         return 9 + save_flag_size;
       else
         gcc_unreachable ();
     case 17: /* m, Rs.  */
-      if ((REG_P (XEXP (recog_data.operand[0], 0)) && TARGET_ZPIND)
-	  || GET_CODE (XEXP (recog_data.operand[0], 0)) == PLUS)
+      if ((REG_P (XEXP (op[0], 0)) && TARGET_ZPIND)
+	  || GET_CODE (XEXP (op[0], 0)) == PLUS)
 	return 9 + save_flag_size;
-      else if (REG_P (XEXP (recog_data.operand[0], 0)))
+      else if (REG_P (XEXP (op[0], 0)))
 	return 15 + save_flag_size;
-      else if (CONSTANT_ADDRESS_P (XEXP (recog_data.operand[0], 0)))
+      else if (CONSTANT_ADDRESS_P (XEXP (op[0], 0)))
         return 9 + save_flag_size;
       else
         gcc_unreachable ();
