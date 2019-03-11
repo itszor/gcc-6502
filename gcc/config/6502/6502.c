@@ -2563,7 +2563,9 @@ m65x_valid_mov_operands_1 (enum machine_mode mode, rtx *operands,
           else if (m65x_absolute_y_addr_p (mode, addr, false))
             return accumulator_operand (operands[1], mode)
                    || x_reg_operand (operands[1], mode);
-          else
+	  else if (TARGET_STZ && const_int_operand (operands[1], mode))
+	    return INTVAL (operands[1]) == 0;
+	  else
             return hard_reg_operand (operands[1], mode);
 	}
     }
