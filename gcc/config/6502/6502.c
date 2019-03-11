@@ -1197,9 +1197,9 @@ m65x_mov_length (rtx_insn *insn, bool save_flags)
       else
         gcc_unreachable ();
     case 12: /* Rs, z.  */
-      return 1;
-    case 13: /* Uc, z.  */
       return 2;
+    case 13: /* Uc, z.  */
+      return 3;
     case 14: /* hq, m.  */
       if ((REG_P (XEXP (op[1], 0)) && TARGET_ZPIND)
 	  || GET_CODE (XEXP (op[1], 0)) == PLUS)
