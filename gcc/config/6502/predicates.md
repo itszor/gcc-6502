@@ -291,6 +291,10 @@
   (and (match_code "const_int")
        (match_test "INTVAL (op) == 1 || INTVAL (op) == -1")))
 
+(define_predicate "carry_zero_or_one_operand"
+  (and (match_code "const_int")
+       (match_test "INTVAL (op) == 0 || INTVAL (op) == 1")))
+
 (define_special_predicate "m65x_comparison"
   (match_code "eq,ne,gtu,ltu,geu,leu,gt,lt,ge,le"))
 

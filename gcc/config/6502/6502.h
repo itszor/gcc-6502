@@ -296,6 +296,7 @@ enum reg_class
   STACK_REG,
   ARG_REGS,
   CALLEE_SAVED_REGS,
+  CARRY_REG,
   CC_REGS,
   SHADOW_HARD_REGS,
   HARD_SP_REG,
@@ -321,6 +322,7 @@ enum reg_class
   "STACK_REG",			\
   "ARG_REGS",			\
   "CALLEE_SAVED_REGS",		\
+  "CARRY_REG",			\
   "CC_REGS",			\
   "SHADOW_HARD_REGS",           \
   "HARD_SP_REG",                \
@@ -343,6 +345,7 @@ enum reg_class
   { 0x0000f000, 0x00000000, 0x000000 }, /* STACK_REG */		\
   { 0x00ff0000, 0x00000000, 0x000000 }, /* ARG_REGS */		\
   { 0xff000000, 0x00000000, 0x000000 }, /* CALLEE_SAVED_REGS */	\
+  { 0x00000000, 0x00000000, 0x000f00 }, /* CARRY_REG */		\
   { 0x00000000, 0x00000000, 0x00fff0 }, /* CC_REGS */		\
   { 0x00000000, 0x00000000, 0x700000 }, /* SHADOW_HARD_REGS */  \
   { 0x00000000, 0x00000000, 0x030000 }, /* HARD_SP_REG */       \
@@ -378,6 +381,8 @@ enum reg_class
      ? GENERAL_REGS :							\
    (REGNO) >= FRAME_POINTER_REGNUM && (REGNO) < (ARG_POINTER_REGNUM + 2) \
      ? GENERAL_REGS :							\
+   (REGNO) >= CARRY_REGNUM && (REGNO) < (CARRY_REGNUM + 3)		\
+     ? CARRY_REG :							\
    (REGNO) >= NZ_REGNUM && (REGNO) <= (OVERFLOW_REGNUM + 3)             \
      ? CC_REGS :                                                        \
    (REGNO) >= SHADOW_A && (REGNO) <= SHADOW_Y                           \
