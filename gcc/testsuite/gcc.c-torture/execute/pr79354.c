@@ -1,3 +1,5 @@
+/* { dg-require-effective-target int32plus } */
+
 /* PR target/79354 */
 
 int b, f, g;
