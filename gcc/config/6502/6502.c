@@ -4106,20 +4106,35 @@ m65x_devirt_movhisi (machine_mode mode, rtx operands[], rtx scratches[])
     case 6: /* m, hz.  */
     case 8: /* UjUc, iS.  */
       for (int i = 0; i < modesize; i++)
-        {
-          rtx mempart = adjust_address (operands[0], QImode, i);
-          rtx srcpart = m65x_gen_subreg (QImode, operands[1], mode, i);
-          emit_move_insn (temp, srcpart);
-          emit_move_insn (mempart, temp);
-        }
+	{
+	  rtx mempart = adjust_address (operands[0], QImode, i);
+	  rtx srcpart = m65x_gen_subreg (QImode, operands[1], mode, i);
+	  if (TARGET_STZ
+	      && CONSTANT_ADDRESS_P (mempart)
+	      && CONST_INT_P (srcpart)
+	      && INTVAL (srcpart) == 0)
+	    emit_move_insn (mempart, srcpart);
+	  else
+	    {
+	      emit_move_insn (temp, srcpart);
+	      emit_move_insn (mempart, temp);
+	    }
+	}
       break;
     case 7: /* hz, iS.  */
       for (int i = 0; i < modesize; i++)
         {
           rtx dstpart = simplify_gen_subreg (QImode, operands[0], mode, i);
           rtx srcpart = m65x_gen_subreg (QImode, operands[1], mode, i);
-          emit_move_insn (temp, srcpart);
-          emit_move_insn (dstpart, temp);
+	  if (TARGET_STZ
+	      && CONST_INT_P (srcpart)
+	      && INTVAL (srcpart) == 0)
+            emit_move_insn (dstpart, srcpart);
+	  else
+	    {
+              emit_move_insn (temp, srcpart);
+              emit_move_insn (dstpart, temp);
+	    }
         }
       break;
     default:
