@@ -537,10 +537,10 @@ typedef int CUMULATIVE_ARGS;
  * Sections.
  *****************************************************************************/
 
-#define TEXT_SECTION_ASM_OP		"\t.code"
-#define DATA_SECTION_ASM_OP		"\t.data"
-#define READONLY_DATA_SECTION_ASM_OP	"\t.rodata"
-#define BSS_SECTION_ASM_OP		"\t.bss"
+#define TEXT_SECTION_ASM_OP		"\t.segment \"CODE\""
+#define DATA_SECTION_ASM_OP		"\t.segment \"DATA\""
+#define READONLY_DATA_SECTION_ASM_OP	"\t.segment \"RODATA\""
+#define BSS_SECTION_ASM_OP		"\t.segment \"BSS\""
 
 /*****************************************************************************
  * Assembler format.
@@ -609,6 +609,7 @@ typedef int CUMULATIVE_ARGS;
 
 #define ASM_OUTPUT_COMMON(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
+    switch_to_section (bss_section);				\
     bool needs_dollar = strlen (NAME) == 1;			\
     fprintf ((STREAM), "\t.global ");				\
     assemble_name ((STREAM), (NAME));				\

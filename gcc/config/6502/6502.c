@@ -2286,13 +2286,16 @@ m65x_asm_named_section (const char *name, unsigned int flags ATTRIBUTE_UNUSED,
 }
 
 static section *
-m65x_asm_function_section (tree decl ATTRIBUTE_UNUSED,
+m65x_asm_function_section (tree decl,
 			   enum node_frequency freq ATTRIBUTE_UNUSED,
 			   bool startup ATTRIBUTE_UNUSED,
 			   bool exit ATTRIBUTE_UNUSED)
 {
   /* We could actually put startup code in a different segment, but not yet.  */
-  return get_named_text_section (decl, "CODE", NULL);
+  if (decl && !DECL_SECTION_NAME (decl))
+    return text_section;
+  else
+    return get_named_text_section (decl, "CODE", NULL);
 }
 
 static section *
@@ -2306,24 +2309,32 @@ m65x_asm_select_section (tree exp,
   switch (categorize_decl_for_section (exp, reloc))
     {
     case SECCAT_BSS:
-      sname = (as == ADDR_SPACE_ZP) ? "ZEROPAGE" : "BSS";
+      if (as == ADDR_SPACE_ZP)
+	sname = "ZEROPAGE";
+      else
+	return bss_section;
       break;
-    
+
     case SECCAT_RODATA:
     case SECCAT_RODATA_MERGE_STR:
     case SECCAT_RODATA_MERGE_STR_INIT:
     case SECCAT_RODATA_MERGE_CONST:
-      sname = (as == ADDR_SPACE_ZP) ? "ZEROPAGE" : "RODATA";
+      if (as == ADDR_SPACE_ZP)
+	sname = "ZEROPAGE";
+      else
+	return readonly_data_section;
       break;
-    
+
     case SECCAT_DATA:
-      sname = (as == ADDR_SPACE_ZP) ? "ZEROPAGE" : "DATA";
+      if (as == ADDR_SPACE_ZP)
+	sname = "ZEROPAGE";
+      else
+	return data_section;
       break;
-    
+
     case SECCAT_TEXT:
-      sname = "CODE";
-      break;
-    
+      return text_section;
+
     default:
       sname = "UNKNOWN";
     }
@@ -5295,6 +5306,9 @@ m65x_trampoline_init (rtx m_tramp, tree fndecl, rtx static_chain)
 
 #undef TARGET_ASM_INTEGER
 #define TARGET_ASM_INTEGER m65x_asm_integer
+
+#undef TARGET_HAVE_NAMED_SECTIONS
+#define TARGET_HAVE_NAMED_SECTIONS true
 
 #undef TARGET_ASM_NAMED_SECTION
 #define TARGET_ASM_NAMED_SECTION m65x_asm_named_section
