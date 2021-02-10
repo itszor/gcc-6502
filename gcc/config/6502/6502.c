@@ -2282,7 +2282,11 @@ static void
 m65x_asm_named_section (const char *name, unsigned int flags ATTRIBUTE_UNUSED,
 			tree decl ATTRIBUTE_UNUSED)
 {
-  fprintf (asm_out_file, "\t.segment \"%s\"\n", name);
+  fprintf (asm_out_file, "\t.segment \"%s\"", name);
+  if (strcmp (name, "ZEROPAGE") == 0)
+    fprintf (asm_out_file, ": zeropage\n");
+  else
+    fprintf (asm_out_file, "\n");
 }
 
 static section *
