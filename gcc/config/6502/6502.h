@@ -619,6 +619,7 @@ typedef int CUMULATIVE_ARGS;
 
 #define ASM_OUTPUT_LOCAL(STREAM, NAME, SIZE, ROUNDED)		\
   do {								\
+    switch_to_section (bss_section);				\
     assemble_name ((STREAM), (NAME));				\
     fprintf ((STREAM), ":\n");					\
     fprintf ((STREAM), "\t.res %d\n", (int) (SIZE));		\
